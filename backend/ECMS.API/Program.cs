@@ -17,7 +17,25 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var mysqlHost = builder.Configuration["MYSQL_HOST"];
+if (!string.IsNullOrWhiteSpace(mysqlHost))
+{
+    var csb = new MySqlConnectionStringBuilder
+    {
+        Server = mysqlHost,
+        Port = uint.TryParse(builder.Configuration["MYSQL_PORT"], out var p) ? p : 3306,
+        Database = builder.Configuration["MYSQL_DATABASE"] ?? "",
+        UserID = builder.Configuration["MYSQL_USER"] ?? "",
+        Password = builder.Configuration["MYSQL_PASSWORD"] ?? "",
+        SslMode = MySqlSslMode.Required,
+    };
+    connectionString = csb.ConnectionString;
+}
+
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException("Set ConnectionStrings__DefaultConnection or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER/MYSQL_PASSWORD.");
+
 var mysqlTarget = new MySqlConnectionStringBuilder(connectionString);
 builder.Logging.AddConsole();
 builder.Services.AddPersistence(connectionString);
@@ -27,7 +45,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        policy.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>())
+        var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+        var productionOrigins = new[]
+        {
+            "https://deepskyblue-marten-415020.hostingersite.com",
+            "https://www.deepskyblue-marten-415020.hostingersite.com",
+        };
+        policy.WithOrigins(origins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -67,6 +91,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { message = "An internal server error occurred." });
+        });
+    });
+}
+
+app.UseCors("Frontend");
 
 var uploadPath = Path.Combine(app.Environment.ContentRootPath, builder.Configuration["FileStorage:UploadPath"] ?? "uploads");
 Directory.CreateDirectory(uploadPath);
@@ -76,7 +114,6 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/uploads"
 });
 
-app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

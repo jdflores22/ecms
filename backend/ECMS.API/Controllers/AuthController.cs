@@ -31,6 +31,10 @@ public class AuthController : ControllerBase
         {
             return Unauthorized(new { message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _env.IsDevelopment() ? ex.Message : "Login failed. Database may still be starting — try again in a moment." });
+        }
     }
 
     [HttpPost("register")]
