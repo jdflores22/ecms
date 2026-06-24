@@ -335,7 +335,16 @@ export const paymentApi = {
   mine: () => api.get<Payment[]>('/payments/mine'),
   pending: () => api.get<Payment[]>('/payments/pending'),
   depot: () => api.get<Payment[]>('/payments/depot'),
-  getBySchedule: (scheduleId: number) => api.get<Payment>(`/payments/by-schedule/${scheduleId}`),
+  getBySchedule: async (scheduleId: number) => {
+    const response = await api.get<Payment>(`/payments/by-schedule/${scheduleId}`, {
+      // No payment for this schedule yet is normal — not an error.
+      validateStatus: (status) => status === 200 || status === 404,
+    })
+    return {
+      ...response,
+      data: response.status === 404 ? null : response.data,
+    }
+  },
   upload: (scheduleId: number, amount: number, proof: File) => {
     const form = new FormData()
     form.append('scheduleId', String(scheduleId))

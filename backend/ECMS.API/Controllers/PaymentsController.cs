@@ -25,6 +25,9 @@ public class PaymentsController : ControllerBase
 
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+    private static string? UserRole(ClaimsPrincipal user) =>
+        user.FindFirstValue(ClaimTypes.Role) ?? user.FindFirstValue("role");
+
     [HttpPost("upload")]
     [Authorize(Roles = RoleNames.Trucker)]
     [RequestSizeLimit(10_485_760)]
@@ -90,18 +93,19 @@ public class PaymentsController : ControllerBase
     public async Task<ActionResult<PaymentDto>> GetBySchedule(int scheduleId, CancellationToken cancellationToken)
     {
         int? depotId = null;
-        if (User.IsInRole(RoleNames.DepotPersonnel) && int.TryParse(User.FindFirstValue("depotId"), out var depot))
+        var role = UserRole(User);
+        if (role == RoleNames.DepotPersonnel && int.TryParse(User.FindFirstValue("depotId"), out var depot))
             depotId = depot;
 
         int? shippingLineId = null;
-        if (User.IsInRole(RoleNames.ShippingLineEvaluator)
+        if (role == RoleNames.ShippingLineEvaluator
             && int.TryParse(User.FindFirstValue("shippingLineId"), out var line))
             shippingLineId = line;
 
         var payment = await _service.GetByScheduleAsync(
             scheduleId,
             UserId,
-            User.FindFirstValue(ClaimTypes.Role)!,
+            role ?? string.Empty,
             depotId,
             shippingLineId,
             cancellationToken);
