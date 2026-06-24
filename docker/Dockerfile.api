@@ -9,7 +9,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 RUN mkdir -p /app/uploads
-# Railway sets PORT at runtime; default 8080 for local Docker
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "ECMS.API.dll"]
+# Railway injects PORT at runtime; fall back to 8080 for local Docker
+ENTRYPOINT ["/bin/sh", "-c", "exec dotnet ECMS.API.dll --urls \"http://0.0.0.0:${PORT:-8080}\""]

@@ -53,8 +53,17 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
-    await seeder.SeedAsync();
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+        await seeder.SeedAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+        logger.LogCritical(ex, "Database seed/migrate failed. Check ConnectionStrings__DefaultConnection and Hostinger Remote MySQL for Railway IP.");
+        throw;
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -74,6 +83,7 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 
 app.Run();
