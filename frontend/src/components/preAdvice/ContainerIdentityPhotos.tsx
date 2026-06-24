@@ -433,7 +433,7 @@ export default function ContainerIdentityPhotos({
                             bgcolor: '#f8fafc',
                           }}
                         >
-                          <Typography variant="caption" color="text.secondary" textAlign="center">
+                          <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
                             Photo missing — re-upload
                           </Typography>
                         </Box>

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { store } from '../store'
 import { logout } from '../store/slices/authSlice'
+import { resolveAssetUrl } from '../utils/assetUrl'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -352,7 +353,7 @@ export const paymentApi = {
 export const qrApi = {
   get: (bookingId: number) => api.get<QrBooking>(`/qr/${bookingId}`),
   getBySchedule: (scheduleId: number) => api.get<QrBooking>(`/qr/schedule/${scheduleId}`),
-  downloadUrl: (bookingId: number) => `/api/qr/download/${bookingId}`,
+  downloadUrl: (bookingId: number) => resolveAssetUrl(`/api/qr/download/${bookingId}`),
 }
 
 export interface AuditLog {
