@@ -1,0 +1,10 @@
+# Railway deploy config — API only (uses Hostinger MySQL + Hostinger frontend)
+# https://railway.com/new → Deploy from GitHub → select jdflores22/ecms
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "docker/Dockerfile.api"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
