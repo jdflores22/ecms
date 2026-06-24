@@ -39,6 +39,7 @@ import {
   type UserListItem,
 } from '../../services/api'
 import { store } from '../../store'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatScheduleDate, formatScheduleSlot, formatScheduleTime, SYSTEM_TIMEZONE, clampMinScheduleDate, isBeforeToday, todayIsoDate } from '../../utils/datetime'
 import { useAppSelector } from '../../store/hooks'
 
@@ -704,7 +705,7 @@ export default function ScheduleDetailPage() {
               {isImageProof(payment.proofFile) ? (
                 <Box
                   component="img"
-                  src={payment.proofFile}
+                  src={resolveAssetUrl(payment.proofFile)}
                   alt="Payment proof"
                   sx={{
                     width: '100%',
@@ -719,7 +720,7 @@ export default function ScheduleDetailPage() {
               ) : (
                 <Button
                   variant="outlined"
-                  href={payment.proofFile}
+                  href={resolveAssetUrl(payment.proofFile)}
                   target="_blank"
                   rel="noreferrer"
                   endIcon={<OpenInNewIcon />}
@@ -736,7 +737,7 @@ export default function ScheduleDetailPage() {
           {payment?.proofFile && (
             <Button
               variant="contained"
-              href={payment.proofFile}
+              href={resolveAssetUrl(payment.proofFile)}
               target="_blank"
               rel="noreferrer"
               endIcon={<OpenInNewIcon />}

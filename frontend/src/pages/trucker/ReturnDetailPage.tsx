@@ -108,6 +108,7 @@ import { store } from '../../store'
 
 import { useAppSelector } from '../../store/hooks'
 
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 
 import {
@@ -812,7 +813,7 @@ export default function TruckerReturnDetailPage() {
 
                   component="img"
 
-                  src={payment.proofFile}
+                  src={resolveAssetUrl(payment.proofFile)}
 
                   alt="Payment proof"
 
@@ -842,7 +843,7 @@ export default function TruckerReturnDetailPage() {
 
                   variant="outlined"
 
-                  href={payment.proofFile}
+                  href={resolveAssetUrl(payment.proofFile)}
 
                   target="_blank"
 
@@ -876,7 +877,7 @@ export default function TruckerReturnDetailPage() {
 
               variant="contained"
 
-              href={payment.proofFile}
+              href={resolveAssetUrl(payment.proofFile)}
 
               target="_blank"
 

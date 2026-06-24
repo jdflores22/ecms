@@ -44,6 +44,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, type Payment } from '../../services/api'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 
 const primaryDark = LIST_PRIMARY
@@ -525,7 +526,7 @@ export default function DepotPaymentsPage() {
                   {isImageProof(proofPreview.proofFile) ? (
                     <Box
                       component="img"
-                      src={proofPreview.proofFile}
+                      src={resolveAssetUrl(proofPreview.proofFile)}
                       alt="Payment proof"
                       sx={{
                         width: '100%',
@@ -555,7 +556,7 @@ export default function DepotPaymentsPage() {
                       </Typography>
                       <Button
                         variant="outlined"
-                        href={proofPreview.proofFile}
+                        href={resolveAssetUrl(proofPreview.proofFile)}
                         target="_blank"
                         rel="noreferrer"
                         endIcon={<OpenInNewIcon />}
@@ -567,7 +568,7 @@ export default function DepotPaymentsPage() {
                   ) : (
                     <Button
                       variant="outlined"
-                      href={proofPreview.proofFile}
+                      href={resolveAssetUrl(proofPreview.proofFile)}
                       target="_blank"
                       rel="noreferrer"
                       endIcon={<OpenInNewIcon />}
@@ -588,7 +589,7 @@ export default function DepotPaymentsPage() {
           {proofPreview?.proofFile && (
             <Button
               variant="contained"
-              href={proofPreview.proofFile}
+              href={resolveAssetUrl(proofPreview.proofFile)}
               target="_blank"
               rel="noreferrer"
               endIcon={<OpenInNewIcon />}

@@ -23,6 +23,7 @@ import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import axios from 'axios'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import {
   CONTAINER_PHOTO_CATEGORIES,
   DAMAGE_PHOTO_CATEGORY,
@@ -162,7 +163,7 @@ export default function ContainerIdentityPhotos({
             <>
               <Box
                 component="img"
-                src={doc.filePath}
+                src={resolveAssetUrl(doc.filePath)}
                 alt={category.label}
                 sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
@@ -181,7 +182,7 @@ export default function ContainerIdentityPhotos({
                 <Tooltip title="View full size">
                   <IconButton
                     size="small"
-                    onClick={() => setPreviewUrl(doc.filePath)}
+                    onClick={() => setPreviewUrl(resolveAssetUrl(doc.filePath))}
                     sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
                     aria-label={`View ${category.label}`}
                   >
@@ -383,14 +384,14 @@ export default function ContainerIdentityPhotos({
                     <Box sx={{ position: 'relative', aspectRatio: '4/3' }}>
                       <Box
                         component="img"
-                        src={doc.filePath}
+                        src={resolveAssetUrl(doc.filePath)}
                         alt="Damage"
                         sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                       <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 0.5 }}>
                         <IconButton
                           size="small"
-                          onClick={() => setPreviewUrl(doc.filePath)}
+                          onClick={() => setPreviewUrl(resolveAssetUrl(doc.filePath))}
                           sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
                           aria-label="View damage photo"
                         >

@@ -39,6 +39,7 @@ import {
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, preAdviceApi, scheduleApi, type Payment, type PreAdvice, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import {
   needsPaymentUpload,
@@ -410,7 +411,7 @@ export default function TruckerPaymentUploadPage() {
                         >
                           <Box
                             component="img"
-                            src={payment.proofFile}
+                            src={resolveAssetUrl(payment.proofFile)}
                             alt="Payment proof"
                             sx={{
                               width: '100%',
@@ -675,7 +676,7 @@ export default function TruckerPaymentUploadPage() {
               {isImageProof(payment.proofFile) ? (
                 <Box
                   component="img"
-                  src={payment.proofFile}
+                  src={resolveAssetUrl(payment.proofFile)}
                   alt="Payment proof"
                   sx={{
                     width: '100%',
@@ -690,7 +691,7 @@ export default function TruckerPaymentUploadPage() {
               ) : (
                 <Button
                   variant="outlined"
-                  href={payment.proofFile}
+                  href={resolveAssetUrl(payment.proofFile)}
                   target="_blank"
                   rel="noreferrer"
                   endIcon={<OpenInNewIcon />}
@@ -707,7 +708,7 @@ export default function TruckerPaymentUploadPage() {
           {payment?.proofFile && (
             <Button
               variant="contained"
-              href={payment.proofFile}
+              href={resolveAssetUrl(payment.proofFile)}
               target="_blank"
               rel="noreferrer"
               endIcon={<OpenInNewIcon />}

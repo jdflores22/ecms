@@ -19,6 +19,7 @@ import {
 } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import { DetailTabPanel, ECMS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
@@ -405,7 +406,7 @@ export default function DepotScheduleTabPanels({
                 {isImageProof(payment.proofFile) ? (
                   <Box
                     component="img"
-                    src={payment.proofFile}
+                    src={resolveAssetUrl(payment.proofFile)}
                     alt="Payment proof"
                     onClick={onProofPreview}
                     sx={{

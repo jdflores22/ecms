@@ -16,6 +16,7 @@ import {
 } from '@mui/material'
 import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type { Payment, QrBooking, Schedule } from '../../services/api'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import { paymentStatusColor, paymentStatusLabel } from '../../utils/truckerPayment'
 import { ECMS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
@@ -161,7 +162,7 @@ export default function BookingQrPreviewDialog({
                     </Typography>
                     <Box
                       component="img"
-                      src={payment.proofFile}
+                      src={resolveAssetUrl(payment.proofFile)}
                       alt="Payment proof"
                       sx={{
                         width: '100%',
