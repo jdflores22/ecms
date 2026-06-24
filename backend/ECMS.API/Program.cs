@@ -5,6 +5,7 @@ using ECMS.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
+using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var mysqlTarget = new MySqlConnectionStringBuilder(connectionString);
+builder.Logging.AddConsole();
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddInfrastructure();
 
@@ -51,20 +54,13 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    try
-    {
-        var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
-        await seeder.SeedAsync();
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
-        logger.LogCritical(ex, "Database seed/migrate failed. Check ConnectionStrings__DefaultConnection and Hostinger Remote MySQL for Railway IP.");
-        throw;
-    }
-}
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+startupLogger.LogInformation(
+    "ECMS API starting. Environment={Environment}, MySQL={Server}:{Port}/{Database}",
+    app.Environment.EnvironmentName,
+    mysqlTarget.Server,
+    mysqlTarget.Port,
+    mysqlTarget.Database);
 
 if (app.Environment.IsDevelopment())
 {
@@ -85,6 +81,26 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+            await seeder.SeedAsync();
+            startupLogger.LogInformation("Database migrate/seed completed.");
+        }
+        catch (Exception ex)
+        {
+            startupLogger.LogCritical(
+                ex,
+                "Database migrate/seed failed. Verify ConnectionStrings__DefaultConnection in Railway Variables (password with # must be pasted exactly).");
+        }
+    });
+});
 
 app.Run();
 
