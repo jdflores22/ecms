@@ -76,7 +76,12 @@ export default function ContainerIdentityPhotos({
   const [damageComment, setDamageComment] = useState('')
   const [damageFile, setDamageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
   const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const markImageBroken = useCallback((filePath: string) => {
+    setBrokenImages((prev) => (prev[filePath] ? prev : { ...prev, [filePath]: true }))
+  }, [])
 
   const byCategory = useMemo(() => {
     const map = new Map<string, PreAdviceDocument>()
@@ -161,12 +166,45 @@ export default function ContainerIdentityPhotos({
         <Box sx={{ position: 'relative', aspectRatio: '4/3', bgcolor: '#f8fafc' }}>
           {doc ? (
             <>
-              <Box
-                component="img"
-                src={resolveAssetUrl(doc.filePath)}
-                alt={category.label}
-                sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
+              {brokenImages[doc.filePath] ? (
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1,
+                    p: 2,
+                    textAlign: 'center',
+                  }}
+                >
+                  <ReportProblemOutlinedIcon color="warning" />
+                  <Typography variant="caption" color="text.secondary">
+                    Photo file missing on server — re-upload this image.
+                  </Typography>
+                  {canManage && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<CameraAltOutlinedIcon />}
+                      onClick={() => fileInputsRef.current[category.value]?.click()}
+                    >
+                      Re-upload
+                    </Button>
+                  )}
+                </Box>
+              ) : (
+                <Box
+                  component="img"
+                  src={resolveAssetUrl(doc.filePath)}
+                  alt={category.label}
+                  onError={() => markImageBroken(doc.filePath)}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              )}
+              {!brokenImages[doc.filePath] && (
               <Box
                 sx={{
                   position: 'absolute',
@@ -217,6 +255,7 @@ export default function ContainerIdentityPhotos({
                   </>
                 )}
               </Box>
+              )}
             </>
           ) : (
             <Box
@@ -382,12 +421,31 @@ export default function ContainerIdentityPhotos({
                 {damagePhotos.map((doc) => (
                   <Paper key={doc.id} elevation={0} sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                     <Box sx={{ position: 'relative', aspectRatio: '4/3' }}>
-                      <Box
-                        component="img"
-                        src={resolveAssetUrl(doc.filePath)}
-                        alt="Damage"
-                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
+                      {brokenImages[doc.filePath] ? (
+                        <Box
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            p: 2,
+                            bgcolor: '#f8fafc',
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary" textAlign="center">
+                            Photo missing — re-upload
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box
+                          component="img"
+                          src={resolveAssetUrl(doc.filePath)}
+                          alt="Damage"
+                          onError={() => markImageBroken(doc.filePath)}
+                          sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      )}
                       <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 0.5 }}>
                         <IconButton
                           size="small"

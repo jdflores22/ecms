@@ -135,20 +135,29 @@ Open: https://deepskyblue-marten-415020.hostingersite.com/ and test login.
 
 ## Part 6 — File uploads (important)
 
-Railway’s filesystem is **ephemeral** — uploaded photos are lost on redeploy unless you add storage.
+Railway’s filesystem is **ephemeral** — uploaded photos are **lost on every redeploy** unless you attach persistent storage.
 
-**Short term:** uploads work until the next deploy (OK for testing).
+**Symptom:** Browser shows `404` for URLs like  
+`https://ecms-production-42be.up.railway.app/uploads/{uuid}.jpg`  
+The database still has the file paths (on Hostinger MySQL), but the actual image files are gone from Railway’s disk.
 
-**Production options:**
+### Fix: Railway Volume (required for production)
 
-1. **Railway Volume** — mount at `/app/uploads` in service settings
-2. **S3-compatible storage** (future code change)
-3. **VPS** with persistent disk (see `HOSTINGER-VPS-DEPLOY.md`)
+`railway.toml` declares `requiredMountPath = "/app/uploads"` so Railway will prompt you to attach a volume before deploy succeeds.
 
-To add a Volume:
+1. Railway → your API service → **Volumes** → **Add volume**
+2. **Mount path:** `/app/uploads` (must match exactly)
+3. Redeploy the service
+4. **Re-upload photos** in the app — files uploaded before the volume was attached cannot be recovered
 
-1. Railway → service → **Volumes** → Add volume
-2. Mount path: `/app/uploads`
+After the volume is attached, new uploads persist across redeploys.
+
+**Short term (testing only):** uploads work until the next deploy, then 404 again.
+
+**Long-term alternatives:**
+
+1. **S3-compatible storage** (code change — not yet implemented)
+2. **VPS** with persistent disk (see `HOSTINGER-VPS-DEPLOY.md`)
 
 ---
 
@@ -191,6 +200,12 @@ Or manually: Railway → **Deployments** → **Redeploy**.
 ### Health check fails
 
 Railway may probe `/api/auth/login` with GET — that can return 405. If deploys stay green but health check warns, change `healthcheckPath` in `railway.toml` or disable health check in Railway settings.
+
+### Upload images return 404
+
+- URLs pointing to Railway (`...railway.app/uploads/...`) are correct — the **files** are missing
+- Attach a **Volume** at `/app/uploads` (see Part 6)
+- Re-upload photos in the depot/evaluation UI; old files cannot be restored after a redeploy without a volume backup
 
 ---
 
