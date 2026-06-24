@@ -194,10 +194,12 @@ export default function EvaluationDetailPage() {
       .getByPreAdvice(preAdviceId)
       .then(async ({ data }) => {
         setSchedule(data)
-        paymentApi
-          .getBySchedule(data.id)
-          .then(({ data: paymentData }) => setPayment(paymentData))
-          .catch(() => setPayment(null))
+        if (data.truckerId) {
+          const { data: paymentData } = await paymentApi.getBySchedule(data.id)
+          setPayment(paymentData)
+        } else {
+          setPayment(null)
+        }
         if (data.status === 'Confirmed' || data.status === 'Completed') {
           setQrLoading(true)
           try {

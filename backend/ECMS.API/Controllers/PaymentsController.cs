@@ -110,7 +110,8 @@ public class PaymentsController : ControllerBase
             shippingLineId,
             cancellationToken);
 
-        return payment is null ? NotFound() : Ok(payment);
+        // 200 + null when no payment yet (normal before trucker uploads proof).
+        return new JsonResult(payment) { StatusCode = StatusCodes.Status200OK };
     }
 
     [HttpPost("{id:int}/verify")]
