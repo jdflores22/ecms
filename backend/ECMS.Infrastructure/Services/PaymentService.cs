@@ -160,15 +160,33 @@ public class PaymentService : IPaymentService
         return items.Select(MapToDto).ToList();
     }
 
-    public async Task<PaymentDto?> GetByScheduleAsync(int scheduleId, int? depotId, CancellationToken cancellationToken = default)
+    public async Task<PaymentDto?> GetByScheduleAsync(
+        int scheduleId,
+        int userId,
+        string role,
+        int? depotId,
+        int? shippingLineId,
+        CancellationToken cancellationToken = default)
     {
         var payment = await _db.Payments
             .Include(p => p.Trucker)
-            .Include(p => p.Schedule)
+            .Include(p => p.Schedule).ThenInclude(s => s.PreAdvice)
             .FirstOrDefaultAsync(p => p.ScheduleId == scheduleId, cancellationToken);
 
         if (payment is null) return null;
-        if (depotId.HasValue && payment.Schedule.DepotId != depotId.Value) return null;
+
+        var allowed = role switch
+        {
+            RoleNames.Administrator => true,
+            RoleNames.DepotPersonnel => depotId.HasValue && payment.Schedule.DepotId == depotId.Value,
+            RoleNames.Trucker => payment.TruckerId == userId,
+            RoleNames.ShippingLineEvaluator => shippingLineId.HasValue
+                && payment.Schedule.PreAdvice.ShippingLineId == shippingLineId.Value,
+            RoleNames.Broker => payment.Schedule.PreAdvice.BrokerId == userId,
+            _ => false,
+        };
+
+        if (!allowed) return null;
 
         return MapToDto(payment);
     }

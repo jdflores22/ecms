@@ -10,5 +10,11 @@ public interface IPaymentService
     Task<IReadOnlyList<PaymentDto>> GetByTruckerAsync(int truckerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentDto>> GetPendingVerificationAsync(int? depotId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentDto>> GetForDepotAsync(int? depotId, CancellationToken cancellationToken = default);
-    Task<PaymentDto?> GetByScheduleAsync(int scheduleId, int? depotId, CancellationToken cancellationToken = default);
+    Task<PaymentDto?> GetByScheduleAsync(
+        int scheduleId,
+        int userId,
+        string role,
+        int? depotId,
+        int? shippingLineId,
+        CancellationToken cancellationToken = default);
 }

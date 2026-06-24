@@ -87,15 +87,25 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("by-schedule/{scheduleId:int}")]
-    [Authorize(Roles = RoleNames.DepotPersonnel + "," + RoleNames.Administrator)]
     public async Task<ActionResult<PaymentDto>> GetBySchedule(int scheduleId, CancellationToken cancellationToken)
     {
         int? depotId = null;
-        var depotClaim = User.FindFirstValue("depotId");
-        if (User.IsInRole(RoleNames.DepotPersonnel) && int.TryParse(depotClaim, out var id))
-            depotId = id;
+        if (User.IsInRole(RoleNames.DepotPersonnel) && int.TryParse(User.FindFirstValue("depotId"), out var depot))
+            depotId = depot;
 
-        var payment = await _service.GetByScheduleAsync(scheduleId, depotId, cancellationToken);
+        int? shippingLineId = null;
+        if (User.IsInRole(RoleNames.ShippingLineEvaluator)
+            && int.TryParse(User.FindFirstValue("shippingLineId"), out var line))
+            shippingLineId = line;
+
+        var payment = await _service.GetByScheduleAsync(
+            scheduleId,
+            UserId,
+            User.FindFirstValue(ClaimTypes.Role)!,
+            depotId,
+            shippingLineId,
+            cancellationToken);
+
         return payment is null ? NotFound() : Ok(payment);
     }
 
