@@ -1,0 +1,14 @@
+using ECMS.Application.DTOs.Payment;
+
+namespace ECMS.Application.Interfaces;
+
+public interface IPaymentService
+{
+    Task<PaymentDto> UploadProofAsync(UploadPaymentRequest request, int truckerId, string proofFilePath, CancellationToken cancellationToken = default);
+    Task<PaymentStatusDto?> GetStatusAsync(int id, CancellationToken cancellationToken = default);
+    Task<PaymentDto?> VerifyAsync(int id, bool approved, int actorUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PaymentDto>> GetByTruckerAsync(int truckerId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PaymentDto>> GetPendingVerificationAsync(int? depotId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PaymentDto>> GetForDepotAsync(int? depotId, CancellationToken cancellationToken = default);
+    Task<PaymentDto?> GetByScheduleAsync(int scheduleId, int? depotId, CancellationToken cancellationToken = default);
+}

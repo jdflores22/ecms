@@ -1,0 +1,25 @@
+# Build
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Environment
+.env
+.env.local
+
+# Uploads
+backend/ECMS.API/uploads/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log

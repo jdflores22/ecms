@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ecms-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: ecms
+      MYSQL_USER: ecms
+      MYSQL_PASSWORD: ecms_password
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecms-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: ecms-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Server=mysql;Port=3306;Database=ecms;User=ecms;Password=ecms_password;
+      ConnectionStrings__Redis: redis:6379
+      Jwt__Key: ECMS-Super-Secret-Key-Change-In-Production-32chars!
+      Jwt__Issuer: ECMS.API
+      Jwt__Audience: ECMS.Client
+      Cors__Origins__0: http://localhost
+      Cors__Origins__1: http://localhost:5173
+    ports:
+      - '5275:8080'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - api_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: ecms-frontend
+    ports:
+      - '80:80'
+    depends_on:
+      - api
+
+volumes:
+  mysql_data:
+  redis_data:
+  api_uploads:
