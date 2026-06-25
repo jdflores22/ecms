@@ -1,4 +1,4 @@
-# ECMS - Empty Container Management System
+# ICS - Intelligent Container Solutions
 
 Web platform for managing empty container returns between Brokers, Shipping Lines, Depots (CY), and Truckers.
 
@@ -18,14 +18,14 @@ Web platform for managing empty container returns between Brokers, Shipping Line
 ## Project Structure
 
 ```
-ecms/
+ecms/                       # repository folder (legacy name)
 ├── backend/
 │   ├── ECMS.API/           # REST API controllers
 │   ├── ECMS.Application/   # DTOs, interfaces
 │   ├── ECMS.Domain/        # Entities, enums
 │   ├── ECMS.Infrastructure/# Services, JWT, QR
 │   └── ECMS.Persistence/   # EF Core, migrations, seed
-├── frontend/               # React SPA
+├── frontend/               # React SPA (branded as ICS)
 ├── docker/                 # Docker & Nginx config
 └── ECMS.sln
 ```

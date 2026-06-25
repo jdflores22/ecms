@@ -1,6 +1,6 @@
 import { Box, Paper, Typography } from '@mui/material'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
-import { ECMS_BRAND } from '../../config/brandCopy'
+import { ICS_BRAND } from '../../config/brandCopy'
 
 const primaryDark = '#0B3D91'
 const primaryLight = '#00A3E0'
@@ -113,13 +113,13 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
             <BrandIcon />
           </Box>
           <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5 }}>
-            {ECMS_BRAND.shortName}
+            {ICS_BRAND.shortName}
           </Typography>
           <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, mb: 1.5 }}>
-            {ECMS_BRAND.name}
+            {ICS_BRAND.name}
           </Typography>
           <Typography sx={{ color: 'rgba(255,255,255,0.82)', lineHeight: 1.6, maxWidth: 360 }}>
-            {ECMS_BRAND.description}
+            {ICS_BRAND.description}
           </Typography>
         </Box>
 
@@ -153,13 +153,13 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
                 variant="overline"
                 sx={{ color: primaryDark, letterSpacing: 1.2, lineHeight: 1.2, display: 'block' }}
               >
-                {ECMS_BRAND.shortName}
+                {ICS_BRAND.shortName}
               </Typography>
               <Typography
                 variant="subtitle2"
                 sx={{ fontWeight: 700, color: primaryDark, lineHeight: 1.3 }}
               >
-                {ECMS_BRAND.appBarCaption}
+                {ICS_BRAND.appBarCaption}
               </Typography>
             </Box>
           </Box>

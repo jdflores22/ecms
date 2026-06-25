@@ -37,7 +37,7 @@ import {
   DetailHero,
   DetailHeroAside,
   DetailLoadingState,
-  ECMS_PRIMARY,
+  ICS_PRIMARY,
   PhotoProgressChip,
   TimezoneChip,
   detailTabsSx,
@@ -66,7 +66,7 @@ import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
 
 const statusLabel: Record<string, string> = {

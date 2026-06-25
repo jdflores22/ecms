@@ -37,7 +37,7 @@ import { roleLabel } from '../config/roleConfig'
 import { authApi, roleApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout, updateUser } from '../store/slices/authSlice'
-import { ECMS_BRAND } from '../config/brandCopy'
+import { ICS_BRAND } from '../config/brandCopy'
 import { LOGICTECK_QR } from '../config/logicteckQr'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
@@ -340,17 +340,17 @@ export default function AppLayout() {
                 sx={{ fontWeight: 700, fontSize: { xs: '0.95rem', sm: '1.05rem' }, lineHeight: 1.2 }}
               >
                 <Box component="span" sx={{ display: { xs: 'inline', md: 'none' } }}>
-                  {ECMS_BRAND.shortName}
+                  {ICS_BRAND.shortName}
                 </Box>
                 <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>
-                  {ECMS_BRAND.name}
+                  {ICS_BRAND.name}
                 </Box>
               </Typography>
               <Typography
                 variant="caption"
                 sx={{ color: 'rgba(255,255,255,0.75)', display: { xs: 'none', sm: 'block' } }}
               >
-                {ECMS_BRAND.appBarCaption}
+                {ICS_BRAND.appBarCaption}
               </Typography>
             </Box>
           </Box>

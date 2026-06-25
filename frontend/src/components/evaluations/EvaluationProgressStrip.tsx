@@ -6,7 +6,7 @@ import { Box, Button, Paper, Typography } from '@mui/material'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import type { Evaluation, PreAdvice, QrBooking, Schedule } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { ECMS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
+import { ICS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
 
 type StepState = 'complete' | 'current' | 'upcoming' | 'error'
 
@@ -164,10 +164,10 @@ const stepCircleSx = (state: StepState) => {
   }
   if (state === 'current') {
     return {
-      bgcolor: hexToRgba(ECMS_PRIMARY, 0.1),
-      color: ECMS_PRIMARY,
-      border: `1px solid ${hexToRgba(ECMS_PRIMARY, 0.35)}`,
-      boxShadow: `0 0 0 3px ${hexToRgba(ECMS_PRIMARY, 0.08)}`,
+      bgcolor: hexToRgba(ICS_PRIMARY, 0.1),
+      color: ICS_PRIMARY,
+      border: `1px solid ${hexToRgba(ICS_PRIMARY, 0.35)}`,
+      boxShadow: `0 0 0 3px ${hexToRgba(ICS_PRIMARY, 0.08)}`,
     }
   }
   return {

@@ -12,7 +12,7 @@ import {
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import {
   DetailTabPanel,
-  ECMS_PRIMARY,
+  ICS_PRIMARY,
   InfoTile,
   hexToRgba,
   infoGridSx,
@@ -27,7 +27,7 @@ import type {
 } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 
 export type EvaluationDetailTab = 'details' | 'photos' | 'schedule' | 'qr'
 

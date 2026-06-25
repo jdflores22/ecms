@@ -9,7 +9,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import {
   DetailTabPanel,
-  ECMS_PRIMARY,
+  ICS_PRIMARY,
   InfoTile,
   hexToRgba,
   infoGridSx,
@@ -24,7 +24,7 @@ import {
   truckerPaymentPath,
 } from '../../utils/truckerPayment'
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 
 const qrDetailActionsSx = {
   display: 'flex',

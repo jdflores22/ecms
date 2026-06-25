@@ -1,4 +1,4 @@
-# Build ECMS API and upload to Hostinger VPS.
+# Build ICS API and upload to Hostinger VPS.
 #
 # Usage:
 #   .\scripts\deploy-api-vps.ps1 -VpsHost 203.0.113.10 -VpsUser ecms
@@ -19,7 +19,7 @@ $root = Split-Path $PSScriptRoot -Parent
 $publishDir = Join-Path $root "publish\api"
 $remote = "${VpsUser}@${VpsHost}:${RemotePath}/"
 
-Write-Host "Publishing ECMS API (Release)..." -ForegroundColor Cyan
+Write-Host "Publishing ICS API (Release)..." -ForegroundColor Cyan
 Push-Location $root
 dotnet publish backend\ECMS.API\ECMS.API.csproj -c Release -o $publishDir
 if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }

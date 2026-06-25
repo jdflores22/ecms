@@ -1,4 +1,4 @@
-# ECMS Project Plan
+# ICS Project Plan
 
 > **Last updated:** 2026-06-23  
 > **Status:** Phase 1 MVP in progress (~45% complete)  

@@ -1,4 +1,4 @@
-# ECMS Trucker Track
+# ICS Trucker Track
 
 > Aligns MVP tasks to the **trucker end-to-end journey**  
 > **Demo account:** `trucker1` / `Trucker@123`
@@ -18,7 +18,7 @@ Trucker uploads payment proof          ← PAY-003
         ↓
 Depot verifies payment                 ← PAY-004
         ↓
-ECMS booking QR published — supplies pre-advice details to LOGICTECK  ← QR-004
+ICS booking QR published — supplies pre-advice details to LOGICTECK  ← QR-004
         ↓
 LOGICTECK integration (coming soon) via validate-qr API  ← QR-003
         ↓

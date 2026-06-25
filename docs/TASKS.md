@@ -1,4 +1,4 @@
-# ECMS Task Board
+# ICS Task Board
 
 > **Source of truth:** [`tasks.json`](./tasks.json) — update status there when work changes.  
 > **Plan:** [PLAN.md](./PLAN.md) · **Design:** [DESIGN.md](./DESIGN.md) · **Trucker track:** [TRUCKER-TRACK.md](./TRUCKER-TRACK.md)  

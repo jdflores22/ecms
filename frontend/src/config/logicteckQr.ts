@@ -1,5 +1,5 @@
 /**
- * ECMS booking QR — supplies approved pre-advice container details to LOGICTECK only.
+ * ICS booking QR — supplies approved pre-advice container details to LOGICTECK only.
  * LOGICTECK will call POST /api/logicteck/validate-qr when integration goes live.
  *
  * This QR is not for trucker gate-in. It exists solely for the upcoming LOGICTECK integration.
@@ -13,16 +13,16 @@ export const LOGICTECK_QR = {
   printSubtitle: 'Approved container details · for LOGICTECK integration',
   integrationComingSoon: 'LOGICTECK integration coming soon',
   heroDescription:
-    'After depot verifies payment, ECMS publishes a booking QR that supplies approved pre-advice container details to LOGICTECK only. Full LOGICTECK integration is coming soon.',
+    'After depot verifies payment, ICS publishes a booking QR that supplies approved pre-advice container details to LOGICTECK only. Full LOGICTECK integration is coming soon.',
   scheduleSectionHint:
-    'This QR provides approved pre-advice container details to the LOGICTECK system via the ECMS validation API. It is not used for gate-in — LOGICTECK integration is coming soon.',
+    'This QR provides approved pre-advice container details to the LOGICTECK system via the ICS validation API. It is not used for gate-in — LOGICTECK integration is coming soon.',
   integrationNote:
-    'ECMS supplies pre-advice container details to LOGICTECK only. LOGICTECK integration is coming soon.',
+    'ICS supplies pre-advice container details to LOGICTECK only. LOGICTECK integration is coming soon.',
   readyAlert:
     'Return confirmed. Booking QR published — provides approved pre-advice details for LOGICTECK integration (coming soon).',
   viewQr: 'View booking QR',
   printFooter:
-    'For LOGICTECK integration only — supplies approved pre-advice container details from ECMS. Not for gate-in.',
+    'For LOGICTECK integration only — supplies approved pre-advice container details from ICS. Not for gate-in.',
   approveConfirmHint:
     'Confirming will mark the return as paid, confirm the schedule, and publish the booking QR for LOGICTECK to retrieve pre-advice details.',
   approveSuccess:
@@ -32,7 +32,7 @@ export const LOGICTECK_QR = {
   statusUsed: 'Retrieved',
   bookingIdLabel: 'Booking reference',
   emptyState:
-    'Booking QR not yet published. After depot confirmation, ECMS will provide approved pre-advice container details to LOGICTECK.',
+    'Booking QR not yet published. After depot confirmation, ICS will provide approved pre-advice container details to LOGICTECK.',
 } as const
 
 export function qrLookupStatusLabel(isUsed: boolean) {

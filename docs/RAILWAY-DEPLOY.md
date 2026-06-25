@@ -1,4 +1,4 @@
-# ECMS API on Railway — Deployment Guide
+# ICS API on Railway — Deployment Guide
 
 Host the **ASP.NET Core API** on [Railway](https://railway.com/new) while keeping:
 
@@ -48,8 +48,8 @@ In Railway: **your service → Variables** → add these:
 | `ASPNETCORE_URLS` | `http://0.0.0.0:8080` |
 | `ConnectionStrings__DefaultConnection` | See below |
 | `Jwt__Key` | Long random secret (32+ chars) |
-| `Jwt__Issuer` | `ECMS.API` |
-| `Jwt__Audience` | `ECMS.Client` |
+| `Jwt__Issuer` | `ICS.API` |
+| `Jwt__Audience` | `ICS.Client` |
 | `Cors__Origins__0` | `https://deepskyblue-marten-415020.hostingersite.com` |
 | `Cors__Origins__1` | `https://www.deepskyblue-marten-415020.hostingersite.com` |
 | `FileStorage__UploadPath` | `uploads` |
@@ -237,4 +237,4 @@ Railway offers a trial / hobby tier with usage limits. Monitor **Usage** in the 
 | Upload persistence | Needs Volume | Easy on disk |
 | Fixed outbound IP | Add-on | VPS IP is fixed |
 
-For ECMS, Railway is a good fit if you want the API live quickly without managing a server.
+For ICS, Railway is a good fit if you want the API live quickly without managing a server.

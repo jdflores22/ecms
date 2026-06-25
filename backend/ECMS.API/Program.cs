@@ -82,7 +82,7 @@ var app = builder.Build();
 
 var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 startupLogger.LogInformation(
-    "ECMS API starting. Environment={Environment}, MySQL={Server}:{Port}/{Database}",
+    "ICS API starting. Environment={Environment}, MySQL={Server}:{Port}/{Database}",
     app.Environment.EnvironmentName,
     mysqlTarget.Server,
     mysqlTarget.Port,

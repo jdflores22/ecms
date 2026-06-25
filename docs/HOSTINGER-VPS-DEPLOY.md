@@ -1,4 +1,4 @@
-# ECMS on Hostinger VPS — Deployment Guide
+# ICS on Hostinger VPS — Deployment Guide
 
 Deploy the **ASP.NET Core API** on a Hostinger VPS while keeping:
 
@@ -6,7 +6,7 @@ Deploy the **ASP.NET Core API** on a Hostinger VPS while keeping:
 |-----------|----------------|
 | **React frontend** | Hostinger shared hosting (`deepskyblue-marten-415020.hostingersite.com`) |
 | **MySQL database** | Hostinger managed MySQL (`h5g5-db.hstgr.io`) |
-| **ECMS API** | Your new VPS |
+| **ICS API** | Your new VPS |
 
 ```
 Browser
@@ -182,8 +182,8 @@ Create `/var/www/ecms/api/appsettings.Production.json` on the VPS:
   },
   "Jwt": {
     "Key": "CHANGE-TO-A-LONG-RANDOM-SECRET-AT-LEAST-32-CHARS",
-    "Issuer": "ECMS.API",
-    "Audience": "ECMS.Client",
+    "Issuer": "ICS.API",
+    "Audience": "ICS.Client",
     "AccessTokenMinutes": "60"
   },
   "FileStorage": {
@@ -215,7 +215,7 @@ Create `/etc/systemd/system/ecms-api.service`:
 
 ```ini
 [Unit]
-Description=ECMS API
+Description=ICS API
 After=network.target
 
 [Service]

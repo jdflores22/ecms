@@ -1,4 +1,4 @@
-# Build ECMS frontend and upload to Hostinger via SCP (password auth).
+# Build ICS frontend and upload to Hostinger via SCP (password auth).
 # Uses: ssh -p 65002 u910121167_HVdBWy0pE@82.25.100.95
 #
 # Usage:

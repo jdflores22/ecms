@@ -53,7 +53,7 @@ public class QrCodeService : IQrService
         if (schedule.QRBooking is not null)
             return MapToDto(schedule.QRBooking);
 
-        var bookingId = $"ECMS-{PhilippinesTime.Year}{schedule.Id:D5}";
+        var bookingId = $"ICS-{PhilippinesTime.Year}{schedule.Id:D5}";
         var payload = new QrPayloadDto(
             bookingId,
             schedule.PreAdvice.Container.ContainerNo,

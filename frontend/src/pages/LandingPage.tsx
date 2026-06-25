@@ -9,7 +9,7 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined'
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined'
 import { Link as RouterLink } from 'react-router-dom'
-import { ECMS_BRAND } from '../config/brandCopy'
+import { ICS_BRAND } from '../config/brandCopy'
 
 const primaryDark = '#0B3D91'
 const primaryLight = '#00A3E0'
@@ -104,10 +104,10 @@ export default function LandingPage() {
           </Box>
           <Box>
             <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5, lineHeight: 1.2 }}>
-              {ECMS_BRAND.shortName}
+              {ICS_BRAND.shortName}
             </Typography>
             <Typography variant="h6" sx={{ fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
-              {ECMS_BRAND.name}
+              {ICS_BRAND.name}
             </Typography>
           </Box>
         </Box>
@@ -123,7 +123,7 @@ export default function LandingPage() {
               maxWidth: 640,
             }}
           >
-            {ECMS_BRAND.tagline}
+            {ICS_BRAND.tagline}
           </Typography>
           <Typography
             sx={{
@@ -133,7 +133,7 @@ export default function LandingPage() {
               mb: { xs: 3, sm: 4 },
             }}
           >
-            {ECMS_BRAND.description}
+            {ICS_BRAND.description}
           </Typography>
 
           <Box
@@ -163,7 +163,7 @@ export default function LandingPage() {
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, flex: 1 }}>
-                {ECMS_BRAND.brokerCard}
+                {ICS_BRAND.brokerCard}
               </Typography>
               <Button
                 component={RouterLink}

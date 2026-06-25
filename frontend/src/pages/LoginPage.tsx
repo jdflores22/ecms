@@ -63,7 +63,7 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Enter your credentials to access the ECMS portal."
+      subtitle="Enter your credentials to access the ICS portal."
       footer={
         <Box
           sx={{
@@ -156,7 +156,7 @@ export default function LoginPage() {
           }}
         >
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            New to ECMS?
+            New to ICS?
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
             <Button

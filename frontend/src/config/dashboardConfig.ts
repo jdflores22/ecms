@@ -14,7 +14,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import WarehouseIcon from '@mui/icons-material/Warehouse'
 import { LOGICTECK_QR } from './logicteckQr'
-import { ECMS_BRAND } from './brandCopy'
+import { ICS_BRAND } from './brandCopy'
 
 export type UserRole =
   | 'Broker'
@@ -49,7 +49,7 @@ export interface RoleDashboardConfig {
 export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
   Broker: {
     title: 'Broker overview',
-    subtitle: ECMS_BRAND.tagline,
+    subtitle: ICS_BRAND.tagline,
     workflow: [
       'Create a pre-advice for an empty container that must return to CY or Port Terminal',
       'Submit the request to the shipping line for evaluation',

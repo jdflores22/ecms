@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { SYSTEM_TIMEZONE } from '../../utils/datetime'
 
-export const ECMS_PRIMARY = '#0B3D91'
+export const ICS_PRIMARY = '#0B3D91'
 
 export const sectionPaperSx = {
   p: { xs: 2, sm: 2.5 },
@@ -26,7 +26,7 @@ export const heroPaperSx = {
   p: { xs: 2.5, sm: 3 },
   mb: 3,
   borderRadius: 3,
-  background: `linear-gradient(135deg, ${ECMS_PRIMARY} 0%, #0A3580 60%, #0C4DA8 100%)`,
+  background: `linear-gradient(135deg, ${ICS_PRIMARY} 0%, #0A3580 60%, #0C4DA8 100%)`,
   color: '#fff',
   boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
   position: 'relative' as const,
@@ -58,7 +58,7 @@ export function InfoTile({ label, value, mono }: { label: string; value: ReactNo
         borderRadius: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        bgcolor: hexToRgba(ECMS_PRIMARY, 0.02),
+        bgcolor: hexToRgba(ICS_PRIMARY, 0.02),
       }}
     >
       <Typography
@@ -96,7 +96,7 @@ export function DetailBackButton({ to, label }: { to: string; label: string }) {
         fontWeight: 600,
         maxWidth: '100%',
         justifyContent: { xs: 'flex-start', sm: 'center' },
-        '&:hover': { color: ECMS_PRIMARY, bgcolor: hexToRgba(ECMS_PRIMARY, 0.06) },
+        '&:hover': { color: ICS_PRIMARY, bgcolor: hexToRgba(ICS_PRIMARY, 0.06) },
       }}
     >
       {label}
@@ -118,7 +118,7 @@ export function DetailLoadingState() {
         bgcolor: '#fff',
       }}
     >
-      <CircularProgress sx={{ color: ECMS_PRIMARY }} />
+      <CircularProgress sx={{ color: ICS_PRIMARY }} />
     </Paper>
   )
 }
@@ -271,7 +271,7 @@ export const detailTabsSx = {
   '& .MuiTabs-indicator': {
     height: 3,
     borderRadius: '3px 3px 0 0',
-    bgcolor: ECMS_PRIMARY,
+    bgcolor: ICS_PRIMARY,
   },
 }
 

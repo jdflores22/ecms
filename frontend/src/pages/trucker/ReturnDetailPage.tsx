@@ -60,7 +60,7 @@ import {
 
   DetailLoadingState,
 
-  ECMS_PRIMARY,
+  ICS_PRIMARY,
 
   InfoTile,
 
@@ -127,7 +127,7 @@ import {
 
 
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 
 
 

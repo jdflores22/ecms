@@ -66,7 +66,7 @@ import {
 
   DetailSection,
 
-  ECMS_PRIMARY,
+  ICS_PRIMARY,
 
   InfoTile,
 
@@ -114,7 +114,7 @@ import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 
 
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 
 
 

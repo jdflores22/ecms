@@ -1,8 +1,8 @@
 import { Box, Paper, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
-import { ECMS_PRIMARY, hexToRgba } from './DetailPagePrimitives'
+import { ICS_PRIMARY, hexToRgba } from './DetailPagePrimitives'
 
-export const LIST_PRIMARY = ECMS_PRIMARY
+export const LIST_PRIMARY = ICS_PRIMARY
 
 export const listPageRootSx = {
   minWidth: 0,

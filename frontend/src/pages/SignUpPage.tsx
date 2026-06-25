@@ -10,7 +10,7 @@ import axios from 'axios'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useParams } from 'react-router-dom'
 import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
-import { ECMS_BRAND } from '../config/brandCopy'
+import { ICS_BRAND } from '../config/brandCopy'
 import { authApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
@@ -21,7 +21,7 @@ const SIGNUP_ROLES = {
   broker: {
     apiRole: 'Broker' as const,
     title: 'Create broker account',
-    subtitle: ECMS_BRAND.brokerSignup,
+    subtitle: ICS_BRAND.brokerSignup,
   },
   trucker: {
     apiRole: 'Trucker' as const,

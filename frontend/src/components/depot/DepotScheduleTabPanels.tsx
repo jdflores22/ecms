@@ -20,7 +20,7 @@ import {
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { resolveAssetUrl } from '../../utils/assetUrl'
-import { DetailTabPanel, ECMS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Payment,
@@ -41,7 +41,7 @@ import {
   SYSTEM_TIMEZONE,
 } from '../../utils/datetime'
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 export type DepotScheduleTab = 'details' | 'photos' | 'schedule' | 'payment' | 'qr'

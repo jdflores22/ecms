@@ -1,5 +1,5 @@
 /**
- * Regenerates the ECMS Project Tracker canvas from docs/tasks.json.
+ * Regenerates the ICS Project Tracker canvas from docs/tasks.json.
  * Run after updating task status: node scripts/sync-project-tracker.mjs
  */
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -136,7 +136,7 @@ export default function EcmsProjectTracker() {
 
   return (
     <Stack style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
-      <H1>ECMS Project Tracker</H1>
+      <H1>ICS Project Tracker</H1>
       <Text style={{ color: theme.text.secondary }}>
         {meta.phase} · Last synced {meta.lastUpdated} · Active track: {meta.activeTrack || '—'}
       </Text>

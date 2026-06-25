@@ -1,5 +1,5 @@
 /**
- * ECMS system timezone — Philippines Standard Time (UTC+8).
+ * ICS system timezone — Philippines Standard Time (UTC+8).
  * All UI dates/times and calendar logic must go through this module.
  */
 export const SYSTEM_TIMEZONE = {

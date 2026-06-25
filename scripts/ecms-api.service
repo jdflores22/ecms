@@ -1,5 +1,5 @@
 [Unit]
-Description=ECMS API
+Description=ICS API
 After=network.target
 
 [Service]

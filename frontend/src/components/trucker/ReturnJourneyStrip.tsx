@@ -2,7 +2,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { Box, Paper, Typography } from '@mui/material'
 import type { QrBooking, Schedule } from '../../services/api'
-import { ECMS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
+import { ICS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
 
 type StepState = 'complete' | 'current' | 'upcoming'
 
@@ -80,7 +80,7 @@ export function buildReturnJourneySteps(
       detail: integrationDone
         ? 'Return completed'
         : integrationCurrent
-          ? 'Coming soon — LOGICTECK will receive details from ECMS'
+          ? 'Coming soon — LOGICTECK will receive details from ICS'
           : 'After booking QR is published',
       state: integrationDone ? 'complete' : integrationCurrent ? 'current' : 'upcoming',
     },
@@ -97,10 +97,10 @@ const stepCircleSx = (state: StepState) => {
   }
   if (state === 'current') {
     return {
-      bgcolor: hexToRgba(ECMS_PRIMARY, 0.1),
-      color: ECMS_PRIMARY,
-      border: `1px solid ${hexToRgba(ECMS_PRIMARY, 0.35)}`,
-      boxShadow: `0 0 0 3px ${hexToRgba(ECMS_PRIMARY, 0.08)}`,
+      bgcolor: hexToRgba(ICS_PRIMARY, 0.1),
+      color: ICS_PRIMARY,
+      border: `1px solid ${hexToRgba(ICS_PRIMARY, 0.35)}`,
+      boxShadow: `0 0 0 3px ${hexToRgba(ICS_PRIMARY, 0.08)}`,
     }
   }
   return {

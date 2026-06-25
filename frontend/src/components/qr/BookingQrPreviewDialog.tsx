@@ -19,9 +19,9 @@ import type { Payment, QrBooking, Schedule } from '../../services/api'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import { paymentStatusColor, paymentStatusLabel } from '../../utils/truckerPayment'
-import { ECMS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 
 const depotPaymentStatusLabel: Record<string, string> = {
   ...paymentStatusLabel,

@@ -29,7 +29,7 @@ import {
   DetailHero,
   DetailHeroAside,
   DetailLoadingState,
-  ECMS_PRIMARY,
+  ICS_PRIMARY,
   InfoTile,
   TimezoneChip,
   hexToRgba,
@@ -49,7 +49,7 @@ import {
   showPaymentStatus,
 } from '../../utils/truckerPayment'
 
-const primaryDark = ECMS_PRIMARY
+const primaryDark = ICS_PRIMARY
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 const panelHeaderSx = {

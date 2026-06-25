@@ -6,9 +6,9 @@ import { login, logout, openNav, tomorrowIso, users } from './helpers'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const proofFile = path.join(__dirname, 'fixtures', 'payment-proof.png')
 
-test.describe('ECMS happy path', () => {
+test.describe('ICS happy path', () => {
   test.beforeAll(async ({ request }) => {
-    const apiBase = process.env.ECMS_API_URL ?? 'http://localhost:5275'
+    const apiBase = process.env.ICS_API_URL ?? process.env.ECMS_API_URL ?? 'http://localhost:5275'
     const health = await request.get(`${apiBase}/swagger/index.html`)
     expect(health.ok(), 'API must be running on port 5275').toBeTruthy()
   })

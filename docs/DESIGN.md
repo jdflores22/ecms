@@ -1,4 +1,4 @@
-# ECMS System Design
+# ICS System Design
 
 > **Last updated:** 2026-06-23  
 > Companion: [PLAN.md](./PLAN.md) · [TASKS.md](./TASKS.md)
@@ -15,7 +15,7 @@
 └────────────────────────────┬────────────────────────────────────┘
                              │ HTTPS / REST (JWT Bearer)
 ┌────────────────────────────▼────────────────────────────────────┐
-│                     ECMS.API (ASP.NET Core 7)                    │
+│                     ICS API (ASP.NET Core 7)                     │
 │  Controllers → Application Interfaces → Infrastructure Services  │
 └──────┬──────────────────────────────┬───────────────────────────┘
        │                              │
@@ -160,7 +160,7 @@ User ──► RefreshToken
 
 ```json
 {
-  "bookingId": "ECMS-202600001",
+  "bookingId": "ICS-202600001",
   "containerNo": "TGHU1234567",
   "shippingLine": "MAERSK",
   "depot": "ICTSI CY",
@@ -188,7 +188,7 @@ User ──► RefreshToken
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│ AppBar — ECMS title                              │
+│ AppBar — ICS title                               │
 ├──────────┬───────────────────────────────────────┤
 │ Sidebar  │  Main content (Outlet)                │
 │ - Dash   │                                       │
@@ -261,9 +261,9 @@ Local dev: XAMPP MySQL + `dotnet run` + `npm run dev` with Vite proxy.
 Gate Scanner / LOGICTECK
         │
         │ POST /api/logicteck/validate-qr
-        │ { "qrCode": "ECMS-202600001" }
+        │ { "qrCode": "ICS-202600001" }
         ▼
-   ECMS.API ──► QRBooking lookup
+   ICS API ──► QRBooking lookup
         │
         ▼
    { valid, containerNo, scheduledDate, scheduledTime, depot }
