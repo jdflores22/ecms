@@ -6,6 +6,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
 import PreAdviceForm from '../../components/preAdvice/PreAdviceForm'
+import { isPreAdviceManager } from '../../config/roleConfig'
 import { preAdviceApi, type PreAdviceLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 
@@ -20,8 +21,8 @@ function apiErrorMessage(err: unknown, fallback: string) {
 }
 
 const workflowSteps = [
-  'Choose the shipping line and container for the empty return.',
-  'Add optional remarks for the evaluator.',
+  'Choose the shipping line and enter the container number.',
+  'Select container size and type from the catalog.',
   'Save as draft — then submit when ready from the detail page.',
 ]
 
@@ -37,15 +38,27 @@ export default function PreAdviceNewPage() {
     preAdviceApi
       .lookups()
       .then(({ data }) => setLookups(data))
-      .catch(() => setError('Failed to load form options.'))
+      .catch((err) => {
+        if (axios.isAxiosError(err) && err.response?.status === 403) {
+          setError('Access denied. Log out and sign in again to refresh your session.')
+          return
+        }
+        setError('Failed to load form options.')
+      })
       .finally(() => setLoading(false))
   }, [])
 
-  if (user?.role !== 'Broker') {
+  if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
   }
 
-  const handleCreate = async (values: { shippingLineId: number; containerId: number; remarks?: string }) => {
+  const handleCreate = async (values: {
+    shippingLineId: number
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+    remarks?: string
+  }) => {
     setSubmitting(true)
     setError('')
     try {
@@ -161,14 +174,20 @@ export default function PreAdviceNewPage() {
           ) : lookups ? (
             <PreAdviceForm
               lookups={lookups}
-              initial={{ shippingLineId: '', containerId: '', remarks: '' }}
+              initial={{
+                shippingLineId: '',
+                containerNo: '',
+                containerSizeId: '',
+                containerTypeId: '',
+                remarks: '',
+              }}
               onSubmit={handleCreate}
               onCancel={() => navigate('/preadvice')}
               submitLabel="Create draft"
               submitting={submitting}
             />
           ) : (
-            <Alert severity="error">Unable to load shipping lines and containers.</Alert>
+            <Alert severity="error">Unable to load shipping lines, sizes, and types.</Alert>
           )}
         </Paper>
 

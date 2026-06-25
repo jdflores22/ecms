@@ -5,8 +5,8 @@ namespace ECMS.Application.DTOs.PreAdvice;
 public record PreAdviceDto(
     int Id,
     string ReferenceNo,
-    int BrokerId,
-    string BrokerName,
+    int TruckerId,
+    string TruckerName,
     int ShippingLineId,
     string ShippingLineName,
     int ContainerId,
@@ -15,16 +15,22 @@ public record PreAdviceDto(
     string ContainerType,
     PreAdviceStatus Status,
     string? Remarks,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? ComplianceRemarks,
+    DateTime? ComplianceRequestedAt);
 
 public record CreatePreAdviceRequest(
     int ShippingLineId,
-    int ContainerId,
+    string ContainerNo,
+    int ContainerSizeId,
+    int ContainerTypeId,
     string? Remarks);
 
 public record UpdatePreAdviceRequest(
     int ShippingLineId,
-    int ContainerId,
+    string ContainerNo,
+    int ContainerSizeId,
+    int ContainerTypeId,
     string? Remarks);
 
 public record CancelPreAdviceRequest(string? Reason);
@@ -38,9 +44,14 @@ public record ContainerLookupDto(
     string Type,
     int ShippingLineId);
 
+public record ContainerSizeLookupDto(int Id, string Label);
+
+public record ContainerTypeLookupDto(int Id, string Code, string Label);
+
 public record PreAdviceLookupsDto(
     IReadOnlyList<ShippingLineLookupDto> ShippingLines,
-    IReadOnlyList<ContainerLookupDto> Containers);
+    IReadOnlyList<ContainerSizeLookupDto> ContainerSizes,
+    IReadOnlyList<ContainerTypeLookupDto> ContainerTypes);
 
 public record PreAdviceDocumentDto(
     int Id,

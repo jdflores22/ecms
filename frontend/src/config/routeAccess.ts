@@ -5,6 +5,8 @@ export type AppPageKey =
   | 'profile'
   | 'preadvice'
   | 'evaluations'
+  | 'cyAllocation'
+  | 'containerInventory'
   | 'reports'
   | 'depotDailyReturns'
   | 'depotSchedules'
@@ -18,7 +20,7 @@ export type AppPageKey =
   | 'adminMasterData'
   | 'adminAudit'
 
-export type PageGroup = 'Common' | 'Broker' | 'Evaluation' | 'Depot' | 'Trucker' | 'Admin' | 'Reports'
+export type PageGroup = 'Common' | 'Evaluation' | 'Depot' | 'Trucker' | 'Admin' | 'Reports'
 
 export interface AppPage {
   key: AppPageKey
@@ -50,7 +52,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     key: 'preadvice',
     label: 'Pre-advice',
     path: '/preadvice',
-    group: 'Broker',
+    group: 'Trucker',
     description: 'Create, submit, and track pre-advice for returns to CY or Port Terminal',
     showInNav: true,
   },
@@ -59,7 +61,23 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     label: 'Evaluations',
     path: '/evaluations',
     group: 'Evaluation',
-    description: 'Review broker requests and assign container yards',
+    description: 'Review pre-advice requests and assign container yards',
+    showInNav: true,
+  },
+  cyAllocation: {
+    key: 'cyAllocation',
+    label: 'CY allocation',
+    path: '/evaluations/cy-allocation',
+    group: 'Evaluation',
+    description: 'View container yard contract TEU capacity and availability',
+    showInNav: true,
+  },
+  containerInventory: {
+    key: 'containerInventory',
+    label: 'CY inventory',
+    path: '/evaluations/container-inventory',
+    group: 'Evaluation',
+    description: 'Container visibility and dwell time at container yards (CAO 08-2019)',
     showInNav: true,
   },
   reports: {
@@ -164,8 +182,7 @@ export const REQUIRED_PAGE_KEYS: AppPageKey[] = ['dashboard', 'profile']
 
 /** Default page pool per role — maximum pages that can be assigned. */
 export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
-  Broker: ['dashboard', 'profile', 'preadvice', 'reports'],
-  ShippingLineEvaluator: ['dashboard', 'profile', 'evaluations', 'reports'],
+  ShippingLineEvaluator: ['dashboard', 'profile', 'evaluations', 'cyAllocation', 'containerInventory', 'reports'],
   DepotPersonnel: [
     'dashboard',
     'profile',
@@ -177,6 +194,8 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
   Trucker: [
     'dashboard',
     'profile',
+    'preadvice',
+    'reports',
     'truckerReturns',
     'truckerPayments',
     'truckerQr',
@@ -198,6 +217,8 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'adminMasterData',
   'adminAudit',
   'preadvice',
+  'cyAllocation',
+  'containerInventory',
   'evaluations',
   'reports',
   'profile',
@@ -222,6 +243,7 @@ const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
 ]
 
 export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | null): AppPageKey[] {
+  const normalizedRole = role === 'Broker' ? 'Trucker' : role
   const valid = (allowedPages ?? []).filter((key): key is AppPageKey => key in APP_PAGES)
   let keys: AppPageKey[]
   if (valid.length > 0) {
@@ -229,12 +251,17 @@ export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | n
     if (withRequired.includes('truckerQr') && !withRequired.includes('truckerQrPrint')) {
       withRequired.push('truckerQrPrint')
     }
-    const pool = new Set(getAssignablePageKeys(role))
+    const pool = new Set(getAssignablePageKeys(normalizedRole))
     keys = withRequired.filter((key) => pool.has(key))
+    if (normalizedRole === 'Trucker') {
+      for (const key of ROLE_PAGE_ACCESS.Trucker) {
+        if (!keys.includes(key)) keys.push(key)
+      }
+    }
   } else {
-    keys = getAccessiblePageKeys(role)
+    keys = getAccessiblePageKeys(normalizedRole)
   }
-  if (role === 'Administrator') {
+  if (normalizedRole === 'Administrator') {
     keys = keys.filter((key) => !ADMIN_RUNTIME_EXCLUDE.includes(key))
   }
   return keys
@@ -286,7 +313,6 @@ export function getDefaultPathForRole(role: string, allowedPages?: string[] | nu
 
 const GROUP_COLORS: Record<PageGroup, { bg: string; color: string; border: string }> = {
   Common: { bg: 'rgba(11, 61, 145, 0.08)', color: '#0B3D91', border: 'rgba(11, 61, 145, 0.2)' },
-  Broker: { bg: 'rgba(21, 101, 192, 0.08)', color: '#1565C0', border: 'rgba(21, 101, 192, 0.22)' },
   Evaluation: { bg: 'rgba(237, 108, 2, 0.1)', color: '#E65100', border: 'rgba(237, 108, 2, 0.25)' },
   Depot: { bg: 'rgba(46, 125, 50, 0.1)', color: '#2E7D32', border: 'rgba(46, 125, 50, 0.25)' },
   Trucker: { bg: 'rgba(106, 27, 154, 0.08)', color: '#6A1B9A', border: 'rgba(106, 27, 154, 0.22)' },
@@ -306,7 +332,6 @@ export function pageGroupChipSx(group: PageGroup) {
 
 export const PAGE_GROUPS_ORDER: PageGroup[] = [
   'Common',
-  'Broker',
   'Evaluation',
   'Depot',
   'Trucker',
@@ -320,6 +345,8 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'preadvice',
   'reports',
   'evaluations',
+  'cyAllocation',
+  'containerInventory',
   'adminUsers',
   'adminRoles',
   'adminMasterData',

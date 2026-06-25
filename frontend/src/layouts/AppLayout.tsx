@@ -25,6 +25,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import WarehouseIcon from '@mui/icons-material/Warehouse'
+import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import HistoryIcon from '@mui/icons-material/History'
@@ -42,6 +43,7 @@ import { LOGICTECK_QR } from '../config/logicteckQr'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import NotificationBell from '../components/NotificationBell'
+import IcsLogo from '../components/brand/IcsLogo'
 
 const drawerWidth = 272
 const appBarHeight = 64
@@ -56,9 +58,20 @@ function userInitials(name?: string) {
   return name.slice(0, 2).toUpperCase()
 }
 
-function isNavActive(path: string, current: string) {
+function isNavActive(path: string, current: string, allNavPaths: string[]) {
   if (path === '/') return current === '/'
-  return current === path || current.startsWith(`${path}/`)
+
+  const matches = current === path || current.startsWith(`${path}/`)
+  if (!matches) return false
+
+  const hasMoreSpecificNavMatch = allNavPaths.some(
+    (other) =>
+      other !== path &&
+      other.startsWith(`${path}/`) &&
+      (current === other || current.startsWith(`${other}/`)),
+  )
+
+  return !hasMoreSpecificNavMatch
 }
 
 export default function AppLayout() {
@@ -100,6 +113,8 @@ export default function AppLayout() {
     profile: <PersonOutlinedIcon fontSize="small" />,
     preadvice: <DescriptionIcon fontSize="small" />,
     evaluations: <FactCheckIcon fontSize="small" />,
+    cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
+    containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
     reports: <AssessmentIcon fontSize="small" />,
     depotDailyReturns: <CalendarViewDayIcon fontSize="small" />,
     depotSchedules: <CalendarMonthIcon fontSize="small" />,
@@ -121,6 +136,8 @@ export default function AppLayout() {
         path: page.path,
       }))
     : [{ text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/' }]
+
+  const navPaths = menuItems.map((item) => item.path)
 
   const drawerPaperSx = {
     width: drawerWidth,
@@ -181,11 +198,11 @@ export default function AppLayout() {
             p: 1.5,
             width: '100%',
             borderRadius: 2,
-            bgcolor: isNavActive('/profile', location.pathname)
+            bgcolor: isNavActive('/profile', location.pathname, navPaths)
               ? 'rgba(11, 61, 145, 0.1)'
               : 'rgba(11, 61, 145, 0.06)',
             border: '1px solid',
-            borderColor: isNavActive('/profile', location.pathname)
+            borderColor: isNavActive('/profile', location.pathname, navPaths)
               ? 'rgba(11, 61, 145, 0.2)'
               : 'rgba(11, 61, 145, 0.1)',
             cursor: 'pointer',
@@ -228,7 +245,7 @@ export default function AppLayout() {
 
       <List sx={{ flex: 1, px: 0.5, py: 0 }}>
         {menuItems.map((item) => {
-          const active = isNavActive(item.path, location.pathname)
+          const active = isNavActive(item.path, location.pathname, navPaths)
           return (
             <ListItemButton
               key={item.path}
@@ -251,8 +268,8 @@ export default function AppLayout() {
       <List sx={{ px: 0.5 }}>
         <ListItemButton
           onClick={() => goTo('/profile')}
-          selected={isNavActive('/profile', location.pathname)}
-          sx={navItemSx(isNavActive('/profile', location.pathname))}
+          selected={isNavActive('/profile', location.pathname, navPaths)}
+          sx={navItemSx(isNavActive('/profile', location.pathname, navPaths))}
         >
           <ListItemIcon sx={{ minWidth: 36 }}>
             <PersonOutlinedIcon fontSize="small" />
@@ -261,7 +278,7 @@ export default function AppLayout() {
             primary="Profile"
             slotProps={{
               primary: {
-                sx: { fontSize: '0.9rem', fontWeight: isNavActive('/profile', location.pathname) ? 600 : 500 },
+                sx: { fontSize: '0.9rem', fontWeight: isNavActive('/profile', location.pathname, navPaths) ? 600 : 500 },
               },
             }}
           />
@@ -319,37 +336,17 @@ export default function AppLayout() {
             <MenuIcon />
           </IconButton>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 1.5,
-                bgcolor: 'rgba(255,255,255,0.12)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Inventory2OutlinedIcon sx={{ fontSize: 22, color: '#fff' }} />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, minWidth: 0 }}>
+            <IcsLogo height={{ xs: 32, sm: 36 }} maxWidth={{ xs: 80, sm: 96 }} />
+            <Box sx={{ minWidth: 0, display: { xs: 'none', md: 'block' } }}>
               <Typography
                 variant="h6"
                 noWrap
-                sx={{ fontWeight: 700, fontSize: { xs: '0.95rem', sm: '1.05rem' }, lineHeight: 1.2 }}
+                sx={{ fontWeight: 700, fontSize: '1.05rem', lineHeight: 1.2 }}
               >
-                <Box component="span" sx={{ display: { xs: 'inline', md: 'none' } }}>
-                  {ICS_BRAND.shortName}
-                </Box>
-                <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>
-                  {ICS_BRAND.name}
-                </Box>
+                {ICS_BRAND.name}
               </Typography>
-              <Typography
-                variant="caption"
-                sx={{ color: 'rgba(255,255,255,0.75)', display: { xs: 'none', sm: 'block' } }}
-              >
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
                 {ICS_BRAND.appBarCaption}
               </Typography>
             </Box>

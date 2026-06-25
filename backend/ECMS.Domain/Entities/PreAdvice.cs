@@ -6,13 +6,13 @@ namespace ECMS.Domain.Entities;
 public class PreAdvice : BaseEntity
 {
     public string ReferenceNo { get; set; } = string.Empty;
-    public int BrokerId { get; set; }
+    public int TruckerId { get; set; }
     public int ShippingLineId { get; set; }
     public int ContainerId { get; set; }
     public PreAdviceStatus Status { get; set; } = PreAdviceStatus.Draft;
     public string? Remarks { get; set; }
 
-    public User Broker { get; set; } = null!;
+    public User Trucker { get; set; } = null!;
     public ShippingLine ShippingLine { get; set; } = null!;
     public Container Container { get; set; } = null!;
     public Evaluation? Evaluation { get; set; }

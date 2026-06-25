@@ -32,6 +32,7 @@ export function buildEvaluationProgressSteps(
   const isPending = PENDING_STATUSES.includes(item.status)
   const isApproved = item.status === 'Approved'
   const isRejected = item.status === 'Rejected'
+  const isForCompliance = item.status === 'ForCompliance'
 
   const evaluationStep = (): EvaluationProgressStep => {
     if (isPending) {
@@ -46,6 +47,13 @@ export function buildEvaluationProgressSteps(
       return {
         label: 'Shipping line evaluation',
         detail: `Rejected by ${decision.evaluatorName}${decision.remarks ? ` — ${decision.remarks}` : ''} · ${formatDateTime(decision.evaluatedAt)}`,
+        state: 'error',
+      }
+    }
+    if (isForCompliance && decision) {
+      return {
+        label: 'Shipping line evaluation',
+        detail: `Returned for compliance${decision.remarks ? ` — ${decision.remarks}` : ''} · ${formatDateTime(decision.evaluatedAt)}`,
         state: 'error',
       }
     }
@@ -138,13 +146,177 @@ export function buildEvaluationProgressSteps(
   return [
     {
       label: 'Pre-advice submitted',
-      detail: `${item.brokerName} · ${formatDateTime(item.createdAt)}`,
+      detail: `${item.truckerName} · ${formatDateTime(item.createdAt)}`,
       state: 'complete',
     },
     evaluationStep(),
     scheduleStep(),
     qrStep(),
   ]
+}
+
+/** Trucker pre-advice detail — draft and pending messaging without evaluation API access. */
+export function buildPreAdviceProgressSteps(
+  item: PreAdvice,
+  schedule: Schedule | null,
+  scheduleLoading: boolean,
+  qrBooking: QrBooking | null,
+  qrLoading: boolean,
+  onViewQr?: () => void,
+  onManagePhotos?: () => void,
+): EvaluationProgressStep[] {
+  const isDraft = item.status === 'Draft'
+  const isPending = PENDING_STATUSES.includes(item.status)
+  const isApproved = item.status === 'Approved'
+  const isRejected = item.status === 'Rejected'
+  const isForCompliance = item.status === 'ForCompliance'
+
+  const submittedStep = (): EvaluationProgressStep => {
+    if (isDraft) {
+      return {
+        label: 'Pre-advice draft',
+        detail: 'Add container identity photos, then submit for evaluation',
+        state: 'current',
+        action: onManagePhotos
+          ? { label: 'Add photos', onClick: onManagePhotos, icon: 'photos' }
+          : undefined,
+      }
+    }
+    return {
+      label: 'Pre-advice submitted',
+      detail: `${item.truckerName} · ${formatDateTime(item.createdAt)}`,
+      state: 'complete',
+    }
+  }
+
+  const evaluationStep = (): EvaluationProgressStep => {
+    if (isDraft) {
+      return {
+        label: 'Shipping line evaluation',
+        detail: 'Submit the pre-advice to begin evaluation',
+        state: 'upcoming',
+      }
+    }
+    if (isRejected) {
+      return {
+        label: 'Shipping line evaluation',
+        detail: 'This request was rejected',
+        state: 'error',
+      }
+    }
+    if (isForCompliance) {
+      return {
+        label: 'Shipping line evaluation',
+        detail:
+          item.complianceRemarks ??
+          'Corrections requested — update photos or details, then resubmit',
+        state: 'current',
+        action: onManagePhotos
+          ? { label: 'Fix & resubmit', onClick: onManagePhotos, icon: 'photos' }
+          : undefined,
+      }
+    }
+    if (isApproved) {
+      return {
+        label: 'Shipping line evaluation',
+        detail: 'Approved by shipping line',
+        state: 'complete',
+      }
+    }
+    if (isPending) {
+      return {
+        label: 'Shipping line evaluation',
+        detail:
+          item.status === 'UnderEvaluation'
+            ? 'A shipping-line evaluator is reviewing your request'
+            : 'Waiting for a shipping-line evaluator to review this request',
+        state: 'current',
+        action:
+          onManagePhotos && item.status === 'Submitted'
+            ? { label: 'Manage photos', onClick: onManagePhotos, icon: 'photos' }
+            : undefined,
+      }
+    }
+    return {
+      label: 'Shipping line evaluation',
+      detail: 'Awaiting evaluator decision',
+      state: 'upcoming',
+    }
+  }
+
+  const scheduleStep = (): EvaluationProgressStep => {
+    if (!isApproved) {
+      return {
+        label: 'Return scheduling',
+        detail: 'Depot assigns date, slot, and trucker after approval',
+        state: 'upcoming',
+      }
+    }
+    if (scheduleLoading) {
+      return {
+        label: 'Return scheduling',
+        detail: 'Loading schedule details…',
+        state: 'current',
+      }
+    }
+    if (!schedule) {
+      return {
+        label: 'Return scheduling',
+        detail: 'Waiting for depot to create the return schedule',
+        state: 'current',
+      }
+    }
+    if (schedule.status === 'WaitingSchedule') {
+      return {
+        label: 'Return scheduling',
+        detail: 'Depot is assigning date, time slot, and trucker',
+        state: 'current',
+      }
+    }
+    const slotDetail = schedule.date
+      ? formatScheduleSlot(schedule.date, schedule.time) +
+        (schedule.slotNo > 0 ? ` · Slot ${schedule.slotNo}` : '') +
+        (schedule.truckerName ? ` · ${schedule.truckerName}` : '')
+      : schedule.depotName
+    return {
+      label: 'Return scheduling',
+      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : 'Scheduled'} · ${slotDetail}`,
+      state: 'complete',
+    }
+  }
+
+  const qrStep = (): EvaluationProgressStep => {
+    const scheduleReady = schedule?.status === 'Confirmed' || schedule?.status === 'Completed'
+    if (!isApproved || !scheduleReady) {
+      return {
+        label: 'Booking QR',
+        detail: 'Published after depot confirms the return',
+        state: 'upcoming',
+      }
+    }
+    if (qrLoading) {
+      return {
+        label: 'Booking QR',
+        detail: 'Publishing booking QR…',
+        state: 'current',
+      }
+    }
+    if (qrBooking) {
+      return {
+        label: 'Booking QR',
+        detail: `Published for LOGICTECK integration · Ref ${qrBooking.qrCode}`,
+        state: 'complete',
+        action: onViewQr ? { label: LOGICTECK_QR.viewQr, onClick: onViewQr, icon: 'qr' } : undefined,
+      }
+    }
+    return {
+      label: 'Booking QR',
+      detail: LOGICTECK_QR.emptyState,
+      state: 'current',
+    }
+  }
+
+  return [submittedStep(), evaluationStep(), scheduleStep(), qrStep()]
 }
 
 const stepCircleSx = (state: StepState) => {

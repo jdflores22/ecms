@@ -13,12 +13,18 @@ namespace ECMS.API.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _service;
+    private readonly IPaymentSettingsService _settings;
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _configuration;
 
-    public PaymentsController(IPaymentService service, IWebHostEnvironment env, IConfiguration configuration)
+    public PaymentsController(
+        IPaymentService service,
+        IPaymentSettingsService settings,
+        IWebHostEnvironment env,
+        IConfiguration configuration)
     {
         _service = service;
+        _settings = settings;
         _env = env;
         _configuration = configuration;
     }
@@ -28,12 +34,31 @@ public class PaymentsController : ControllerBase
     private static string? UserRole(ClaimsPrincipal user) =>
         user.FindFirstValue(ClaimTypes.Role) ?? user.FindFirstValue("role");
 
+    [HttpGet("settings")]
+    public async Task<ActionResult<PaymentSettingsDto>> GetSettings(CancellationToken cancellationToken)
+        => Ok(await _settings.GetAsync(cancellationToken));
+
+    [HttpPut("settings")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<PaymentSettingsDto>> UpdateSettings(
+        [FromBody] UpdatePaymentSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _settings.UpdateReturnFeeAsync(request.ReturnFeeAmount, UserId, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("upload")]
     [Authorize(Roles = RoleNames.Trucker)]
     [RequestSizeLimit(10_485_760)]
     public async Task<ActionResult<PaymentDto>> Upload(
         [FromForm] int scheduleId,
-        [FromForm] decimal amount,
         IFormFile proof,
         CancellationToken cancellationToken)
     {
@@ -50,7 +75,7 @@ public class PaymentsController : ControllerBase
             await proof.CopyToAsync(stream, cancellationToken);
 
         var relativePath = $"/uploads/{fileName}";
-        return Ok(await _service.UploadProofAsync(new UploadPaymentRequest(scheduleId, amount), UserId, relativePath, cancellationToken));
+        return Ok(await _service.UploadProofAsync(new UploadPaymentRequest(scheduleId), UserId, relativePath, cancellationToken));
     }
 
     [HttpGet("status/{id:int}")]

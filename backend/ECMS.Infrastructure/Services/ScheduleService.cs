@@ -40,8 +40,8 @@ public class ScheduleService : IScheduleService
             if (user.DepotId.HasValue)
                 query = query.Where(s => s.DepotId == user.DepotId);
         }
-        else if (role == RoleNames.Trucker)
-            query = query.Where(s => s.TruckerId == userId);
+        else if (RoleNames.IsPreAdviceManager(role))
+            query = query.Where(s => s.PreAdvice.TruckerId == userId);
 
         var items = await query.OrderBy(s => s.Date).ThenBy(s => s.Time).ToListAsync(cancellationToken);
         return items.Select(MapToDto).ToList();
@@ -61,8 +61,8 @@ public class ScheduleService : IScheduleService
             if (user.DepotId.HasValue)
                 query = query.Where(s => s.DepotId == user.DepotId);
         }
-        else if (role == RoleNames.Trucker)
-            query = query.Where(s => s.TruckerId == userId);
+        else if (RoleNames.IsPreAdviceManager(role))
+            query = query.Where(s => s.PreAdvice.TruckerId == userId);
 
         var schedule = await query.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
         return schedule is null ? null : MapToDto(schedule);
@@ -76,16 +76,14 @@ public class ScheduleService : IScheduleService
             .Include(s => s.Trucker)
             .Where(s => s.PreAdviceId == preAdviceId);
 
-        if (role == RoleNames.Broker)
-            query = query.Where(s => s.PreAdvice.BrokerId == userId);
+        if (RoleNames.IsPreAdviceManager(role))
+            query = query.Where(s => s.PreAdvice.TruckerId == userId);
         else if (role == RoleNames.DepotPersonnel)
         {
             var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
             if (user.DepotId.HasValue)
                 query = query.Where(s => s.DepotId == user.DepotId);
         }
-        else if (role == RoleNames.Trucker)
-            query = query.Where(s => s.TruckerId == userId);
         else if (role == RoleNames.ShippingLineEvaluator)
         {
             var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
@@ -112,7 +110,7 @@ public class ScheduleService : IScheduleService
         schedule.DepotId = request.DepotId;
         schedule.Date = request.Date;
         schedule.Time = request.Time;
-        schedule.SlotNo = request.SlotNo;
+        schedule.SlotNo = 0;
         schedule.TruckerId = request.TruckerId;
         schedule.Status = ScheduleStatus.Scheduled;
 
@@ -132,7 +130,7 @@ public class ScheduleService : IScheduleService
             actorUserId,
             isNew ? "Create" : "Update",
             "Schedule",
-            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} slot {schedule.SlotNo}",
+            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}",
             cancellationToken);
 
         await NotifyScheduleAssignedAsync(schedule, actorUserId, isNew, cancellationToken);
@@ -158,9 +156,11 @@ public class ScheduleService : IScheduleService
 
         schedule.Date = request.Date;
         schedule.Time = request.Time;
-        schedule.SlotNo = request.SlotNo;
+        schedule.SlotNo = 0;
         schedule.Status = request.Status;
-        schedule.TruckerId = request.TruckerId;
+
+        if (!schedule.TruckerId.HasValue)
+            schedule.TruckerId = schedule.PreAdvice.TruckerId;
 
         _db.Update(schedule);
         await _db.SaveChangesAsync(cancellationToken);
@@ -169,7 +169,7 @@ public class ScheduleService : IScheduleService
             actorUserId,
             "Update",
             "Schedule",
-            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} slot {schedule.SlotNo}",
+            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}",
             cancellationToken);
 
         await NotifyScheduleAssignedAsync(schedule, actorUserId, false, cancellationToken);
@@ -194,9 +194,9 @@ public class ScheduleService : IScheduleService
         var dateStr = schedule.Date.ToString("yyyy-MM-dd");
         var timeStr = schedule.Time.ToString("HH:mm");
         var title = isNew ? "Return schedule assigned" : "Return schedule updated";
-        var message = $"{refNo} scheduled on {dateStr} at {timeStr}, slot {schedule.SlotNo}.";
+        var message = $"{refNo} scheduled on {dateStr} at {timeStr}.";
 
-        var recipients = new List<int> { schedule.PreAdvice.BrokerId };
+        var recipients = new List<int> { schedule.PreAdvice.TruckerId };
         await _notifications.NotifyUsersAsync(
             recipients,
             title,
@@ -212,7 +212,7 @@ public class ScheduleService : IScheduleService
             await _notifications.NotifyUsersAsync(
                 new[] { schedule.TruckerId.Value },
                 title,
-                $"{refNo} scheduled on {dateStr} at {timeStr}, slot {schedule.SlotNo}. Upload payment proof to confirm your return.",
+                $"{refNo} scheduled on {dateStr} at {timeStr}. Upload payment proof to confirm your return.",
                 "Schedule",
                 $"/trucker/payments/{schedule.Id}",
                 actorUserId,

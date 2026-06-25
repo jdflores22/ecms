@@ -13,6 +13,9 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<ShippingLine> ShippingLinesSet => Set<ShippingLine>();
     public DbSet<Depot> DepotsSet => Set<Depot>();
     public DbSet<Container> ContainersSet => Set<Container>();
+    public DbSet<ContainerSize> ContainerSizesSet => Set<ContainerSize>();
+    public DbSet<ContainerType> ContainerTypesSet => Set<ContainerType>();
+    public DbSet<ShippingLineDepotContract> ShippingLineDepotContractsSet => Set<ShippingLineDepotContract>();
     public DbSet<PreAdvice> PreAdvicesSet => Set<PreAdvice>();
     public DbSet<PreAdviceDocument> PreAdviceDocumentsSet => Set<PreAdviceDocument>();
     public DbSet<Evaluation> EvaluationsSet => Set<Evaluation>();
@@ -23,12 +26,17 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<Notification> NotificationsSet => Set<Notification>();
     public DbSet<RefreshToken> RefreshTokensSet => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokensSet => Set<PasswordResetToken>();
+    public DbSet<ManualYardInventoryEntry> ManualYardInventoryEntriesSet => Set<ManualYardInventoryEntry>();
+    public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
     IQueryable<ShippingLine> IEcmsDbContext.ShippingLines => ShippingLinesSet;
     IQueryable<Depot> IEcmsDbContext.Depots => DepotsSet;
     IQueryable<Container> IEcmsDbContext.Containers => ContainersSet;
+    IQueryable<ContainerSize> IEcmsDbContext.ContainerSizes => ContainerSizesSet;
+    IQueryable<ContainerType> IEcmsDbContext.ContainerTypes => ContainerTypesSet;
+    IQueryable<ShippingLineDepotContract> IEcmsDbContext.ShippingLineDepotContracts => ShippingLineDepotContractsSet;
     IQueryable<PreAdvice> IEcmsDbContext.PreAdvices => PreAdvicesSet;
     IQueryable<PreAdviceDocument> IEcmsDbContext.PreAdviceDocuments => PreAdviceDocumentsSet;
     IQueryable<Evaluation> IEcmsDbContext.Evaluations => EvaluationsSet;
@@ -39,6 +47,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<Notification> IEcmsDbContext.Notifications => NotificationsSet;
     IQueryable<RefreshToken> IEcmsDbContext.RefreshTokens => RefreshTokensSet;
     IQueryable<PasswordResetToken> IEcmsDbContext.PasswordResetTokens => PasswordResetTokensSet;
+    IQueryable<ManualYardInventoryEntry> IEcmsDbContext.ManualYardInventoryEntries => ManualYardInventoryEntriesSet;
+    IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -71,10 +81,27 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasOne(x => x.ShippingLine).WithMany(x => x.Containers).HasForeignKey(x => x.ShippingLineId);
         });
 
+        modelBuilder.Entity<ContainerSize>(e =>
+        {
+            e.HasIndex(x => x.Label).IsUnique();
+        });
+
+        modelBuilder.Entity<ContainerType>(e =>
+        {
+            e.HasIndex(x => x.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<ShippingLineDepotContract>(e =>
+        {
+            e.HasIndex(x => new { x.ShippingLineId, x.DepotId }).IsUnique();
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
+            e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId);
+        });
+
         modelBuilder.Entity<PreAdvice>(e =>
         {
             e.HasIndex(x => x.ReferenceNo).IsUnique();
-            e.HasOne(x => x.Broker).WithMany(x => x.PreAdvices).HasForeignKey(x => x.BrokerId);
+            e.HasOne(x => x.Trucker).WithMany(x => x.PreAdvices).HasForeignKey(x => x.TruckerId);
             e.HasOne(x => x.ShippingLine).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ShippingLineId);
             e.HasOne(x => x.Container).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ContainerId);
         });
@@ -133,6 +160,22 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasIndex(x => x.Token).IsUnique();
             e.HasOne(x => x.User).WithMany(x => x.PasswordResetTokens).HasForeignKey(x => x.UserId);
+        });
+
+        modelBuilder.Entity<ManualYardInventoryEntry>(e =>
+        {
+            e.HasIndex(x => new { x.ShippingLineId, x.ContainerNo, x.DepotId }).IsUnique();
+            e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
+            e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
+            e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId);
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
+            e.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<PaymentSettings>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ReturnFeeAmount).HasPrecision(18, 2);
         });
     }
 }

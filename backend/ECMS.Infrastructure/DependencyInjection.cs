@@ -21,10 +21,16 @@ public static class DependencyInjection
         services.AddScoped<IScheduleService, ScheduleService>();
         services.AddScoped<ISlotCapacityService, SlotCapacityService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IDepotService, DepotService>();
         services.AddScoped<IShippingLineService, ShippingLineService>();
         services.AddScoped<IContainerService, ContainerService>();
+        services.AddScoped<IContainerSizeService, ContainerSizeService>();
+        services.AddScoped<IContainerTypeService, ContainerTypeService>();
+        services.AddScoped<ICyAllocationService, CyAllocationService>();
+        services.AddScoped<IContainerInventoryService, ContainerInventoryService>();
+        services.AddScoped<IShippingLineDepotContractService, ShippingLineDepotContractService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IRoleService, RoleService>();

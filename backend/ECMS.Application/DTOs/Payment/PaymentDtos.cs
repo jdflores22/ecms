@@ -14,4 +14,8 @@ public record PaymentDto(
 
 public record PaymentStatusDto(int Id, PaymentStatus Status, string? ProofFile);
 
-public record UploadPaymentRequest(int ScheduleId, decimal Amount);
+public record PaymentSettingsDto(decimal ReturnFeeAmount, DateTime UpdatedAt);
+
+public record UpdatePaymentSettingsRequest(decimal ReturnFeeAmount);
+
+public record UploadPaymentRequest(int ScheduleId);

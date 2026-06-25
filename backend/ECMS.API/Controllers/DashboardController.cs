@@ -20,11 +20,6 @@ public class DashboardController : ControllerBase
 
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    [HttpGet("broker")]
-    [Authorize(Roles = RoleNames.Broker)]
-    public async Task<IActionResult> Broker(CancellationToken cancellationToken)
-        => Ok(await _service.GetBrokerDashboardAsync(UserId, cancellationToken));
-
     [HttpGet("shipping-line")]
     [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
     public async Task<IActionResult> ShippingLine(CancellationToken cancellationToken)

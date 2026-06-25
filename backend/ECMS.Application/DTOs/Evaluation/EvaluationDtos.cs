@@ -15,3 +15,5 @@ public record EvaluationDto(
 public record ApproveEvaluationRequest(int PreAdviceId, int DepotId, string? Remarks);
 
 public record RejectEvaluationRequest(int PreAdviceId, string Remarks);
+
+public record ReturnForComplianceRequest(int PreAdviceId, string Remarks);

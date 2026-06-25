@@ -27,7 +27,7 @@ public class ReportsController : ControllerBase
     [Authorize(Roles =
         RoleNames.Administrator + "," +
         RoleNames.DepotPersonnel + "," +
-        RoleNames.Broker + "," +
+        RoleNames.Trucker + "," +
         RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<DailyReturnReportDto>> DailyReturns(
         [FromQuery] DateOnly? from,
@@ -52,7 +52,7 @@ public class ReportsController : ControllerBase
     [Authorize(Roles =
         RoleNames.Administrator + "," +
         RoleNames.DepotPersonnel + "," +
-        RoleNames.Broker + "," +
+        RoleNames.Trucker + "," +
         RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<MonthlyReturnReportDto>> MonthlyReturns(
         [FromQuery] int? year,
@@ -74,7 +74,7 @@ public class ReportsController : ControllerBase
     [Authorize(Roles =
         RoleNames.Administrator + "," +
         RoleNames.DepotPersonnel + "," +
-        RoleNames.Broker + "," +
+        RoleNames.Trucker + "," +
         RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<ShippingLineReportDto>> ShippingLines(
         [FromQuery] DateOnly? from,
@@ -99,7 +99,7 @@ public class ReportsController : ControllerBase
     [Authorize(Roles =
         RoleNames.Administrator + "," +
         RoleNames.DepotPersonnel + "," +
-        RoleNames.Broker + "," +
+        RoleNames.Trucker + "," +
         RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<DepotReportDto>> Depots(
         [FromQuery] DateOnly? from,

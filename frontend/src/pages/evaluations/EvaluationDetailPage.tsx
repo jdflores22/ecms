@@ -19,11 +19,12 @@ import {
 } from '@mui/material'
 import CancelIcon from '@mui/icons-material/Cancel'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams, Link as RouterLink } from 'react-router-dom'
 import EvaluationDetailTabPanels, {
   type EvaluationDetailTab,
 } from '../../components/evaluations/EvaluationDetailTabPanels'
@@ -49,11 +50,13 @@ import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategorie
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import {
   depotApi,
+  cyAllocationApi,
   evaluationApi,
   paymentApi,
   preAdviceApi,
   qrApi,
   scheduleApi,
+  type CyAllocationForApproval,
   type Depot,
   type Evaluation,
   type Payment,
@@ -71,6 +74,7 @@ const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
 
 const statusLabel: Record<string, string> = {
   UnderEvaluation: 'Under evaluation',
+  ForCompliance: 'For compliance',
 }
 
 const scheduleStatusLabel: Record<string, string> = {
@@ -86,6 +90,8 @@ function heroStatusChipStyle(status: string): { bgcolor: string; color: string; 
     case 'Rejected':
       return { bgcolor: 'rgba(198, 40, 40, 0.92)', color: '#fff' }
     case 'UnderEvaluation':
+      return { bgcolor: 'rgba(237, 108, 2, 0.92)', color: '#fff' }
+    case 'ForCompliance':
       return { bgcolor: 'rgba(237, 108, 2, 0.92)', color: '#fff' }
     case 'Submitted':
       return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
@@ -144,6 +150,7 @@ export default function EvaluationDetailPage() {
 
   const [approveOpen, setApproveOpen] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
+  const [complianceOpen, setComplianceOpen] = useState(false)
   const [depotId, setDepotId] = useState<number | ''>('')
   const [remarks, setRemarks] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -156,6 +163,8 @@ export default function EvaluationDetailPage() {
   const [qrPreviewOpen, setQrPreviewOpen] = useState(false)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [activeTab, setActiveTab] = useState<EvaluationDetailTab>('details')
+  const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
+  const [allocationsLoading, setAllocationsLoading] = useState(false)
 
   const allowedRole = user?.role === 'ShippingLineEvaluator' || user?.role === 'Administrator'
 
@@ -184,6 +193,23 @@ export default function EvaluationDetailPage() {
       .finally(() => setLoading(false))
   }, [preAdviceId])
 
+  useEffect(() => {
+    if (!approveOpen || !item) {
+      setApprovalAllocations(null)
+      return
+    }
+    setAllocationsLoading(true)
+    cyAllocationApi
+      .forApproval(item.id)
+      .then(({ data }) => {
+        setApprovalAllocations(data)
+        const firstFit = data.allocations.find((a) => a.hasCapacity)
+        setDepotId(firstFit?.depotId ?? data.allocations[0]?.depotId ?? '')
+      })
+      .catch(() => setApprovalAllocations(null))
+      .finally(() => setAllocationsLoading(false))
+  }, [approveOpen, item])
+
   const loadSchedule = useCallback(() => {
     if (!preAdviceId) return
     setScheduleLoading(true)
@@ -193,6 +219,11 @@ export default function EvaluationDetailPage() {
     scheduleApi
       .getByPreAdvice(preAdviceId)
       .then(async ({ data }) => {
+        if (!data) {
+          setSchedule(null)
+          setPayment(null)
+          return
+        }
         setSchedule(data)
         if (data.truckerId) {
           const { data: paymentData } = await paymentApi.getBySchedule(data.id)
@@ -339,6 +370,24 @@ export default function EvaluationDetailPage() {
     }
   }
 
+  const handleReturnForCompliance = async () => {
+    if (!item || !remarks.trim()) {
+      setActionError('Compliance instructions are required.')
+      return
+    }
+    setSubmitting(true)
+    setActionError('')
+    try {
+      await evaluationApi.returnForCompliance({ preAdviceId: item.id, remarks: remarks.trim() })
+      setComplianceOpen(false)
+      navigate('/evaluations')
+    } catch (err) {
+      setActionError(apiErrorMessage(err, 'Failed to return for compliance.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
       <DetailBackButton to="/evaluations" label="Back to evaluations" />
@@ -371,7 +420,7 @@ export default function EvaluationDetailPage() {
                   icon={
                     <LocalShippingOutlinedIcon sx={{ fontSize: '16px !important', color: 'inherit !important' }} />
                   }
-                  label={item.brokerName}
+                  label={`Trucker · ${item.truckerName}`}
                   size="small"
                   sx={{ ...heroMutedChipSx, '& .MuiChip-icon': { color: 'inherit' } }}
                 />
@@ -398,6 +447,23 @@ export default function EvaluationDetailPage() {
                     }}
                   >
                     Reject
+                  </Button>
+                  <Button
+                    startIcon={<AssignmentReturnIcon />}
+                    variant="outlined"
+                    onClick={() => {
+                      setRemarks('')
+                      setActionError('')
+                      setComplianceOpen(true)
+                    }}
+                    sx={{
+                      color: '#fff',
+                      borderColor: 'rgba(255,255,255,0.45)',
+                      fontWeight: 600,
+                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
+                    }}
+                  >
+                    Return for compliance
                   </Button>
                   <Button
                     startIcon={<CheckCircleIcon />}
@@ -497,24 +563,51 @@ export default function EvaluationDetailPage() {
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {item.containerNo} · {item.shippingLineName}
+                {approvalAllocations
+                  ? ` · ${approvalAllocations.requestedTeu} TEU required`
+                  : ''}
               </Typography>
             </Paper>
+          )}
+          {approvalAllocations && (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              Container {approvalAllocations.containerNo} ({approvalAllocations.containerSize}&apos;) requires{' '}
+              <strong>{approvalAllocations.requestedTeu} TEU</strong>.{' '}
+              <RouterLink to={`/evaluations/cy-allocation?preAdviceId=${item?.id ?? ''}`}>
+                View full CY allocation
+              </RouterLink>
+            </Alert>
           )}
           {actionError && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
               {actionError}
             </Alert>
           )}
-          <FormControl fullWidth margin="normal" required sx={fieldSx}>
+          <FormControl fullWidth margin="normal" required sx={fieldSx} disabled={allocationsLoading}>
             <InputLabel>Container yard (CY)</InputLabel>
             <Select
               label="Container yard (CY)"
               value={depotId}
               onChange={(e) => setDepotId(e.target.value as number)}
             >
-              {depots.map((d) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.name} — {d.address} (cap. {d.capacity})
+              {(approvalAllocations?.allocations.length
+                ? approvalAllocations.allocations
+                : depots.map((d) => ({
+                    depotId: d.id,
+                    depotName: d.name,
+                    depotAddress: d.address,
+                    availableTeu: 0,
+                    contractTeu: 0,
+                    usedTeu: 0,
+                    hasCapacity: true,
+                  }))
+              ).map((row) => (
+                <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
+                  {row.depotName}
+                  {approvalAllocations
+                    ? ` — ${row.availableTeu.toFixed(1)} TEU available (${row.usedTeu.toFixed(1)}/${row.contractTeu} used)`
+                    : ` — ${row.depotAddress}`}
+                  {!row.hasCapacity && approvalAllocations ? ' — insufficient space' : ''}
                 </MenuItem>
               ))}
             </Select>
@@ -599,6 +692,63 @@ export default function EvaluationDetailPage() {
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             Reject request
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={complianceOpen} onClose={() => setComplianceOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Return for compliance</DialogTitle>
+        <DialogContent>
+          {item && (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 1.5,
+                mb: 2,
+                borderRadius: 2,
+                bgcolor: 'rgba(237, 108, 2, 0.06)',
+                border: '1px solid',
+                borderColor: 'rgba(237, 108, 2, 0.2)',
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {item.referenceNo}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {item.containerNo} · The trucker can fix issues and resubmit
+              </Typography>
+            </Paper>
+          )}
+          {actionError && (
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+              {actionError}
+            </Alert>
+          )}
+          <TextField
+            fullWidth
+            label="Compliance instructions"
+            margin="normal"
+            multiline
+            rows={4}
+            required
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            helperText="Describe what the trucker must correct (photos, container details, etc.)."
+            sx={fieldSx}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setComplianceOpen(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleReturnForCompliance}
+            disabled={submitting}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            Return for compliance
           </Button>
         </DialogActions>
       </Dialog>

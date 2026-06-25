@@ -1,5 +1,5 @@
 import { Box, Paper, Typography } from '@mui/material'
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
+import IcsLogo from '../brand/IcsLogo'
 import { ICS_BRAND } from '../../config/brandCopy'
 
 const primaryDark = '#0B3D91'
@@ -10,24 +10,6 @@ interface AuthShellProps {
   subtitle: string
   children: React.ReactNode
   footer?: React.ReactNode
-}
-
-function BrandIcon({ size = 32 }: { size?: number }) {
-  return (
-    <Box
-      sx={{
-        width: size + 24,
-        height: size + 24,
-        borderRadius: 2.5,
-        bgcolor: 'rgba(255,255,255,0.14)',
-        display: 'grid',
-        placeItems: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <Inventory2OutlinedIcon sx={{ fontSize: size }} />
-    </Box>
-  )
 }
 
 export default function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
@@ -110,7 +92,7 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
           }}
         >
           <Box sx={{ mb: 3 }}>
-            <BrandIcon />
+            <IcsLogo height={52} maxWidth={200} />
           </Box>
           <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5 }}>
             {ICS_BRAND.shortName}
@@ -135,19 +117,7 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
               borderColor: 'divider',
             }}
           >
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-                bgcolor: 'rgba(11, 61, 145, 0.08)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Inventory2OutlinedIcon sx={{ fontSize: 26, color: primaryDark }} />
-            </Box>
+            <IcsLogo height={36} maxWidth={120} />
             <Box sx={{ minWidth: 0 }}>
               <Typography
                 variant="overline"

@@ -13,17 +13,20 @@ public class PaymentService : IPaymentService
     private readonly IQrService _qrService;
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
+    private readonly IPaymentSettingsService _paymentSettings;
 
     public PaymentService(
         IEcmsDbContext db,
         IQrService qrService,
         IAuditService auditService,
-        INotificationService notifications)
+        INotificationService notifications,
+        IPaymentSettingsService paymentSettings)
     {
         _db = db;
         _qrService = qrService;
         _auditService = auditService;
         _notifications = notifications;
+        _paymentSettings = paymentSettings;
     }
 
     public async Task<PaymentDto> UploadProofAsync(UploadPaymentRequest request, int truckerId, string proofFilePath, CancellationToken cancellationToken = default)
@@ -33,10 +36,12 @@ public class PaymentService : IPaymentService
             .FirstOrDefaultAsync(s => s.Id == request.ScheduleId && s.TruckerId == truckerId, cancellationToken)
             ?? throw new InvalidOperationException("Schedule not found.");
 
+        var configuredAmount = await _paymentSettings.GetReturnFeeAmountAsync(cancellationToken);
+
         var payment = await _db.Payments.FirstOrDefaultAsync(p => p.ScheduleId == request.ScheduleId, cancellationToken)
             ?? new Payment { ScheduleId = request.ScheduleId, TruckerId = truckerId };
 
-        payment.Amount = request.Amount;
+        payment.Amount = configuredAmount;
         payment.ProofFile = proofFilePath;
         payment.Status = PaymentStatus.ForVerification;
         payment.PaidAt = PhilippinesTime.UtcNow;
@@ -54,7 +59,7 @@ public class PaymentService : IPaymentService
         await _notifications.NotifyUsersAsync(
             depotIds.Concat(adminIds),
             "Payment proof uploaded",
-            $"{schedule.PreAdvice.ReferenceNo} — ₱{request.Amount:N0} awaiting verification.",
+            $"{schedule.PreAdvice.ReferenceNo} — ₱{configuredAmount:N0} awaiting verification.",
             "Payment",
             "/depot/payments",
             truckerId,
@@ -179,10 +184,10 @@ public class PaymentService : IPaymentService
         {
             RoleNames.Administrator => true,
             RoleNames.DepotPersonnel => depotId.HasValue && payment.Schedule.DepotId == depotId.Value,
-            RoleNames.Trucker => payment.TruckerId == userId,
+            RoleNames.Trucker => payment.TruckerId == userId
+                || payment.Schedule.PreAdvice.TruckerId == userId,
             RoleNames.ShippingLineEvaluator => shippingLineId.HasValue
                 && payment.Schedule.PreAdvice.ShippingLineId == shippingLineId.Value,
-            RoleNames.Broker => payment.Schedule.PreAdvice.BrokerId == userId,
             _ => false,
         };
 

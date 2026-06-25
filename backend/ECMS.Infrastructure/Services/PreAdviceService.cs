@@ -24,13 +24,14 @@ public class PreAdviceService : IPreAdviceService
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
         var query = _db.PreAdvices
-            .Include(p => p.Broker)
+            .Include(p => p.Trucker)
             .Include(p => p.ShippingLine)
             .Include(p => p.Container)
+            .Include(p => p.Evaluation)
             .AsQueryable();
 
-        if (role == RoleNames.Broker)
-            query = query.Where(p => p.BrokerId == userId);
+        if (RoleNames.IsPreAdviceManager(role))
+            query = query.Where(p => p.TruckerId == userId);
         else if (role == RoleNames.ShippingLineEvaluator)
         {
             var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
@@ -48,35 +49,49 @@ public class PreAdviceService : IPreAdviceService
         return item is null ? null : MapToDto(item);
     }
 
-    public async Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int brokerId, CancellationToken cancellationToken = default)
+    public async Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int truckerId, CancellationToken cancellationToken = default)
     {
+        var containerId = await ResolveContainerIdAsync(
+            request.ShippingLineId,
+            request.ContainerNo,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            cancellationToken);
+
         var referenceNo = await GenerateReferenceNoAsync(cancellationToken);
         var preAdvice = new PreAdvice
         {
             ReferenceNo = referenceNo,
-            BrokerId = brokerId,
+            TruckerId = truckerId,
             ShippingLineId = request.ShippingLineId,
-            ContainerId = request.ContainerId,
+            ContainerId = containerId,
             Remarks = request.Remarks,
             Status = PreAdviceStatus.Draft
         };
 
         _db.Add(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(brokerId, "Create", "PreAdvice", referenceNo, cancellationToken);
+        await _auditService.LogAsync(truckerId, "Create", "PreAdvice", referenceNo, cancellationToken);
 
-        return await GetByIdAsync(preAdvice.Id, brokerId, RoleNames.Broker, cancellationToken)
+        return await GetByIdAsync(preAdvice.Id, truckerId, RoleNames.Trucker, cancellationToken)
             ?? throw new InvalidOperationException("Failed to create pre-advice.");
     }
 
     public async Task<PreAdviceDto?> UpdateAsync(int id, UpdatePreAdviceRequest request, int userId, string role, CancellationToken cancellationToken = default)
     {
         var preAdvice = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
-        if (preAdvice is null || preAdvice.Status != PreAdviceStatus.Draft)
+        if (preAdvice is null || preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             return null;
 
+        var containerId = await ResolveContainerIdAsync(
+            request.ShippingLineId,
+            request.ContainerNo,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            cancellationToken);
+
         preAdvice.ShippingLineId = request.ShippingLineId;
-        preAdvice.ContainerId = request.ContainerId;
+        preAdvice.ContainerId = containerId;
         preAdvice.Remarks = request.Remarks;
         _db.Update(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
@@ -99,21 +114,45 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<PreAdviceDto?> SubmitAsync(int id, int userId, CancellationToken cancellationToken = default)
     {
-        var preAdvice = await GetQueryable(id, userId, RoleNames.Broker).FirstOrDefaultAsync(cancellationToken);
-        if (preAdvice is null || preAdvice.Status != PreAdviceStatus.Draft)
+        var preAdvice = await GetQueryable(id, userId, RoleNames.Trucker).FirstOrDefaultAsync(cancellationToken);
+        if (preAdvice is null || preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             return null;
+
+        var wasCompliance = preAdvice.Status == PreAdviceStatus.ForCompliance;
+
+        var uploadedStandard = await _db.PreAdviceDocuments
+            .Where(d => d.PreAdviceId == id && d.Category != null)
+            .Select(d => d.Category!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var missing = ContainerPhotoCatalog.StandardViews
+            .Where(c => !uploadedStandard.Contains(c))
+            .Select(ContainerPhotoCatalog.GetLabel)
+            .ToList();
+
+        if (missing.Count > 0)
+            throw new InvalidOperationException(
+                $"All container identity photos are required before submit. Missing: {string.Join(", ", missing)}.");
 
         preAdvice.Status = PreAdviceStatus.Submitted;
         _db.Update(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "Submit", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
+        await _auditService.LogAsync(
+            userId,
+            wasCompliance ? "Resubmit" : "Submit",
+            "PreAdvice",
+            preAdvice.ReferenceNo,
+            cancellationToken);
 
         var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(_db, preAdvice.ShippingLineId, cancellationToken);
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
         await _notifications.NotifyUsersAsync(
             evaluatorIds.Concat(adminIds),
-            "New pre-advice submitted",
-            $"{preAdvice.ReferenceNo} is ready for evaluation.",
+            wasCompliance ? "Pre-advice resubmitted" : "New pre-advice submitted",
+            wasCompliance
+                ? $"{preAdvice.ReferenceNo} was resubmitted after compliance corrections."
+                : $"{preAdvice.ReferenceNo} is ready for evaluation.",
             "PreAdvice",
             $"/evaluations/{preAdvice.Id}",
             userId,
@@ -149,7 +188,7 @@ public class PreAdviceService : IPreAdviceService
         await _notifications.NotifyUsersAsync(
             evaluatorIds,
             "Pre-advice cancelled",
-            $"{preAdvice.ReferenceNo} was cancelled by the broker.",
+            $"{preAdvice.ReferenceNo} was cancelled by the trucker.",
             "PreAdvice",
             $"/evaluations/{preAdvice.Id}",
             userId,
@@ -167,12 +206,21 @@ public class PreAdviceService : IPreAdviceService
             .Select(s => new ShippingLineLookupDto(s.Id, s.Name, s.Code))
             .ToListAsync(cancellationToken);
 
-        var containers = await _db.Containers
-            .OrderBy(c => c.ContainerNo)
-            .Select(c => new ContainerLookupDto(c.Id, c.ContainerNo, c.Size, c.Type, c.ShippingLineId))
+        var sizes = await _db.ContainerSizes
+            .Where(s => s.IsActive)
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.Label)
+            .Select(s => new ContainerSizeLookupDto(s.Id, s.Label))
             .ToListAsync(cancellationToken);
 
-        return new PreAdviceLookupsDto(lines, containers);
+        var types = await _db.ContainerTypes
+            .Where(t => t.IsActive)
+            .OrderBy(t => t.SortOrder)
+            .ThenBy(t => t.Code)
+            .Select(t => new ContainerTypeLookupDto(t.Id, t.Code, t.Label))
+            .ToListAsync(cancellationToken);
+
+        return new PreAdviceLookupsDto(lines, sizes, types);
     }
 
     public async Task<IReadOnlyList<PreAdviceDocumentDto>> GetDocumentsAsync(
@@ -206,15 +254,15 @@ public class PreAdviceService : IPreAdviceService
         long fileSize,
         CancellationToken cancellationToken = default)
     {
-        if (role != RoleNames.Broker)
-            throw new InvalidOperationException("Only brokers can upload container photos.");
+        if (!RoleNames.IsPreAdviceManager(role))
+            throw new InvalidOperationException("Only truckers can upload container photos.");
 
         var preAdvice = await GetQueryable(preAdviceId, userId, role).FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null)
             return null;
 
-        if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.Submitted))
-            throw new InvalidOperationException("Photos can only be added to draft or submitted requests.");
+        if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.Submitted or PreAdviceStatus.ForCompliance))
+            throw new InvalidOperationException("Photos can only be added to draft, submitted, or for-compliance requests.");
 
         if (category == ContainerPhotoCategory.Damage)
         {
@@ -266,14 +314,14 @@ public class PreAdviceService : IPreAdviceService
         string role,
         CancellationToken cancellationToken = default)
     {
-        if (role != RoleNames.Broker)
+        if (!RoleNames.IsPreAdviceManager(role))
             return false;
 
         var preAdvice = await GetQueryable(preAdviceId, userId, role).FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null)
             return false;
 
-        if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.Submitted))
+        if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.Submitted or PreAdviceStatus.ForCompliance))
             return false;
 
         var document = await _db.PreAdviceDocuments
@@ -295,8 +343,8 @@ public class PreAdviceService : IPreAdviceService
         if (preAdvice is null)
             return false;
 
-        if (role == RoleNames.Broker)
-            return preAdvice.BrokerId == userId;
+        if (RoleNames.IsPreAdviceManager(role))
+            return preAdvice.TruckerId == userId;
 
         if (role == RoleNames.ShippingLineEvaluator)
         {
@@ -310,15 +358,14 @@ public class PreAdviceService : IPreAdviceService
     private IQueryable<PreAdvice> GetQueryable(int id, int userId, string role)
     {
         var query = _db.PreAdvices
-            .Include(p => p.Broker)
+            .Include(p => p.Trucker)
             .Include(p => p.ShippingLine)
             .Include(p => p.Container)
+            .Include(p => p.Evaluation)
             .Where(p => p.Id == id);
 
-        if (role == RoleNames.Broker)
-            query = query.Where(p => p.BrokerId == userId);
-        else if (role == RoleNames.Trucker)
-            query = query.Where(p => _db.Schedules.Any(s => s.PreAdviceId == p.Id && s.TruckerId == userId));
+        if (RoleNames.IsPreAdviceManager(role))
+            query = query.Where(p => p.TruckerId == userId);
 
         return query;
     }
@@ -330,10 +377,59 @@ public class PreAdviceService : IPreAdviceService
         return $"PA-{year}-{(count + 1):D5}";
     }
 
+    private async Task<int> ResolveContainerIdAsync(
+        int shippingLineId,
+        string containerNo,
+        int containerSizeId,
+        int containerTypeId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _db.ShippingLines.AnyAsync(s => s.Id == shippingLineId && s.IsActive, cancellationToken))
+            throw new InvalidOperationException("Shipping line not found.");
+
+        var size = await _db.ContainerSizes
+            .FirstOrDefaultAsync(s => s.Id == containerSizeId && s.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("Invalid container size.");
+
+        var type = await _db.ContainerTypes
+            .FirstOrDefaultAsync(t => t.Id == containerTypeId && t.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("Invalid container type.");
+
+        var normalizedNo = containerNo.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedNo))
+            throw new InvalidOperationException("Container number is required.");
+
+        var container = await _db.Containers.FirstOrDefaultAsync(c => c.ContainerNo == normalizedNo, cancellationToken);
+        if (container is not null)
+        {
+            if (container.ShippingLineId != shippingLineId)
+                throw new InvalidOperationException($"Container {normalizedNo} is already registered under another shipping line.");
+
+            container.Size = size.Label;
+            container.Type = type.Code;
+            _db.Update(container);
+            await _db.SaveChangesAsync(cancellationToken);
+            return container.Id;
+        }
+
+        container = new Container
+        {
+            ContainerNo = normalizedNo,
+            Size = size.Label,
+            Type = type.Code,
+            ShippingLineId = shippingLineId,
+        };
+        _db.Add(container);
+        await _db.SaveChangesAsync(cancellationToken);
+        return container.Id;
+    }
+
     private static PreAdviceDto MapToDto(PreAdvice p) => new(
-        p.Id, p.ReferenceNo, p.BrokerId, p.Broker.FullName ?? p.Broker.Username,
+        p.Id, p.ReferenceNo, p.TruckerId, p.Trucker.FullName ?? p.Trucker.Username,
         p.ShippingLineId, p.ShippingLine.Name, p.ContainerId, p.Container.ContainerNo,
-        p.Container.Size, p.Container.Type, p.Status, p.Remarks, p.CreatedAt);
+        p.Container.Size, p.Container.Type, p.Status, p.Remarks, p.CreatedAt,
+        p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.Remarks : null,
+        p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.EvaluatedAt : null);
 
     private static PreAdviceDocumentDto MapDocumentToDto(PreAdviceDocument d) => new(
         d.Id,

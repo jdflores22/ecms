@@ -1,4 +1,4 @@
-﻿CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
+CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
     `MigrationId` varchar(150) CHARACTER SET utf8mb4 NOT NULL,
     `ProductVersion` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
     CONSTRAINT `PK___EFMigrationsHistory` PRIMARY KEY (`MigrationId`)
@@ -167,7 +167,7 @@ BEGIN
     CREATE TABLE `PreAdvicesSet` (
         `Id` int NOT NULL AUTO_INCREMENT,
         `ReferenceNo` varchar(255) CHARACTER SET utf8mb4 NOT NULL,
-        `BrokerId` int NOT NULL,
+        `TruckerId` int NOT NULL,
         `ShippingLineId` int NOT NULL,
         `ContainerId` int NOT NULL,
         `Status` int NOT NULL,
@@ -176,7 +176,7 @@ BEGIN
         CONSTRAINT `PK_PreAdvicesSet` PRIMARY KEY (`Id`),
         CONSTRAINT `FK_PreAdvicesSet_ContainersSet_ContainerId` FOREIGN KEY (`ContainerId`) REFERENCES `ContainersSet` (`Id`) ON DELETE CASCADE,
         CONSTRAINT `FK_PreAdvicesSet_ShippingLinesSet_ShippingLineId` FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE,
-        CONSTRAINT `FK_PreAdvicesSet_UsersSet_BrokerId` FOREIGN KEY (`BrokerId`) REFERENCES `UsersSet` (`Id`) ON DELETE CASCADE
+        CONSTRAINT `FK_PreAdvicesSet_UsersSet_TruckerId` FOREIGN KEY (`TruckerId`) REFERENCES `UsersSet` (`Id`) ON DELETE CASCADE
     ) CHARACTER SET=utf8mb4;
 
     END IF;
@@ -432,7 +432,7 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260623054746_InitialCreate') THEN
 
-    CREATE INDEX `IX_PreAdvicesSet_BrokerId` ON `PreAdvicesSet` (`BrokerId`);
+    CREATE INDEX `IX_PreAdvicesSet_TruckerId` ON `PreAdvicesSet` (`TruckerId`);
 
     END IF;
 END //

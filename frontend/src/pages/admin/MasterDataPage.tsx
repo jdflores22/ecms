@@ -8,12 +8,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   FormControlLabel,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Switch,
   Tab,
   Table,
@@ -26,23 +22,27 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import CyContractsMasterTab from '../../components/admin/CyContractsMasterTab'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import AddIcon from '@mui/icons-material/Add'
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
-  containerApi,
+  containerSizeApi,
+  containerTypeApi,
   depotApi,
+  paymentApi,
   shippingLineApi,
-  type ContainerMaster,
+  type ContainerSizeMaster,
+  type ContainerTypeMaster,
   type Depot,
   type ShippingLine,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
+import { formatDateTime, formatPeso } from '../../utils/datetime'
 
 const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
@@ -99,38 +99,50 @@ export default function MasterDataPage() {
   const user = useAppSelector((s) => s.auth.user)
   const [tab, setTab] = useState(0)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const [lines, setLines] = useState<ShippingLine[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
-  const [containers, setContainers] = useState<ContainerMaster[]>([])
+  const [containerSizes, setContainerSizes] = useState<ContainerSizeMaster[]>([])
+  const [containerTypes, setContainerTypes] = useState<ContainerTypeMaster[]>([])
   const [loading, setLoading] = useState(true)
 
   const [lineDialog, setLineDialog] = useState<'create' | 'edit' | null>(null)
   const [depotDialog, setDepotDialog] = useState<'create' | 'edit' | null>(null)
-  const [containerDialog, setContainerDialog] = useState<'create' | 'edit' | null>(null)
+  const [sizeDialog, setSizeDialog] = useState<'create' | 'edit' | null>(null)
+  const [typeDialog, setTypeDialog] = useState<'create' | 'edit' | null>(null)
 
   const [selectedLine, setSelectedLine] = useState<ShippingLine | null>(null)
   const [selectedDepot, setSelectedDepot] = useState<Depot | null>(null)
-  const [selectedContainer, setSelectedContainer] = useState<ContainerMaster | null>(null)
+  const [selectedSize, setSelectedSize] = useState<ContainerSizeMaster | null>(null)
+  const [selectedType, setSelectedType] = useState<ContainerTypeMaster | null>(null)
 
   const [lineForm, setLineForm] = useState({ name: '', code: '', isActive: true })
   const [depotForm, setDepotForm] = useState({ name: '', address: '', capacity: 100, isActive: true })
-  const [containerForm, setContainerForm] = useState({
-    containerNo: '',
-    size: '40',
-    type: 'HC',
-    shippingLineId: '' as number | '',
-  })
+  const [sizeForm, setSizeForm] = useState({ label: '', teu: 2, sortOrder: 1, isActive: true })
+  const [typeForm, setTypeForm] = useState({ code: '', label: '', sortOrder: 1, isActive: true })
+  const [returnFeeAmount, setReturnFeeAmount] = useState('5000')
+  const [returnFeeUpdatedAt, setReturnFeeUpdatedAt] = useState<string | null>(null)
+  const [paymentSettingsSaving, setPaymentSettingsSaving] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
     setError('')
-    Promise.all([shippingLineApi.list(), depotApi.listAdmin(), containerApi.list()])
-      .then(([l, d, c]) => {
+    Promise.all([
+      shippingLineApi.list(),
+      depotApi.listAdmin(),
+      containerSizeApi.list(),
+      containerTypeApi.list(),
+      paymentApi.getSettings(),
+    ])
+      .then(([l, d, sizes, types, paymentSettings]) => {
         setLines(l.data)
         setDepots(d.data)
-        setContainers(c.data)
+        setContainerSizes(sizes.data)
+        setContainerTypes(types.data)
+        setReturnFeeAmount(String(paymentSettings.data.returnFeeAmount))
+        setReturnFeeUpdatedAt(paymentSettings.data.updatedAt)
       })
       .catch(() => setError('Failed to load master data.'))
       .finally(() => setLoading(false))
@@ -146,16 +158,39 @@ export default function MasterDataPage() {
       activeLines: lines.filter((l) => l.isActive).length,
       depots: depots.length,
       activeDepots: depots.filter((d) => d.isActive).length,
-      containers: containers.length,
+      containerSizes: containerSizes.length,
+      activeSizes: containerSizes.filter((s) => s.isActive).length,
+      containerTypes: containerTypes.length,
+      activeTypes: containerTypes.filter((t) => t.isActive).length,
     }),
-    [lines, depots, containers],
+    [lines, depots, containerSizes, containerTypes],
   )
+
+  const saveReturnFee = async () => {
+    const amount = Number(returnFeeAmount)
+    if (!amount || amount <= 0) {
+      setError('Pre-advised fee must be greater than zero.')
+      setSuccessMessage('')
+      return
+    }
+    setPaymentSettingsSaving(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const { data } = await paymentApi.updateSettings(amount)
+      setReturnFeeAmount(String(data.returnFeeAmount))
+      setReturnFeeUpdatedAt(data.updatedAt)
+      setSuccessMessage(`Pre-advised fee updated to ${formatPeso(data.returnFeeAmount)}.`)
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to update pre-advised fee.'))
+    } finally {
+      setPaymentSettingsSaving(false)
+    }
+  }
 
   if (user?.role !== 'Administrator') {
     return <Navigate to="/" replace />
   }
-
-  const activeLines = lines.filter((l) => l.isActive)
 
   const tableHeadSx = {
     bgcolor: hexToRgba(primaryDark, 0.04),
@@ -251,74 +286,111 @@ export default function MasterDataPage() {
     }
   }
 
-  const openCreateContainer = () => {
-    setContainerForm({
-      containerNo: '',
-      size: '40',
-      type: 'HC',
-      shippingLineId: activeLines[0]?.id ?? '',
-    })
-    setContainerDialog('create')
+  const openCreateSize = () => {
+    setSizeForm({ label: '', teu: 2, sortOrder: containerSizes.length + 1, isActive: true })
+    setSizeDialog('create')
   }
 
-  const openEditContainer = (container: ContainerMaster) => {
-    setSelectedContainer(container)
-    setContainerForm({
-      containerNo: container.containerNo,
-      size: container.size,
-      type: container.type,
-      shippingLineId: container.shippingLineId,
-    })
-    setContainerDialog('edit')
+  const openEditSize = (size: ContainerSizeMaster) => {
+    setSelectedSize(size)
+    setSizeForm({ label: size.label, teu: size.teu, sortOrder: size.sortOrder, isActive: size.isActive })
+    setSizeDialog('edit')
   }
 
-  const saveContainer = async () => {
-    if (containerForm.shippingLineId === '') return
+  const saveSize = async () => {
     setSubmitting(true)
     setError('')
     try {
-      const payload = {
-        containerNo: containerForm.containerNo,
-        size: containerForm.size,
-        type: containerForm.type,
-        shippingLineId: Number(containerForm.shippingLineId),
+      if (sizeDialog === 'create') {
+        await containerSizeApi.create(sizeForm)
+      } else if (selectedSize) {
+        await containerSizeApi.update(selectedSize.id, sizeForm)
       }
-      if (containerDialog === 'create') {
-        await containerApi.create(payload)
-      } else if (selectedContainer) {
-        await containerApi.update(selectedContainer.id, payload)
-      }
-      setContainerDialog(null)
+      setSizeDialog(null)
       load()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to save container.'))
+      setError(apiErrorMessage(err, 'Failed to save container size.'))
     } finally {
       setSubmitting(false)
     }
   }
 
-  const deleteContainer = async (container: ContainerMaster) => {
-    if (!window.confirm(`Delete container ${container.containerNo}?`)) return
+  const deactivateSize = async (size: ContainerSizeMaster) => {
+    if (!window.confirm(`Deactivate container size ${size.label}'?`)) return
     setError('')
     try {
-      await containerApi.delete(container.id)
+      await containerSizeApi.deactivate(size.id)
       load()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to delete container.'))
+      setError(apiErrorMessage(err, 'Failed to deactivate container size.'))
     }
   }
 
-  const tabActions = (
-    <Button
-      variant="contained"
-      startIcon={<AddIcon />}
-      onClick={tab === 0 ? openCreateLine : tab === 1 ? openCreateDepot : openCreateContainer}
-      disabled={tab === 2 && activeLines.length === 0}
-      sx={{ fontWeight: 700, borderRadius: 2 }}
-    >
-      {tab === 0 ? 'Add shipping line' : tab === 1 ? 'Add depot' : 'Add container'}
-    </Button>
-  )
+  const openCreateType = () => {
+    setTypeForm({ code: '', label: '', sortOrder: containerTypes.length + 1, isActive: true })
+    setTypeDialog('create')
+  }
+
+  const openEditType = (type: ContainerTypeMaster) => {
+    setSelectedType(type)
+    setTypeForm({ code: type.code, label: type.label, sortOrder: type.sortOrder, isActive: type.isActive })
+    setTypeDialog('edit')
+  }
+
+  const saveType = async () => {
+    setSubmitting(true)
+    setError('')
+    try {
+      if (typeDialog === 'create') {
+        await containerTypeApi.create(typeForm)
+      } else if (selectedType) {
+        await containerTypeApi.update(selectedType.id, typeForm)
+      }
+      setTypeDialog(null)
+      load()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to save container type.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const deactivateType = async (type: ContainerTypeMaster) => {
+    if (!window.confirm(`Deactivate container type ${type.code}?`)) return
+    setError('')
+    try {
+      await containerTypeApi.deactivate(type.id)
+      load()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to deactivate container type.'))
+    }
+  }
+
+  const tabActions =
+    tab < 4 ? (
+      <Button
+        variant="contained"
+        startIcon={<AddIcon />}
+        onClick={
+          tab === 0
+            ? openCreateLine
+            : tab === 1
+              ? openCreateDepot
+              : tab === 2
+                ? openCreateSize
+                : openCreateType
+        }
+        sx={{ fontWeight: 700, borderRadius: 2 }}
+      >
+        {tab === 0
+          ? 'Add shipping line'
+          : tab === 1
+            ? 'Add depot'
+            : tab === 2
+              ? 'Add container size'
+              : 'Add container type'}
+      </Button>
+    ) : null
 
   return (
     <Box>
@@ -365,7 +437,7 @@ export default function MasterDataPage() {
               Master Data
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-              Manage shipping lines, container yards, and containers.
+              Manage shipping lines, container yards, container sizes, and container types.
             </Typography>
           </Box>
         </Box>
@@ -376,18 +448,24 @@ export default function MasterDataPage() {
           {error}
         </Alert>
       )}
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setSuccessMessage('')}>
+          {successMessage}
+        </Alert>
+      )}
 
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
           gap: 2,
           mb: 3,
         }}
       >
         <SummaryCard label="Shipping lines" value={summary.lines} color={primaryDark} />
         <SummaryCard label="Active depots" value={summary.activeDepots} color="#2E7D32" />
-        <SummaryCard label="Containers" value={summary.containers} color="#00A3E0" />
+        <SummaryCard label="Container sizes" value={summary.activeSizes} color="#00A3E0" />
+        <SummaryCard label="Container types" value={summary.activeTypes} color="#6A1B9A" />
       </Box>
 
       <Paper
@@ -424,7 +502,10 @@ export default function MasterDataPage() {
           >
             <Tab label={`Shipping lines (${summary.activeLines})`} />
             <Tab label={`Depots (${summary.depots})`} />
-            <Tab label={`Containers (${summary.containers})`} />
+            <Tab label={`Container sizes (${summary.containerSizes})`} />
+            <Tab label={`Container types (${summary.containerTypes})`} />
+            <Tab label="Pre-advised fee" />
+            <Tab label="CY contracts" />
           </Tabs>
           <Box sx={{ px: { xs: 1, sm: 0 }, pb: { xs: 1, sm: 0 } }}>{tabActions}</Box>
         </Box>
@@ -587,54 +668,55 @@ export default function MasterDataPage() {
               <Table>
                 <TableHead>
                   <TableRow sx={tableHeadSx}>
-                    <TableCell>Container no.</TableCell>
-                    <TableCell>Size</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Shipping line</TableCell>
+                    <TableCell>Size (ft)</TableCell>
+                    <TableCell align="right">TEU</TableCell>
+                    <TableCell>Sort order</TableCell>
+                    <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {containers.length === 0 ? (
+                  {containerSizes.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        No containers.
+                        No container sizes.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    containers.map((c) => (
-                      <TableRow key={c.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Inventory2OutlinedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                            {c.containerNo}
-                          </Box>
-                        </TableCell>
-                        <TableCell>{c.size}&apos;</TableCell>
+                    containerSizes.map((size) => (
+                      <TableRow key={size.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{size.label}&apos;</TableCell>
+                        <TableCell align="right">{size.teu.toFixed(1)}</TableCell>
+                        <TableCell>{size.sortOrder}</TableCell>
                         <TableCell>
-                          <Chip label={c.type} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                          <Chip
+                            label={size.isActive ? 'Active' : 'Inactive'}
+                            color={size.isActive ? 'success' : 'default'}
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
                         </TableCell>
-                        <TableCell>{c.shippingLineName}</TableCell>
                         <TableCell align="right">
                           <Button
                             size="small"
                             variant="outlined"
                             startIcon={<EditOutlinedIcon />}
-                            onClick={() => openEditContainer(c)}
+                            onClick={() => openEditSize(size)}
                             sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
                           >
                             Edit
                           </Button>
-                          <Button
-                            size="small"
-                            color="error"
-                            variant="outlined"
-                            startIcon={<DeleteOutlinedIcon />}
-                            onClick={() => deleteContainer(c)}
-                            sx={{ fontWeight: 600, borderRadius: 2 }}
-                          >
-                            Delete
-                          </Button>
+                          {size.isActive && (
+                            <Button
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              onClick={() => deactivateSize(size)}
+                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                            >
+                              Deactivate
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -643,6 +725,159 @@ export default function MasterDataPage() {
               </Table>
             </TableContainer>
           )}
+        </Paper>
+      )}
+
+      {tab === 3 && (
+        <Paper elevation={0} sx={tablePaperSx}>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+              <CircularProgress sx={{ color: primaryDark }} />
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={tableHeadSx}>
+                    <TableCell>Code</TableCell>
+                    <TableCell>Label</TableCell>
+                    <TableCell>Sort order</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {containerTypes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+                        No container types.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    containerTypes.map((type) => (
+                      <TableRow key={type.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell>
+                          <Chip label={type.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{type.label}</TableCell>
+                        <TableCell>{type.sortOrder}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={type.isActive ? 'Active' : 'Inactive'}
+                            color={type.isActive ? 'success' : 'default'}
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<EditOutlinedIcon />}
+                            onClick={() => openEditType(type)}
+                            sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
+                          >
+                            Edit
+                          </Button>
+                          {type.isActive && (
+                            <Button
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              onClick={() => deactivateType(type)}
+                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                            >
+                              Deactivate
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      )}
+
+      {tab === 4 && (
+        <Paper elevation={0} sx={{ ...tablePaperSx, p: { xs: 2, sm: 3 } }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 2,
+                bgcolor: hexToRgba(primaryDark, 0.08),
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <PaymentsOutlinedIcon sx={{ color: primaryDark }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: primaryDark }}>
+                Pre-advised fee
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 560 }}>
+                Calibrate the fixed pre-advised fee truckers pay for each scheduled container return. This amount
+                appears on the trucker payment page and is applied automatically when proof is submitted.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ maxWidth: 420 }}>
+            <TextField
+              fullWidth
+              label="Pre-advised fee (PHP)"
+              type="number"
+              value={returnFeeAmount}
+              onChange={(e) => setReturnFeeAmount(e.target.value)}
+              sx={fieldSx}
+              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+              helperText={
+                returnFeeUpdatedAt
+                  ? `Last updated ${formatDateTime(returnFeeUpdatedAt)}`
+                  : 'Set the pre-advised fee truckers see before uploading proof.'
+              }
+            />
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={saveReturnFee}
+                disabled={paymentSettingsSaving}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                {paymentSettingsSaving ? 'Saving…' : 'Save pre-advised fee'}
+              </Button>
+            </Box>
+            <Paper
+              elevation={0}
+              sx={{
+                mt: 3,
+                p: 2,
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: hexToRgba(primaryDark, 0.02),
+              }}
+            >
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                Preview (trucker view)
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark, mt: 0.5 }}>
+                {formatPeso(Number(returnFeeAmount) || 0)}
+              </Typography>
+            </Paper>
+          </Box>
+        </Paper>
+      )}
+
+      {tab === 5 && (
+        <Paper elevation={0} sx={{ ...tablePaperSx, p: 2 }}>
+          <CyContractsMasterTab />
         </Paper>
       )}
 
@@ -751,60 +986,118 @@ export default function MasterDataPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={containerDialog !== null} onClose={() => setContainerDialog(null)} maxWidth="sm" fullWidth>
+      <Dialog open={sizeDialog !== null} onClose={() => setSizeDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
-          {containerDialog === 'create' ? 'Add container' : 'Edit container'}
+          {sizeDialog === 'create' ? 'Add container size' : 'Edit container size'}
         </DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
             margin="normal"
-            label="Container number"
-            value={containerForm.containerNo}
-            onChange={(e) => setContainerForm({ ...containerForm, containerNo: e.target.value })}
-            sx={fieldSx}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
             label="Size (ft)"
-            value={containerForm.size}
-            onChange={(e) => setContainerForm({ ...containerForm, size: e.target.value })}
+            value={sizeForm.label}
+            onChange={(e) => setSizeForm({ ...sizeForm, label: e.target.value })}
             sx={fieldSx}
           />
           <TextField
             fullWidth
             margin="normal"
-            label="Type"
-            value={containerForm.type}
-            onChange={(e) => setContainerForm({ ...containerForm, type: e.target.value })}
+            label="TEU"
+            type="number"
+            slotProps={{ htmlInput: { min: 0.1, step: 0.1 } }}
+            value={sizeForm.teu}
+            onChange={(e) => setSizeForm({ ...sizeForm, teu: Number(e.target.value) })}
+            helperText="Twenty-foot equivalent units consumed per container of this size"
             sx={fieldSx}
           />
-          <FormControl fullWidth margin="normal" required sx={fieldSx}>
-            <InputLabel>Shipping line</InputLabel>
-            <Select
-              label="Shipping line"
-              value={containerForm.shippingLineId}
-              onChange={(e) =>
-                setContainerForm({ ...containerForm, shippingLineId: e.target.value as number })
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Sort order"
+            type="number"
+            value={sizeForm.sortOrder}
+            onChange={(e) => setSizeForm({ ...sizeForm, sortOrder: Number(e.target.value) })}
+            sx={fieldSx}
+          />
+          {sizeDialog === 'edit' && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={sizeForm.isActive}
+                  onChange={(e) => setSizeForm({ ...sizeForm, isActive: e.target.checked })}
+                />
               }
-            >
-              {activeLines.map((line) => (
-                <MenuItem key={line.id} value={line.id}>
-                  {line.name} ({line.code})
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              label="Active"
+            />
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setContainerDialog(null)} disabled={submitting}>
+          <Button onClick={() => setSizeDialog(null)} disabled={submitting}>
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={saveContainer}
-            disabled={submitting || containerForm.shippingLineId === ''}
+            onClick={saveSize}
+            disabled={submitting || !sizeForm.label.trim() || sizeForm.teu <= 0}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            {submitting ? 'Saving…' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={typeDialog !== null} onClose={() => setTypeDialog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {typeDialog === 'create' ? 'Add container type' : 'Edit container type'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Code"
+            value={typeForm.code}
+            onChange={(e) => setTypeForm({ ...typeForm, code: e.target.value.toUpperCase() })}
+            placeholder="e.g. GP, HC, RF"
+            sx={fieldSx}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Label"
+            value={typeForm.label}
+            onChange={(e) => setTypeForm({ ...typeForm, label: e.target.value })}
+            placeholder="e.g. General Purpose"
+            sx={fieldSx}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Sort order"
+            type="number"
+            value={typeForm.sortOrder}
+            onChange={(e) => setTypeForm({ ...typeForm, sortOrder: Number(e.target.value) })}
+            sx={fieldSx}
+          />
+          {typeDialog === 'edit' && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={typeForm.isActive}
+                  onChange={(e) => setTypeForm({ ...typeForm, isActive: e.target.checked })}
+                />
+              }
+              label="Active"
+            />
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setTypeDialog(null)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={saveType}
+            disabled={submitting || !typeForm.code.trim() || !typeForm.label.trim()}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             {submitting ? 'Saving…' : 'Save'}

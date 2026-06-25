@@ -63,12 +63,6 @@ public class SlotCapacityService : ISlotCapacityService
         int? excludeScheduleId = null,
         CancellationToken cancellationToken = default)
     {
-        if (slotNo < 1 || slotNo > SchedulingConstants.MaxSlotsPerDay)
-        {
-            throw new InvalidOperationException(
-                $"Slot number must be between 1 and {SchedulingConstants.MaxSlotsPerDay}.");
-        }
-
         var depot = await _db.Depots.FirstAsync(d => d.Id == depotId, cancellationToken);
         var dailyLimit = GetDailyLimit(depot.Capacity);
 
@@ -79,13 +73,6 @@ public class SlotCapacityService : ISlotCapacityService
         {
             throw new InvalidOperationException(
                 $"Daily capacity reached for {depot.Name} on {date:yyyy-MM-dd} ({dailyLimit} returns).");
-        }
-
-        var slotTaken = active.Any(s => s.SlotNo == slotNo);
-        if (slotTaken)
-        {
-            throw new InvalidOperationException(
-                $"Slot {slotNo} is already booked on {date:yyyy-MM-dd}. Choose another slot.");
         }
     }
 
@@ -103,7 +90,7 @@ public class SlotCapacityService : ISlotCapacityService
                 s.DepotId == depotId &&
                 s.Date == date &&
                 s.Status != ScheduleStatus.Cancelled &&
-                (s.Status != ScheduleStatus.WaitingSchedule || s.SlotNo > 0));
+                s.Status != ScheduleStatus.WaitingSchedule);
 
         if (excludeScheduleId.HasValue)
             query = query.Where(s => s.Id != excludeScheduleId.Value);

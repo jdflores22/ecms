@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -39,7 +40,9 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../components/layout/ListPagePrimitives'
+import { isPreAdviceManager } from '../config/roleConfig'
 import { preAdviceApi, type PreAdvice, type PreAdviceLookups } from '../services/api'
+import { useAppSelector } from '../store/hooks'
 import { formatDateTime, parsePhEndOfDay, parsePhStartOfDay } from '../utils/datetime'
 
 const primaryDark = LIST_PRIMARY
@@ -52,6 +55,7 @@ const STATUS_OPTIONS = [
   'UnderEvaluation',
   'Approved',
   'Rejected',
+  'ForCompliance',
   'Cancelled',
 ] as const
 
@@ -61,11 +65,13 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
   UnderEvaluation: 'warning',
   Approved: 'success',
   Rejected: 'error',
+  ForCompliance: 'warning',
   Cancelled: 'default',
 }
 
 const statusLabel: Record<string, string> = {
   UnderEvaluation: 'Under evaluation',
+  ForCompliance: 'For compliance',
 }
 
 function startOfDay(date: string) {
@@ -77,9 +83,11 @@ function endOfDay(date: string) {
 }
 
 export default function PreAdvicePage() {
+  const user = useAppSelector((s) => s.auth.user)
   const [items, setItems] = useState<PreAdvice[]>([])
   const [lookups, setLookups] = useState<PreAdviceLookups | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('All')
   const [shippingLineFilter, setShippingLineFilter] = useState<number | 'All'>('All')
   const [dateFrom, setDateFrom] = useState('')
@@ -87,17 +95,23 @@ export default function PreAdvicePage() {
 
   const load = () => {
     setLoading(true)
-    Promise.all([preAdviceApi.list(), preAdviceApi.lookups()])
+    setLoadError('')
+    const lookupsPromise = isPreAdviceManager(user?.role)
+      ? preAdviceApi.lookups()
+      : Promise.resolve({ data: null as PreAdviceLookups | null })
+
+    Promise.all([preAdviceApi.list(), lookupsPromise])
       .then(([listRes, lookupsRes]) => {
         setItems(listRes.data)
         setLookups(lookupsRes.data)
       })
+      .catch(() => setLoadError('Failed to load pre-advice. Log out and sign in again if this continues.'))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     load()
-  }, [])
+  }, [user?.role])
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -111,12 +125,13 @@ export default function PreAdvicePage() {
   }, [items, statusFilter, shippingLineFilter, dateFrom, dateTo])
 
   const summary = useMemo(() => {
+    const forCompliance = items.filter((i) => i.status === 'ForCompliance').length
     const pending = items.filter((i) =>
-      ['Submitted', 'UnderEvaluation'].includes(i.status),
+      ['Submitted', 'UnderEvaluation', 'ForCompliance'].includes(i.status),
     ).length
     const approved = items.filter((i) => i.status === 'Approved').length
     const draft = items.filter((i) => i.status === 'Draft').length
-    return { total: items.length, pending, approved, draft }
+    return { total: items.length, pending, approved, draft, forCompliance }
   }, [items])
 
   const hasFilters =
@@ -138,6 +153,11 @@ export default function PreAdvicePage() {
 
   return (
     <Box sx={listPageRootSx}>
+      {loadError && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          {loadError}
+        </Alert>
+      )}
       <Paper
         elevation={0}
         sx={{

@@ -5,12 +5,14 @@ import {
   Chip,
   CircularProgress,
   Paper,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   Typography,
 } from '@mui/material'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
@@ -34,16 +36,31 @@ import {
 import { paymentApi, scheduleApi, type Payment, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
-import { formatPeso, formatScheduleDate } from '../../utils/datetime'
-import { needsPaymentUpload, paymentStatusLabel, truckerPaymentPath } from '../../utils/truckerPayment'
+import { formatPeso, formatScheduleDate, formatScheduleSlot } from '../../utils/datetime'
+import {
+  needsPaymentUpload,
+  paymentStatusColor,
+  paymentStatusLabel,
+  resolvePaymentStatus,
+  truckerPaymentPath,
+} from '../../utils/truckerPayment'
 
 const primaryDark = LIST_PRIMARY
 
-const paymentStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
-  Pending: 'warning',
-  ForVerification: 'info',
-  Paid: 'success',
-  Rejected: 'error',
+const STATUS_TABS = [
+  { key: 'Pending', label: 'Payment due', summaryColor: '#ED6C02' },
+  { key: 'ForVerification', label: 'Under review', summaryColor: '#0288D1' },
+  { key: 'Paid', label: 'Paid', summaryColor: '#2E7D32' },
+  { key: 'Rejected', label: 'Rejected', summaryColor: '#D32F2F' },
+] as const
+
+type PaymentStatusTab = (typeof STATUS_TABS)[number]['key']
+
+const tabEmptyMessage: Record<PaymentStatusTab, string> = {
+  Pending: 'No scheduled returns awaiting payment upload.',
+  ForVerification: 'No payment proofs are under depot review.',
+  Paid: 'No verified payments yet.',
+  Rejected: 'No rejected payments — re-upload proof from the Payment due tab when applicable.',
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -51,21 +68,50 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: { xs: 1.5, sm: 2 },
         borderRadius: 3,
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
         boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        minWidth: 0,
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word', display: 'block' }}
+      >
         {label}
       </Typography>
-      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5 }}>
+      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
         {value}
       </Typography>
     </Paper>
+  )
+}
+
+function PaymentRowActions({ item, uploadNeeded }: { item: Schedule; uploadNeeded: boolean }) {
+  const navigate = useNavigate()
+  return uploadNeeded ? (
+    <Button
+      size="small"
+      variant="contained"
+      startIcon={<UploadFileIcon />}
+      onClick={() => navigate(truckerPaymentPath(item.id))}
+      sx={{ fontWeight: 600, borderRadius: 2 }}
+    >
+      Upload proof
+    </Button>
+  ) : (
+    <Button
+      size="small"
+      variant="outlined"
+      onClick={() => navigate(truckerPaymentPath(item.id))}
+      sx={{ fontWeight: 600, borderRadius: 2 }}
+    >
+      View payment
+    </Button>
   )
 }
 
@@ -73,8 +119,10 @@ export default function TruckerPaymentsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const userRole = useAppSelector((s) => s.auth.user?.role)
+  const [activeStatus, setActiveStatus] = useState<PaymentStatusTab>('Pending')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
+  const [returnFeeAmount, setReturnFeeAmount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -93,10 +141,11 @@ export default function TruckerPaymentsPage() {
       return
     }
     setLoading(true)
-    Promise.all([scheduleApi.list(), paymentApi.mine()])
-      .then(([s, p]) => {
+    Promise.all([scheduleApi.list(), paymentApi.mine(), paymentApi.getSettings()])
+      .then(([s, p, settings]) => {
         setSchedules(s.data.filter((x) => x.status === 'Scheduled' || x.status === 'Confirmed'))
         setPayments(p.data)
+        setReturnFeeAmount(settings.data.returnFeeAmount)
       })
       .catch(() => setError('Failed to load payments.'))
       .finally(() => setLoading(false))
@@ -106,48 +155,32 @@ export default function TruckerPaymentsPage() {
     load()
   }, [load])
 
-  const paymentFor = (scheduleId: number) => payments.find((p) => p.scheduleId === scheduleId)
+  const paymentFor = useCallback(
+    (scheduleId: number) => payments.find((p) => p.scheduleId === scheduleId) ?? null,
+    [payments],
+  )
 
-  const paymentSortOrder = (status: string) => {
-    switch (status) {
-      case 'Pending':
-        return 0
-      case 'Rejected':
-        return 1
-      case 'ForVerification':
-        return 2
-      case 'Paid':
-        return 3
-      default:
-        return 4
+  const statusFor = useCallback(
+    (schedule: Schedule) => resolvePaymentStatus(schedule, paymentFor(schedule.id)),
+    [paymentFor],
+  )
+
+  const countByStatus = useMemo(() => {
+    const counts = Object.fromEntries(STATUS_TABS.map((t) => [t.key, 0])) as Record<PaymentStatusTab, number>
+    for (const schedule of schedules) {
+      const status = statusFor(schedule) as PaymentStatusTab
+      if (status in counts) counts[status]++
     }
-  }
+    return counts
+  }, [schedules, statusFor])
 
-  const sortedSchedules = useMemo(() => {
-    return [...schedules].sort((a, b) => {
-      const statusA = paymentFor(a.id)?.status ?? 'Pending'
-      const statusB = paymentFor(b.id)?.status ?? 'Pending'
-      const order = paymentSortOrder(statusA) - paymentSortOrder(statusB)
-      if (order !== 0) return order
-      return (b.date ?? '').localeCompare(a.date ?? '')
-    })
-  }, [schedules, payments])
+  const filtered = useMemo(() => {
+    return schedules
+      .filter((schedule) => statusFor(schedule) === activeStatus)
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+  }, [schedules, activeStatus, statusFor])
 
-  const summary = useMemo(() => {
-    let pending = 0
-    let forVerification = 0
-    let paid = 0
-    for (const s of schedules) {
-      const p = paymentFor(s.id)
-      const status = p?.status ?? 'Pending'
-      if (status === 'Pending' || status === 'Rejected') pending++
-      else if (status === 'ForVerification') forVerification++
-      else if (status === 'Paid') paid++
-    }
-    return { total: schedules.length, pending, forVerification, paid }
-  }, [schedules, payments])
-
-  const emptyMessage = 'No scheduled returns requiring payment.'
+  const activeTabMeta = STATUS_TABS.find((t) => t.key === activeStatus)!
 
   return (
     <Box sx={listPageRootSx}>
@@ -204,7 +237,8 @@ export default function TruckerPaymentsPage() {
                 Payments
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Upload proof of payment for scheduled returns. Depot will verify before the booking QR is published for LOGICTECK integration.
+                Upload proof of payment for scheduled returns. Depot will verify before the booking QR is published for
+                LOGICTECK integration.
               </Typography>
             </Box>
           </Box>
@@ -234,16 +268,61 @@ export default function TruckerPaymentsPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
+          gridTemplateColumns: {
+            xs: 'repeat(2, minmax(0, 1fr))',
+            sm: 'repeat(4, 1fr)',
+          },
+          gap: { xs: 1.5, sm: 2 },
           mb: 3,
         }}
       >
-        <SummaryCard label="Scheduled returns" value={summary.total} color={primaryDark} />
-        <SummaryCard label="Upload needed" value={summary.pending} color="#ED6C02" />
-        <SummaryCard label="Under review" value={summary.forVerification} color="#0288D1" />
-        <SummaryCard label="Paid" value={summary.paid} color="#2E7D32" />
+        {STATUS_TABS.map((tab) => (
+          <SummaryCard
+            key={tab.key}
+            label={tab.label}
+            value={countByStatus[tab.key]}
+            color={tab.summaryColor}
+          />
+        ))}
       </Box>
+
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 2,
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: '#fff',
+          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+          overflow: 'hidden',
+        }}
+      >
+        <Tabs
+          value={activeStatus}
+          onChange={(_, value: PaymentStatusTab) => setActiveStatus(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            px: 1,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: hexToRgba(primaryDark, 0.02),
+            '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
+            '& .Mui-selected': { color: primaryDark },
+            '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
+          }}
+        >
+          {STATUS_TABS.map((tab) => (
+            <Tab
+              key={tab.key}
+              value={tab.key}
+              label={`${tab.label} (${countByStatus[tab.key]})`}
+            />
+          ))}
+        </Tabs>
+      </Paper>
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
@@ -252,22 +331,39 @@ export default function TruckerPaymentsPage() {
           </Box>
         ) : schedules.length === 0 ? (
           <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
-            {emptyMessage}
+            No scheduled returns requiring payment.
+          </Typography>
+        ) : filtered.length === 0 ? (
+          <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
+            {tabEmptyMessage[activeStatus]}
           </Typography>
         ) : (
           <>
+            <Box sx={{ px: { xs: 2, sm: 2.5 }, pt: 2, pb: 0.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                Showing {filtered.length} {activeTabMeta.label.toLowerCase()} return
+                {filtered.length === 1 ? '' : 's'}
+              </Typography>
+            </Box>
+
             <ListMobileOnly>
-              {sortedSchedules.map((item) => {
+              {filtered.map((item) => {
                 const payment = paymentFor(item.id)
-                const status = payment?.status ?? 'Pending'
-                const uploadNeeded = needsPaymentUpload(item, payment ?? null)
+                const status = statusFor(item)
+                const uploadNeeded = needsPaymentUpload(item, payment)
                 return (
                   <ListMobileCard key={item.id} onClick={() => navigate(truckerPaymentPath(item.id))}>
                     <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                     <ListMobileMeta>{item.depotName}</ListMobileMeta>
                     <ListMobileMeta>
-                      {item.date ? formatScheduleDate(item.date) : '—'} ·{' '}
-                      {payment ? formatPeso(payment.amount) : 'Amount pending'}
+                      {item.date && item.time
+                        ? formatScheduleSlot(item.date, item.time)
+                        : item.date
+                          ? formatScheduleDate(item.date)
+                          : '—'}
+                    </ListMobileMeta>
+                    <ListMobileMeta>
+                      {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : 'Amount pending'}
                     </ListMobileMeta>
                     <ListMobileChipRow>
                       <Chip
@@ -278,26 +374,7 @@ export default function TruckerPaymentsPage() {
                       />
                     </ListMobileChipRow>
                     <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
-                      {uploadNeeded ? (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          startIcon={<UploadFileIcon />}
-                          onClick={() => navigate(truckerPaymentPath(item.id))}
-                          sx={{ fontWeight: 600, borderRadius: 2 }}
-                        >
-                          Upload proof
-                        </Button>
-                      ) : (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => navigate(truckerPaymentPath(item.id))}
-                          sx={{ fontWeight: 600, borderRadius: 2 }}
-                        >
-                          View payment
-                        </Button>
-                      )}
+                      <PaymentRowActions item={item} uploadNeeded={uploadNeeded} />
                     </Box>
                   </ListMobileCard>
                 )
@@ -316,17 +393,15 @@ export default function TruckerPaymentsPage() {
                     >
                       <TableCell>Reference</TableCell>
                       <TableCell>Depot</TableCell>
-                      <TableCell>Date</TableCell>
+                      <TableCell>Return slot</TableCell>
                       <TableCell>Amount</TableCell>
-                      <TableCell>Status</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {sortedSchedules.map((item) => {
+                    {filtered.map((item) => {
                       const payment = paymentFor(item.id)
-                      const status = payment?.status ?? 'Pending'
-                      const uploadNeeded = needsPaymentUpload(item, payment ?? null)
+                      const uploadNeeded = needsPaymentUpload(item, payment)
                       return (
                         <TableRow
                           key={item.id}
@@ -336,39 +411,18 @@ export default function TruckerPaymentsPage() {
                         >
                           <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
                           <TableCell>{item.depotName}</TableCell>
-                          <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>
-                            {payment ? formatPeso(payment.amount) : '—'}
-                          </TableCell>
                           <TableCell>
-                            <Chip
-                              label={paymentStatusLabel[status] ?? status}
-                              color={paymentStatusColor[status] ?? 'default'}
-                              size="small"
-                              sx={{ fontWeight: 600 }}
-                            />
+                            {item.date && item.time
+                              ? formatScheduleSlot(item.date, item.time)
+                              : item.date
+                                ? formatScheduleDate(item.date)
+                                : '—'}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : '—'}
                           </TableCell>
                           <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                            {uploadNeeded ? (
-                              <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<UploadFileIcon />}
-                                onClick={() => navigate(truckerPaymentPath(item.id))}
-                                sx={{ fontWeight: 600, borderRadius: 2 }}
-                              >
-                                Upload proof
-                              </Button>
-                            ) : (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={() => navigate(truckerPaymentPath(item.id))}
-                                sx={{ fontWeight: 600, borderRadius: 2 }}
-                              >
-                                View
-                              </Button>
-                            )}
+                            <PaymentRowActions item={item} uploadNeeded={uploadNeeded} />
                           </TableCell>
                         </TableRow>
                       )

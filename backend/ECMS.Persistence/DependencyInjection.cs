@@ -87,6 +87,20 @@ public class DbSeeder
                 await _context.SaveChangesAsync();
         }
 
+        await MigrateBrokerRoleToTruckerAsync();
+        await SyncTruckerRoleFromCatalogAsync();
+
+        if (!await _context.PaymentSettingsSet.AnyAsync())
+        {
+            _context.PaymentSettingsSet.Add(new PaymentSettings
+            {
+                Id = 1,
+                ReturnFeeAmount = 5000m,
+                UpdatedAt = Domain.Common.PhilippinesTime.UtcNow,
+            });
+            await _context.SaveChangesAsync();
+        }
+
         if (!await _context.ShippingLinesSet.AnyAsync())
         {
             _context.ShippingLinesSet.Add(new ShippingLine { Name = "MAERSK", Code = "MAERSK" });
@@ -101,6 +115,45 @@ public class DbSeeder
                 Name = "ICTSI CY",
                 Address = "Manila, Philippines",
                 Capacity = 100
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        if (!await _context.ContainerSizesSet.AnyAsync())
+        {
+            _context.ContainerSizesSet.AddRange(
+                new ContainerSize { Label = "20", Teu = 1m, SortOrder = 1 },
+                new ContainerSize { Label = "40", Teu = 2m, SortOrder = 2 },
+                new ContainerSize { Label = "45", Teu = 2m, SortOrder = 3 });
+            await _context.SaveChangesAsync();
+        }
+
+        if (!await _context.ContainerTypesSet.AnyAsync())
+        {
+            _context.ContainerTypesSet.AddRange(
+                new ContainerType { Code = "GP", Label = "General Purpose", SortOrder = 1 },
+                new ContainerType { Code = "HC", Label = "High Cube", SortOrder = 2 },
+                new ContainerType { Code = "RF", Label = "Reefer", SortOrder = 3 },
+                new ContainerType { Code = "OT", Label = "Open Top", SortOrder = 4 });
+            await _context.SaveChangesAsync();
+        }
+
+        if (!await _context.ShippingLineDepotContractsSet.AnyAsync())
+        {
+            var maersk = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MAERSK");
+            var depot = await _context.DepotsSet.FirstAsync();
+            _context.ShippingLineDepotContractsSet.Add(new ShippingLineDepotContract
+            {
+                ShippingLineId = maersk.Id,
+                DepotId = depot.Id,
+                ContractTeu = 200,
+            });
+            var msc = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MSC");
+            _context.ShippingLineDepotContractsSet.Add(new ShippingLineDepotContract
+            {
+                ShippingLineId = msc.Id,
+                DepotId = depot.Id,
+                ContractTeu = 150,
             });
             await _context.SaveChangesAsync();
         }
@@ -135,7 +188,6 @@ public class DbSeeder
             var users = new[]
             {
                 new User { Username = "admin", Email = "admin@ecms.local", PasswordHash = _passwordHasher.Hash("Admin@123"), RoleId = roles[RoleNames.Administrator], FullName = "System Admin" },
-                new User { Username = "broker1", Email = "broker@ecms.local", PasswordHash = _passwordHasher.Hash("Broker@123"), RoleId = roles[RoleNames.Broker], FullName = "Demo Broker" },
                 new User { Username = "evaluator1", Email = "evaluator@ecms.local", PasswordHash = _passwordHasher.Hash("Evaluator@123"), RoleId = roles[RoleNames.ShippingLineEvaluator], FullName = "Demo Evaluator", ShippingLineId = maersk.Id },
                 new User { Username = "depot1", Email = "depot@ecms.local", PasswordHash = _passwordHasher.Hash("Depot@123"), RoleId = roles[RoleNames.DepotPersonnel], FullName = "Demo Depot", DepotId = depot.Id },
                 new User { Username = "trucker1", Email = "trucker@ecms.local", PasswordHash = _passwordHasher.Hash("Trucker@123"), RoleId = roles[RoleNames.Trucker], FullName = "ABC Trucking" }
@@ -144,5 +196,37 @@ public class DbSeeder
             _context.UsersSet.AddRange(users);
             await _context.SaveChangesAsync();
         }
+    }
+
+    private async Task MigrateBrokerRoleToTruckerAsync()
+    {
+        var brokerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == "Broker");
+        if (brokerRole is null)
+            return;
+
+        var truckerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Trucker);
+        if (truckerRole is null)
+            return;
+
+        var brokerUsers = await _context.UsersSet.Where(u => u.RoleId == brokerRole.Id).ToListAsync();
+        foreach (var user in brokerUsers)
+            user.RoleId = truckerRole.Id;
+
+        _context.RolesSet.Remove(brokerRole);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SyncTruckerRoleFromCatalogAsync()
+    {
+        var truckerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Trucker);
+        var defaults = RoleCatalogDefaults.Get(RoleNames.Trucker);
+        if (truckerRole is null || defaults is null)
+            return;
+
+        truckerRole.Label = defaults.Label;
+        truckerRole.Description = defaults.Description;
+        truckerRole.CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities);
+        truckerRole.AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages);
+        await _context.SaveChangesAsync();
     }
 }

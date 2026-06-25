@@ -198,6 +198,15 @@ export default function BookingQrPreviewDialog({
             Download
           </Button>
         )}
+        {qrBooking && (
+          <Button
+            variant="outlined"
+            onClick={() => undefined}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            {LOGICTECK_QR.bookLogicteck}
+          </Button>
+        )}
         {qrBooking && showPrint && onPrint && (
           <Button
             variant="contained"

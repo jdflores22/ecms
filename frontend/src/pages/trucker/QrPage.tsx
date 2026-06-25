@@ -320,6 +320,20 @@ export default function TruckerQrPage() {
 
 
 
+  const sortedSchedules = useMemo(() => {
+    return [...schedules].sort((a, b) => {
+      const qrA = qrMap[a.id]
+      const qrB = qrMap[b.id]
+      const keyA = qrA?.generatedAt ?? `${a.date}T${a.time || '00:00:00'}`
+      const keyB = qrB?.generatedAt ?? `${b.date}T${b.time || '00:00:00'}`
+      const byDate = keyB.localeCompare(keyA)
+      if (byDate !== 0) return byDate
+      return b.id - a.id
+    })
+  }, [schedules, qrMap])
+
+
+
   const downloadQr = async (booking: QrBooking) => {
 
     const token = store.getState().auth.accessToken
@@ -572,7 +586,7 @@ export default function TruckerQrPage() {
 
         >
 
-          {schedules.map((schedule) => {
+          {sortedSchedules.map((schedule) => {
 
             const qr = qrMap[schedule.id]
 
@@ -1069,6 +1083,20 @@ export default function TruckerQrPage() {
               >
 
                 Download
+
+              </Button>
+
+              <Button
+
+                variant="outlined"
+
+                onClick={() => undefined}
+
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+
+              >
+
+                {LOGICTECK_QR.bookLogicteck}
 
               </Button>
 

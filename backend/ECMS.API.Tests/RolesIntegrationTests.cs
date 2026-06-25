@@ -14,9 +14,9 @@ public class RolesIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Admin_roles_endpoint_denies_broker()
+    public async Task Admin_roles_endpoint_denies_trucker()
     {
-        var token = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
+        var token = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
         ApiTestHelper.UseBearer(_client, token);
 
         var response = await _client.GetAsync("/api/roles");
@@ -36,13 +36,13 @@ public class RolesIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         Assert.NotNull(roles);
         Assert.NotEmpty(roles);
 
-        var broker = roles!.First(r => r.Name == "Broker");
-        var updatedCapabilities = broker.Capabilities.Append("Integration test capability").Distinct().ToList();
-        var updatedPages = broker.AllowedPages.Where(p => p != "reports").ToList();
+        var trucker = roles!.First(r => r.Name == "Trucker");
+        var updatedCapabilities = trucker.Capabilities.Append("Integration test capability").Distinct().ToList();
+        var updatedPages = trucker.AllowedPages.Where(p => p != "reports").ToList();
 
-        var updateResponse = await _client.PutAsJsonAsync("/api/roles/Broker", new
+        var updateResponse = await _client.PutAsJsonAsync("/api/roles/Trucker", new
         {
-            description = broker.Description,
+            description = trucker.Description,
             capabilities = updatedCapabilities,
             allowedPages = updatedPages,
         });
@@ -53,11 +53,11 @@ public class RolesIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         Assert.Contains("Integration test capability", updated!.Capabilities);
         Assert.DoesNotContain("reports", updated.AllowedPages);
 
-        var restoreResponse = await _client.PutAsJsonAsync("/api/roles/Broker", new
+        var restoreResponse = await _client.PutAsJsonAsync("/api/roles/Trucker", new
         {
-            description = broker.Description,
-            capabilities = broker.Capabilities,
-            allowedPages = broker.AllowedPages,
+            description = trucker.Description,
+            capabilities = trucker.Capabilities,
+            allowedPages = trucker.AllowedPages,
         });
         Assert.Equal(HttpStatusCode.OK, restoreResponse.StatusCode);
     }

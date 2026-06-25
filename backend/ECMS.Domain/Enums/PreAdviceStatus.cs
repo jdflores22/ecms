@@ -7,5 +7,6 @@ public enum PreAdviceStatus
     UnderEvaluation = 2,
     Approved = 3,
     Rejected = 4,
-    Cancelled = 5
+    Cancelled = 5,
+    ForCompliance = 6
 }

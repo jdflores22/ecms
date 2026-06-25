@@ -86,6 +86,67 @@ namespace ECMS.Persistence.Migrations
                     b.ToTable("ContainersSet");
                 });
 
+            modelBuilder.Entity("ECMS.Domain.Entities.ContainerSize", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Teu")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Label")
+                        .IsUnique();
+
+                    b.ToTable("ContainerSizesSet");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.ContainerType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ContainerTypesSet");
+                });
+
             modelBuilder.Entity("ECMS.Domain.Entities.Depot", b =>
                 {
                     b.Property<int>("Id")
@@ -151,6 +212,56 @@ namespace ECMS.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EvaluationsSet");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.ManualYardInventoryEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContainerNo")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<int>("ContainerSizeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ContainerTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DepotId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("ShippingLineId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("YardInDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContainerSizeId");
+
+                    b.HasIndex("ContainerTypeId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("DepotId");
+
+                    b.HasIndex("ShippingLineId", "ContainerNo", "DepotId")
+                        .IsUnique();
+
+                    b.ToTable("ManualYardInventoryEntriesSet");
                 });
 
             modelBuilder.Entity("ECMS.Domain.Entities.Notification", b =>
@@ -273,13 +384,28 @@ namespace ECMS.Persistence.Migrations
                     b.ToTable("PaymentsSet");
                 });
 
-            modelBuilder.Entity("ECMS.Domain.Entities.PreAdvice", b =>
+            modelBuilder.Entity("ECMS.Domain.Entities.PaymentSettings", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    b.Property<int>("BrokerId")
+                    b.Property<decimal>("ReturnFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PaymentSettingsSet");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.PreAdvice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
                     b.Property<int>("ContainerId")
@@ -301,9 +427,10 @@ namespace ECMS.Persistence.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.Property<int>("TruckerId")
+                        .HasColumnType("int");
 
-                    b.HasIndex("BrokerId");
+                    b.HasKey("Id");
 
                     b.HasIndex("ContainerId");
 
@@ -311,6 +438,8 @@ namespace ECMS.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("ShippingLineId");
+
+                    b.HasIndex("TruckerId");
 
                     b.ToTable("PreAdvicesSet");
                 });
@@ -539,6 +668,37 @@ namespace ECMS.Persistence.Migrations
                     b.ToTable("ShippingLinesSet");
                 });
 
+            modelBuilder.Entity("ECMS.Domain.Entities.ShippingLineDepotContract", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("ContractTeu")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("DepotId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("ShippingLineId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepotId");
+
+                    b.HasIndex("ShippingLineId", "DepotId")
+                        .IsUnique();
+
+                    b.ToTable("ShippingLineDepotContractsSet");
+                });
+
             modelBuilder.Entity("ECMS.Domain.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -639,6 +799,49 @@ namespace ECMS.Persistence.Migrations
                     b.Navigation("PreAdvice");
                 });
 
+            modelBuilder.Entity("ECMS.Domain.Entities.ManualYardInventoryEntry", b =>
+                {
+                    b.HasOne("ECMS.Domain.Entities.ContainerSize", "ContainerSize")
+                        .WithMany()
+                        .HasForeignKey("ContainerSizeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ECMS.Domain.Entities.ContainerType", "ContainerType")
+                        .WithMany()
+                        .HasForeignKey("ContainerTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ECMS.Domain.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ECMS.Domain.Entities.Depot", "Depot")
+                        .WithMany()
+                        .HasForeignKey("DepotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ECMS.Domain.Entities.ShippingLine", "ShippingLine")
+                        .WithMany()
+                        .HasForeignKey("ShippingLineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ContainerSize");
+
+                    b.Navigation("ContainerType");
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("Depot");
+
+                    b.Navigation("ShippingLine");
+                });
+
             modelBuilder.Entity("ECMS.Domain.Entities.Notification", b =>
                 {
                     b.HasOne("ECMS.Domain.Entities.User", "Actor")
@@ -689,12 +892,6 @@ namespace ECMS.Persistence.Migrations
 
             modelBuilder.Entity("ECMS.Domain.Entities.PreAdvice", b =>
                 {
-                    b.HasOne("ECMS.Domain.Entities.User", "Broker")
-                        .WithMany("PreAdvices")
-                        .HasForeignKey("BrokerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("ECMS.Domain.Entities.Container", "Container")
                         .WithMany("PreAdvices")
                         .HasForeignKey("ContainerId")
@@ -707,11 +904,17 @@ namespace ECMS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Broker");
+                    b.HasOne("ECMS.Domain.Entities.User", "Trucker")
+                        .WithMany("PreAdvices")
+                        .HasForeignKey("TruckerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Container");
 
                     b.Navigation("ShippingLine");
+
+                    b.Navigation("Trucker");
                 });
 
             modelBuilder.Entity("ECMS.Domain.Entities.PreAdviceDocument", b =>
@@ -779,6 +982,25 @@ namespace ECMS.Persistence.Migrations
                     b.Navigation("PreAdvice");
 
                     b.Navigation("Trucker");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.ShippingLineDepotContract", b =>
+                {
+                    b.HasOne("ECMS.Domain.Entities.Depot", "Depot")
+                        .WithMany()
+                        .HasForeignKey("DepotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ECMS.Domain.Entities.ShippingLine", "ShippingLine")
+                        .WithMany()
+                        .HasForeignKey("ShippingLineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Depot");
+
+                    b.Navigation("ShippingLine");
                 });
 
             modelBuilder.Entity("ECMS.Domain.Entities.User", b =>

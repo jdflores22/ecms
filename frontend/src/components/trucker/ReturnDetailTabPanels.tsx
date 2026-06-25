@@ -93,7 +93,7 @@ export default function ReturnDetailTabPanels({
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
         <Box sx={infoGridSx}>
-          <InfoTile label="Broker" value={preAdvice.brokerName} />
+          <InfoTile label="Trucker" value={preAdvice.truckerName} />
           <InfoTile label="Shipping line" value={preAdvice.shippingLineName} />
           <InfoTile
             label="Container"
@@ -108,7 +108,7 @@ export default function ReturnDetailTabPanels({
           {schedule.truckerName && <InfoTile label="Trucker" value={schedule.truckerName} />}
           <InfoTile label="Submitted" value={formatDateTime(preAdvice.createdAt)} />
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-            <InfoTile label="Broker remarks" value={preAdvice.remarks || '—'} />
+            <InfoTile label="Submitted by remarks" value={preAdvice.remarks || '—'} />
           </Box>
         </Box>
       </DetailTabPanel>

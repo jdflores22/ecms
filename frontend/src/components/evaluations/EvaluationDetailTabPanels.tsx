@@ -82,7 +82,7 @@ export default function EvaluationDetailTabPanels({
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
         <Box sx={infoGridSx}>
-          <InfoTile label="Broker" value={item.brokerName} />
+          <InfoTile label="Trucker" value={item.truckerName} />
           <InfoTile label="Shipping line" value={item.shippingLineName} />
           <InfoTile
             label="Container"
@@ -116,7 +116,7 @@ export default function EvaluationDetailTabPanels({
           )}
           <InfoTile label="Submitted" value={formatDateTime(item.createdAt)} />
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-            <InfoTile label="Broker remarks" value={item.remarks || '—'} />
+            <InfoTile label="Submitted by remarks" value={item.remarks || '—'} />
           </Box>
         </Box>
       </DetailTabPanel>

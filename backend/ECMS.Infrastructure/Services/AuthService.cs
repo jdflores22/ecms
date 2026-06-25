@@ -64,8 +64,8 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> SignUpAsync(SignUpRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.Role is not (RoleNames.Broker or RoleNames.Trucker))
-            throw new InvalidOperationException("Self-service sign-up is only available for broker and trucker accounts.");
+        if (request.Role is not RoleNames.Trucker)
+            throw new InvalidOperationException("Self-service sign-up is only available for trucker accounts.");
 
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.FullName))
             throw new InvalidOperationException("Full name, username, and email are required.");

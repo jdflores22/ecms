@@ -23,13 +23,13 @@ public class PasswordResetIntegrationTests : IClassFixture<EcmsWebApplicationFac
     public async Task Password_reset_flow_allows_login_with_new_password()
     {
         const string tempPassword = "ResetTest@456";
-        const string originalPassword = "Broker@123";
+        const string originalPassword = "Trucker@123";
 
         try
         {
             var forgotResponse = await _client.PostAsJsonAsync("/api/auth/forgot-password", new
             {
-                emailOrUsername = "broker1",
+                emailOrUsername = "trucker1",
             });
             Assert.Equal(HttpStatusCode.OK, forgotResponse.StatusCode);
 
@@ -46,7 +46,7 @@ public class PasswordResetIntegrationTests : IClassFixture<EcmsWebApplicationFac
 
             var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new
             {
-                username = "broker1",
+                username = "trucker1",
                 password = tempPassword,
             });
             Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
@@ -55,7 +55,7 @@ public class PasswordResetIntegrationTests : IClassFixture<EcmsWebApplicationFac
         {
             var restoreForgot = await _client.PostAsJsonAsync("/api/auth/forgot-password", new
             {
-                emailOrUsername = "broker1",
+                emailOrUsername = "trucker1",
             });
             var restoreBody = await restoreForgot.Content.ReadFromJsonAsync<ForgotPasswordResponse>(JsonOptions);
             if (!string.IsNullOrWhiteSpace(restoreBody?.ResetToken))

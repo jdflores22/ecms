@@ -60,7 +60,7 @@ export const authApi = {
     email: string
     password: string
     fullName: string
-    role: 'Broker' | 'Trucker'
+    role: 'Trucker'
   }) => api.post<LoginResponse>('/auth/signup', data),
   forgotPassword: (emailOrUsername: string) =>
     api.post<{ message: string; resetToken?: string | null }>('/auth/forgot-password', {
@@ -94,7 +94,6 @@ export const profileApi = {
 export const dashboardApi = {
   get: (role: string) => {
     const map: Record<string, string> = {
-      Broker: '/dashboard/broker',
       ShippingLineEvaluator: '/dashboard/shipping-line',
       DepotPersonnel: '/dashboard/depot',
       Trucker: '/dashboard/trucker',
@@ -112,10 +111,23 @@ export const preAdviceApi = {
   list: () => api.get<PreAdvice[]>('/preadvice'),
   get: (id: number) => api.get<PreAdvice>(`/preadvice/${id}`),
   lookups: () => api.get<PreAdviceLookups>('/preadvice/lookups'),
-  create: (data: { shippingLineId: number; containerId: number; remarks?: string }) =>
-    api.post<PreAdvice>('/preadvice', data),
-  update: (id: number, data: { shippingLineId: number; containerId: number; remarks?: string }) =>
-    api.put<PreAdvice>(`/preadvice/${id}`, data),
+  create: (data: {
+    shippingLineId: number
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+    remarks?: string
+  }) => api.post<PreAdvice>('/preadvice', data),
+  update: (
+    id: number,
+    data: {
+      shippingLineId: number
+      containerNo: string
+      containerSizeId: number
+      containerTypeId: number
+      remarks?: string
+    },
+  ) => api.put<PreAdvice>(`/preadvice/${id}`, data),
   delete: (id: number) => api.delete(`/preadvice/${id}`),
   submit: (id: number) => api.post<PreAdvice>(`/preadvice/${id}/submit`),
   cancel: (id: number, reason?: string) =>
@@ -150,20 +162,15 @@ export interface PreAdviceDocument {
 
 export interface PreAdviceLookups {
   shippingLines: { id: number; name: string; code: string }[]
-  containers: {
-    id: number
-    containerNo: string
-    size: string
-    type: string
-    shippingLineId: number
-  }[]
+  containerSizes: { id: number; label: string }[]
+  containerTypes: { id: number; code: string; label: string }[]
 }
 
 export interface PreAdvice {
   id: number
   referenceNo: string
-  brokerId: number
-  brokerName: string
+  truckerId: number
+  truckerName: string
   shippingLineId: number
   shippingLineName: string
   containerId: number
@@ -173,6 +180,8 @@ export interface PreAdvice {
   status: string
   remarks?: string | null
   createdAt: string
+  complianceRemarks?: string | null
+  complianceRequestedAt?: string | null
 }
 
 export interface Evaluation {
@@ -202,6 +211,145 @@ export const evaluationApi = {
     api.post<Evaluation>('/evaluations/approve', data),
   reject: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/reject', data),
+  returnForCompliance: (data: { preAdviceId: number; remarks: string }) =>
+    api.post<Evaluation>('/evaluations/return-for-compliance', data),
+}
+
+export interface CyAllocationBreakdownCell {
+  typeCode: string
+  typeLabel: string
+  activeReturns: number
+  usedTeu: number
+}
+
+export interface CyAllocationBreakdownRow {
+  sizeLabel: string
+  teuPerContainer: number
+  cells: CyAllocationBreakdownCell[]
+}
+
+export interface CyAllocation {
+  depotId: number
+  depotName: string
+  depotAddress: string
+  shippingLineId: number
+  shippingLineName: string
+  contractTeu: number
+  usedTeu: number
+  availableTeu: number
+  activeReturns: number
+  hasCapacity: boolean
+  breakdown: CyAllocationBreakdownRow[]
+}
+
+export interface CyAllocationForApproval {
+  preAdviceId: number
+  referenceNo: string
+  requestedTeu: number
+  containerNo: string
+  containerSize: string
+  allocations: CyAllocation[]
+}
+
+export const cyAllocationApi = {
+  list: (shippingLineId?: number) =>
+    api.get<CyAllocation[]>('/cy-allocations', {
+      params: shippingLineId ? { shippingLineId } : undefined,
+    }),
+  forApproval: (preAdviceId: number) =>
+    api.get<CyAllocationForApproval>(`/cy-allocations/for-approval/${preAdviceId}`),
+}
+
+export type ContainerDwellCompliance = 'WithinLimit' | 'ApproachingLimit' | 'Overstay'
+
+export type ContainerInventorySource = 'Workflow' | 'Manual'
+
+export interface ContainerInventoryItem {
+  scheduleId: number | null
+  manualEntryId: number | null
+  preAdviceId: number | null
+  referenceNo: string
+  source: ContainerInventorySource
+  containerNo: string
+  containerSize: string
+  containerType: string
+  depotId: number
+  depotName: string
+  yardInDate: string
+  dwellDays: number
+  daysRemaining: number
+  complianceStatus: ContainerDwellCompliance
+  scheduleStatus: string | null
+}
+
+export interface ContainerInventoryDepotSummary {
+  depotId: number
+  depotName: string
+  count: number
+  overstayCount: number
+}
+
+export interface ContainerInventorySummary {
+  totalAtYard: number
+  withinLimitCount: number
+  approachingLimitCount: number
+  overstayCount: number
+  dwellLimitDays: number
+  warningThresholdDays: number
+  byDepot: ContainerInventoryDepotSummary[]
+}
+
+export interface ContainerInventoryResponse {
+  summary: ContainerInventorySummary
+  items: ContainerInventoryItem[]
+}
+
+export const containerInventoryApi = {
+  list: (params?: { depotId?: number; shippingLineId?: number; compliance?: ContainerDwellCompliance }) =>
+    api.get<ContainerInventoryResponse>('/container-inventory', { params }),
+  createManual: (data: {
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+    depotId: number
+    yardInDate: string
+    remarks?: string
+    shippingLineId?: number
+  }) => api.post('/container-inventory/manual', data),
+  bulkCreateManual: (entries: {
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+    depotId: number
+    yardInDate: string
+    remarks?: string
+    shippingLineId?: number
+  }[]) => api.post<{ successCount: number; errors: { line: number; containerNo: string; message: string }[] }>(
+    '/container-inventory/manual/bulk',
+    { entries },
+  ),
+  deleteManual: (id: number) => api.delete(`/container-inventory/manual/${id}`),
+}
+
+export interface ShippingLineDepotContract {
+  id: number
+  shippingLineId: number
+  shippingLineName: string
+  depotId: number
+  depotName: string
+  contractTeu: number
+  usedTeu: number
+  availableTeu: number
+  isActive: boolean
+}
+
+export const shippingLineDepotContractApi = {
+  list: () => api.get<ShippingLineDepotContract[]>('/shipping-line-depot-contracts'),
+  create: (data: { shippingLineId: number; depotId: number; contractTeu: number }) =>
+    api.post<ShippingLineDepotContract>('/shipping-line-depot-contracts', data),
+  update: (id: number, data: { contractTeu: number; isActive: boolean }) =>
+    api.put<ShippingLineDepotContract>(`/shipping-line-depot-contracts/${id}`, data),
+  deactivate: (id: number) => api.post(`/shipping-line-depot-contracts/${id}/deactivate`),
 }
 
 export const depotApi = {
@@ -247,6 +395,40 @@ export const containerApi = {
     data: { containerNo: string; size: string; type: string; shippingLineId: number },
   ) => api.put<ContainerMaster>(`/containers/${id}`, data),
   delete: (id: number) => api.delete(`/containers/${id}`),
+}
+
+export interface ContainerSizeMaster {
+  id: number
+  label: string
+  teu: number
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface ContainerTypeMaster {
+  id: number
+  code: string
+  label: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export const containerSizeApi = {
+  list: () => api.get<ContainerSizeMaster[]>('/container-sizes'),
+  create: (data: { label: string; teu: number; sortOrder: number; isActive: boolean }) =>
+    api.post<ContainerSizeMaster>('/container-sizes', data),
+  update: (id: number, data: { label: string; teu: number; sortOrder: number; isActive: boolean }) =>
+    api.put<ContainerSizeMaster>(`/container-sizes/${id}`, data),
+  deactivate: (id: number) => api.post(`/container-sizes/${id}/deactivate`),
+}
+
+export const containerTypeApi = {
+  list: () => api.get<ContainerTypeMaster[]>('/container-types'),
+  create: (data: { code: string; label: string; sortOrder: number; isActive: boolean }) =>
+    api.post<ContainerTypeMaster>('/container-types', data),
+  update: (id: number, data: { code: string; label: string; sortOrder: number; isActive: boolean }) =>
+    api.put<ContainerTypeMaster>(`/container-types/${id}`, data),
+  deactivate: (id: number) => api.post(`/container-types/${id}/deactivate`),
 }
 
 export interface Schedule {
@@ -318,7 +500,17 @@ export interface SlotAvailability {
 export const scheduleApi = {
   list: () => api.get<Schedule[]>('/schedules'),
   get: (id: number) => api.get<Schedule>(`/schedules/${id}`),
-  getByPreAdvice: (preAdviceId: number) => api.get<Schedule>(`/schedules/by-preadvice/${preAdviceId}`),
+  getByPreAdvice: async (preAdviceId: number): Promise<{ data: Schedule | null }> => {
+    try {
+      const { data } = await api.get<Schedule>(`/schedules/by-preadvice/${preAdviceId}`)
+      return { data }
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        return { data: null }
+      }
+      throw err
+    }
+  },
   slots: (depotId: number, date: string, excludeScheduleId?: number) =>
     api.get<SlotAvailability>('/schedules/slots', {
       params: { depotId, date, excludeScheduleId },
@@ -332,15 +524,22 @@ export const scheduleApi = {
   }) => api.put<Schedule>(`/schedules/${id}`, data),
 }
 
+export interface PaymentSettings {
+  returnFeeAmount: number
+  updatedAt: string
+}
+
 export const paymentApi = {
   mine: () => api.get<Payment[]>('/payments/mine'),
   pending: () => api.get<Payment[]>('/payments/pending'),
   depot: () => api.get<Payment[]>('/payments/depot'),
+  getSettings: () => api.get<PaymentSettings>('/payments/settings'),
+  updateSettings: (returnFeeAmount: number) =>
+    api.put<PaymentSettings>('/payments/settings', { returnFeeAmount }),
   getBySchedule: (scheduleId: number) => api.get<Payment | null>(`/payments/by-schedule/${scheduleId}`),
-  upload: (scheduleId: number, amount: number, proof: File) => {
+  upload: (scheduleId: number, proof: File) => {
     const form = new FormData()
     form.append('scheduleId', String(scheduleId))
-    form.append('amount', String(amount))
     form.append('proof', proof)
     return api.post<Payment>('/payments/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },

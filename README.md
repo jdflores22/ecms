@@ -1,6 +1,6 @@
 # ICS - Intelligent Container Solutions
 
-Web platform for managing empty container returns between Brokers, Shipping Lines, Depots (CY), and Truckers.
+Web platform for managing empty container returns between Truckers, Shipping Lines, and Depots (CY).
 
 ## Tech Stack
 
@@ -80,17 +80,16 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-The happy-path test walks through: broker pre-advice → evaluator approval → depot scheduling → trucker payment → depot verification → trucker QR download.
+The happy-path test walks through: trucker pre-advice → evaluator approval → depot scheduling → trucker payment → depot verification → trucker QR download.
 
 ## Demo Accounts
 
 | Role | Username | Password |
 |------|----------|----------|
 | Administrator | admin | Admin@123 |
-| Broker | broker1 | Broker@123 |
+| Trucker | trucker1 | Trucker@123 |
 | Shipping Line Evaluator | evaluator1 | Evaluator@123 |
 | Depot Personnel | depot1 | Depot@123 |
-| Trucker | trucker1 | Trucker@123 |
 
 ## API Endpoints
 

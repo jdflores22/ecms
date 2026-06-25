@@ -8,7 +8,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PreAdviceLookups } from '../../services/api'
 
 const fieldSx = {
@@ -17,14 +17,24 @@ const fieldSx = {
 
 export interface PreAdviceFormValues {
   shippingLineId: number | ''
-  containerId: number | ''
+  containerNo: string
+  containerSizeId: number | ''
+  containerTypeId: number | ''
   remarks: string
+}
+
+export interface PreAdviceFormSubmitValues {
+  shippingLineId: number
+  containerNo: string
+  containerSizeId: number
+  containerTypeId: number
+  remarks?: string
 }
 
 interface PreAdviceFormProps {
   lookups: PreAdviceLookups
   initial: PreAdviceFormValues
-  onSubmit: (values: { shippingLineId: number; containerId: number; remarks?: string }) => void
+  onSubmit: (values: PreAdviceFormSubmitValues) => void
   onCancel?: () => void
   submitLabel?: string
   submitting?: boolean
@@ -39,38 +49,43 @@ export default function PreAdviceForm({
   submitting = false,
 }: PreAdviceFormProps) {
   const [shippingLineId, setShippingLineId] = useState<number | ''>(initial.shippingLineId)
-  const [containerId, setContainerId] = useState<number | ''>(initial.containerId)
+  const [containerNo, setContainerNo] = useState(initial.containerNo)
+  const [containerSizeId, setContainerSizeId] = useState<number | ''>(initial.containerSizeId)
+  const [containerTypeId, setContainerTypeId] = useState<number | ''>(initial.containerTypeId)
   const [remarks, setRemarks] = useState(initial.remarks)
 
   useEffect(() => {
     setShippingLineId(initial.shippingLineId)
-    setContainerId(initial.containerId)
+    setContainerNo(initial.containerNo)
+    setContainerSizeId(initial.containerSizeId)
+    setContainerTypeId(initial.containerTypeId)
     setRemarks(initial.remarks)
   }, [initial])
 
-  const containersForLine = useMemo(
-    () =>
-      shippingLineId === ''
-        ? []
-        : lookups.containers.filter((c) => c.shippingLineId === shippingLineId),
-    [lookups.containers, shippingLineId],
-  )
-
-  useEffect(() => {
-    if (containerId !== '' && !containersForLine.some((c) => c.id === containerId)) {
-      setContainerId('')
-    }
-  }, [containersForLine, containerId])
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (shippingLineId === '' || containerId === '') return
+    if (
+      shippingLineId === '' ||
+      containerSizeId === '' ||
+      containerTypeId === '' ||
+      !containerNo.trim()
+    ) {
+      return
+    }
     onSubmit({
       shippingLineId,
-      containerId,
+      containerNo: containerNo.trim().toUpperCase(),
+      containerSizeId,
+      containerTypeId,
       remarks: remarks.trim() || undefined,
     })
   }
+
+  const canSubmit =
+    shippingLineId !== '' &&
+    containerSizeId !== '' &&
+    containerTypeId !== '' &&
+    containerNo.trim().length > 0
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -94,21 +109,53 @@ export default function PreAdviceForm({
             </Select>
           </FormControl>
 
-          <FormControl fullWidth required disabled={shippingLineId === ''} sx={fieldSx}>
-            <InputLabel>Container</InputLabel>
+          <TextField
+            fullWidth
+            required
+            label="Container number"
+            value={containerNo}
+            onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
+            placeholder="e.g. MSCU1234567"
+            slotProps={{ input: { style: { fontFamily: 'monospace' } } }}
+            sx={fieldSx}
+          />
+
+          <FormControl fullWidth required sx={fieldSx}>
+            <InputLabel>Container size</InputLabel>
             <Select
-              label="Container"
-              value={containerId}
-              onChange={(e) => setContainerId(e.target.value as number | '')}
+              label="Container size"
+              value={containerSizeId}
+              onChange={(e) => setContainerSizeId(e.target.value as number | '')}
             >
-              {containersForLine.length === 0 ? (
+              {lookups.containerSizes.length === 0 ? (
                 <MenuItem disabled value="">
-                  Select a shipping line first
+                  No sizes configured — contact admin
                 </MenuItem>
               ) : (
-                containersForLine.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.containerNo} — {c.size}&apos; {c.type}
+                lookups.containerSizes.map((size) => (
+                  <MenuItem key={size.id} value={size.id}>
+                    {size.label}&apos;
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth required sx={fieldSx}>
+            <InputLabel>Container type</InputLabel>
+            <Select
+              label="Container type"
+              value={containerTypeId}
+              onChange={(e) => setContainerTypeId(e.target.value as number | '')}
+            >
+              {lookups.containerTypes.length === 0 ? (
+                <MenuItem disabled value="">
+                  No types configured — contact admin
+                </MenuItem>
+              ) : (
+                lookups.containerTypes.map((type) => (
+                  <MenuItem key={type.id} value={type.id}>
+                    {type.code} — {type.label}
                   </MenuItem>
                 ))
               )}
@@ -151,7 +198,7 @@ export default function PreAdviceForm({
         <Button
           type="submit"
           variant="contained"
-          disabled={submitting || shippingLineId === '' || containerId === ''}
+          disabled={submitting || !canSubmit}
           sx={{ fontWeight: 700, px: 3, borderRadius: 2, minWidth: 140 }}
         >
           {submitting ? 'Saving…' : submitLabel}

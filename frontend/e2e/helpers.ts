@@ -1,10 +1,9 @@
 import { expect, type Page } from '@playwright/test'
 
 export const users = {
-  broker: { username: 'broker1', password: 'Broker@123' },
+  trucker: { username: 'trucker1', password: 'Trucker@123' },
   evaluator: { username: 'evaluator1', password: 'Evaluator@123' },
   depot: { username: 'depot1', password: 'Depot@123' },
-  trucker: { username: 'trucker1', password: 'Trucker@123' },
 }
 
 export async function login(page: Page, username: string, password: string) {

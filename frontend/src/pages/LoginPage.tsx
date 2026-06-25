@@ -17,18 +17,17 @@ import { setCredentials } from '../store/slices/authSlice'
 const primaryDark = '#0B3D91'
 
 const DEMO_ACCOUNTS = [
-  { role: 'Broker', username: 'broker1', password: 'Broker@123' },
+  { role: 'Trucker', username: 'trucker1', password: 'Trucker@123' },
   { role: 'Admin', username: 'admin', password: 'Admin@123' },
   { role: 'Evaluator', username: 'evaluator1', password: 'Evaluator@123' },
   { role: 'Depot', username: 'depot1', password: 'Depot@123' },
-  { role: 'Trucker', username: 'trucker1', password: 'Trucker@123' },
 ]
 
 export default function LoginPage() {
   const token = useAppSelector((s) => s.auth.accessToken)
   const dispatch = useAppDispatch()
-  const [username, setUsername] = useState('broker1')
-  const [password, setPassword] = useState('Broker@123')
+  const [username, setUsername] = useState('trucker1')
+  const [password, setPassword] = useState('Trucker@123')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -161,21 +160,12 @@ export default function LoginPage() {
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
             <Button
               component={RouterLink}
-              to="/signup/broker"
-              variant="outlined"
-              fullWidth
-              sx={{ fontWeight: 700, borderRadius: 2 }}
-            >
-              Sign up as broker
-            </Button>
-            <Button
-              component={RouterLink}
               to="/signup/trucker"
               variant="outlined"
               fullWidth
               sx={{ fontWeight: 700, borderRadius: 2 }}
             >
-              Sign up as trucker
+              Create trucker account
             </Button>
           </Box>
           <Button component={RouterLink} to="/" sx={{ mt: 1.5, fontWeight: 600, color: primaryDark }}>

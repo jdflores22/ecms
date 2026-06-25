@@ -29,18 +29,25 @@ import {
   preAdviceApi,
   qrApi,
   scheduleApi,
-  userApi,
   type Payment,
   type PreAdvice,
   type PreAdviceDocument,
   type QrBooking,
   type Schedule,
-  type SlotAvailability,
-  type UserListItem,
 } from '../../services/api'
 import { store } from '../../store'
 import { resolveAssetUrl } from '../../utils/assetUrl'
-import { formatScheduleDate, formatScheduleSlot, formatScheduleTime, SYSTEM_TIMEZONE, clampMinScheduleDate, isBeforeToday, todayIsoDate } from '../../utils/datetime'
+import {
+  formatScheduleDate,
+  formatScheduleSlot,
+  formatScheduleTime,
+  isBeforeToday,
+  isValidTime24,
+  normalizeTime24Input,
+  SYSTEM_TIMEZONE,
+  clampMinScheduleDate,
+  todayIsoDate,
+} from '../../utils/datetime'
 import { useAppSelector } from '../../store/hooks'
 
 const primaryDark = '#0B3D91'
@@ -109,19 +116,14 @@ export default function ScheduleDetailPage() {
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
   const [qrLoading, setQrLoading] = useState(false)
   const [proofPreviewOpen, setProofPreviewOpen] = useState(false)
-  const [truckers, setTruckers] = useState<UserListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [documentsLoading, setDocumentsLoading] = useState(true)
   const [error, setError] = useState('')
 
   const [date, setDate] = useState('')
   const [time, setTime] = useState('08:00')
-  const [slotNo, setSlotNo] = useState(1)
-  const [truckerId, setTruckerId] = useState<number | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
-  const [slotInfo, setSlotInfo] = useState<SlotAvailability | null>(null)
-  const [slotsLoading, setSlotsLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -146,15 +148,12 @@ export default function ScheduleDetailPage() {
     setError('')
     setQrBooking(null)
     setQrImageUrl(null)
-    Promise.all([scheduleApi.get(scheduleId), userApi.truckers()])
-      .then(async ([scheduleRes, truckersRes]) => {
+    Promise.all([scheduleApi.get(scheduleId)])
+      .then(async ([scheduleRes]) => {
         const item = scheduleRes.data
         setSchedule(item)
-        setTruckers(truckersRes.data)
         setDate(clampMinScheduleDate(item.date, minScheduleDate))
         setTime(formatScheduleTime(item.time))
-        setSlotNo(item.slotNo > 0 ? item.slotNo : 1)
-        setTruckerId(item.truckerId ?? truckersRes.data[0]?.id ?? '')
 
         const [paymentResult, preAdviceRes] = await Promise.all([
           paymentApi.getBySchedule(scheduleId).catch(() => null),
@@ -204,34 +203,6 @@ export default function ScheduleDetailPage() {
     else if (payment?.status === 'ForVerification') setActiveTab('payment')
   }, [schedule?.id, schedule?.status, payment?.status])
 
-  const loadSlots = useCallback(
-    (depotId: number, scheduleDate: string, excludeScheduleId?: number, preferredSlot?: number) => {
-      if (!scheduleDate) return
-      setSlotsLoading(true)
-      scheduleApi
-        .slots(depotId, scheduleDate, excludeScheduleId)
-        .then(({ data }) => {
-          setSlotInfo(data)
-          const preferred = preferredSlot ?? 1
-          if (!data.slots.some((s) => s.slotNo === preferred && s.available)) {
-            const first = data.slots.find((s) => s.available)
-            if (first) setSlotNo(first.slotNo)
-          } else {
-            setSlotNo(preferred)
-          }
-        })
-        .catch(() => setSlotInfo(null))
-        .finally(() => setSlotsLoading(false))
-    },
-    [],
-  )
-
-  useEffect(() => {
-    if (!schedule || !date || !allowedRole) return
-    if (schedule.status === 'Scheduled' && !editing) return
-    loadSlots(schedule.depotId, date, schedule.id, slotNo)
-  }, [date, schedule, allowedRole, loadSlots, editing, slotNo])
-
   const photoProgress = useMemo(() => {
     const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
       documents.some((d) => d.category === c.value),
@@ -244,8 +215,6 @@ export default function ScheduleDetailPage() {
     allowedRole &&
     (schedule.status === 'WaitingSchedule' || schedule.status === 'Scheduled')
 
-  const availableSlots = slotInfo?.slots.filter((s) => s.available) ?? []
-
   if (!allowedRole) {
     return <Navigate to="/" replace />
   }
@@ -255,12 +224,14 @@ export default function ScheduleDetailPage() {
   }
 
   const handleSave = async () => {
-    if (!schedule || truckerId === '') {
-      setActionError('Please select a trucker.')
-      return
-    }
+    if (!schedule) return
     if (!date || isBeforeToday(date)) {
       setActionError('Return date cannot be in the past.')
+      return
+    }
+    const normalizedTime = normalizeTime24Input(time)
+    if (!isValidTime24(normalizedTime)) {
+      setActionError('Enter a valid time in 24-hour format (HH:mm).')
       return
     }
     setSubmitting(true)
@@ -268,16 +239,15 @@ export default function ScheduleDetailPage() {
     try {
       await scheduleApi.update(schedule.id, {
         date,
-        time: `${time}:00`,
-        slotNo,
+        time: `${normalizedTime}:00`,
+        slotNo: 0,
         status: 'Scheduled',
-        truckerId: Number(truckerId),
       })
       setSaveSuccess(true)
       window.setTimeout(() => {
         navigate('/depot/schedules', {
           state: {
-            message: `${schedule.referenceNo} scheduled successfully. Broker and trucker have been notified.`,
+            message: `${schedule.referenceNo} scheduled successfully. Trucker has been notified.`,
           },
         })
       }, 1500)
@@ -291,16 +261,13 @@ export default function ScheduleDetailPage() {
   const openConfirm = () => {
     setActionError('')
     setSaveSuccess(false)
-    if (!schedule || truckerId === '') {
-      setActionError('Please select a trucker.')
-      return
-    }
+    if (!schedule) return
     if (!date || isBeforeToday(date)) {
       setActionError('Return date cannot be in the past.')
       return
     }
-    if (availableSlots.length === 0) {
-      setActionError('No slots available for the selected date.')
+    if (!isValidTime24(normalizeTime24Input(time))) {
+      setActionError('Enter a valid time in 24-hour format (HH:mm).')
       return
     }
     setConfirmOpen(true)
@@ -310,8 +277,6 @@ export default function ScheduleDetailPage() {
     if (!schedule) return
     setDate(clampMinScheduleDate(schedule.date, minScheduleDate))
     setTime(formatScheduleTime(schedule.time))
-    setSlotNo(schedule.slotNo > 0 ? schedule.slotNo : 1)
-    setTruckerId(schedule.truckerId ?? truckers[0]?.id ?? '')
     setActionError('')
     setEditing(false)
   }
@@ -319,7 +284,7 @@ export default function ScheduleDetailPage() {
   const showAssignForm = canAssign && (schedule?.status === 'WaitingSchedule' || editing)
   const showScheduledSummary = canAssign && schedule?.status === 'Scheduled' && !editing
 
-  const selectedTrucker = truckers.find((t) => t.id === truckerId)
+  const requestingTrucker = schedule?.truckerName ?? preAdvice?.truckerName
 
   const downloadQr = async () => {
     if (!qrBooking) return
@@ -441,10 +406,10 @@ export default function ScheduleDetailPage() {
                       size="small"
                       sx={{ fontWeight: 700, ...heroStatusChipStyle(schedule.status) }}
                     />
-                    {schedule.truckerName && (
+                    {requestingTrucker && (
                       <Chip
                         icon={<LocalShippingOutlinedIcon sx={{ fontSize: '16px !important', color: 'inherit !important' }} />}
-                        label={schedule.truckerName}
+                        label={requestingTrucker}
                         size="small"
                         sx={{
                           bgcolor: 'rgba(255,255,255,0.12)',
@@ -482,16 +447,11 @@ export default function ScheduleDetailPage() {
               {schedule.status !== 'WaitingSchedule' && schedule.date && (
                 <Box sx={{ flexShrink: 0, textAlign: { xs: 'left', md: 'right' } }}>
                   <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
-                    Return slot
+                    Return date & time
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>
                     {formatScheduleSlot(schedule.date, schedule.time)}
                   </Typography>
-                  {schedule.slotNo > 0 && (
-                    <Typography variant="body2" sx={{ opacity: 0.88 }}>
-                      Slot {schedule.slotNo}
-                    </Typography>
-                  )}
                 </Box>
               )}
             </Box>
@@ -512,8 +472,8 @@ export default function ScheduleDetailPage() {
                 </Button>
               }
             >
-              This return is waiting for depot assignment. Set date, time, slot, and trucker in the
-              Schedule assignment tab.
+              This return is waiting for depot assignment. Set the return date and time in the Schedule
+              assignment tab.
             </Alert>
           )}
 
@@ -572,12 +532,6 @@ export default function ScheduleDetailPage() {
               editing={editing}
               date={date}
               time={time}
-              slotNo={slotNo}
-              truckerId={truckerId}
-              truckers={truckers}
-              slotInfo={slotInfo}
-              slotsLoading={slotsLoading}
-              availableSlots={availableSlots}
               minScheduleDate={minScheduleDate}
               actionError={actionError}
               submitting={submitting}
@@ -587,8 +541,6 @@ export default function ScheduleDetailPage() {
               onEditSchedule={() => setEditing(true)}
               onDateChange={setDate}
               onTimeChange={setTime}
-              onSlotChange={setSlotNo}
-              onTruckerChange={setTruckerId}
               onCancelEdit={cancelEdit}
               onOpenConfirm={openConfirm}
             />
@@ -614,12 +566,12 @@ export default function ScheduleDetailPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, gap: 2 }}>
               <CircularProgress size={40} sx={{ color: primaryDark }} />
               <Typography color="text.secondary" align="center">
-                Saving schedule and notifying broker & trucker…
+                Saving schedule and notifying trucker…
               </Typography>
             </Box>
           ) : saveSuccess ? (
             <Alert severity="success" sx={{ borderRadius: 2 }}>
-              Schedule saved successfully. Broker and trucker have been notified. Returning to the schedule
+              Schedule saved successfully. Trucker has been notified. Returning to the schedule
               list…
             </Alert>
           ) : (
@@ -646,7 +598,7 @@ export default function ScheduleDetailPage() {
               )}
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                The broker and assigned trucker will be notified. Please confirm the return details below.
+                The assigned trucker will be notified. Please confirm the return details below.
               </Typography>
 
               {actionError && (
@@ -667,15 +619,11 @@ export default function ScheduleDetailPage() {
                 <Typography color="text.secondary">Date</Typography>
                 <Typography sx={{ fontWeight: 600 }}>{formatScheduleDate(date)}</Typography>
                 <Typography color="text.secondary">Time</Typography>
-                <Typography sx={{ fontWeight: 600 }}>
-                  {formatScheduleTime(`${time}:00`)} {SYSTEM_TIMEZONE.label}
+                <Typography sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                  {formatScheduleTime(`${normalizeTime24Input(time)}:00`)} {SYSTEM_TIMEZONE.label}
                 </Typography>
-                <Typography color="text.secondary">Slot</Typography>
-                <Typography sx={{ fontWeight: 600 }}>Slot {slotNo}</Typography>
-                <Typography color="text.secondary">Trucker</Typography>
-                <Typography sx={{ fontWeight: 600 }}>
-                  {selectedTrucker ? `${selectedTrucker.fullName} (${selectedTrucker.username})` : '—'}
-                </Typography>
+                <Typography color="text.secondary">Requesting trucker</Typography>
+                <Typography sx={{ fontWeight: 600 }}>{requestingTrucker ?? '—'}</Typography>
               </Box>
             </>
           )}

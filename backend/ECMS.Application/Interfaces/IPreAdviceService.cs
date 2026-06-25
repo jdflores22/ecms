@@ -7,7 +7,7 @@ public interface IPreAdviceService
 {
     Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default);
     Task<PreAdviceDto?> GetByIdAsync(int id, int userId, string role, CancellationToken cancellationToken = default);
-    Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int brokerId, CancellationToken cancellationToken = default);
+    Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int truckerId, CancellationToken cancellationToken = default);
     Task<PreAdviceDto?> UpdateAsync(int id, UpdatePreAdviceRequest request, int userId, string role, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(int id, int userId, string role, CancellationToken cancellationToken = default);
     Task<PreAdviceDto?> SubmitAsync(int id, int userId, CancellationToken cancellationToken = default);

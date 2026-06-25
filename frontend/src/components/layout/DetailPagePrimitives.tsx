@@ -14,6 +14,9 @@ export const sectionPaperSx = {
   borderColor: 'divider',
   bgcolor: '#fff',
   boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+  minWidth: 0,
+  maxWidth: '100%',
+  boxSizing: 'border-box',
 }
 
 export const infoGridSx = {
@@ -218,11 +221,11 @@ type DetailHeroAsideProps = {
 
 export function DetailHeroAside({ label, primary, secondary }: DetailHeroAsideProps) {
   return (
-    <Box sx={{ flexShrink: 0, textAlign: { xs: 'left', md: 'right' } }}>
+    <Box sx={{ flexShrink: 0, minWidth: 0, maxWidth: '100%', textAlign: { xs: 'left', md: 'right' } }}>
       <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
         {label}
       </Typography>
-      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+      <Typography variant="h6" sx={{ fontWeight: 800, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
         {primary}
       </Typography>
       {secondary && (

@@ -42,7 +42,7 @@ const primaryDark = '#0B3D91'
 const REPORT_ROLES = new Set([
   'Administrator',
   'DepotPersonnel',
-  'Broker',
+  'Trucker',
   'ShippingLineEvaluator',
 ])
 

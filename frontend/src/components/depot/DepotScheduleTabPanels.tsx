@@ -10,6 +10,7 @@ import {
   Chip,
   CircularProgress,
   FormControl,
+  FormHelperText,
   InputLabel,
   MenuItem,
   Paper,
@@ -17,19 +18,18 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { useMemo } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Payment,
   PreAdvice,
   PreAdviceDocument,
   QrBooking,
   Schedule,
-  SlotAvailability,
-  UserListItem,
 } from '../../services/api'
 import {
   formatDateTime,
@@ -37,7 +37,9 @@ import {
   formatScheduleDate,
   formatScheduleSlot,
   formatScheduleTime,
+  getDepotScheduleTimeOptions,
   isBeforeToday,
+  isValidTime24,
   SYSTEM_TIMEZONE,
 } from '../../utils/datetime'
 
@@ -103,6 +105,10 @@ function isPdfProof(path: string) {
   return /\.pdf$/i.test(path)
 }
 
+function requestingTruckerName(schedule: Schedule, preAdvice: PreAdvice) {
+  return schedule.truckerName ?? preAdvice.truckerName
+}
+
 type DepotScheduleTabPanelsProps = {
   activeTab: DepotScheduleTab
   schedule: Schedule
@@ -120,12 +126,6 @@ type DepotScheduleTabPanelsProps = {
   editing: boolean
   date: string
   time: string
-  slotNo: number
-  truckerId: number | ''
-  truckers: UserListItem[]
-  slotInfo: SlotAvailability | null
-  slotsLoading: boolean
-  availableSlots: { slotNo: number; available: boolean; referenceNo?: string | null }[]
   minScheduleDate: string
   actionError: string
   submitting: boolean
@@ -135,8 +135,6 @@ type DepotScheduleTabPanelsProps = {
   onEditSchedule: () => void
   onDateChange: (value: string) => void
   onTimeChange: (value: string) => void
-  onSlotChange: (value: number) => void
-  onTruckerChange: (value: number) => void
   onCancelEdit: () => void
   onOpenConfirm: () => void
 }
@@ -158,12 +156,6 @@ export default function DepotScheduleTabPanels({
   editing,
   date,
   time,
-  slotNo,
-  truckerId,
-  truckers,
-  slotInfo,
-  slotsLoading,
-  availableSlots,
   minScheduleDate,
   actionError,
   submitting,
@@ -173,31 +165,33 @@ export default function DepotScheduleTabPanels({
   onEditSchedule,
   onDateChange,
   onTimeChange,
-  onSlotChange,
-  onTruckerChange,
   onCancelEdit,
   onOpenConfirm,
 }: DepotScheduleTabPanelsProps) {
+  const truckerName = requestingTruckerName(schedule, preAdvice)
+  const timeOptions = useMemo(
+    () => getDepotScheduleTimeOptions(schedule.time || time),
+    [schedule.time, time],
+  )
+
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
         <Box sx={infoGridSx}>
-          <InfoTile label="Broker" value={preAdvice.brokerName} />
+          <InfoTile label="Requesting trucker" value={truckerName} />
           <InfoTile label="Shipping line" value={preAdvice.shippingLineName} />
           <InfoTile
             label="Container"
-            value={`${preAdvice.containerNo} (${preAdvice.containerSize}' ${preAdvice.containerType})`}
+            value={`${preAdvice.containerNo} (${preAdvice.containerSize}&apos; ${preAdvice.containerType})`}
             mono
           />
           <InfoTile label="Depot (CY)" value={schedule.depotName} />
           {schedule.date && (
             <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
           )}
-          {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
-          {schedule.truckerName && <InfoTile label="Trucker" value={schedule.truckerName} />}
           <InfoTile label="Submitted" value={formatDateTime(preAdvice.createdAt)} />
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-            <InfoTile label="Broker remarks" value={preAdvice.remarks || '—'} />
+            <InfoTile label="Submitted by remarks" value={preAdvice.remarks || '—'} />
           </Box>
         </Box>
       </DetailTabPanel>
@@ -238,8 +232,7 @@ export default function DepotScheduleTabPanels({
                   label="Return date & time"
                   value={`${formatScheduleDate(schedule.date)} · ${formatScheduleTime(schedule.time)} ${SYSTEM_TIMEZONE.label}`}
                 />
-                <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />
-                <InfoTile label="Assigned trucker" value={schedule.truckerName ?? '—'} />
+                <InfoTile label="Requesting trucker" value={truckerName} />
                 <InfoTile label="Status" value={schedule.status} />
               </Box>
             )}
@@ -252,12 +245,10 @@ export default function DepotScheduleTabPanels({
                   </Alert>
                 )}
 
-                {slotInfo && (
-                  <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
-                    {slotInfo.bookedCount} of {slotInfo.dailyLimit} slots booked on{' '}
-                    {formatScheduleDate(slotInfo.date)} · {availableSlots.length} available
-                  </Alert>
-                )}
+                <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+                  The trucker is fixed from the pre-advice request ({truckerName}). Assign return date and
+                  time from the available slots below.
+                </Alert>
 
                 <Box sx={{ ...infoGridSx, mt: 2 }}>
                   <TextField
@@ -277,61 +268,38 @@ export default function DepotScheduleTabPanels({
                       htmlInput: { min: minScheduleDate },
                     }}
                   />
-                  <TextField
-                    fullWidth
-                    label="Time"
-                    type="time"
-                    value={time}
-                    onChange={(e) => onTimeChange(e.target.value)}
-                    sx={fieldSx}
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                  <FormControl
-                    fullWidth
-                    required
-                    disabled={slotsLoading || availableSlots.length === 0}
-                    sx={fieldSx}
-                  >
-                    <InputLabel>Slot</InputLabel>
-                    <Select label="Slot" value={slotNo} onChange={(e) => onSlotChange(Number(e.target.value))}>
-                      {slotInfo?.slots.map((slot) => (
-                        <MenuItem key={slot.slotNo} value={slot.slotNo} disabled={!slot.available}>
-                          Slot {slot.slotNo}
-                          {!slot.available && slot.referenceNo ? ` — booked (${slot.referenceNo})` : ''}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth required sx={fieldSx}>
-                    <InputLabel>Trucker</InputLabel>
+                  <FormControl fullWidth sx={fieldSx}>
+                    <InputLabel shrink>Time (24-hour)</InputLabel>
                     <Select
-                      label="Trucker"
-                      value={truckerId}
-                      onChange={(e) => onTruckerChange(e.target.value as number)}
+                      label="Time (24-hour)"
+                      value={timeOptions.includes(time) ? time : ''}
+                      onChange={(e) => onTimeChange(String(e.target.value))}
+                      displayEmpty
+                      sx={{ fontFamily: 'monospace' }}
+                      MenuProps={{
+                        slotProps: {
+                          paper: {
+                            sx: { maxHeight: 240 },
+                          },
+                          list: {
+                            sx: { maxHeight: 240, overflow: 'auto', py: 0 },
+                          },
+                        },
+                      }}
                     >
-                      {truckers.map((t) => (
-                        <MenuItem key={t.id} value={t.id}>
-                          {t.fullName} ({t.username})
+                      <MenuItem value="" disabled>
+                        <em>Select time</em>
+                      </MenuItem>
+                      {timeOptions.map((slot) => (
+                        <MenuItem key={slot} value={slot}>
+                          {formatScheduleTime(`${slot}:00`)}
                         </MenuItem>
                       ))}
                     </Select>
+                    <FormHelperText>HH:mm — full day from 00:00 to 23:30</FormHelperText>
                   </FormControl>
+                  <InfoTile label="Requesting trucker" value={truckerName} />
                 </Box>
-
-                {slotsLoading && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
-                    <CircularProgress size={18} sx={{ color: primaryDark }} />
-                    <Typography variant="caption" color="text.secondary">
-                      Loading available slots…
-                    </Typography>
-                  </Box>
-                )}
-
-                {availableSlots.length === 0 && !slotsLoading && (
-                  <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
-                    No slots available for this date. Pick another date or free a booking.
-                  </Typography>
-                )}
 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 3 }}>
                   {schedule.status === 'Scheduled' && editing ? (
@@ -351,7 +319,7 @@ export default function DepotScheduleTabPanels({
                   <Button
                     variant="contained"
                     onClick={onOpenConfirm}
-                    disabled={submitting || slotsLoading || availableSlots.length === 0}
+                    disabled={submitting || !isValidTime24(time)}
                     sx={{ fontWeight: 700, borderRadius: 2 }}
                   >
                     {schedule.status === 'WaitingSchedule' ? 'Save & notify trucker' : 'Save changes'}
@@ -381,27 +349,27 @@ export default function DepotScheduleTabPanels({
               </Box>
             )}
 
-            <Box sx={{ ...infoGridSx, mb: payment.proofFile ? 2 : 0 }}>
+            <Box sx={infoGridSx}>
+              <InfoTile label="Amount" value={formatPeso(payment.amount)} />
               <InfoTile
                 label="Status"
                 value={
                   <Chip
                     label={paymentStatusLabel[payment.status] ?? payment.status}
-                    size="small"
                     color={paymentStatusColor[payment.status] ?? 'default'}
+                    size="small"
                     sx={{ fontWeight: 600 }}
                   />
                 }
               />
-              <InfoTile label="Amount" value={formatPeso(payment.amount)} />
-              {payment.paidAt && <InfoTile label="Uploaded" value={formatDateTime(payment.paidAt)} />}
               {payment.truckerName && <InfoTile label="Trucker" value={payment.truckerName} />}
+              {payment.paidAt && <InfoTile label="Paid at" value={formatDateTime(payment.paidAt)} />}
             </Box>
 
             {payment.proofFile && (
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  Proof of payment
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
+                  Payment proof
                 </Typography>
                 {isImageProof(payment.proofFile) ? (
                   <Box
@@ -411,50 +379,35 @@ export default function DepotScheduleTabPanels({
                     onClick={onProofPreview}
                     sx={{
                       width: '100%',
-                      maxWidth: 420,
-                      maxHeight: 320,
-                      objectFit: 'contain',
+                      maxWidth: 320,
                       borderRadius: 2,
                       border: '1px solid',
                       borderColor: 'divider',
-                      bgcolor: '#fafafa',
                       cursor: 'pointer',
                     }}
                   />
-                ) : (
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      bgcolor: hexToRgba(primaryDark, 0.02),
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      flexWrap: 'wrap',
-                    }}
+                ) : isPdfProof(payment.proofFile) ? (
+                  <Button
+                    variant="outlined"
+                    startIcon={<PictureAsPdfOutlinedIcon />}
+                    href={resolveAssetUrl(payment.proofFile)}
+                    target="_blank"
+                    rel="noreferrer"
+                    sx={{ fontWeight: 600, borderRadius: 2 }}
                   >
-                    <PictureAsPdfOutlinedIcon sx={{ fontSize: 40, color: primaryDark }} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {isPdfProof(payment.proofFile) ? 'PDF proof file' : 'Proof file'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Open to review before verifying payment.
-                      </Typography>
-                    </Box>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<VisibilityOutlinedIcon />}
-                      onClick={onProofPreview}
-                      sx={{ fontWeight: 600, borderRadius: 2 }}
-                    >
-                      View proof
-                    </Button>
-                  </Paper>
+                    View PDF proof
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    startIcon={<VisibilityOutlinedIcon />}
+                    href={resolveAssetUrl(payment.proofFile)}
+                    target="_blank"
+                    rel="noreferrer"
+                    sx={{ fontWeight: 600, borderRadius: 2 }}
+                  >
+                    Open proof file
+                  </Button>
                 )}
               </Box>
             )}
@@ -467,94 +420,51 @@ export default function DepotScheduleTabPanels({
       </DetailTabPanel>
 
       <DetailTabPanel value="qr" activeTab={activeTab}>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          {LOGICTECK_QR.scheduleSectionHint}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2, lineHeight: 1.5 }}>
-          {LOGICTECK_QR.integrationNote}
-        </Typography>
-
         {qrLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-            <CircularProgress size={24} sx={{ color: primaryDark }} />
-            <Typography variant="body2" color="text.secondary">
-              Loading booking QR…
-            </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress sx={{ color: primaryDark }} />
           </Box>
-        ) : qrBooking ? (
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' },
-              gap: 2,
-              alignItems: 'start',
-            }}
-          >
-            {qrImageUrl && (
+        ) : qrBooking && qrImageUrl ? (
+          <>
+            <Box sx={infoGridSx}>
+              <InfoTile label="Booking ID" value={qrBooking.qrCode} mono />
+              <InfoTile
+                label="Return date & time"
+                value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
+              />
+              <InfoTile
+                label="LOGICTECK status"
+                value={qrLookupStatusLabel(qrBooking.isUsed)}
+              />
+            </Box>
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Box
                 component="img"
                 src={qrImageUrl}
-                alt={`QR code ${qrBooking.qrCode}`}
+                alt="Booking QR"
                 sx={{
-                  width: { xs: '100%', sm: 200 },
-                  maxWidth: 200,
-                  height: 'auto',
+                  width: '100%',
+                  maxWidth: 280,
                   borderRadius: 2,
                   border: '1px solid',
                   borderColor: 'divider',
                   bgcolor: '#fff',
-                  p: 1,
                 }}
               />
-            )}
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                Booking reference: {qrBooking.qrCode}
-              </Typography>
-              <Box sx={{ ...infoGridSx, mb: 2 }}>
-                <InfoTile label="Generated" value={formatDateTime(qrBooking.generatedAt)} />
-                <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />
-                <InfoTile
-                  label="Return slot"
-                  value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
-                />
-                <InfoTile
-                  label={LOGICTECK_QR.validationStatusLabel}
-                  value={
-                    <Chip
-                      label={qrLookupStatusLabel(qrBooking.isUsed)}
-                      size="small"
-                      color={qrBooking.isUsed ? 'default' : 'success'}
-                      sx={{ fontWeight: 600 }}
-                    />
-                  }
-                />
-              </Box>
               <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={onDownloadQr}
-                sx={{ fontWeight: 600, borderRadius: 2 }}
+                sx={{ mt: 2, fontWeight: 600, borderRadius: 2 }}
               >
                 Download QR
               </Button>
             </Box>
-          </Box>
+          </>
         ) : (
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              borderRadius: 2,
-              bgcolor: hexToRgba(primaryDark, 0.03),
-              border: '1px solid',
-              borderColor: hexToRgba(primaryDark, 0.1),
-            }}
-          >
-            <Typography variant="body2" color="text.secondary">
-              {LOGICTECK_QR.emptyState}
-            </Typography>
-          </Paper>
+          <Typography variant="body2" color="text.secondary">
+            QR code is issued after payment is verified and the return is confirmed.
+          </Typography>
         )}
       </DetailTabPanel>
     </Box>

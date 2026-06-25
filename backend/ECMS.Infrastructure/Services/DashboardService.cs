@@ -15,21 +15,6 @@ public class DashboardService : IDashboardService
         _db = db;
     }
 
-    public async Task<BrokerDashboardDto> GetBrokerDashboardAsync(int brokerId, CancellationToken cancellationToken = default)
-    {
-        var preAdvices = await _db.PreAdvices.Where(p => p.BrokerId == brokerId).ToListAsync(cancellationToken);
-        var completed = await _db.Schedules
-            .Include(s => s.PreAdvice)
-            .CountAsync(s => s.PreAdvice.BrokerId == brokerId && s.Status == ScheduleStatus.Completed, cancellationToken);
-
-        return new BrokerDashboardDto(
-            preAdvices.Count,
-            preAdvices.Count(p => p.Status is PreAdviceStatus.Draft or PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation),
-            preAdvices.Count(p => p.Status == PreAdviceStatus.Approved),
-            preAdvices.Count(p => p.Status == PreAdviceStatus.Rejected),
-            completed);
-    }
-
     public async Task<ShippingLineDashboardDto> GetShippingLineDashboardAsync(int evaluatorId, CancellationToken cancellationToken = default)
     {
         var user = await _db.Users.FirstAsync(u => u.Id == evaluatorId, cancellationToken);
@@ -67,7 +52,7 @@ public class DashboardService : IDashboardService
                 s.DepotId == depotId &&
                 s.Date == today &&
                 s.Status != ScheduleStatus.Cancelled &&
-                (s.Status != ScheduleStatus.WaitingSchedule || s.SlotNo > 0),
+                s.Status != ScheduleStatus.WaitingSchedule,
                 cancellationToken);
 
         var todaysReturns = occupied;
@@ -86,11 +71,21 @@ public class DashboardService : IDashboardService
             .Where(s => s.TruckerId == truckerId)
             .ToListAsync(cancellationToken);
 
+        var preAdvices = await _db.PreAdvices.Where(p => p.TruckerId == truckerId).ToListAsync(cancellationToken);
+        var completedPreAdviceReturns = await _db.Schedules
+            .Include(s => s.PreAdvice)
+            .CountAsync(s => s.PreAdvice.TruckerId == truckerId && s.Status == ScheduleStatus.Completed, cancellationToken);
+
         return new TruckerDashboardDto(
             schedules.Count(s => s.Status == ScheduleStatus.Scheduled),
             schedules.Count(s => s.Payment == null || s.Payment.Status == PaymentStatus.Pending),
             schedules.Count(s => s.Status == ScheduleStatus.Confirmed),
-            schedules.Count(s => s.Status == ScheduleStatus.Completed));
+            schedules.Count(s => s.Status == ScheduleStatus.Completed),
+            preAdvices.Count,
+            preAdvices.Count(p => p.Status is PreAdviceStatus.Draft or PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation),
+            preAdvices.Count(p => p.Status == PreAdviceStatus.Approved),
+            preAdvices.Count(p => p.Status == PreAdviceStatus.Rejected),
+            completedPreAdviceReturns);
     }
 
     public async Task<AdminDashboardDto> GetAdminDashboardAsync(CancellationToken cancellationToken = default)

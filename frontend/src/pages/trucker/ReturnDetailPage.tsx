@@ -1071,6 +1071,20 @@ export default function TruckerReturnDetailPage() {
 
               <Button
 
+                variant="outlined"
+
+                onClick={() => undefined}
+
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+
+              >
+
+                {LOGICTECK_QR.bookLogicteck}
+
+              </Button>
+
+              <Button
+
                 variant="contained"
 
                 startIcon={<PrintIcon />}

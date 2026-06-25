@@ -21,6 +21,7 @@ export const LOGICTECK_QR = {
   readyAlert:
     'Return confirmed. Booking QR published — provides approved pre-advice details for LOGICTECK integration (coming soon).',
   viewQr: 'View booking QR',
+  bookLogicteck: 'Book LOGICTECK',
   printFooter:
     'For LOGICTECK integration only — supplies approved pre-advice container details from ICS. Not for gate-in.',
   approveConfirmHint:

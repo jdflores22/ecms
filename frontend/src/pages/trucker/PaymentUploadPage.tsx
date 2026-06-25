@@ -8,10 +8,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  InputAdornment,
   Paper,
-  TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -50,7 +50,6 @@ import {
 } from '../../utils/truckerPayment'
 
 const primaryDark = ICS_PRIMARY
-const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 const panelHeaderSx = {
   display: 'flex',
@@ -59,6 +58,29 @@ const panelHeaderSx = {
   gap: 2,
   mb: 2,
   flexWrap: 'wrap',
+  minWidth: 0,
+}
+
+const mobileAlertSx = {
+  mb: 3,
+  borderRadius: 2,
+  '& .MuiAlert-message': {
+    width: '100%',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+  },
+}
+
+const uploadDropzoneSx = {
+  p: { xs: 2, sm: 3 },
+  borderRadius: 2.5,
+  border: '2px dashed',
+  minWidth: 0,
+  width: '100%',
+  boxSizing: 'border-box',
+  overflow: 'hidden',
+  textAlign: 'center',
+  transition: 'border-color 0.15s ease, background-color 0.15s ease',
 }
 
 function heroPaymentChipStyle(status: string): { bgcolor: string; color: string } {
@@ -124,13 +146,32 @@ const formActionRowSx = {
   justifyContent: { xs: 'stretch', sm: 'flex-end' },
   gap: 1,
   pt: 1,
+  width: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
   '& .MuiButton-root': {
     width: { xs: '100%', sm: 'auto' },
-    minWidth: { xs: 'unset', sm: 120 },
+    minWidth: { xs: 0, sm: 120 },
+    maxWidth: '100%',
+  },
+}
+
+const confirmDialogActionsSx = {
+  px: 3,
+  pb: { xs: 3, sm: 2 },
+  pt: { xs: 1, sm: 0 },
+  flexDirection: { xs: 'column-reverse', sm: 'row' },
+  gap: 1,
+  '& .MuiButton-root': {
+    width: { xs: '100%', sm: 'auto' },
+    minWidth: { xs: 0, sm: 120 },
+    mx: { xs: 0, sm: undefined },
   },
 }
 
 export default function TruckerPaymentUploadPage() {
+  const theme = useTheme()
+  const confirmFullScreen = useMediaQuery(theme.breakpoints.down('sm'))
   const { scheduleId: scheduleIdParam } = useParams()
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
@@ -143,8 +184,8 @@ export default function TruckerPaymentUploadPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
+  const [configuredFee, setConfiguredFee] = useState<number | null>(null)
 
-  const [amount, setAmount] = useState('5000')
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -155,13 +196,13 @@ export default function TruckerPaymentUploadPage() {
     setLoading(true)
     setError('')
 
-    Promise.all([scheduleApi.get(scheduleId), paymentApi.mine()])
-      .then(async ([scheduleRes, paymentsRes]) => {
+    Promise.all([scheduleApi.get(scheduleId), paymentApi.mine(), paymentApi.getSettings()])
+      .then(async ([scheduleRes, paymentsRes, settingsRes]) => {
         const item = scheduleRes.data
         const existing = paymentsRes.data.find((p) => p.scheduleId === item.id) ?? null
         setSchedule(item)
         setPayment(existing)
-        setAmount(String(existing?.amount ?? 5000))
+        setConfiguredFee(settingsRes.data.returnFeeAmount)
 
         const preAdviceRes = await preAdviceApi.get(item.preAdviceId)
         setPreAdvice(preAdviceRes.data)
@@ -206,14 +247,14 @@ export default function TruckerPaymentUploadPage() {
   const contextualAlert =
     schedule && showPaymentContent ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status) : null
 
-  const displayAmount = payment?.amount ?? Number(amount)
+  const displayAmount = payment?.amount ?? configuredFee ?? 0
 
   const handleUpload = async () => {
     if (!schedule || !file) return
     setSubmitting(true)
     setActionError('')
     try {
-      await paymentApi.upload(schedule.id, Number(amount), file)
+      await paymentApi.upload(schedule.id, file)
       setFile(null)
       setSaveSuccess(true)
       window.setTimeout(() => {
@@ -233,19 +274,19 @@ export default function TruckerPaymentUploadPage() {
   const openConfirm = () => {
     setActionError('')
     setSaveSuccess(false)
-    if (!amount || Number(amount) <= 0) {
-      setActionError('Please enter a valid payment amount.')
-      return
-    }
     if (!file) {
       setActionError('Please choose a proof file to upload.')
+      return
+    }
+    if (displayAmount <= 0) {
+      setActionError('Payment amount is not configured. Contact the administrator.')
       return
     }
     setConfirmOpen(true)
   }
 
   return (
-    <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
+    <Box sx={{ minWidth: 0, maxWidth: '100%', overflowX: 'hidden' }}>
       <DetailBackButton to="/trucker/payments" label="Back to payments" />
 
       {loading ? (
@@ -288,13 +329,13 @@ export default function TruckerPaymentUploadPage() {
           {showPaymentContent ? (
             <>
               {contextualAlert && (
-                <Alert severity={contextualAlert.severity} sx={{ mb: 3, borderRadius: 2 }}>
+                <Alert severity={contextualAlert.severity} sx={mobileAlertSx}>
                   {contextualAlert.message}
                 </Alert>
               )}
 
               {actionError && !confirmOpen && (
-                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setActionError('')}>
+                <Alert severity="error" sx={{ ...mobileAlertSx, mb: 3 }} onClose={() => setActionError('')}>
                   {actionError}
                 </Alert>
               )}
@@ -307,12 +348,14 @@ export default function TruckerPaymentUploadPage() {
                   gridTemplateColumns: { xs: '1fr', lg: '5fr 7fr' },
                   gap: 3,
                   alignItems: 'start',
+                  minWidth: 0,
+                  width: '100%',
                 }}
               >
                 {/* Summary */}
-                <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
+                <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0, overflow: 'hidden' }}>
                   <Box sx={panelHeaderSx}>
-                    <Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                         Payment summary
                       </Typography>
@@ -326,7 +369,12 @@ export default function TruckerPaymentUploadPage() {
                       size="small"
                       variant="text"
                       endIcon={<OpenInNewIcon />}
-                      sx={{ fontWeight: 600, flexShrink: 0 }}
+                      sx={{
+                        fontWeight: 600,
+                        flexShrink: 0,
+                        alignSelf: { xs: 'stretch', sm: 'flex-start' },
+                        width: { xs: '100%', sm: 'auto' },
+                      }}
                     >
                       Return details
                     </Button>
@@ -378,11 +426,15 @@ export default function TruckerPaymentUploadPage() {
                 </Paper>
 
                 {/* Proof / Upload */}
-                <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
+                <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0, overflow: 'hidden' }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
                     {paymentUploadNeeded ? 'Upload payment proof' : 'Payment proof'}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 2.5, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+                  >
                     {paymentUploadNeeded
                       ? 'Attach a clear image or PDF of your payment receipt for depot verification.'
                       : 'Your submitted proof of payment for this return.'}
@@ -461,19 +513,10 @@ export default function TruckerPaymentUploadPage() {
 
                   {paymentUploadNeeded && (
                     <>
-                      <TextField
-                        fullWidth
-                        label="Amount (PHP)"
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        sx={{ ...fieldSx, mb: 2 }}
-                        slotProps={{
-                          input: {
-                            startAdornment: <InputAdornment position="start">₱</InputAdornment>,
-                          },
-                        }}
-                      />
+                      <Alert severity="info" sx={{ mb: 2, borderRadius: 2, '& .MuiAlert-message': { overflowWrap: 'anywhere', wordBreak: 'break-word' } }}>
+                        Pay {formatPeso(displayAmount)} as the pre-advised fee set by the administrator. Upload your
+                        proof below — you cannot change the fee amount here.
+                      </Alert>
 
                       <Button
                         component="label"
@@ -482,6 +525,8 @@ export default function TruckerPaymentUploadPage() {
                           display: 'block',
                           p: 0,
                           mb: 2,
+                          minWidth: 0,
+                          maxWidth: '100%',
                           textTransform: 'none',
                           '&:hover': { bgcolor: 'transparent' },
                         }}
@@ -489,13 +534,9 @@ export default function TruckerPaymentUploadPage() {
                         <Paper
                           elevation={0}
                           sx={{
-                            p: 3,
-                            borderRadius: 2.5,
-                            border: '2px dashed',
+                            ...uploadDropzoneSx,
                             borderColor: file ? primaryDark : 'divider',
                             bgcolor: file ? hexToRgba(primaryDark, 0.04) : hexToRgba(primaryDark, 0.02),
-                            textAlign: 'center',
-                            transition: 'border-color 0.15s ease, background-color 0.15s ease',
                             '&:hover': {
                               borderColor: primaryDark,
                               bgcolor: hexToRgba(primaryDark, 0.06),
@@ -505,10 +546,19 @@ export default function TruckerPaymentUploadPage() {
                           <CloudUploadOutlinedIcon
                             sx={{ fontSize: 40, color: file ? primaryDark : 'text.secondary', mb: 1 }}
                           />
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: file ? primaryDark : 'text.primary' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 700,
+                              color: file ? primaryDark : 'text.primary',
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-all',
+                              px: { xs: 0.5, sm: 1 },
+                            }}
+                          >
                             {file ? file.name : 'Choose proof file'}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, px: 1 }}>
                             Image or PDF · max recommended 10 MB
                           </Typography>
                         </Paper>
@@ -529,7 +579,12 @@ export default function TruckerPaymentUploadPage() {
                           startIcon={<UploadFileIcon sx={{ display: { xs: 'none', sm: 'inline-flex' } }} />}
                           onClick={openConfirm}
                           disabled={submitting || !file}
-                          sx={{ fontWeight: 700, borderRadius: 2, px: 3 }}
+                          sx={{
+                            fontWeight: 700,
+                            borderRadius: 2,
+                            px: { xs: 2, sm: 3 },
+                            whiteSpace: 'normal',
+                          }}
                         >
                           Submit proof
                         </Button>
@@ -578,11 +633,12 @@ export default function TruckerPaymentUploadPage() {
         onClose={() => !submitting && !saveSuccess && setConfirmOpen(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={confirmFullScreen}
       >
         <DialogTitle sx={{ fontWeight: 700 }}>
           {saveSuccess ? 'Proof submitted' : 'Confirm payment proof'}
         </DialogTitle>
-        <DialogContent>
+        <DialogContent dividers={confirmFullScreen}>
           {submitting ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, gap: 2 }}>
               <CircularProgress size={40} sx={{ color: primaryDark }} />
@@ -615,10 +671,30 @@ export default function TruckerPaymentUploadPage() {
                 </Typography>
               </Paper>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Please confirm the payment details below. The depot will review your proof before confirming your
-                return.
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
+                Please confirm the pre-advised fee and proof file below. The depot will review your upload before
+                confirming your return.
               </Typography>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  borderRadius: 2,
+                  textAlign: 'center',
+                  bgcolor: hexToRgba(primaryDark, 0.04),
+                  border: '1px solid',
+                  borderColor: hexToRgba(primaryDark, 0.12),
+                }}
+              >
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+                  Pre-advised fee
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark, mt: 0.5 }}>
+                  {formatPeso(displayAmount)}
+                </Typography>
+              </Paper>
 
               {actionError && (
                 <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
@@ -629,22 +705,36 @@ export default function TruckerPaymentUploadPage() {
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: 'auto 1fr',
+                  gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' },
                   gap: 1,
                   rowGap: 1.25,
                   typography: 'body2',
                 }}
               >
-                <Typography color="text.secondary">Amount</Typography>
-                <Typography sx={{ fontWeight: 600 }}>{formatPeso(Number(amount))}</Typography>
-                <Typography color="text.secondary">Proof file</Typography>
-                <Typography sx={{ fontWeight: 600, wordBreak: 'break-all' }}>{file?.name ?? '—'}</Typography>
+                <Typography color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                  Proof file
+                </Typography>
+                <Box sx={{ gridColumn: { xs: '1', sm: 'auto / span 2' } }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, mb: 0.5 }}>
+                    Proof file
+                  </Typography>
+                  <Typography sx={{ fontWeight: 600, wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                    {file?.name ?? '—'}
+                  </Typography>
+                </Box>
                 {schedule?.date && (
                   <>
-                    <Typography color="text.secondary">Return slot</Typography>
-                    <Typography sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                      {formatScheduleSlot(schedule.date, schedule.time)}
+                    <Typography color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                      Return slot
                     </Typography>
+                    <Box sx={{ gridColumn: { xs: '1', sm: 'auto / span 2' } }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, mb: 0.5 }}>
+                        Return slot
+                      </Typography>
+                      <Typography sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                        {formatScheduleSlot(schedule.date, schedule.time)}
+                      </Typography>
+                    </Box>
                   </>
                 )}
               </Box>
@@ -652,13 +742,13 @@ export default function TruckerPaymentUploadPage() {
           )}
         </DialogContent>
         {!submitting && !saveSuccess && (
-          <DialogActions sx={{ px: 3, pb: 2 }}>
+          <DialogActions sx={confirmDialogActionsSx}>
             <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
               Cancel
             </Button>
             <Button
               variant="contained"
-              onClick={handleUpload}
+              onClick={() => void handleUpload()}
               disabled={submitting}
               sx={{ fontWeight: 700, borderRadius: 2 }}
             >

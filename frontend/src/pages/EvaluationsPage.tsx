@@ -2,7 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Paper,
   Tab,
@@ -23,7 +22,6 @@ import { hexToRgba } from '../components/layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
   ListMobileCard,
-  ListMobileChipRow,
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
@@ -37,38 +35,80 @@ import { formatDateTime } from '../utils/datetime'
 
 const primaryDark = LIST_PRIMARY
 
-const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
-  Draft: 'default',
-  Submitted: 'info',
-  UnderEvaluation: 'warning',
-  Approved: 'success',
-  Rejected: 'error',
-  Cancelled: 'default',
+const STATUS_TABS = [
+  { key: 'Submitted', label: 'Submitted', summaryColor: '#1565C0' },
+  { key: 'UnderEvaluation', label: 'Under evaluation', summaryColor: '#ED6C02' },
+  { key: 'ForCompliance', label: 'For compliance', summaryColor: '#6A1B9A' },
+  { key: 'Approved', label: 'Approved', summaryColor: '#2E7D32' },
+  { key: 'Rejected', label: 'Rejected', summaryColor: '#D32F2F' },
+] as const
+
+type StatusTabKey = (typeof STATUS_TABS)[number]['key']
+
+const PENDING_STATUSES: StatusTabKey[] = ['Submitted', 'UnderEvaluation']
+
+interface EvaluationQueueItem {
+  preAdviceId: number
+  referenceNo: string
+  shippingLineName: string
+  containerNo: string
+  containerSize: string
+  containerType: string
+  status: StatusTabKey
+  createdAt: string
+  depotName?: string | null
+  evaluatorName?: string | null
+  remarks?: string | null
+  evaluatedAt?: string | null
 }
 
-const statusLabel: Record<string, string> = {
-  UnderEvaluation: 'Under evaluation',
-}
+function mergeQueue(preAdvices: PreAdvice[], evaluations: Evaluation[]): EvaluationQueueItem[] {
+  const evalByPreAdvice = new Map(evaluations.map((e) => [e.preAdviceId, e]))
+  const tabKeys = new Set<string>(STATUS_TABS.map((t) => t.key))
 
-const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
+  return preAdvices
+    .filter((p) => tabKeys.has(p.status))
+    .map((p) => {
+      const ev = evalByPreAdvice.get(p.id)
+      return {
+        preAdviceId: p.id,
+        referenceNo: p.referenceNo,
+        shippingLineName: p.shippingLineName,
+        containerNo: p.containerNo,
+        containerSize: p.containerSize,
+        containerType: p.containerType,
+        status: p.status as StatusTabKey,
+        createdAt: p.createdAt,
+        depotName: ev?.depotName,
+        evaluatorName: ev?.evaluatorName,
+        remarks: ev?.remarks ?? p.complianceRemarks,
+        evaluatedAt: ev?.evaluatedAt,
+      }
+    })
+}
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: { xs: 1.5, sm: 2 },
         borderRadius: 3,
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
         boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        minWidth: 0,
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word', display: 'block' }}
+      >
         {label}
       </Typography>
-      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5 }}>
+      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
         {value}
       </Typography>
     </Paper>
@@ -128,9 +168,8 @@ function DataTable({
 
 export default function EvaluationsPage() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState(0)
-  const [pending, setPending] = useState<PreAdvice[]>([])
-  const [history, setHistory] = useState<Evaluation[]>([])
+  const [activeStatus, setActiveStatus] = useState<StatusTabKey>('Submitted')
+  const [items, setItems] = useState<EvaluationQueueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -139,9 +178,7 @@ export default function EvaluationsPage() {
     setError('')
     Promise.all([preAdviceApi.list(), evaluationApi.list()])
       .then(([preAdviceRes, evalRes]) => {
-        const all = preAdviceRes.data as PreAdvice[]
-        setPending(all.filter((p) => PENDING_STATUSES.includes(p.status)))
-        setHistory(evalRes.data)
+        setItems(mergeQueue(preAdviceRes.data as PreAdvice[], evalRes.data))
       })
       .catch(() => setError('Failed to load evaluation data.'))
       .finally(() => setLoading(false))
@@ -151,11 +188,124 @@ export default function EvaluationsPage() {
     load()
   }, [load])
 
-  const summary = useMemo(() => {
-    const approved = history.filter((h) => h.status === 'Approved').length
-    const rejected = history.filter((h) => h.status === 'Rejected').length
-    return { pending: pending.length, approved, rejected, total: history.length }
-  }, [pending.length, history])
+  const countByStatus = useMemo(() => {
+    const counts = Object.fromEntries(STATUS_TABS.map((t) => [t.key, 0])) as Record<StatusTabKey, number>
+    for (const item of items) counts[item.status]++
+    return counts
+  }, [items])
+
+  const filtered = useMemo(
+    () => items.filter((item) => item.status === activeStatus),
+    [items, activeStatus],
+  )
+
+  const isPendingTab = PENDING_STATUSES.includes(activeStatus)
+  const activeTabMeta = STATUS_TABS.find((t) => t.key === activeStatus)!
+
+  const renderMobileCard = (item: EvaluationQueueItem) => (
+    <ListMobileCard
+      key={item.preAdviceId}
+      onClick={isPendingTab ? () => navigate(`/evaluations/${item.preAdviceId}`) : undefined}
+    >
+      <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+      <ListMobileMeta>{item.shippingLineName}</ListMobileMeta>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mt: 0.5, fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all' }}
+      >
+        {item.containerNo}
+      </Typography>
+      <ListMobileMeta>
+        {item.containerSize}&apos; {item.containerType}
+      </ListMobileMeta>
+      {!isPendingTab && (
+        <>
+          {item.depotName && <ListMobileMeta>CY: {item.depotName}</ListMobileMeta>}
+          {item.evaluatorName && <ListMobileMeta>Evaluator: {item.evaluatorName}</ListMobileMeta>}
+          {item.remarks && <ListMobileMeta>{item.remarks}</ListMobileMeta>}
+          {item.evaluatedAt && (
+            <ListMobileMeta>{formatDateTime(item.evaluatedAt)}</ListMobileMeta>
+          )}
+        </>
+      )}
+      {isPendingTab && (
+        <ListMobileMeta>Submitted {formatDateTime(item.createdAt)}</ListMobileMeta>
+      )}
+      <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
+        <Button
+          component={RouterLink}
+          to={`/evaluations/${item.preAdviceId}`}
+          size="small"
+          variant={isPendingTab ? 'contained' : 'outlined'}
+          startIcon={<OpenInNewIcon />}
+          sx={{
+            fontWeight: 600,
+            borderRadius: 2,
+            ...(!isPendingTab && {
+              color: primaryDark,
+              borderColor: hexToRgba(primaryDark, 0.35),
+            }),
+          }}
+        >
+          {isPendingTab ? 'Review' : 'View'}
+        </Button>
+      </Box>
+    </ListMobileCard>
+  )
+
+  const renderDesktopRow = (item: EvaluationQueueItem) => (
+    <TableRow
+      key={item.preAdviceId}
+      hover
+      sx={{
+        '&:last-child td': { borderBottom: 0 },
+        cursor: isPendingTab ? 'pointer' : 'default',
+      }}
+      onClick={isPendingTab ? () => navigate(`/evaluations/${item.preAdviceId}`) : undefined}
+    >
+      <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
+      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.containerNo}</TableCell>
+      <TableCell>
+        {item.containerSize}&apos; {item.containerType}
+      </TableCell>
+      {!isPendingTab && (
+        <>
+          <TableCell>{item.depotName ?? '—'}</TableCell>
+          <TableCell>{item.evaluatorName ?? '—'}</TableCell>
+          <TableCell>
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+              {item.remarks ?? '—'}
+            </Typography>
+          </TableCell>
+        </>
+      )}
+      <TableCell>
+        <Typography variant="body2" color="text.secondary">
+          {formatDateTime(isPendingTab ? item.createdAt : (item.evaluatedAt ?? item.createdAt))}
+        </Typography>
+      </TableCell>
+      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+        <Button
+          component={RouterLink}
+          to={`/evaluations/${item.preAdviceId}`}
+          size="small"
+          variant={isPendingTab ? 'contained' : 'outlined'}
+          startIcon={<OpenInNewIcon />}
+          sx={{
+            fontWeight: 600,
+            borderRadius: 2,
+            ...(!isPendingTab && {
+              color: primaryDark,
+              borderColor: hexToRgba(primaryDark, 0.35),
+            }),
+          }}
+        >
+          {isPendingTab ? 'Review' : 'View'}
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
 
   return (
     <Box sx={listPageRootSx}>
@@ -202,7 +352,10 @@ export default function EvaluationsPage() {
               Request Evaluations
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              Review pre-advice requests and assign container yard (CY) for approved returns.
+              Review pre-advice requests and assign container yard (CY) for approved returns.{' '}
+              <RouterLink to="/evaluations/cy-allocation" style={{ color: '#fff', fontWeight: 600 }}>
+                View CY contract allocation
+              </RouterLink>
             </Typography>
           </Box>
         </Box>
@@ -217,15 +370,23 @@ export default function EvaluationsPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
+          gridTemplateColumns: {
+            xs: 'repeat(2, minmax(0, 1fr))',
+            sm: 'repeat(3, 1fr)',
+            lg: 'repeat(5, 1fr)',
+          },
+          gap: { xs: 1.5, sm: 2 },
           mb: 3,
         }}
       >
-        <SummaryCard label="Pending queue" value={summary.pending} color="#ED6C02" />
-        <SummaryCard label="Approved" value={summary.approved} color="#2E7D32" />
-        <SummaryCard label="Rejected" value={summary.rejected} color="#D32F2F" />
-        <SummaryCard label="Total decisions" value={summary.total} color={primaryDark} />
+        {STATUS_TABS.map((tab) => (
+          <SummaryCard
+            key={tab.key}
+            label={tab.label}
+            value={countByStatus[tab.key]}
+            color={tab.summaryColor}
+          />
+        ))}
       </Box>
 
       <Paper
@@ -241,8 +402,11 @@ export default function EvaluationsPage() {
         }}
       >
         <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
+          value={activeStatus}
+          onChange={(_, v) => setActiveStatus(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             px: 1,
             borderBottom: '1px solid',
@@ -253,192 +417,46 @@ export default function EvaluationsPage() {
             '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
           }}
         >
-          <Tab label={`Pending (${pending.length})`} />
-          <Tab label={`History (${history.length})`} />
+          {STATUS_TABS.map((tab) => (
+            <Tab
+              key={tab.key}
+              value={tab.key}
+              label={`${tab.label} (${countByStatus[tab.key]})`}
+            />
+          ))}
         </Tabs>
       </Paper>
 
-      {tab === 0 && (
-        <DataTable
-          loading={loading}
-          emptyMessage="No pending requests for evaluation."
-          isEmpty={!loading && pending.length === 0}
-          mobile={pending.map((item) => (
-            <ListMobileCard key={item.id} onClick={() => navigate(`/evaluations/${item.id}`)}>
-              <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
-              <ListMobileMeta>{item.shippingLineName}</ListMobileMeta>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mt: 0.5, fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all' }}
-              >
-                {item.containerNo}
-              </Typography>
-              <ListMobileMeta>
-                {item.containerSize} / {item.containerType} · {formatDateTime(item.createdAt)}
-              </ListMobileMeta>
-              <ListMobileChipRow>
-                <Chip
-                  label={statusLabel[item.status] ?? item.status}
-                  color={statusColor[item.status] ?? 'default'}
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              </ListMobileChipRow>
-              <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
-                <Button
-                  component={RouterLink}
-                  to={`/evaluations/${item.id}`}
-                  size="small"
-                  variant="contained"
-                  startIcon={<OpenInNewIcon />}
-                  sx={{ fontWeight: 600, borderRadius: 2 }}
-                >
-                  Review
-                </Button>
-              </Box>
-            </ListMobileCard>
-          ))}
-          headCells={
+      <DataTable
+        loading={loading}
+        emptyMessage={`No ${activeTabMeta.label.toLowerCase()} requests.`}
+        isEmpty={!loading && filtered.length === 0}
+        mobile={filtered.map(renderMobileCard)}
+        headCells={
+          isPendingTab ? (
             <>
               <TableCell>Reference</TableCell>
-              <TableCell>Shipping line</TableCell>
               <TableCell>Container</TableCell>
               <TableCell>Size / type</TableCell>
-              <TableCell>Status</TableCell>
               <TableCell>Submitted</TableCell>
               <TableCell align="right">Actions</TableCell>
             </>
-          }
-        >
-          {pending.map((item) => (
-            <TableRow
-              key={item.id}
-              hover
-              sx={{ '&:last-child td': { borderBottom: 0 }, cursor: 'pointer' }}
-              onClick={() => navigate(`/evaluations/${item.id}`)}
-            >
-              <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-              <TableCell>{item.shippingLineName}</TableCell>
-              <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.containerNo}</TableCell>
-              <TableCell>
-                {item.containerSize} / {item.containerType}
-              </TableCell>
-              <TableCell>
-                <Chip
-                  label={statusLabel[item.status] ?? item.status}
-                  color={statusColor[item.status] ?? 'default'}
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary">
-                  {formatDateTime(item.createdAt)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  component={RouterLink}
-                  to={`/evaluations/${item.id}`}
-                  size="small"
-                  variant="contained"
-                  startIcon={<OpenInNewIcon />}
-                  sx={{ fontWeight: 600, borderRadius: 2 }}
-                >
-                  Review
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </DataTable>
-      )}
-
-      {tab === 1 && (
-        <DataTable
-          loading={loading}
-          emptyMessage="No evaluation history yet."
-          isEmpty={!loading && history.length === 0}
-          mobile={history.map((item) => (
-            <ListMobileCard key={item.id}>
-              <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
-              <ListMobileChipRow>
-                <Chip
-                  label={item.status}
-                  color={statusColor[item.status] ?? 'default'}
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              </ListMobileChipRow>
-              <ListMobileMeta>{item.depotName ? `CY: ${item.depotName}` : 'No CY assigned'}</ListMobileMeta>
-              <ListMobileMeta>Evaluator: {item.evaluatorName}</ListMobileMeta>
-              {item.remarks && <ListMobileMeta>{item.remarks}</ListMobileMeta>}
-              <ListMobileMeta>{formatDateTime(item.evaluatedAt)}</ListMobileMeta>
-              <Box sx={listMobileActionsSx}>
-                <Button
-                  component={RouterLink}
-                  to={`/evaluations/${item.preAdviceId}`}
-                  size="small"
-                  variant="outlined"
-                  startIcon={<OpenInNewIcon />}
-                  sx={{ fontWeight: 600, borderRadius: 2, color: primaryDark, borderColor: hexToRgba(primaryDark, 0.35) }}
-                >
-                  View
-                </Button>
-              </Box>
-            </ListMobileCard>
-          ))}
-          headCells={
+          ) : (
             <>
               <TableCell>Reference</TableCell>
-              <TableCell>Decision</TableCell>
+              <TableCell>Container</TableCell>
+              <TableCell>Size / type</TableCell>
               <TableCell>Assigned CY</TableCell>
               <TableCell>Evaluator</TableCell>
               <TableCell>Remarks</TableCell>
-              <TableCell>Evaluated at</TableCell>
+              <TableCell>Evaluated</TableCell>
               <TableCell align="right">Actions</TableCell>
             </>
-          }
-        >
-          {history.map((item) => (
-            <TableRow key={item.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-              <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-              <TableCell>
-                <Chip
-                  label={item.status}
-                  color={statusColor[item.status] ?? 'default'}
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              </TableCell>
-              <TableCell>{item.depotName ?? '—'}</TableCell>
-              <TableCell>{item.evaluatorName}</TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                  {item.remarks ?? '—'}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary">
-                  {formatDateTime(item.evaluatedAt)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Button
-                  component={RouterLink}
-                  to={`/evaluations/${item.preAdviceId}`}
-                  size="small"
-                  variant="outlined"
-                  startIcon={<OpenInNewIcon />}
-                  sx={{ fontWeight: 600, borderRadius: 2, color: primaryDark, borderColor: hexToRgba(primaryDark, 0.35) }}
-                >
-                  View
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </DataTable>
-      )}
+          )
+        }
+      >
+        {filtered.map(renderDesktopRow)}
+      </DataTable>
     </Box>
   )
 }

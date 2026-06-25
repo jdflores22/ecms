@@ -16,23 +16,17 @@ public class PreAdviceDocumentIntegrationTests : IClassFixture<EcmsWebApplicatio
     }
 
     [Fact]
-    public async Task Broker_can_upload_and_list_container_identity_photos()
+    public async Task Trucker_can_upload_and_list_container_identity_photos()
     {
-        var brokerToken = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
-        ApiTestHelper.UseBearer(_client, brokerToken);
+        var truckerToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
+        ApiTestHelper.UseBearer(_client, truckerToken);
 
-        var lookups = await _client.GetFromJsonAsync<LookupResponse>("/api/preadvice/lookups");
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preadvice/lookups");
         Assert.NotNull(lookups);
 
-        var lineId = lookups.ShippingLines[0].Id;
-        var containerId = lookups.Containers.First(c => c.ShippingLineId == lineId).Id;
-
-        var createResponse = await _client.PostAsJsonAsync("/api/preadvice", new
-        {
-            shippingLineId = lineId,
-            containerId,
-            remarks = $"Photo test {Guid.NewGuid():N}",
-        });
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/preadvice",
+            ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Photo test {Guid.NewGuid():N}"));
         var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
         Assert.NotNull(preAdvice);
 
@@ -61,21 +55,15 @@ public class PreAdviceDocumentIntegrationTests : IClassFixture<EcmsWebApplicatio
     [Fact]
     public async Task Damage_photo_requires_comment()
     {
-        var brokerToken = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
-        ApiTestHelper.UseBearer(_client, brokerToken);
+        var truckerToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
+        ApiTestHelper.UseBearer(_client, truckerToken);
 
-        var lookups = await _client.GetFromJsonAsync<LookupResponse>("/api/preadvice/lookups");
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preadvice/lookups");
         Assert.NotNull(lookups);
 
-        var lineId = lookups.ShippingLines[0].Id;
-        var containerId = lookups.Containers.First(c => c.ShippingLineId == lineId).Id;
-
-        var createResponse = await _client.PostAsJsonAsync("/api/preadvice", new
-        {
-            shippingLineId = lineId,
-            containerId,
-            remarks = $"Damage test {Guid.NewGuid():N}",
-        });
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/preadvice",
+            ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Damage test {Guid.NewGuid():N}"));
         var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
         Assert.NotNull(preAdvice);
 
@@ -92,21 +80,15 @@ public class PreAdviceDocumentIntegrationTests : IClassFixture<EcmsWebApplicatio
     [Fact]
     public async Task Evaluator_can_list_container_photos_for_review()
     {
-        var brokerToken = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
-        ApiTestHelper.UseBearer(_client, brokerToken);
+        var truckerToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
+        ApiTestHelper.UseBearer(_client, truckerToken);
 
-        var lookups = await _client.GetFromJsonAsync<LookupResponse>("/api/preadvice/lookups");
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preadvice/lookups");
         Assert.NotNull(lookups);
 
-        var lineId = lookups.ShippingLines[0].Id;
-        var containerId = lookups.Containers.First(c => c.ShippingLineId == lineId).Id;
-
-        var createResponse = await _client.PostAsJsonAsync("/api/preadvice", new
-        {
-            shippingLineId = lineId,
-            containerId,
-            remarks = $"Evaluator photo test {Guid.NewGuid():N}",
-        });
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/preadvice",
+            ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Evaluator photo test {Guid.NewGuid():N}"));
         var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
         Assert.NotNull(preAdvice);
 
@@ -130,14 +112,6 @@ public class PreAdviceDocumentIntegrationTests : IClassFixture<EcmsWebApplicatio
         Assert.Single(documents);
         Assert.Equal("Front", documents[0].Category);
     }
-
-    private record LookupResponse(
-        List<LookupLine> ShippingLines,
-        List<LookupContainer> Containers);
-
-    private record LookupLine(int Id, string Name, string Code);
-
-    private record LookupContainer(int Id, string ContainerNo, string Size, string Type, int ShippingLineId);
 
     private record DocumentResponse(
         int Id,

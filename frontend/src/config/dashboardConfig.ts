@@ -14,10 +14,8 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import WarehouseIcon from '@mui/icons-material/Warehouse'
 import { LOGICTECK_QR } from './logicteckQr'
-import { ICS_BRAND } from './brandCopy'
 
 export type UserRole =
-  | 'Broker'
   | 'ShippingLineEvaluator'
   | 'DepotPersonnel'
   | 'Trucker'
@@ -47,26 +45,9 @@ export interface RoleDashboardConfig {
 }
 
 export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
-  Broker: {
-    title: 'Broker overview',
-    subtitle: ICS_BRAND.tagline,
-    workflow: [
-      'Create a pre-advice for an empty container that must return to CY or Port Terminal',
-      'Submit the request to the shipping line for evaluation',
-      'Monitor approval until the trucker completes the return',
-    ],
-    stats: [
-      { key: 'totalRequests', label: 'Total requests', description: 'All pre-advice records', icon: AssignmentIcon, color: '#1565c0' },
-      { key: 'pendingRequests', label: 'Pending', description: 'Draft, submitted, or under evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'approvedRequests', label: 'Approved', description: 'Ready for depot scheduling', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'rejectedRequests', label: 'Rejected', description: 'Requires correction or resubmit', icon: CancelIcon, color: '#d32f2f' },
-      { key: 'completedReturns', label: 'Completed returns', description: 'Containers returned to depot', icon: LocalShippingIcon, color: '#6a1b9a' },
-    ],
-    actions: [{ label: 'Manage pre-advice', path: '/preadvice', icon: AssignmentIcon }],
-  },
   ShippingLineEvaluator: {
     title: 'Evaluation queue',
-    subtitle: 'Review broker requests and assign container yards',
+    subtitle: 'Review pre-advice requests and assign container yards',
     workflow: [
       'Open the pending queue for new submissions',
       'Approve with a CY assignment or reject with remarks',
@@ -78,7 +59,11 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       { key: 'rejectedToday', label: 'Rejected today', description: 'Rejected today', icon: CancelIcon, color: '#d32f2f' },
       { key: 'assignedCyCount', label: 'CY assigned', description: 'Approved with yard assignment', icon: WarehouseIcon, color: '#1565c0' },
     ],
-    actions: [{ label: 'Open evaluations', path: '/evaluations', icon: FactCheckIcon }],
+    actions: [
+      { label: 'Open evaluations', path: '/evaluations', icon: FactCheckIcon },
+      { label: 'CY allocation', path: '/evaluations/cy-allocation', icon: WarehouseIcon },
+      { label: 'CY inventory', path: '/evaluations/container-inventory', icon: WarehouseIcon },
+    ],
   },
   DepotPersonnel: {
     title: 'Depot operations',
@@ -101,22 +86,26 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
   },
   Trucker: {
-    title: 'My returns',
-    subtitle: 'Upcoming schedules, payments, and LOGICTECK booking QR codes',
+    title: 'Trucker overview',
+    subtitle: 'Pre-advice, returns, payments, and booking QR',
     workflow: [
-      'Check assigned return schedules from the depot',
-      'Upload payment proof for each scheduled return',
-      'Download LOGICTECK booking QR after payment is verified',
+      'Create and submit pre-advice',
+      'Review assigned return schedules',
+      'Upload payment proof',
+      'Download booking QR after verification',
     ],
     stats: [
-      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#1565c0', highlightWhenPositive: true },
+      { key: 'pendingRequests', label: 'Pending pre-advice', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
       { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'confirmedReturns', label: 'Confirmed', description: 'Payment verified, LOGICTECK QR available', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'completedReturns', label: 'Completed', description: 'Return finished at depot', icon: LocalShippingIcon, color: '#6a1b9a' },
+      { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: '#2e7d32' },
+      { key: 'totalRequests', label: 'Total pre-advice', description: 'All requests you submitted', icon: AssignmentIcon, color: '#1565c0' },
     ],
     actions: [
-      { label: 'View returns', path: '/trucker/returns', icon: LocalShippingIcon },
-      { label: 'Upload payment', path: '/trucker/payments', icon: PaymentsIcon },
+      { label: 'Pre-advice', path: '/preadvice', icon: AssignmentIcon },
+      { label: 'New pre-advice', path: '/preadvice/new', icon: AssignmentIcon },
+      { label: 'My returns', path: '/trucker/returns', icon: LocalShippingIcon },
+      { label: 'Payments', path: '/trucker/payments', icon: PaymentsIcon },
       { label: LOGICTECK_QR.menuLabel, path: '/trucker/qr', icon: QrCode2Icon },
     ],
   },
@@ -130,7 +119,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
     stats: [
       { key: 'totalUsers', label: 'Total users', description: 'Registered system users', icon: PeopleIcon, color: '#1565c0' },
-      { key: 'totalPreAdvices', label: 'Pre-advices', description: 'All broker requests', icon: AssignmentIcon, color: '#6a1b9a' },
+      { key: 'totalPreAdvices', label: 'Pre-advices', description: 'All pre-advice requests', icon: AssignmentIcon, color: '#6a1b9a' },
       { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting shipping line action', icon: FactCheckIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'activeSchedules', label: 'Active schedules', description: 'Scheduled or confirmed returns', icon: CalendarMonthIcon, color: '#2e7d32' },
     ],

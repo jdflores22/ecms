@@ -12,12 +12,18 @@ public class EvaluationService : IEvaluationService
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
+    private readonly ICyAllocationService _cyAllocations;
 
-    public EvaluationService(IEcmsDbContext db, IAuditService auditService, INotificationService notifications)
+    public EvaluationService(
+        IEcmsDbContext db,
+        IAuditService auditService,
+        INotificationService notifications,
+        ICyAllocationService cyAllocations)
     {
         _db = db;
         _auditService = auditService;
         _notifications = notifications;
+        _cyAllocations = cyAllocations;
     }
 
     public async Task<IReadOnlyList<EvaluationDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
@@ -35,7 +41,11 @@ public class EvaluationService : IEvaluationService
         return items.Select(MapToDto).ToList();
     }
 
-    public async Task<EvaluationDto> ApproveAsync(ApproveEvaluationRequest request, int evaluatorId, CancellationToken cancellationToken = default)
+    public async Task<EvaluationDto> ApproveAsync(
+        ApproveEvaluationRequest request,
+        int evaluatorId,
+        string role,
+        CancellationToken cancellationToken = default)
     {
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
@@ -44,6 +54,13 @@ public class EvaluationService : IEvaluationService
 
         if (preAdvice.Status is not (PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation))
             throw new InvalidOperationException("Pre-advice is not eligible for approval.");
+
+        await _cyAllocations.EnsureCapacityForApprovalAsync(
+            request.PreAdviceId,
+            request.DepotId,
+            evaluatorId,
+            role,
+            cancellationToken);
 
         preAdvice.Status = PreAdviceStatus.Approved;
         var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
@@ -70,7 +87,8 @@ public class EvaluationService : IEvaluationService
                 Status = ScheduleStatus.WaitingSchedule,
                 Date = PhilippinesTime.Today,
                 Time = new TimeOnly(8, 0),
-                SlotNo = 0
+                SlotNo = 0,
+                TruckerId = preAdvice.TruckerId
             });
         }
 
@@ -82,7 +100,7 @@ public class EvaluationService : IEvaluationService
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
 
         await _notifications.NotifyUsersAsync(
-            new[] { preAdvice.BrokerId },
+            new[] { preAdvice.TruckerId },
             "Pre-advice approved",
             $"{preAdvice.ReferenceNo} was approved. CY: {depot.Name}.",
             "Evaluation",
@@ -94,7 +112,7 @@ public class EvaluationService : IEvaluationService
         await _notifications.NotifyUsersAsync(
             depotIds.Concat(adminIds),
             "Approved return awaiting schedule",
-            $"{preAdvice.ReferenceNo} approved — assign return date and trucker.",
+            $"{preAdvice.ReferenceNo} approved — assign return date and time.",
             "Evaluation",
             "/depot/schedules",
             evaluatorId,
@@ -135,9 +153,58 @@ public class EvaluationService : IEvaluationService
         await _auditService.LogAsync(evaluatorId, "Reject", "Evaluation", preAdvice.ReferenceNo, cancellationToken);
 
         await _notifications.NotifyUsersAsync(
-            new[] { preAdvice.BrokerId },
+            new[] { preAdvice.TruckerId },
             "Pre-advice rejected",
             $"{preAdvice.ReferenceNo} was rejected.{(string.IsNullOrWhiteSpace(request.Remarks) ? "" : $" Remarks: {request.Remarks}")}",
+            "Evaluation",
+            $"/preadvice/{preAdvice.Id}",
+            evaluatorId,
+            preAdvice.ReferenceNo,
+            cancellationToken);
+
+        evaluation.PreAdvice = preAdvice;
+        evaluation.Evaluator = await _db.Users.FirstAsync(u => u.Id == evaluatorId, cancellationToken);
+
+        return MapToDto(evaluation);
+    }
+
+    public async Task<EvaluationDto> ReturnForComplianceAsync(
+        ReturnForComplianceRequest request,
+        int evaluatorId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Remarks))
+            throw new InvalidOperationException("Compliance instructions are required.");
+
+        var preAdvice = await _db.PreAdvices
+            .Include(p => p.Evaluation)
+            .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
+            ?? throw new InvalidOperationException("Pre-advice not found.");
+
+        if (preAdvice.Status is not (PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation))
+            throw new InvalidOperationException("Pre-advice is not eligible for compliance review.");
+
+        preAdvice.Status = PreAdviceStatus.ForCompliance;
+        var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
+        evaluation.EvaluatorId = evaluatorId;
+        evaluation.DepotId = null;
+        evaluation.Remarks = request.Remarks.Trim();
+        evaluation.Status = PreAdviceStatus.ForCompliance;
+        evaluation.EvaluatedAt = PhilippinesTime.UtcNow;
+
+        if (preAdvice.Evaluation is null)
+            _db.Add(evaluation);
+        else
+            _db.Update(evaluation);
+
+        _db.Update(preAdvice);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(evaluatorId, "ReturnForCompliance", "Evaluation", preAdvice.ReferenceNo, cancellationToken);
+
+        await _notifications.NotifyUsersAsync(
+            new[] { preAdvice.TruckerId },
+            "Pre-advice returned for compliance",
+            $"{preAdvice.ReferenceNo} needs corrections before it can be approved. {request.Remarks.Trim()}",
             "Evaluation",
             $"/preadvice/{preAdvice.Id}",
             evaluatorId,

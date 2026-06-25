@@ -15,24 +15,37 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
+import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import axios from 'axios'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { useToast } from '../feedback/ToastProvider'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import {
   CONTAINER_PHOTO_CATEGORIES,
   DAMAGE_PHOTO_CATEGORY,
-  containerPhotoLabel,
+  formatDamageComment,
+  isDamageForView,
+  parseDamageDescription,
+  parseDamageView,
   type ContainerPhotoCategoryValue,
 } from '../../config/containerPhotoCategories'
 import { preAdviceApi, type PreAdviceDocument } from '../../services/api'
 
 const primaryDark = '#0B3D91'
+const damageRed = '#C62828'
+
+const damageBadgeSx = {
+  height: 22,
+  fontWeight: 800,
+  bgcolor: damageRed,
+  color: '#fff',
+  '& .MuiChip-label': { px: 1 },
+} as const
 
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
@@ -52,14 +65,44 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
+function mergeUploadedDocument(
+  documents: PreAdviceDocument[],
+  uploaded: PreAdviceDocument,
+  category: string,
+): PreAdviceDocument[] {
+  if (category === DAMAGE_PHOTO_CATEGORY.value) {
+    const view = uploaded.comment?.match(/^\[([A-Za-z]+)\]/)?.[1]
+    if (view) {
+      return [
+        ...documents.filter((d) => !isDamageForView(d, view)),
+        uploaded,
+      ]
+    }
+    return [...documents, uploaded]
+  }
+  return [...documents.filter((d) => d.category !== category), uploaded]
+}
+
+function removeDocument(documents: PreAdviceDocument[], documentId: number) {
+  return documents.filter((d) => d.id !== documentId)
+}
+
 type Props = {
   preAdviceId: number
   documents: PreAdviceDocument[]
   loading?: boolean
   canManage?: boolean
-  onChange: () => void
+  /** Full reload fallback for read-only parents */
+  onChange?: () => void
+  /** Incremental update — avoids page-level loading spinner */
+  onDocumentsChange?: (documents: PreAdviceDocument[]) => void
   error?: string
   onError?: (message: string) => void
+}
+
+type DamageDialogState = {
+  view: (typeof CONTAINER_PHOTO_CATEGORIES)[number]['value']
+  label: string
 }
 
 export default function ContainerIdentityPhotos({
@@ -68,79 +111,165 @@ export default function ContainerIdentityPhotos({
   loading = false,
   canManage = false,
   onChange,
+  onDocumentsChange,
   error,
   onError,
 }: Props) {
+  const { showToast } = useToast()
   const [uploading, setUploading] = useState<string | null>(null)
-  const [damageOpen, setDamageOpen] = useState(false)
+  const [damageDialog, setDamageDialog] = useState<DamageDialogState | null>(null)
   const [damageComment, setDamageComment] = useState('')
   const [damageFile, setDamageFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ url: string; title: string; description?: string } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ documentId: number; label: string } | null>(null)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
   const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({})
+  const damageFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const markImageBroken = useCallback((filePath: string) => {
     setBrokenImages((prev) => (prev[filePath] ? prev : { ...prev, [filePath]: true }))
   }, [])
 
-  const byCategory = useMemo(() => {
+  const identityByCategory = useMemo(() => {
     const map = new Map<string, PreAdviceDocument>()
     for (const doc of documents) {
-      if (doc.category && !map.has(doc.category)) {
+      if (doc.category && doc.category !== DAMAGE_PHOTO_CATEGORY.value && !map.has(doc.category)) {
         map.set(doc.category, doc)
       }
     }
     return map
   }, [documents])
 
-  const damagePhotos = useMemo(
-    () => documents.filter((d) => d.category === DAMAGE_PHOTO_CATEGORY.value),
+  const damageByView = useMemo(() => {
+    const map = new Map<string, PreAdviceDocument>()
+    for (const doc of documents) {
+      if (doc.category !== DAMAGE_PHOTO_CATEGORY.value) continue
+      const view = doc.comment?.match(/^\[([A-Za-z]+)\]/)?.[1]
+      if (view && !map.has(view)) {
+        map.set(view, doc)
+      }
+    }
+    return map
+  }, [documents])
+
+  const legacyDamagePhotos = useMemo(
+    () =>
+      documents.filter(
+        (d) =>
+          d.category === DAMAGE_PHOTO_CATEGORY.value &&
+          !d.comment?.match(/^\[([A-Za-z]+)\]/),
+      ),
     [documents],
   )
 
-  const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) => byCategory.has(c.value)).length
+  const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) => identityByCategory.has(c.value)).length
   const progress = Math.round((standardUploaded / CONTAINER_PHOTO_CATEGORIES.length) * 100)
+  const damageCategories = useMemo(
+    () => CONTAINER_PHOTO_CATEGORIES.filter((c) => damageByView.has(c.value)),
+    [damageByView],
+  )
+  const hasDamageSection = damageCategories.length > 0 || legacyDamagePhotos.length > 0
+
+  const applyDocuments = useCallback(
+    (next: PreAdviceDocument[]) => {
+      if (onDocumentsChange) {
+        onDocumentsChange(next)
+      } else {
+        onChange?.()
+      }
+    },
+    [onChange, onDocumentsChange],
+  )
 
   const uploadPhoto = useCallback(
-    async (category: ContainerPhotoCategoryValue, file: File, comment?: string) => {
-      setUploading(category)
+    async (
+      category: ContainerPhotoCategoryValue | typeof DAMAGE_PHOTO_CATEGORY.value,
+      file: File,
+      comment?: string,
+      successMessage?: string,
+    ) => {
+      const uploadKey =
+        category === DAMAGE_PHOTO_CATEGORY.value
+          ? `damage-${parseDamageView(comment) ?? 'other'}`
+          : category
+      setUploading(uploadKey)
       onError?.('')
       try {
-        await preAdviceApi.uploadDocument(preAdviceId, file, category, comment)
-        onChange()
+        const { data: uploaded } = await preAdviceApi.uploadDocument(preAdviceId, file, category, comment)
+        const next = mergeUploadedDocument(documents, uploaded, category)
+        applyDocuments(next)
+        showToast(successMessage ?? 'Photo uploaded successfully')
+        return uploaded
       } catch (err) {
-        onError?.(apiErrorMessage(err, 'Failed to upload photo.'))
+        const message = apiErrorMessage(err, 'Failed to upload photo.')
+        onError?.(message)
+        showToast(message, 'error')
+        return null
       } finally {
         setUploading(null)
       }
     },
-    [preAdviceId, onChange, onError],
+    [preAdviceId, documents, applyDocuments, onError, showToast],
   )
 
-  const deletePhoto = async (documentId: number) => {
-    if (!window.confirm('Remove this photo?')) return
-    setUploading(`delete-${documentId}`)
-    onError?.('')
-    try {
-      await preAdviceApi.deleteDocument(preAdviceId, documentId)
-      onChange()
-    } catch (err) {
-      onError?.(apiErrorMessage(err, 'Failed to remove photo.'))
-    } finally {
-      setUploading(null)
-    }
+  const requestDeletePhoto = useCallback((documentId: number, label: string) => {
+    setDeleteConfirm({ documentId, label })
+  }, [])
+
+  const deletePhoto = useCallback(
+    async (documentId: number, label: string) => {
+      setUploading(`delete-${documentId}`)
+      onError?.('')
+      try {
+        await preAdviceApi.deleteDocument(preAdviceId, documentId)
+        applyDocuments(removeDocument(documents, documentId))
+        showToast(`${label} removed`)
+      } catch (err) {
+        const message = apiErrorMessage(err, 'Failed to remove photo.')
+        onError?.(message)
+        showToast(message, 'error')
+      } finally {
+        setUploading(null)
+      }
+    },
+    [preAdviceId, documents, applyDocuments, onError, showToast],
+  )
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteConfirm) return
+    const { documentId, label } = deleteConfirm
+    setDeleteConfirm(null)
+    await deletePhoto(documentId, label)
+  }, [deleteConfirm, deletePhoto])
+
+  const openDamageDialog = (category: (typeof CONTAINER_PHOTO_CATEGORIES)[number]) => {
+    const existing = damageByView.get(category.value)
+    setDamageComment(existing ? parseDamageDescription(existing.comment) : '')
+    setDamageFile(null)
+    setDamageDialog({ view: category.value, label: category.label })
   }
 
-  const handleDamageSubmit = async () => {
-    if (!damageFile || !damageComment.trim()) return
-    await uploadPhoto(DAMAGE_PHOTO_CATEGORY.value, damageFile, damageComment.trim())
-    setDamageOpen(false)
+  const closeDamageDialog = () => {
+    setDamageDialog(null)
     setDamageComment('')
     setDamageFile(null)
   }
 
-  const renderSlot = (category: { value: ContainerPhotoCategoryValue; label: string }) => {
-    const doc = byCategory.get(category.value)
+  const handleDamageSubmit = async () => {
+    if (!damageDialog || !damageFile || !damageComment.trim()) return
+    const comment = formatDamageComment(damageDialog.view, damageComment.trim())
+    const uploaded = await uploadPhoto(
+      DAMAGE_PHOTO_CATEGORY.value,
+      damageFile,
+      comment,
+      `${damageDialog.label} damage photo uploaded`,
+    )
+    if (uploaded) closeDamageDialog()
+  }
+
+  const renderIdentitySlot = (category: (typeof CONTAINER_PHOTO_CATEGORIES)[number]) => {
+    const identityDoc = identityByCategory.get(category.value)
+    const hasDamage = damageByView.has(category.value)
     const busy = uploading === category.value
 
     return (
@@ -150,23 +279,40 @@ export default function ContainerIdentityPhotos({
         sx={{
           borderRadius: 2.5,
           border: '1px solid',
-          borderColor: doc ? hexToRgba(primaryDark, 0.25) : 'divider',
-          bgcolor: doc ? hexToRgba(primaryDark, 0.02) : '#fff',
+          borderColor: hasDamage
+            ? hexToRgba(damageRed, 0.45)
+            : identityDoc
+              ? hexToRgba(primaryDark, 0.25)
+              : 'divider',
+          bgcolor: identityDoc ? hexToRgba(primaryDark, 0.02) : '#fff',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: hexToRgba(primaryDark, 0.03) }}>
+        <Box
+          sx={{
+            px: 1.5,
+            py: 1,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: hexToRgba(primaryDark, 0.03),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+          }}
+        >
           <Typography variant="caption" sx={{ fontWeight: 700, color: primaryDark }}>
             {category.label}
           </Typography>
+          {hasDamage && <Chip label="Damage" size="small" sx={damageBadgeSx} />}
         </Box>
 
         <Box sx={{ position: 'relative', aspectRatio: '4/3', bgcolor: '#f8fafc' }}>
-          {doc ? (
+          {identityDoc ? (
             <>
-              {brokenImages[doc.filePath] ? (
+              {brokenImages[identityDoc.filePath] ? (
                 <Box
                   sx={{
                     width: '100%',
@@ -198,63 +344,65 @@ export default function ContainerIdentityPhotos({
               ) : (
                 <Box
                   component="img"
-                  src={resolveAssetUrl(doc.filePath)}
+                  src={resolveAssetUrl(identityDoc.filePath)}
                   alt={category.label}
-                  onError={() => markImageBroken(doc.filePath)}
+                  onError={() => markImageBroken(identityDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
               )}
-              {!brokenImages[doc.filePath] && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'flex-end',
-                  gap: 0.5,
-                  p: 0.75,
-                  background: 'linear-gradient(transparent 55%, rgba(0,0,0,0.45))',
-                }}
-              >
-                <Tooltip title="View full size">
-                  <IconButton
-                    size="small"
-                    onClick={() => setPreviewUrl(resolveAssetUrl(doc.filePath))}
-                    sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
-                    aria-label={`View ${category.label}`}
-                  >
-                    <ZoomInIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                {canManage && (
-                  <>
-                    <Tooltip title="Replace photo">
-                      <IconButton
-                        size="small"
-                        disabled={!!uploading}
-                        onClick={() => fileInputsRef.current[category.value]?.click()}
-                        sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
-                        aria-label={`Replace ${category.label}`}
-                      >
-                        <CameraAltOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Remove photo">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        disabled={!!uploading}
-                        onClick={() => deletePhoto(doc.id)}
-                        sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
-                        aria-label={`Remove ${category.label}`}
-                      >
-                        <DeleteOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </>
-                )}
-              </Box>
+              {!brokenImages[identityDoc.filePath] && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-end',
+                    gap: 0.5,
+                    p: 0.75,
+                    background: 'linear-gradient(transparent 55%, rgba(0,0,0,0.45))',
+                  }}
+                >
+                  <Tooltip title="View full size">
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        setPreview({ url: resolveAssetUrl(identityDoc.filePath), title: category.label })
+                      }
+                      sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
+                      aria-label={`View ${category.label}`}
+                    >
+                      <ZoomInIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  {canManage && (
+                    <>
+                      <Tooltip title="Replace photo">
+                        <IconButton
+                          size="small"
+                          disabled={!!uploading}
+                          onClick={() => fileInputsRef.current[category.value]?.click()}
+                          sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
+                          aria-label={`Replace ${category.label}`}
+                        >
+                          <CameraAltOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Remove photo">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          disabled={!!uploading}
+                          onClick={() => requestDeletePhoto(identityDoc.id, `${category.label} photo`)}
+                          sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
+                          aria-label={`Remove ${category.label}`}
+                        >
+                          <DeleteOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
+                </Box>
               )}
             </>
           ) : (
@@ -273,7 +421,7 @@ export default function ContainerIdentityPhotos({
                 <CircularProgress size={28} sx={{ color: primaryDark }} />
               ) : canManage ? (
                 <>
-                  <CameraAltOutlinedIcon sx={{ color: 'text.disabled', fontSize: 32 }} />
+                  <PhotoCameraOutlinedIcon sx={{ color: 'text.disabled', fontSize: 32 }} />
                   <Button
                     size="small"
                     variant="outlined"
@@ -293,6 +441,31 @@ export default function ContainerIdentityPhotos({
           )}
         </Box>
 
+        {canManage && !hasDamage && (
+          <Box
+            sx={{
+              px: 1.5,
+              py: 1,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <Button
+              size="small"
+              color="warning"
+              variant="outlined"
+              startIcon={<ReportProblemOutlinedIcon />}
+              disabled={!!uploading}
+              onClick={() => openDamageDialog(category)}
+              sx={{ fontWeight: 600, borderRadius: 2, textTransform: 'none' }}
+            >
+              Damage
+            </Button>
+          </Box>
+        )}
+
         {canManage && (
           <input
             ref={(el) => {
@@ -303,7 +476,7 @@ export default function ContainerIdentityPhotos({
             accept="image/jpeg,image/png,image/webp"
             onChange={(e) => {
               const file = e.target.files?.[0]
-              if (file) void uploadPhoto(category.value, file)
+              if (file) void uploadPhoto(category.value, file, undefined, `${category.label} photo uploaded`)
               e.target.value = ''
             }}
           />
@@ -312,15 +485,213 @@ export default function ContainerIdentityPhotos({
     )
   }
 
+  const renderDamageSlot = (category: (typeof CONTAINER_PHOTO_CATEGORIES)[number]) => {
+    const damageDoc = damageByView.get(category.value)
+    if (!damageDoc) return null
+    const damageBusy = uploading === `damage-${category.value}` || uploading === `delete-${damageDoc.id}`
+
+    return (
+      <Paper
+        key={`damage-${category.value}`}
+        elevation={0}
+        sx={{
+          borderRadius: 2.5,
+          border: '1px solid',
+          borderColor: hexToRgba(damageRed, 0.55),
+          bgcolor: hexToRgba(damageRed, 0.03),
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Box
+          sx={{
+            px: 1.5,
+            py: 1,
+            borderBottom: '1px solid',
+            borderColor: hexToRgba(damageRed, 0.2),
+            bgcolor: hexToRgba(damageRed, 0.06),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+          }}
+        >
+          <Typography variant="caption" sx={{ fontWeight: 700, color: damageRed }}>
+            {category.label}
+          </Typography>
+          <Chip label="Damage" size="small" sx={damageBadgeSx} />
+        </Box>
+
+        <Box sx={{ position: 'relative', aspectRatio: '4/3', bgcolor: '#1a1a1a' }}>
+          {brokenImages[damageDoc.filePath] ? (
+              <Box
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1,
+                  p: 2,
+                  textAlign: 'center',
+                  bgcolor: hexToRgba(damageRed, 0.08),
+                }}
+              >
+                <ReportProblemOutlinedIcon sx={{ color: damageRed }} />
+                <Typography variant="caption" color="text.secondary">
+                  Damage photo missing — re-upload below.
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Box
+                  component="img"
+                  src={resolveAssetUrl(damageDoc.filePath)}
+                  alt={`${category.label} damage`}
+                  onError={() => markImageBroken(damageDoc.filePath)}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    bgcolor: hexToRgba(damageRed, 0.42),
+                    pointerEvents: 'none',
+                  }}
+                />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 1,
+                    py: 0.35,
+                    borderRadius: 1,
+                    bgcolor: damageRed,
+                    color: '#fff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                  }}
+                >
+                  <ReportProblemOutlinedIcon sx={{ fontSize: 14 }} />
+                  <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: 0.6, lineHeight: 1 }}>
+                    DAMAGE
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    gap: 0.5,
+                    p: 0.75,
+                    background: 'linear-gradient(transparent 50%, rgba(0,0,0,0.55))',
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: '#fff',
+                      fontWeight: 500,
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    {parseDamageDescription(damageDoc.comment) || 'Damage photo'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                    <Tooltip title="View damage photo">
+                      <IconButton
+                        size="small"
+                        onClick={() =>
+                          setPreview({
+                            url: resolveAssetUrl(damageDoc.filePath),
+                            title: `${category.label} — damage`,
+                            description: parseDamageDescription(damageDoc.comment),
+                          })
+                        }
+                        sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
+                        aria-label={`View ${category.label} damage`}
+                      >
+                        <ZoomInIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {canManage && (
+                      <Tooltip title="Remove damage photo">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          disabled={!!uploading || damageBusy}
+                          onClick={() => requestDeletePhoto(damageDoc.id, `${category.label} damage photo`)}
+                          sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
+                          aria-label={`Remove ${category.label} damage`}
+                        >
+                          <DeleteOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                </Box>
+              </>
+            )}
+        </Box>
+
+        {canManage && (
+          <Box
+            sx={{
+              px: 1.5,
+              py: 1,
+              borderTop: '1px solid',
+              borderColor: hexToRgba(damageRed, 0.15),
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <Button
+              size="small"
+              color="error"
+              variant="outlined"
+              startIcon={<ReportProblemOutlinedIcon />}
+              disabled={!!uploading || damageBusy}
+              onClick={() => openDamageDialog(category)}
+              sx={{ fontWeight: 600, borderRadius: 2, textTransform: 'none' }}
+            >
+              Update damage
+            </Button>
+          </Box>
+        )}
+      </Paper>
+    )
+  }
+
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 2,
+          mb: 2,
+          flexWrap: 'wrap',
+        }}
+      >
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             Container identity photos
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Upload images of each container view for evaluator review (JPG, PNG, WEBP — max 10 MB)
+            Upload each container view for evaluator review (JPG, PNG, WEBP — max 10 MB)
             {!canManage && ' · read-only'}
           </Typography>
         </Box>
@@ -343,7 +714,10 @@ export default function ContainerIdentityPhotos({
           height: 6,
           borderRadius: 3,
           bgcolor: hexToRgba(primaryDark, 0.08),
-          '& .MuiLinearProgress-bar': { bgcolor: progress === 100 ? '#2E7D32' : primaryDark, borderRadius: 3 },
+          '& .MuiLinearProgress-bar': {
+            bgcolor: progress === 100 ? '#2E7D32' : primaryDark,
+            borderRadius: 3,
+          },
         }}
       />
 
@@ -364,138 +738,75 @@ export default function ContainerIdentityPhotos({
               display: 'grid',
               gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
               gap: 2,
-              mb: 3,
             }}
           >
-            {CONTAINER_PHOTO_CATEGORIES.map(renderSlot)}
+            {CONTAINER_PHOTO_CATEGORIES.map(renderIdentitySlot)}
           </Box>
 
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              borderRadius: 2.5,
-              border: '1px solid',
-              borderColor: hexToRgba('#ED6C02', 0.35),
-              bgcolor: hexToRgba('#ED6C02', 0.04),
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: damagePhotos.length ? 2 : 0, flexWrap: 'wrap' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <ReportProblemOutlinedIcon sx={{ color: '#ED6C02' }} />
+          {hasDamageSection && (
+            <Box sx={{ mt: 4 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: 2,
+                  mb: 2,
+                  flexWrap: 'wrap',
+                }}
+              >
                 <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    Damage photos (optional)
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: damageRed }}>
+                    Damage photos
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Add extra photos for visible damage — a description is required for each
+                    Damage photos attached to container views (JPG, PNG, WEBP — max 10 MB)
+                    {!canManage && ' · read-only'}
                   </Typography>
                 </Box>
-              </Box>
-              {canManage && (
-                <Button
-                  startIcon={<AddPhotoAlternateIcon />}
-                  variant="outlined"
-                  color="warning"
-                  disabled={!!uploading}
-                  onClick={() => {
-                    setDamageComment('')
-                    setDamageFile(null)
-                    setDamageOpen(true)
+                <Chip
+                  label={`${damageCategories.length} attached`}
+                  size="small"
+                  sx={{
+                    fontWeight: 700,
+                    bgcolor: hexToRgba(damageRed, 0.1),
+                    color: damageRed,
                   }}
-                  sx={{ fontWeight: 600, borderRadius: 2 }}
-                >
-                  Add damage photo
-                </Button>
-              )}
-            </Box>
+                />
+              </Box>
 
-            {damagePhotos.length > 0 && (
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' },
+                  gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
                   gap: 2,
                 }}
               >
-                {damagePhotos.map((doc) => (
-                  <Paper key={doc.id} elevation={0} sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-                    <Box sx={{ position: 'relative', aspectRatio: '4/3' }}>
-                      {brokenImages[doc.filePath] ? (
-                        <Box
-                          sx={{
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            p: 2,
-                            bgcolor: '#f8fafc',
-                          }}
-                        >
-                          <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                            Photo missing — re-upload
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Box
-                          component="img"
-                          src={resolveAssetUrl(doc.filePath)}
-                          alt="Damage"
-                          onError={() => markImageBroken(doc.filePath)}
-                          sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      )}
-                      <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 0.5 }}>
-                        <IconButton
-                          size="small"
-                          onClick={() => setPreviewUrl(resolveAssetUrl(doc.filePath))}
-                          sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
-                          aria-label="View damage photo"
-                        >
-                          <ZoomInIcon fontSize="small" />
-                        </IconButton>
-                        {canManage && (
-                          <IconButton
-                            size="small"
-                            color="error"
-                            disabled={!!uploading}
-                            onClick={() => deletePhoto(doc.id)}
-                            sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
-                            aria-label="Remove damage photo"
-                          >
-                            <DeleteOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </Box>
-                    <Box sx={{ p: 1.5, bgcolor: '#fff' }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                        Damage description
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 500 }}>
-                        {doc.comment || '—'}
-                      </Typography>
-                    </Box>
-                  </Paper>
-                ))}
+                {damageCategories.map(renderDamageSlot)}
               </Box>
-            )}
-          </Paper>
+
+              {legacyDamagePhotos.length > 0 && (
+                <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                  {legacyDamagePhotos.length} older damage photo(s) are not linked to a specific view.
+                  Re-upload them using the Damage button on the matching identity card.
+                </Alert>
+              )}
+            </Box>
+          )}
         </>
       )}
 
       <Dialog
-        open={damageOpen}
-        onClose={() => setDamageOpen(false)}
+        open={!!damageDialog}
+        onClose={closeDamageDialog}
         maxWidth="sm"
         fullWidth
         slotProps={{ paper: { sx: { overflow: 'hidden' } } }}
       >
         <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>
-          Add damage photo
+          {damageDialog ? `${damageDialog.label} — damage photo` : 'Damage photo'}
           <IconButton
-            onClick={() => setDamageOpen(false)}
+            onClick={closeDamageDialog}
             sx={{ position: 'absolute', right: 12, top: 12 }}
             aria-label="Close"
           >
@@ -504,18 +815,20 @@ export default function ContainerIdentityPhotos({
         </DialogTitle>
         <DialogContent sx={{ overflow: 'hidden' }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a photo showing container damage and describe what you see. Evaluators will review this during approval.
+            Upload a photo showing damage on the {damageDialog?.label.toLowerCase()} view and describe
+            what you see.
           </Typography>
           <Box sx={{ mb: 2, minWidth: 0 }}>
             <Button
               component="label"
               variant="outlined"
               fullWidth
-              startIcon={<AddPhotoAlternateIcon />}
+              startIcon={<PhotoCameraOutlinedIcon />}
               sx={{ py: 1.25, borderRadius: 2, fontWeight: 600 }}
             >
               {damageFile ? 'Change image' : 'Choose image'}
               <input
+                ref={damageFileInputRef}
                 type="file"
                 hidden
                 accept="image/jpeg,image/png,image/webp"
@@ -549,14 +862,15 @@ export default function ContainerIdentityPhotos({
             minRows={3}
             value={damageComment}
             onChange={(e) => setDamageComment(e.target.value)}
-            placeholder="e.g. Dent on right door panel, rust on flooring near front corner"
+            placeholder="e.g. Dent on corner, rust spots near the edge"
             sx={fieldSx}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDamageOpen(false)}>Cancel</Button>
+          <Button onClick={closeDamageDialog}>Cancel</Button>
           <Button
             variant="contained"
+            color="warning"
             disabled={!damageFile || !damageComment.trim() || !!uploading}
             onClick={() => void handleDamageSubmit()}
             sx={{ fontWeight: 700 }}
@@ -566,24 +880,69 @@ export default function ContainerIdentityPhotos({
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!previewUrl} onClose={() => setPreviewUrl(null)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Photo preview</DialogTitle>
+      <Dialog
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>
+          Remove photo
+          <IconButton
+            onClick={() => setDeleteConfirm(null)}
+            sx={{ position: 'absolute', right: 12, top: 12 }}
+            aria-label="Close"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {deleteConfirm
+              ? `Remove this ${deleteConfirm.label.toLowerCase()}? This cannot be undone.`
+              : ''}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteConfirm(null)} disabled={!!uploading}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={!!uploading}
+            onClick={() => void handleConfirmDelete()}
+            startIcon={<DeleteOutlinedIcon />}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            Remove photo
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!preview} onClose={() => setPreview(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>{preview?.title ?? 'Photo preview'}</DialogTitle>
         <DialogContent sx={{ p: 1 }}>
-          {previewUrl && (
+          {preview?.description && (
+            <Typography variant="body2" color="text.secondary" sx={{ px: 1, pb: 1 }}>
+              {preview.description}
+            </Typography>
+          )}
+          {preview && (
             <Box
               component="img"
-              src={previewUrl}
-              alt="Container photo preview"
+              src={preview.url}
+              alt={preview.title}
               sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 2 }}
             />
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPreviewUrl(null)}>Close</Button>
+          <Button onClick={() => setPreview(null)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
   )
 }
 
-export { containerPhotoLabel }
+export { containerPhotoLabel } from '../../config/containerPhotoCategories'

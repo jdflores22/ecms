@@ -13,11 +13,11 @@ test.describe('ICS happy path', () => {
     expect(health.ok(), 'API must be running on port 5275').toBeTruthy()
   })
 
-  test('broker through evaluator, depot, trucker to QR', async ({ page }) => {
+  test('trucker through evaluator, depot to QR', async ({ page }) => {
     let referenceNo = ''
 
-    // 1. Broker — create and submit pre-advice
-    await login(page, users.broker.username, users.broker.password)
+    // 1. Trucker — create and submit pre-advice
+    await login(page, users.trucker.username, users.trucker.password)
     await openNav(page, 'Pre-Advice')
     await expect(page.getByRole('heading', { name: 'Pre-Advice Requests' })).toBeVisible()
     await page.getByRole('button', { name: 'New Pre-Advice' }).click()

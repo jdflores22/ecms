@@ -18,29 +18,26 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Broker_through_trucker_workflow_completes_with_qr()
+    public async Task Trucker_through_evaluator_depot_workflow_completes_with_qr()
     {
-        // 1. Broker — create and submit pre-advice
-        var brokerToken = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
-        ApiTestHelper.UseBearer(_client, brokerToken);
+        // 1. Trucker — create and submit pre-advice
+        var submitterToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
+        ApiTestHelper.UseBearer(_client, submitterToken);
 
-        var lookups = await _client.GetFromJsonAsync<LookupResponse>("/api/preadvice/lookups");
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preadvice/lookups");
         Assert.NotNull(lookups);
         Assert.NotEmpty(lookups.ShippingLines);
-        Assert.NotEmpty(lookups.Containers);
+        Assert.NotEmpty(lookups.ContainerSizes);
+        Assert.NotEmpty(lookups.ContainerTypes);
 
-        var lineId = lookups.ShippingLines[0].Id;
-        var containerId = lookups.Containers.First(c => c.ShippingLineId == lineId).Id;
-
-        var createResponse = await _client.PostAsJsonAsync("/api/preadvice", new
-        {
-            shippingLineId = lineId,
-            containerId,
-            remarks = $"Integration test {Guid.NewGuid():N}",
-        });
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/preadvice",
+            ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Integration test {Guid.NewGuid():N}"));
         Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
         var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
         Assert.NotNull(preAdvice);
+
+        await ApiTestHelper.UploadAllStandardPhotosAsync(_client, preAdvice.Id);
 
         var submitResponse = await _client.PostAsync($"/api/preadvice/{preAdvice.Id}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
@@ -73,25 +70,16 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         var truckers = await _client.GetFromJsonAsync<List<TruckerResponse>>("/api/users/truckers");
         Assert.NotNull(truckers);
         Assert.NotEmpty(truckers);
-        var truckerId = truckers.First(t => t.Username == "trucker1").Id;
 
         var tomorrow = PhilippinesTime.AddDays(PhilippinesTime.Today, 1);
         var dateStr = tomorrow.ToString("yyyy-MM-dd");
-
-        var slotsResponse = await _client.GetAsync(
-            $"/api/schedules/slots?depotId={schedule.DepotId}&date={dateStr}");
-        Assert.Equal(HttpStatusCode.OK, slotsResponse.StatusCode);
-        var slots = await slotsResponse.Content.ReadFromJsonAsync<SlotAvailabilityResponse>();
-        Assert.NotNull(slots);
-        var slotNo = slots.Slots.First(s => s.Available).SlotNo;
 
         var updateResponse = await _client.PutAsJsonAsync($"/api/schedules/{schedule.Id}", new
         {
             date = dateStr,
             time = "08:00:00",
-            slotNo,
+            slotNo = 0,
             status = "Scheduled",
-            truckerId,
         });
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
 
@@ -126,17 +114,5 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         Assert.Equal(HttpStatusCode.OK, qrResponse.StatusCode);
     }
 
-    private record LookupResponse(
-        List<LookupLine> ShippingLines,
-        List<LookupContainer> Containers);
-
-    private record LookupLine(int Id, string Name, string Code);
-
-    private record LookupContainer(int Id, string ContainerNo, string Size, string Type, int ShippingLineId);
-
     private record TruckerResponse(int Id, string Username, string FullName);
-
-    private record SlotAvailabilityResponse(List<SlotInfo> Slots);
-
-    private record SlotInfo(int SlotNo, bool Available);
 }

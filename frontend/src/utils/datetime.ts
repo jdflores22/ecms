@@ -98,10 +98,71 @@ export function formatTime(value: string | Date): string {
   return `${stripIntlTimezoneSuffix(timeFormatter.format(d))} ${SYSTEM_TIMEZONE.label}`
 }
 
-/** Format API TimeOnly string (HH:mm:ss) — depot local schedule time. */
+/** Format API TimeOnly string (HH:mm:ss) — always zero-padded 24-hour (HH:mm). */
 export function formatScheduleTime(time: string): string {
   if (!time) return '—'
-  return time.length >= 5 ? time.slice(0, 5) : time
+  const match = /^(\d{1,2}):(\d{2})/.exec(time.trim())
+  if (!match) return time
+  const h = Number(match[1])
+  const m = Number(match[2])
+  if (h < 0 || h > 23 || m < 0 || m > 59) return time
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/** Normalize user-entered HH:mm to zero-padded 24-hour form. */
+export function normalizeTime24Input(value: string): string {
+  const trimmed = value.trim()
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed)
+  if (!match) return trimmed
+  const h = Number(match[1])
+  const m = Number(match[2])
+  if (h < 0 || h > 23 || m < 0 || m > 59) return trimmed
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+export function isValidTime24(value: string): boolean {
+  const normalized = normalizeTime24Input(value)
+  if (!/^\d{2}:\d{2}$/.test(normalized)) return false
+  const [h, m] = normalized.split(':').map(Number)
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59
+}
+
+/** Full 24-hour day — 00:00 through 23:30, 30-minute steps. */
+const DEPOT_SCHEDULE_START_HOUR = 0
+const DEPOT_SCHEDULE_END_HOUR = 23
+const DEPOT_SCHEDULE_END_MINUTE = 30
+const DEPOT_SCHEDULE_INTERVAL_MINUTES = 30
+
+function buildScheduleTimeOptions(
+  startHour: number,
+  endHour: number,
+  endMinute: number,
+  intervalMinutes: number,
+): string[] {
+  const options: string[] = []
+  const endMinutes = endHour * 60 + endMinute
+  for (let minutes = startHour * 60; minutes <= endMinutes; minutes += intervalMinutes) {
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    options.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+  }
+  return options
+}
+
+const BASE_DEPOT_SCHEDULE_TIME_OPTIONS = buildScheduleTimeOptions(
+  DEPOT_SCHEDULE_START_HOUR,
+  DEPOT_SCHEDULE_END_HOUR,
+  DEPOT_SCHEDULE_END_MINUTE,
+  DEPOT_SCHEDULE_INTERVAL_MINUTES,
+)
+
+/** Dropdown values for depot schedule assignment; keeps legacy times already saved on a schedule. */
+export function getDepotScheduleTimeOptions(existingTime?: string | null): string[] {
+  const normalized = existingTime ? normalizeTime24Input(formatScheduleTime(existingTime)) : ''
+  if (!normalized || !isValidTime24(normalized) || BASE_DEPOT_SCHEDULE_TIME_OPTIONS.includes(normalized)) {
+    return BASE_DEPOT_SCHEDULE_TIME_OPTIONS
+  }
+  return [...BASE_DEPOT_SCHEDULE_TIME_OPTIONS, normalized].sort((a, b) => a.localeCompare(b))
 }
 
 /** Format calendar date (YYYY-MM-DD) for display. */

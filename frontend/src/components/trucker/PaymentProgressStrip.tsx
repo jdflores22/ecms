@@ -102,6 +102,9 @@ export default function PaymentProgressStrip({ steps }: { steps: PaymentProgress
         borderColor: 'divider',
         bgcolor: '#fff',
         boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        minWidth: 0,
+        maxWidth: '100%',
+        overflow: 'hidden',
       }}
     >
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>

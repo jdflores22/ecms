@@ -17,17 +17,11 @@ import { setCredentials } from '../store/slices/authSlice'
 
 const primaryDark = '#0B3D91'
 
-const SIGNUP_ROLES = {
-  broker: {
-    apiRole: 'Broker' as const,
-    title: 'Create broker account',
-    subtitle: ICS_BRAND.brokerSignup,
-  },
-  trucker: {
-    apiRole: 'Trucker' as const,
-    title: 'Create trucker account',
-    subtitle: 'Register to view assigned returns, upload payments, and access booking QR codes.',
-  },
+const TRUCKER_SIGNUP = {
+  apiRole: 'Trucker' as const,
+  title: 'Create trucker account',
+  subtitle:
+    'Register to submit pre-advice, manage assigned returns, upload payments, and access booking QR codes.',
 }
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -45,7 +39,7 @@ export default function SignUpPage() {
 
   const config = useMemo(() => {
     const key = roleParam?.toLowerCase()
-    if (key === 'broker' || key === 'trucker') return SIGNUP_ROLES[key]
+    if (key === 'trucker') return TRUCKER_SIGNUP
     return null
   }, [roleParam])
 
@@ -90,7 +84,7 @@ export default function SignUpPage() {
         }),
       )
     } catch (err) {
-      setError(apiErrorMessage(err, 'Unable to create account. Please try again.'))
+      setError(apiErrorMessage(err, 'Sign-up failed. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -98,84 +92,70 @@ export default function SignUpPage() {
 
   return (
     <AuthShell title={config.title} subtitle={config.subtitle}>
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-          {error}
-        </Alert>
-      )}
-      <Box
-        component="form"
-        onSubmit={handleSubmit}
-        sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}
-      >
+      <Box component="form" onSubmit={handleSubmit}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+            {error}
+          </Alert>
+        )}
+
         <TextField
-          fullWidth
           label="Full name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           required
-          autoComplete="name"
+          fullWidth
           sx={authFieldSx}
         />
         <TextField
-          fullWidth
           label="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          autoComplete="username"
+          fullWidth
           sx={authFieldSx}
         />
         <TextField
-          fullWidth
           label="Email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          autoComplete="email"
+          fullWidth
           sx={authFieldSx}
         />
         <TextField
-          fullWidth
           label="Password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          autoComplete="new-password"
-          helperText="At least 8 characters"
+          fullWidth
           sx={authFieldSx}
         />
         <TextField
-          fullWidth
           label="Confirm password"
           type="password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
-          autoComplete="new-password"
+          fullWidth
           sx={authFieldSx}
         />
-        <Button
-          fullWidth
-          type="submit"
-          variant="contained"
-          size="large"
-          disabled={loading}
-          sx={authPrimaryButtonSx}
-        >
+
+        <Button type="submit" variant="contained" fullWidth disabled={loading} sx={authPrimaryButtonSx}>
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Create account'}
         </Button>
-        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
           Already have an account?{' '}
           <Button component={RouterLink} to="/login" sx={{ fontWeight: 700, color: primaryDark, p: 0, minWidth: 0 }}>
             Sign in
           </Button>
         </Typography>
-        <Button component={RouterLink} to="/" sx={{ fontWeight: 600, color: primaryDark }}>
-          Back to home
-        </Button>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+          {ICS_BRAND.appBarCaption}
+        </Typography>
       </Box>
     </AuthShell>
   )

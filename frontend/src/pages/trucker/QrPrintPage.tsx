@@ -4,6 +4,7 @@ import PrintIcon from '@mui/icons-material/Print'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
+import IcsLogo from '../../components/brand/IcsLogo'
 import { qrApi, type QrBooking } from '../../services/api'
 import { store } from '../../store'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
@@ -185,6 +186,9 @@ export default function QrPrintPage() {
           },
         }}
       >
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <IcsLogo height={40} maxWidth={140} />
+        </Box>
         <Typography
           variant="h5"
           align="center"

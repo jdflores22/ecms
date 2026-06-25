@@ -8,6 +8,8 @@ public static class RolePageKeys
     public const string Profile = "profile";
     public const string Preadvice = "preadvice";
     public const string Evaluations = "evaluations";
+    public const string CyAllocation = "cyAllocation";
+    public const string ContainerInventory = "containerInventory";
     public const string Reports = "reports";
     public const string DepotDailyReturns = "depotDailyReturns";
     public const string DepotSchedules = "depotSchedules";
@@ -25,7 +27,7 @@ public static class RolePageKeys
 
     public static readonly HashSet<string> All = new(StringComparer.Ordinal)
     {
-        Dashboard, Profile, Preadvice, Evaluations, Reports,
+        Dashboard, Profile, Preadvice, Evaluations, CyAllocation, ContainerInventory, Reports,
         DepotDailyReturns, DepotSchedules, DepotPayments,
         TruckerReturns, TruckerPayments, TruckerQr, TruckerQrPrint,
         AdminUsers, AdminRoles, AdminMasterData, AdminAudit,
@@ -56,17 +58,24 @@ public static class RoleCatalogDefaults
             },
             RolePageKeys.All.ToArray()),
         new(
-            "Broker",
-            "Broker",
-            "Creates and submits empty container return pre-advice requests.",
+            "Trucker",
+            "Trucker",
+            "Creates pre-advice, manages returns, uploads payment proof, and receives booking QR codes.",
             new[]
             {
                 "Create and submit pre-advice",
-                "Upload supporting documents",
-                "Cancel submitted requests",
-                "View broker reports",
+                "Upload container identity photos",
+                "View assigned return schedules",
+                "Upload payment proof",
+                "Download and print QR codes",
+                "View operational reports",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preadvice, RolePageKeys.Reports }),
+            new[]
+            {
+                RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preadvice, RolePageKeys.Reports,
+                RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments,
+                RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
+            }),
         new(
             "ShippingLineEvaluator",
             "Shipping Line Evaluator",
@@ -77,7 +86,7 @@ public static class RoleCatalogDefaults
                 "Assign container yard on approval",
                 "View evaluation history",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.Reports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.Reports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",
@@ -94,22 +103,6 @@ public static class RoleCatalogDefaults
                 RolePageKeys.Dashboard, RolePageKeys.Profile,
                 RolePageKeys.DepotDailyReturns, RolePageKeys.DepotSchedules,
                 RolePageKeys.DepotPayments, RolePageKeys.Reports,
-            }),
-        new(
-            "Trucker",
-            "Trucker",
-            "Uploads payment proof and receives QR codes for container returns.",
-            new[]
-            {
-                "View assigned schedules",
-                "Upload payment proof",
-                "Download and print QR codes",
-            },
-            new[]
-            {
-                RolePageKeys.Dashboard, RolePageKeys.Profile,
-                RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments,
-                RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
             }),
     };
 
@@ -184,11 +177,33 @@ public static class RoleAllowedPagesJson
 
     public static List<string> Resolve(string roleName, string? json)
     {
+        var defaults = defaultsPages(roleName);
         var stored = Deserialize(json);
         if (stored.Count > 0)
-            return NormalizeForRole(roleName, stored);
+        {
+            var normalized = NormalizeForRole(roleName, stored);
+            MergeMissingCatalogPages(roleName, defaults, normalized);
+            return normalized;
+        }
 
-        return defaultsPages(roleName);
+        return defaults;
+    }
+
+    /// <summary>
+    /// When the role catalog gains pages (e.g. Broker merged into Trucker), older stored RBAC
+    /// lists may omit them. Trucker always receives the full catalog so nav and routes stay aligned.
+    /// </summary>
+    private static void MergeMissingCatalogPages(string roleName, List<string> defaults, List<string> normalized)
+    {
+        if (!string.Equals(roleName, "Trucker", StringComparison.Ordinal)
+            && !string.Equals(roleName, "ShippingLineEvaluator", StringComparison.Ordinal))
+            return;
+
+        foreach (var page in defaults)
+        {
+            if (!normalized.Contains(page))
+                normalized.Add(page);
+        }
     }
 
     public static List<string> defaultsPages(string roleName) =>

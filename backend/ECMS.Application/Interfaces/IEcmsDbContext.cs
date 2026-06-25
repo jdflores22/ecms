@@ -9,6 +9,9 @@ public interface IEcmsDbContext
     IQueryable<ShippingLine> ShippingLines { get; }
     IQueryable<Depot> Depots { get; }
     IQueryable<Container> Containers { get; }
+    IQueryable<ContainerSize> ContainerSizes { get; }
+    IQueryable<ContainerType> ContainerTypes { get; }
+    IQueryable<ShippingLineDepotContract> ShippingLineDepotContracts { get; }
     IQueryable<PreAdvice> PreAdvices { get; }
     IQueryable<PreAdviceDocument> PreAdviceDocuments { get; }
     IQueryable<Evaluation> Evaluations { get; }
@@ -19,6 +22,8 @@ public interface IEcmsDbContext
     IQueryable<Notification> Notifications { get; }
     IQueryable<RefreshToken> RefreshTokens { get; }
     IQueryable<PasswordResetToken> PasswordResetTokens { get; }
+    IQueryable<ManualYardInventoryEntry> ManualYardInventoryEntries { get; }
+    IQueryable<PaymentSettings> PaymentSettings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Add<T>(T entity) where T : class;

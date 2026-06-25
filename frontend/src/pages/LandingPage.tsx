@@ -4,11 +4,10 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined'
-import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined'
 import { Link as RouterLink } from 'react-router-dom'
+import IcsLogo from '../components/brand/IcsLogo'
 import { ICS_BRAND } from '../config/brandCopy'
 
 const primaryDark = '#0B3D91'
@@ -89,25 +88,14 @@ export default function LandingPage() {
           flexDirection: 'column',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: { xs: 4, sm: 6 } }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2.5,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <Inventory2OutlinedIcon sx={{ fontSize: 28, color: '#fff' }} />
-          </Box>
-          <Box>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5, lineHeight: 1.2 }}>
-              {ICS_BRAND.shortName}
-            </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: { xs: 4, sm: 6 } }}>
+          <IcsLogo height={{ xs: 44, sm: 52 }} maxWidth={{ xs: 140, sm: 180 }} />
+          <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
             <Typography variant="h6" sx={{ fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
               {ICS_BRAND.name}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.78)', mt: 0.25 }}>
+              {ICS_BRAND.appBarCaption}
             </Typography>
           </Box>
         </Box>
@@ -139,43 +127,12 @@ export default function LandingPage() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gridTemplateColumns: { xs: '1fr', sm: '1fr' },
               gap: 2,
               mb: 3,
+              maxWidth: 480,
             }}
           >
-            <Paper elevation={0} sx={signupCardSx}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(21, 101, 192, 0.1)',
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <StorefrontOutlinedIcon sx={{ color: '#1565C0' }} />
-                </Box>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: primaryDark }}>
-                  Broker
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, flex: 1 }}>
-                {ICS_BRAND.brokerCard}
-              </Typography>
-              <Button
-                component={RouterLink}
-                to="/signup/broker"
-                variant="contained"
-                fullWidth
-                sx={{ fontWeight: 700, borderRadius: 2, py: 1.2 }}
-              >
-                Create broker account
-              </Button>
-            </Paper>
-
             <Paper elevation={0} sx={signupCardSx}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
                 <Box
@@ -195,7 +152,7 @@ export default function LandingPage() {
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, flex: 1 }}>
-                View assigned returns, upload payment proofs, and download booking QR passes for depot gate entry.
+                {ICS_BRAND.truckerCard}
               </Typography>
               <Button
                 component={RouterLink}

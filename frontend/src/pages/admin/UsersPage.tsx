@@ -94,7 +94,7 @@ const emptyCreate = {
   email: '',
   password: '',
   fullName: '',
-  role: 'Broker',
+  role: 'Trucker',
   shippingLineId: '' as number | '',
   depotId: '' as number | '',
 }
@@ -115,7 +115,7 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState<UpdateUserRequest>({
     email: '',
     fullName: '',
-    role: 'Broker',
+    role: 'Trucker',
     status: 'Active',
     shippingLineId: null,
     depotId: null,

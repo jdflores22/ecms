@@ -31,7 +31,7 @@ public class EvaluationsController : ControllerBase
     {
         try
         {
-            return Ok(await _service.ApproveAsync(request, UserId, cancellationToken));
+            return Ok(await _service.ApproveAsync(request, UserId, Role, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {
@@ -45,6 +45,21 @@ public class EvaluationsController : ControllerBase
         try
         {
             return Ok(await _service.RejectAsync(request, UserId, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("return-for-compliance")]
+    public async Task<ActionResult<EvaluationDto>> ReturnForCompliance(
+        [FromBody] ReturnForComplianceRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.ReturnForComplianceAsync(request, UserId, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {

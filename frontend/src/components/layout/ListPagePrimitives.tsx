@@ -69,12 +69,14 @@ export function ListMobileCard({ onClick, children }: ListMobileCardProps) {
       elevation={0}
       onClick={onClick}
       sx={{
-        p: 2,
+        p: { xs: 1.5, sm: 2 },
         borderRadius: 2.5,
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: hexToRgba(LIST_PRIMARY, 0.02),
         cursor: onClick ? 'pointer' : 'default',
+        minWidth: 0,
+        overflow: 'hidden',
       }}
     >
       {children}
@@ -100,7 +102,7 @@ export function ListMobileMeta({ children }: { children: ReactNode }) {
 
 export function ListMobileChipRow({ children }: { children: ReactNode }) {
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.25 }}>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.25, minWidth: 0 }}>
       {children}
     </Box>
   )

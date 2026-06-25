@@ -15,10 +15,9 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
 
     [Theory]
     [InlineData("admin", "Admin@123", "Administrator")]
-    [InlineData("broker1", "Broker@123", "Broker")]
+    [InlineData("trucker1", "Trucker@123", "Trucker")]
     [InlineData("evaluator1", "Evaluator@123", "ShippingLineEvaluator")]
     [InlineData("depot1", "Depot@123", "DepotPersonnel")]
-    [InlineData("trucker1", "Trucker@123", "Trucker")]
     public async Task Login_With_demo_accounts_returns_token_and_role(
         string username,
         string password,
@@ -30,7 +29,6 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         ApiTestHelper.UseBearer(_client, token);
         var dashboardPath = expectedRole switch
         {
-            "Broker" => "/api/dashboard/broker",
             "ShippingLineEvaluator" => "/api/dashboard/shipping-line",
             "DepotPersonnel" => "/api/dashboard/depot",
             "Trucker" => "/api/dashboard/trucker",
@@ -43,7 +41,7 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     }
 
     [Fact]
-    public async Task SignUp_broker_creates_account_and_returns_token()
+    public async Task SignUp_broker_role_is_rejected()
     {
         var username = $"broker_{Guid.NewGuid():N}"[..20];
         var response = await _client.PostAsJsonAsync("/api/auth/signup", new
@@ -55,10 +53,7 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
             role = "Broker",
         });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<ApiTestHelper.AuthResponse>();
-        Assert.NotNull(body);
-        Assert.Equal("Broker", body.User.Role);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -116,9 +111,9 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Admin_users_endpoint_denies_broker()
+    public async Task Admin_users_endpoint_denies_trucker()
     {
-        var token = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
+        var token = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
         ApiTestHelper.UseBearer(_client, token);
 
         var response = await _client.GetAsync("/api/users");
@@ -136,9 +131,9 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Shipping_lines_management_denies_broker()
+    public async Task Shipping_lines_management_denies_trucker()
     {
-        var token = await ApiTestHelper.LoginAsync(_client, "broker1", "Broker@123");
+        var token = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
         ApiTestHelper.UseBearer(_client, token);
 
         var response = await _client.GetAsync("/api/shipping-lines");

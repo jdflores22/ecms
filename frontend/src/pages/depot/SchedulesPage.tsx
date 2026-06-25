@@ -5,12 +5,14 @@ import {
   Chip,
   CircularProgress,
   Paper,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   Typography,
 } from '@mui/material'
 import CalendarViewDayOutlinedIcon from '@mui/icons-material/CalendarViewDayOutlined'
@@ -37,6 +39,16 @@ import { formatScheduleDate, formatScheduleTime } from '../../utils/datetime'
 
 const primaryDark = LIST_PRIMARY
 
+const STATUS_TABS = [
+  { key: 'WaitingSchedule', label: 'Waiting schedule', summaryColor: '#ED6C02' },
+  { key: 'Scheduled', label: 'Scheduled', summaryColor: '#0288D1' },
+  { key: 'Confirmed', label: 'Confirmed', summaryColor: '#2E7D32' },
+  { key: 'Completed', label: 'Completed', summaryColor: '#1565C0' },
+  { key: 'Cancelled', label: 'Cancelled', summaryColor: '#757575' },
+] as const
+
+type ScheduleStatusTab = (typeof STATUS_TABS)[number]['key']
+
 const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   WaitingSchedule: 'warning',
   Scheduled: 'info',
@@ -45,37 +57,54 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
   Cancelled: 'default',
 }
 
-const statusLabel: Record<string, string> = {
-  WaitingSchedule: 'Waiting schedule',
-}
-
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: { xs: 1.5, sm: 2 },
         borderRadius: 3,
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
         boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        minWidth: 0,
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word', display: 'block' }}
+      >
         {label}
       </Typography>
-      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5 }}>
+      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
         {value}
       </Typography>
     </Paper>
   )
 }
 
+function ScheduleRowActions({ item }: { item: Schedule }) {
+  const isWaiting = item.status === 'WaitingSchedule'
+  return (
+    <Button
+      component={RouterLink}
+      to={`/depot/schedules/${item.id}`}
+      size="small"
+      variant={isWaiting ? 'contained' : 'outlined'}
+      startIcon={<OpenInNewIcon />}
+      sx={{ fontWeight: 600, borderRadius: 2 }}
+    >
+      {isWaiting ? 'Assign' : 'View'}
+    </Button>
+  )
+}
 
 export default function DepotSchedulesPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [activeStatus, setActiveStatus] = useState<ScheduleStatusTab>('WaitingSchedule')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -102,15 +131,20 @@ export default function DepotSchedulesPage() {
     load()
   }, [load])
 
-  const summary = useMemo(() => {
-    const counts = { total: schedules.length, waiting: 0, scheduled: 0, confirmed: 0 }
+  const countByStatus = useMemo(() => {
+    const counts = Object.fromEntries(STATUS_TABS.map((t) => [t.key, 0])) as Record<ScheduleStatusTab, number>
     for (const s of schedules) {
-      if (s.status === 'WaitingSchedule') counts.waiting++
-      else if (s.status === 'Scheduled') counts.scheduled++
-      else if (s.status === 'Confirmed') counts.confirmed++
+      if (s.status in counts) counts[s.status as ScheduleStatusTab]++
     }
     return counts
   }, [schedules])
+
+  const filtered = useMemo(
+    () => schedules.filter((s) => s.status === activeStatus),
+    [schedules, activeStatus],
+  )
+
+  const activeTabMeta = STATUS_TABS.find((t) => t.key === activeStatus)!
 
   return (
     <Box sx={listPageRootSx}>
@@ -167,7 +201,7 @@ export default function DepotSchedulesPage() {
                 Depot Scheduling
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Assign return date, slot, and trucker — slots are validated against depot daily capacity.
+                Assign return date and time — validated against depot daily capacity.
               </Typography>
             </Box>
           </Box>
@@ -197,58 +231,95 @@ export default function DepotSchedulesPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
+          gridTemplateColumns: {
+            xs: 'repeat(2, minmax(0, 1fr))',
+            sm: 'repeat(3, 1fr)',
+            lg: 'repeat(5, 1fr)',
+          },
+          gap: { xs: 1.5, sm: 2 },
           mb: 3,
         }}
       >
-        <SummaryCard label="Total schedules" value={summary.total} color={primaryDark} />
-        <SummaryCard label="Waiting" value={summary.waiting} color="#ED6C02" />
-        <SummaryCard label="Scheduled" value={summary.scheduled} color="#0288D1" />
-        <SummaryCard label="Confirmed" value={summary.confirmed} color="#2E7D32" />
+        {STATUS_TABS.map((tab) => (
+          <SummaryCard
+            key={tab.key}
+            label={tab.label}
+            value={countByStatus[tab.key]}
+            color={tab.summaryColor}
+          />
+        ))}
       </Box>
+
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 2,
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: '#fff',
+          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+          overflow: 'hidden',
+        }}
+      >
+        <Tabs
+          value={activeStatus}
+          onChange={(_, v) => setActiveStatus(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            px: 1,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: hexToRgba(primaryDark, 0.02),
+            '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
+            '& .Mui-selected': { color: primaryDark },
+            '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
+          }}
+        >
+          {STATUS_TABS.map((tab) => (
+            <Tab
+              key={tab.key}
+              value={tab.key}
+              label={`${tab.label} (${countByStatus[tab.key]})`}
+            />
+          ))}
+        </Tabs>
+      </Paper>
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
             <CircularProgress sx={{ color: primaryDark }} />
           </Box>
-        ) : schedules.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
-            No schedules for this depot.
+            No {activeTabMeta.label.toLowerCase()} schedules for this depot.
           </Typography>
         ) : (
           <>
             <ListMobileOnly>
-              {schedules.map((item) => (
+              {filtered.map((item) => (
                 <ListMobileCard key={item.id} onClick={() => navigate(`/depot/schedules/${item.id}`)}>
                   <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                   <ListMobileMeta>{item.depotName}</ListMobileMeta>
                   <ListMobileMeta>
                     {item.date
-                      ? `${formatScheduleDate(item.date)} · ${formatScheduleTime(item.time)}${item.slotNo ? ` · Slot ${item.slotNo}` : ''}`
+                      ? `${formatScheduleDate(item.date)} · ${formatScheduleTime(item.time)}`
                       : 'Date not set'}
                   </ListMobileMeta>
                   {item.truckerName && <ListMobileMeta>Trucker: {item.truckerName}</ListMobileMeta>}
                   <ListMobileChipRow>
                     <Chip
-                      label={statusLabel[item.status] ?? item.status}
+                      label={activeTabMeta.label}
                       color={statusColor[item.status] ?? 'default'}
                       size="small"
                       sx={{ fontWeight: 600 }}
                     />
                   </ListMobileChipRow>
                   <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      component={RouterLink}
-                      to={`/depot/schedules/${item.id}`}
-                      size="small"
-                      variant={item.status === 'WaitingSchedule' ? 'contained' : 'outlined'}
-                      startIcon={<OpenInNewIcon />}
-                      sx={{ fontWeight: 600, borderRadius: 2 }}
-                    >
-                      {item.status === 'WaitingSchedule' ? 'Assign' : 'View'}
-                    </Button>
+                    <ScheduleRowActions item={item} />
                   </Box>
                 </ListMobileCard>
               ))}
@@ -268,14 +339,12 @@ export default function DepotSchedulesPage() {
                       <TableCell>Depot</TableCell>
                       <TableCell>Date</TableCell>
                       <TableCell>Time</TableCell>
-                      <TableCell>Slot</TableCell>
                       <TableCell>Trucker</TableCell>
-                      <TableCell>Status</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {schedules.map((item) => (
+                    {filtered.map((item) => (
                       <TableRow
                         key={item.id}
                         hover
@@ -286,33 +355,9 @@ export default function DepotSchedulesPage() {
                         <TableCell>{item.depotName}</TableCell>
                         <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
                         <TableCell>{item.time ? formatScheduleTime(item.time) : '—'}</TableCell>
-                        <TableCell>
-                          {item.slotNo ? (
-                            <Chip label={`Slot ${item.slotNo}`} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
-                          ) : (
-                            '—'
-                          )}
-                        </TableCell>
                         <TableCell>{item.truckerName ?? '—'}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={statusLabel[item.status] ?? item.status}
-                            color={statusColor[item.status] ?? 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
                         <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            component={RouterLink}
-                            to={`/depot/schedules/${item.id}`}
-                            size="small"
-                            variant={item.status === 'WaitingSchedule' ? 'contained' : 'outlined'}
-                            startIcon={<OpenInNewIcon />}
-                            sx={{ fontWeight: 600, borderRadius: 2 }}
-                          >
-                            {item.status === 'WaitingSchedule' ? 'Assign' : 'View'}
-                          </Button>
+                          <ScheduleRowActions item={item} />
                         </TableCell>
                       </TableRow>
                     ))}

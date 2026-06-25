@@ -13,8 +13,10 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
+import CyAllocationDashboardPanel from '../components/dashboard/CyAllocationDashboardPanel'
 import { roleLabel } from '../config/roleConfig'
-import { dashboardApi } from '../services/api'
+import { cyAllocationApi, dashboardApi } from '../services/api'
+import type { CyAllocation } from '../services/api'
 import { useAppSelector } from '../store/hooks'
 
 const primaryDark = '#0B3D91'
@@ -32,7 +34,9 @@ export default function DashboardPage() {
   const user = useAppSelector((s) => s.auth.user)
   const navigate = useNavigate()
   const [data, setData] = useState<Record<string, number>>({})
+  const [cyAllocations, setCyAllocations] = useState<CyAllocation[]>([])
   const [loading, setLoading] = useState(true)
+  const [cyLoading, setCyLoading] = useState(false)
   const [error, setError] = useState('')
 
   const config = useMemo(() => {
@@ -52,6 +56,19 @@ export default function DashboardPage() {
         setError(msg)
       })
       .finally(() => setLoading(false))
+  }, [user])
+
+  useEffect(() => {
+    if (!user || user.role !== 'ShippingLineEvaluator') {
+      setCyAllocations([])
+      return
+    }
+    setCyLoading(true)
+    cyAllocationApi
+      .list()
+      .then(({ data: allocations }) => setCyAllocations(allocations))
+      .catch(() => setCyAllocations([]))
+      .finally(() => setCyLoading(false))
   }, [user])
 
   if (!user) return null
@@ -127,7 +144,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {actionable.length > 0 && !loading && (
+      {actionable.length > 0 && !loading && user.role !== 'Trucker' && (
         <Alert
           severity="info"
           sx={{
@@ -164,18 +181,19 @@ export default function DashboardPage() {
         </Paper>
       ) : (
         <>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                lg: 'repeat(auto-fill, minmax(220px, 1fr))',
-              },
-              gap: 2,
-              mb: 3,
-            }}
-          >
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'repeat(2, minmax(0, 1fr))',
+            sm: 'repeat(2, 1fr)',
+            lg: 'repeat(auto-fill, minmax(220px, 1fr))',
+          },
+          gap: { xs: 1.5, sm: 2 },
+          mb: 3,
+          minWidth: 0,
+        }}
+      >
             {config.stats.map((stat) => {
               const Icon = stat.icon
               const value = data[stat.key] ?? 0
@@ -186,6 +204,7 @@ export default function DashboardPage() {
                   elevation={0}
                   sx={{
                     height: '100%',
+                    minWidth: 0,
                     borderRadius: 3,
                     border: '1px solid',
                     borderColor: highlighted ? hexToRgba(stat.color, 0.45) : 'divider',
@@ -203,12 +222,12 @@ export default function DashboardPage() {
                     }),
                   }}
                 >
-                  <Box sx={{ p: 2.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+                  <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: { xs: 1.5, sm: 2 } }}>
                       <Box
                         sx={{
-                          width: 44,
-                          height: 44,
+                          width: { xs: 40, sm: 44 },
+                          height: { xs: 40, sm: 44 },
                           borderRadius: 2,
                           display: 'grid',
                           placeItems: 'center',
@@ -236,10 +255,23 @@ export default function DashboardPage() {
                         </Box>
                       )}
                     </Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2, fontWeight: 600 }}>
+                    <Typography
+                      variant="overline"
+                      color="text.secondary"
+                      sx={{ lineHeight: 1.2, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' }, wordBreak: 'break-word' }}
+                    >
                       {stat.label}
                     </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: stat.color, my: 0.5, lineHeight: 1.1 }}>
+                    <Typography
+                      variant="h4"
+                      sx={{
+                        fontWeight: 800,
+                        color: stat.color,
+                        my: 0.5,
+                        lineHeight: 1.1,
+                        fontSize: { xs: '1.75rem', sm: '2.125rem' },
+                      }}
+                    >
                       {value}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -250,6 +282,28 @@ export default function DashboardPage() {
               )
             })}
           </Box>
+
+          {user.role === 'ShippingLineEvaluator' &&
+            (cyLoading ? (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.5,
+                  mb: 3,
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: '#fff',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  py: 4,
+                }}
+              >
+                <CircularProgress size={28} sx={{ color: primaryDark }} />
+              </Paper>
+            ) : (
+              <CyAllocationDashboardPanel items={cyAllocations} />
+            ))}
 
           <Box
             sx={{
