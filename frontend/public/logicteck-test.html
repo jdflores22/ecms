@@ -183,10 +183,9 @@
     </header>
 
     <div class="note">
-      <strong>Phase 1:</strong> LOGICTECK enters the ICS reference (or scans QR) → calls
-      <code>GET /api/logicteck/booking/{reference}/dossier</code> for full details and container photos → creates the return booking on the LOGICTECK side → at gate calls
-      <code>POST /api/logicteck/validate-qr</code>.
-      ICS pre-advice status stays <strong>Approved</strong>; <code>isBooked</code> / <code>isRetrieved</code> track the LOGICTECK transfer only.
+      <strong>Permanent connection:</strong> Every ICS transfer includes a <code>transferLink</code> block with the reference,
+      trucker name, and API URLs. ICS also auto-pushes data when the transfer QR is published (if <code>Logicteck:BookUrl</code> is set).
+      LOGICTECK stores <code>transferReference</code> once and reuses the URLs for every lookup — no shared user accounts or JWT.
     </div>
 
     <div class="card">
@@ -338,9 +337,23 @@
       const pa = body.preAdvice || {}
       const sch = body.schedule || {}
       const qr = body.qrBooking || {}
+      const link = body.transferLink || {}
 
       let html = ''
-      html += '<p class="section-title">Pre-advice summary</p>'
+      if (link.transferReference) {
+        html += '<p class="section-title">Permanent transfer link (store on LOGICTECK)</p>'
+        html += '<div class="fields">'
+        html += tile('Transfer reference', link.transferReference)
+        html += tile('ICS trucker', link.icsTruckerName)
+        html += tile('ICS trucker ID', link.icsTruckerId)
+        html += tile('Pre-advice ref', link.icsPreAdviceReference)
+        html += tile('Lookup URL', link.lookupUrl)
+        html += tile('Dossier URL', link.dossierUrl)
+        html += tile('Validate URL', link.validateUrl)
+        html += '</div>'
+      }
+
+      html += '<p class="section-title"' + (link.transferReference ? ' style="margin-top:20px;"' : '') + '>Pre-advice summary</p>'
       html += '<div class="fields">'
       html += tile('Reference', pa.referenceNo)
       html += tile('Status', pa.status)

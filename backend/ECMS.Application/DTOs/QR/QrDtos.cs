@@ -8,7 +8,14 @@ public record QrPayloadDto(
     string ScheduleDate,
     string ScheduleTime,
     string Trucker,
-    string? ValidateUrl = null);
+    string? ValidateUrl = null,
+    string? LookupUrl = null,
+    string? DossierUrl = null,
+    string? PreAdviceReference = null,
+    int? IcsTruckerId = null,
+    string? IcsTruckerUsername = null,
+    int? IcsPreAdviceId = null,
+    int? IcsScheduleId = null);
 
 public record QrBookingDto(
     int Id,
@@ -46,7 +53,22 @@ public record LogicteckBookingLookupResponse(
     string? ScheduledTime,
     string? Depot,
     bool IsBooked,
-    bool IsRetrieved);
+    bool IsRetrieved,
+    LogicteckTransferLinkDto? TransferLink = null);
+
+/// <summary>Permanent ICS ↔ LOGICTECK link for a return — store on LOGICTECK side and re-use for every API call.</summary>
+public record LogicteckTransferLinkDto(
+    string TransferReference,
+    int IcsTruckerId,
+    string? IcsTruckerUsername,
+    string IcsTruckerName,
+    int IcsPreAdviceId,
+    string IcsPreAdviceReference,
+    int IcsScheduleId,
+    int IcsQrBookingId,
+    string LookupUrl,
+    string DossierUrl,
+    string ValidateUrl);
 
 public record LogicteckDossierDocumentDto(
     string? Category,
@@ -62,6 +84,8 @@ public record LogicteckDossierPreAdviceDto(
     string ReferenceNo,
     string Status,
     string TruckerName,
+    string? TruckerUsername,
+    int IcsTruckerId,
     string ShippingLineName,
     string ContainerNo,
     string ContainerSize,
@@ -106,7 +130,8 @@ public record LogicteckBookingDossierResponse(
     LogicteckDossierPreAdviceDto? PreAdvice,
     LogicteckDossierScheduleDto? Schedule,
     LogicteckDossierQrDto? QrBooking,
-    IReadOnlyList<LogicteckDossierDocumentDto> Documents);
+    IReadOnlyList<LogicteckDossierDocumentDto> Documents,
+    LogicteckTransferLinkDto? TransferLink = null);
 
 public record BookLogicteckResponse(
     bool Success,

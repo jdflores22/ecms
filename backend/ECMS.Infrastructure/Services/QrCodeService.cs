@@ -54,6 +54,7 @@ public class QrCodeService : IQrService
         var schedule = await _db.Schedules
             .Include(x => x.PreAdvice).ThenInclude(p => p.Container)
             .Include(x => x.PreAdvice).ThenInclude(p => p.ShippingLine)
+            .Include(x => x.PreAdvice).ThenInclude(p => p.Trucker)
             .Include(x => x.Depot)
             .Include(x => x.Trucker)
             .Include(x => x.QRBooking)
@@ -64,17 +65,7 @@ public class QrCodeService : IQrService
             return MapToDto(schedule.QRBooking);
 
         var bookingId = $"ICS-{PhilippinesTime.Year}{schedule.Id:D5}";
-        var validateUrl = BuildValidateUrl();
-        var payload = new QrPayloadDto(
-            bookingId,
-            schedule.PreAdvice.Container.ContainerNo,
-            schedule.PreAdvice.ShippingLine.Code,
-            schedule.Depot.Name,
-            schedule.Date.ToString("yyyy-MM-dd"),
-            schedule.Time.ToString("HH:mm"),
-            schedule.Trucker?.FullName ?? schedule.Trucker?.Username ?? "N/A",
-            validateUrl);
-
+        var payload = BuildQrPayload(schedule, bookingId, qrBookingId: 0);
         var payloadJson = JsonSerializer.Serialize(payload);
         var booking = new Domain.Entities.QRBooking
         {
@@ -87,6 +78,19 @@ public class QrCodeService : IQrService
         await _db.SaveChangesAsync(cancellationToken);
 
         booking.Schedule = schedule;
+        payload = BuildQrPayload(schedule, bookingId, booking.Id);
+        booking.PayloadJson = JsonSerializer.Serialize(payload);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (_logicteckOptions.AutoTransferOnQrPublish)
+        {
+            await ExecuteTransferToLogicteckAsync(
+                booking,
+                schedule.PreAdvice.TruckerId,
+                "LOGICTECK_AUTO_TRANSFER",
+                cancellationToken);
+        }
+
         return MapToDto(booking);
     }
 
@@ -182,7 +186,8 @@ public class QrCodeService : IQrService
             booking.Schedule.Time.ToString("HH:mm"),
             booking.Schedule.Depot.Name,
             booking.LogicteckBookedAt.HasValue,
-            booking.IsUsed);
+            booking.IsUsed,
+            BuildTransferLink(booking));
     }
 
     public async Task<LogicteckBookingDossierResponse?> LookupDossierForLogicteckAsync(
@@ -200,7 +205,8 @@ public class QrCodeService : IQrService
                 null, null, null, null, null, null, null, null,
                 false, false,
                 null, null, null,
-                Array.Empty<LogicteckDossierDocumentDto>());
+                Array.Empty<LogicteckDossierDocumentDto>(),
+                null);
         }
 
         var preAdvice = booking.Schedule.PreAdvice;
@@ -241,6 +247,8 @@ public class QrCodeService : IQrService
                 preAdvice.ReferenceNo,
                 preAdvice.Status.ToString(),
                 preAdvice.Trucker.FullName ?? preAdvice.Trucker.Username,
+                preAdvice.Trucker.Username,
+                preAdvice.TruckerId,
                 preAdvice.ShippingLine.Name,
                 preAdvice.Container.ContainerNo,
                 preAdvice.Container.Size,
@@ -266,7 +274,8 @@ public class QrCodeService : IQrService
                 booking.IsUsed,
                 booking.LogicteckBookedAt,
                 qrBase64),
-            documents);
+            documents,
+            BuildTransferLink(booking));
     }
 
     public async Task<BookLogicteckResponse> BookLogicteckAsync(
@@ -297,30 +306,13 @@ public class QrCodeService : IQrService
                 string.IsNullOrWhiteSpace(_logicteckOptions.PortalUrl) ? null : _logicteckOptions.PortalUrl);
         }
 
-        var outboundPayload = new LogicteckOutboundPayload(
-            booking.QRCode,
-            booking.Schedule.PreAdvice.Container.ContainerNo,
-            booking.Schedule.PreAdvice.ShippingLine.Code,
-            booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username ?? "N/A",
-            booking.Schedule.PreAdvice.ReferenceNo,
-            booking.Schedule.Date.ToString("yyyy-MM-dd"),
-            booking.Schedule.Time.ToString("HH:mm"),
-            booking.Schedule.Depot.Name);
-
-        var (success, externalRef, error) = await _logicteckClient.SubmitBookingAsync(outboundPayload, cancellationToken);
-        if (!success)
-            return new BookLogicteckResponse(false, error ?? "Could not transfer pre-advice data to LOGICTECK.", MapToDto(booking), null, null);
-
-        booking.LogicteckBookedAt = PhilippinesTime.UtcNow;
-        booking.LogicteckExternalRef = externalRef;
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _auditService.LogAsync(
+        var transfer = await ExecuteTransferToLogicteckAsync(
+            booking,
             userId,
             "LOGICTECK_BOOK",
-            "QR",
-            $"QR {booking.QRCode} — pre-advice data transferred to LOGICTECK for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
             cancellationToken);
+        if (!transfer.Success)
+            return new BookLogicteckResponse(false, transfer.Error ?? "Could not transfer pre-advice data to LOGICTECK.", MapToDto(booking), null, null);
 
         var portalUrl = string.IsNullOrWhiteSpace(_logicteckOptions.PortalUrl) ? null : _logicteckOptions.PortalUrl;
         return new BookLogicteckResponse(
@@ -329,14 +321,121 @@ public class QrCodeService : IQrService
                 ? "Pre-advice data recorded for LOGICTECK transfer. Return booking is on the LOGICTECK side."
                 : "Pre-advice data transferred to LOGICTECK. Return booking is on the LOGICTECK side.",
             MapToDto(booking),
-            externalRef,
+            transfer.ExternalRef,
             portalUrl);
+    }
+
+    private async Task<(bool Success, string? ExternalRef, string? Error)> ExecuteTransferToLogicteckAsync(
+        Domain.Entities.QRBooking booking,
+        int auditUserId,
+        string auditAction,
+        CancellationToken cancellationToken)
+    {
+        if (booking.LogicteckBookedAt.HasValue || booking.IsUsed)
+            return (true, booking.LogicteckExternalRef, null);
+
+        var outboundPayload = BuildOutboundPayload(booking);
+        var (success, externalRef, error) = await _logicteckClient.SubmitBookingAsync(outboundPayload, cancellationToken);
+        if (!success)
+            return (false, null, error);
+
+        booking.LogicteckBookedAt = PhilippinesTime.UtcNow;
+        booking.LogicteckExternalRef = externalRef;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            auditUserId,
+            auditAction,
+            "QR",
+            $"QR {booking.QRCode} — pre-advice data transferred to LOGICTECK for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
+            cancellationToken);
+
+        return (true, externalRef, null);
+    }
+
+    private LogicteckOutboundPayload BuildOutboundPayload(Domain.Entities.QRBooking booking)
+    {
+        var link = BuildTransferLink(booking);
+        var preAdvice = booking.Schedule.PreAdvice;
+        return new LogicteckOutboundPayload(
+            booking.QRCode,
+            preAdvice.Container.ContainerNo,
+            preAdvice.ShippingLine.Code,
+            booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username ?? preAdvice.Trucker.FullName ?? preAdvice.Trucker.Username,
+            preAdvice.Trucker.Username,
+            preAdvice.TruckerId,
+            preAdvice.ReferenceNo,
+            preAdvice.Id,
+            booking.ScheduleId,
+            booking.Id,
+            booking.Schedule.Date.ToString("yyyy-MM-dd"),
+            booking.Schedule.Time.ToString("HH:mm"),
+            booking.Schedule.Depot.Name,
+            link.LookupUrl,
+            link.DossierUrl,
+            link.ValidateUrl);
+    }
+
+    private QrPayloadDto BuildQrPayload(Domain.Entities.Schedule schedule, string qrCode, int qrBookingId)
+    {
+        var preAdvice = schedule.PreAdvice;
+        var truckerName = schedule.Trucker?.FullName ?? schedule.Trucker?.Username ?? "N/A";
+        return new QrPayloadDto(
+            qrCode,
+            preAdvice.Container.ContainerNo,
+            preAdvice.ShippingLine.Code,
+            schedule.Depot.Name,
+            schedule.Date.ToString("yyyy-MM-dd"),
+            schedule.Time.ToString("HH:mm"),
+            truckerName,
+            BuildValidateUrl(),
+            BuildLookupUrl(qrCode),
+            BuildDossierUrl(qrCode),
+            preAdvice.ReferenceNo,
+            preAdvice.TruckerId,
+            preAdvice.Trucker.Username,
+            preAdvice.Id,
+            schedule.Id);
+    }
+
+    private LogicteckTransferLinkDto BuildTransferLink(Domain.Entities.QRBooking booking)
+    {
+        var preAdvice = booking.Schedule.PreAdvice;
+        var truckerName = booking.Schedule.Trucker?.FullName
+            ?? booking.Schedule.Trucker?.Username
+            ?? preAdvice.Trucker.FullName
+            ?? preAdvice.Trucker.Username;
+        return new LogicteckTransferLinkDto(
+            booking.QRCode,
+            preAdvice.TruckerId,
+            preAdvice.Trucker.Username,
+            truckerName,
+            preAdvice.Id,
+            preAdvice.ReferenceNo,
+            booking.ScheduleId,
+            booking.Id,
+            BuildLookupUrl(booking.QRCode),
+            BuildDossierUrl(booking.QRCode),
+            BuildValidateUrl());
+    }
+
+    private string BuildLookupUrl(string qrCode)
+    {
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/logicteck/booking/{Uri.EscapeDataString(qrCode)}";
+    }
+
+    private string BuildDossierUrl(string qrCode)
+    {
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/logicteck/booking/{Uri.EscapeDataString(qrCode)}/dossier";
     }
 
     private IQueryable<Domain.Entities.QRBooking> LoadBookingQuery()
         => _db.QRBookings
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Trucker)
             .Include(x => x.Schedule).ThenInclude(s => s.Depot)
             .Include(x => x.Schedule).ThenInclude(s => s.Trucker);
 

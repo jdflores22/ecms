@@ -18,4 +18,7 @@ public class LogicteckOptions
 
     /// <summary>LOGICTECK empty return booking URL — ICS POSTs full return form payload.</summary>
     public string EmptyReturnUrl { get; set; } = string.Empty;
+
+    /// <summary>When true, ICS POSTs transfer data to BookUrl as soon as the transfer QR is published.</summary>
+    public bool AutoTransferOnQrPublish { get; set; } = true;
 }

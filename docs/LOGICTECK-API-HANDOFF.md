@@ -31,7 +31,9 @@ Trucker receives a **transfer QR** from ICS after depot confirms the return. LOG
 1. **Type or paste the ICS reference** — e.g. `ICS-202600018` — into your empty-return / gate screen.
 2. **Scan the QR** — payload includes the same reference plus container, line, schedule, depot, trucker.
 
-Then call ICS **lookup** to load the data before creating the booking in LOGICTECK.
+Then call ICS **lookup** or **dossier** to load the data before creating the booking in LOGICTECK.
+
+Every response includes a **`transferLink`** object — store it on your booking record and reuse the URLs for all future API calls. No ICS login or shared user accounts.
 
 At **gate**, call ICS **validate** once to mark the transfer as retrieved in ICS.
 
@@ -100,9 +102,31 @@ X-Logicteck-Api-Key: {your-key}
   "scheduledTime": "08:00",
   "depot": "ESAFE",
   "isBooked": true,
-  "isRetrieved": false
+  "isRetrieved": false,
+  "transferLink": {
+    "transferReference": "ICS-202600018",
+    "icsTruckerId": 12,
+    "icsTruckerUsername": "trucker1",
+    "icsTruckerName": "ABC Trucking",
+    "icsPreAdviceId": 58,
+    "icsPreAdviceReference": "PA-2026-00058",
+    "icsScheduleId": 18,
+    "icsQrBookingId": 7,
+    "lookupUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018",
+    "dossierUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018/dossier",
+    "validateUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/validate-qr"
+  }
 }
 ```
+
+| Field | Meaning for LOGICTECK |
+|-------|------------------------|
+| `transferLink` | **Permanent connection** — save on your booking; reuse URLs every time |
+| `transferLink.transferReference` | Same as `bookingReference` — your external ICS key |
+| `transferLink.icsTruckerName` | Trucker name from ICS (text only — not a LOGICTECK user ID) |
+| `transferLink.lookupUrl` / `dossierUrl` / `validateUrl` | Ready-made endpoints — no URL construction needed |
+
+**Dossier responses include the same `transferLink` block.**
 
 | Field | Meaning for LOGICTECK |
 |-------|------------------------|
@@ -159,18 +183,28 @@ X-Logicteck-Api-Key: {your-key}
 
 ## Optional: ICS pushes data to LOGICTECK (outbound)
 
-When trucker clicks **Send to LOGICTECK** in ICS, ICS can **POST** to a URL you provide (`Logicteck:BookUrl` on ICS server):
+When the transfer QR is **published** (payment verified), ICS can **automatically POST** transfer data to your URL (`Logicteck:BookUrl`). Trucker **Send to LOGICTECK** in ICS does the same if not already sent.
+
+Set `Logicteck:AutoTransferOnQrPublish` to `false` on ICS if you prefer pull-only (lookup/dossier).
 
 ```json
 {
   "bookingReference": "ICS-202600018",
   "containerNo": "...",
   "shippingLine": "...",
-  "trucker": "...",
+  "trucker": "ABC Trucking",
+  "truckerUsername": "trucker1",
+  "icsTruckerId": 12,
   "preAdviceReference": "PA-2026-00058",
+  "icsPreAdviceId": 58,
+  "icsScheduleId": 18,
+  "icsQrBookingId": 7,
   "scheduledDate": "2026-06-27",
   "scheduledTime": "08:00",
-  "depot": "ESAFE"
+  "depot": "ESAFE",
+  "lookupUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018",
+  "dossierUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018/dossier",
+  "validateUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/validate-qr"
 }
 ```
 
@@ -240,6 +274,20 @@ Set in **Railway → Variables** (then redeploy):
 | `Logicteck__ApiKey` | `{shared-secret — send to LOGICTECK}` |
 | `Logicteck__PublicApiBaseUrl` | `https://ecms-production-42be.up.railway.app` |
 | `Logicteck__BookUrl` | *(empty until LOGICTECK provides receive URL)* |
+| `Logicteck__AutoTransferOnQrPublish` | `true` (default) — POST to BookUrl when QR is published |
+
+---
+
+## Permanent connection pattern (recommended)
+
+LOGICTECK should treat each ICS transfer as a **standalone link**, not a user account mapping:
+
+1. Receive `transferReference` (from QR scan, lookup, dossier, or ICS outbound POST).
+2. Store `transferLink` on your empty-return booking row.
+3. For every screen refresh, gate check, or sync — call `transferLink.dossierUrl` or `lookupUrl` with `X-Logicteck-Api-Key`.
+4. At gate — `POST` to `transferLink.validateUrl` with `{ "qrCode": "<transferReference>" }`.
+
+Trucker identity is **text from ICS** (`icsTruckerName`, `icsTruckerUsername`) — display only; no JWT or shared login.
 
 ---
 

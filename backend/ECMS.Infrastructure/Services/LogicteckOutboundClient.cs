@@ -113,7 +113,15 @@ public record LogicteckOutboundPayload(
     string ContainerNo,
     string ShippingLine,
     string Trucker,
+    string? TruckerUsername,
+    int IcsTruckerId,
     string PreAdviceReference,
+    int IcsPreAdviceId,
+    int IcsScheduleId,
+    int IcsQrBookingId,
     string ScheduledDate,
     string ScheduledTime,
-    string Depot);
+    string Depot,
+    string LookupUrl,
+    string DossierUrl,
+    string ValidateUrl);

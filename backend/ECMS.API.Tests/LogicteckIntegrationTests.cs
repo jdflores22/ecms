@@ -15,6 +15,32 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
     }
 
     [Fact]
+    public async Task Lookup_includes_permanent_transfer_link()
+    {
+        var qrCode = await CreatePublishedQrAsync();
+        ApiTestHelper.ClearAuth(_client);
+
+        var lookupResponse = await _client.GetAsync($"/api/logicteck/booking/{Uri.EscapeDataString(qrCode)}");
+        Assert.Equal(HttpStatusCode.OK, lookupResponse.StatusCode);
+
+        var lookup = await lookupResponse.Content.ReadFromJsonAsync<LookupResponse>();
+        Assert.NotNull(lookup);
+        Assert.True(lookup.Found);
+        Assert.NotNull(lookup.TransferLink);
+        Assert.Equal(qrCode, lookup.TransferLink!.TransferReference);
+        Assert.False(string.IsNullOrWhiteSpace(lookup.TransferLink.LookupUrl));
+        Assert.False(string.IsNullOrWhiteSpace(lookup.TransferLink.DossierUrl));
+        Assert.False(string.IsNullOrWhiteSpace(lookup.TransferLink.ValidateUrl));
+        Assert.False(string.IsNullOrWhiteSpace(lookup.TransferLink.IcsTruckerName));
+
+        var dossierResponse = await _client.GetAsync($"/api/logicteck/booking/{Uri.EscapeDataString(qrCode)}/dossier");
+        var dossier = await dossierResponse.Content.ReadFromJsonAsync<DossierResponse>();
+        Assert.NotNull(dossier);
+        Assert.NotNull(dossier.TransferLink);
+        Assert.Equal(qrCode, dossier.TransferLink!.TransferReference);
+    }
+
+    [Fact]
     public async Task Validate_qr_marks_booking_retrieved_and_lookup_reflects_status()
     {
         var qrCode = await CreatePublishedQrAsync();
@@ -170,7 +196,22 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
         string? ScheduledTime,
         string? Depot);
 
-    private record LookupResponse(bool Found, bool IsBooked, bool IsRetrieved);
+    private record LookupResponse(
+        bool Found,
+        bool IsBooked,
+        bool IsRetrieved,
+        TransferLinkResponse? TransferLink);
+
+    private record TransferLinkResponse(
+        string TransferReference,
+        int IcsTruckerId,
+        string? IcsTruckerUsername,
+        string IcsTruckerName,
+        string LookupUrl,
+        string DossierUrl,
+        string ValidateUrl);
+
+    private record DossierResponse(bool Found, TransferLinkResponse? TransferLink);
 
     private record BookResponse(bool Success, QrBookingResponse? Booking);
 }
