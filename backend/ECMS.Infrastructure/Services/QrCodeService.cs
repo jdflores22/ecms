@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ECMS.Application;
 using ECMS.Application.Configuration;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
@@ -184,6 +185,90 @@ public class QrCodeService : IQrService
             booking.IsUsed);
     }
 
+    public async Task<LogicteckBookingDossierResponse?> LookupDossierForLogicteckAsync(
+        string qrCode,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await LoadDossierBookingQuery()
+            .FirstOrDefaultAsync(x => x.QRCode == qrCode, cancellationToken);
+
+        if (booking is null)
+        {
+            return new LogicteckBookingDossierResponse(
+                false,
+                "Booking reference not found.",
+                null, null, null, null, null, null, null, null,
+                false, false,
+                null, null, null,
+                Array.Empty<LogicteckDossierDocumentDto>());
+        }
+
+        var preAdvice = booking.Schedule.PreAdvice;
+        var hasDamage = preAdvice.Documents.Any(d => d.Category == ContainerPhotoCategory.Damage);
+        var qrBytes = await DownloadQrAsync(booking.Id, cancellationToken);
+        var qrBase64 = qrBytes is null
+            ? null
+            : $"data:image/png;base64,{Convert.ToBase64String(qrBytes)}";
+
+        var documents = preAdvice.Documents
+            .OrderBy(d => d.Category)
+            .ThenBy(d => d.CreatedAt)
+            .Select(d => new LogicteckDossierDocumentDto(
+                d.Category?.ToString(),
+                d.Category.HasValue ? ContainerPhotoCatalog.GetLabel(d.Category.Value) : null,
+                d.Comment,
+                d.FileName,
+                d.ContentType,
+                d.FileSize,
+                BuildPublicAssetUrl(d.FilePath)))
+            .ToList();
+
+        return new LogicteckBookingDossierResponse(
+            true,
+            null,
+            booking.QRCode,
+            preAdvice.Container.ContainerNo,
+            preAdvice.ShippingLine.Code,
+            booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
+            preAdvice.ReferenceNo,
+            booking.Schedule.Date.ToString("yyyy-MM-dd"),
+            booking.Schedule.Time.ToString("HH:mm"),
+            booking.Schedule.Depot.Name,
+            booking.LogicteckBookedAt.HasValue,
+            booking.IsUsed,
+            new LogicteckDossierPreAdviceDto(
+                preAdvice.Id,
+                preAdvice.ReferenceNo,
+                preAdvice.Status.ToString(),
+                preAdvice.Trucker.FullName ?? preAdvice.Trucker.Username,
+                preAdvice.ShippingLine.Name,
+                preAdvice.Container.ContainerNo,
+                preAdvice.Container.Size,
+                $"{preAdvice.ContainerType.Code} — {preAdvice.ContainerType.Label}",
+                preAdvice.Remarks,
+                preAdvice.Status == PreAdviceStatus.ForCompliance ? preAdvice.Evaluation?.Remarks : null,
+                preAdvice.CreatedAt,
+                hasDamage),
+            new LogicteckDossierScheduleDto(
+                booking.Schedule.Id,
+                preAdvice.ReferenceNo,
+                booking.Schedule.Depot.Name,
+                booking.Schedule.Date.ToString("yyyy-MM-dd"),
+                booking.Schedule.Time.ToString("HH:mm"),
+                booking.Schedule.SlotNo,
+                booking.Schedule.Status.ToString(),
+                booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username),
+            new LogicteckDossierQrDto(
+                booking.Id,
+                booking.QRCode,
+                booking.GeneratedAt,
+                ResolveLogicteckStatus(booking),
+                booking.IsUsed,
+                booking.LogicteckBookedAt,
+                qrBase64),
+            documents);
+    }
+
     public async Task<BookLogicteckResponse> BookLogicteckAsync(
         int bookingId,
         int userId,
@@ -254,6 +339,32 @@ public class QrCodeService : IQrService
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
             .Include(x => x.Schedule).ThenInclude(s => s.Depot)
             .Include(x => x.Schedule).ThenInclude(s => s.Trucker);
+
+    private IQueryable<Domain.Entities.QRBooking> LoadDossierBookingQuery()
+        => _db.QRBookings
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Trucker)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ContainerSize)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ContainerType)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Evaluation)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Documents)
+            .Include(x => x.Schedule).ThenInclude(s => s.Depot)
+            .Include(x => x.Schedule).ThenInclude(s => s.Trucker);
+
+    private string BuildPublicAssetUrl(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return string.Empty;
+        if (filePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || filePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return filePath;
+        }
+
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        var path = filePath.StartsWith('/') ? filePath : $"/{filePath}";
+        return $"{baseUrl}{path}";
+    }
 
     private string BuildValidateUrl()
     {

@@ -101,4 +101,20 @@ public class LogicteckController : ControllerBase
         var result = await _service.LookupForLogicteckAsync(qrCode, cancellationToken);
         return result!.Found ? Ok(result) : NotFound(result);
     }
+
+    /// <summary>Full pre-advice transfer dossier for LOGICTECK (details + photo URLs + QR image).</summary>
+    [HttpGet("booking/{qrCode}/dossier")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LogicteckBookingDossierResponse>> GetBookingDossier(string qrCode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(qrCode))
+        {
+            return BadRequest(new LogicteckBookingDossierResponse(
+                false, "qrCode is required.", null, null, null, null, null, null, null, null,
+                false, false, null, null, null, Array.Empty<LogicteckDossierDocumentDto>()));
+        }
+
+        var result = await _service.LookupDossierForLogicteckAsync(qrCode, cancellationToken);
+        return result!.Found ? Ok(result) : NotFound(result);
+    }
 }

@@ -48,14 +48,45 @@ Accept: application/json
 
 ### 1. Lookup by ICS reference (read-only)
 
-Use when operator enters `ICS-202600018` or after QR scan.
-
 ```http
 GET https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018
 X-Logicteck-Api-Key: {your-key}
 ```
 
-**Success (200):**
+Lightweight summary only (no photos). Use dossier endpoint below for full data.
+
+### 2. Full dossier with photos (recommended)
+
+Returns pre-advice details, schedule, QR image (base64), and **container photo URLs**.
+
+```http
+GET https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018/dossier
+X-Logicteck-Api-Key: {your-key}
+```
+
+**Success (200)** includes:
+
+- All lookup fields (`isBooked`, `isRetrieved`, container, depot, schedule, …)
+- `preAdvice` — reference, status, trucker, line, container size/type, remarks
+- `schedule` — depot, slot, status
+- `qrBooking` — ICS reference, status, `qrImageBase64` (PNG data URL)
+- `documents[]` — each photo with `categoryLabel`, `url` (full URL on ICS API), `comment` for damage
+
+**Example document entry:**
+
+```json
+{
+  "category": "Front",
+  "categoryLabel": "Front",
+  "comment": null,
+  "fileName": "photo.jpg",
+  "contentType": "image/jpeg",
+  "fileSize": 245000,
+  "url": "https://ecms-production-42be.up.railway.app/uploads/abc123.jpg"
+}
+```
+
+**Lookup-only response (section 1):**
 
 ```json
 {
@@ -84,7 +115,7 @@ X-Logicteck-Api-Key: {your-key}
 
 **Unauthorized (401):** missing or wrong API key.
 
-### 2. Validate at gate (one-time)
+### 3. Validate at gate (one-time)
 
 Marks QR as **Retrieved** in ICS. Call only when container passes gate.
 
@@ -155,13 +186,12 @@ Respond with:
 
 ## What is NOT in the public API
 
-| Data | Available via lookup? |
-|------|------------------------|
-| Container no, line, trucker, schedule, depot | Yes |
-| Pre-advice reference | Yes |
-| `isBooked` / `isRetrieved` | Yes |
-| Container identity photos | **No** — ICS internal only |
-| Full pre-advice dossier | **No** |
+| Data | Lookup | Dossier |
+|------|--------|---------|
+| Container no, line, trucker, schedule, depot | Yes | Yes |
+| Pre-advice details (remarks, size, type) | Partial | Yes |
+| Container identity photos | No | **Yes** (`documents[].url`) |
+| QR image | No | **Yes** (`qrBooking.qrImageBase64`) |
 
 ---
 

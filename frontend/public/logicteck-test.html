@@ -118,6 +118,57 @@
     footer { text-align: center; margin-top: 24px; font-size: 0.8rem; color: var(--muted); }
     footer a { color: var(--ics-light); }
     .hidden { display: none; }
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--ics);
+      margin: 0 0 12px;
+    }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .photo-card {
+      border: 1px solid var(--lt-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .photo-card img {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      display: block;
+      background: #f1f5f9;
+    }
+    .photo-card .cap {
+      padding: 8px 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--ics);
+    }
+    .photo-card .sub {
+      padding: 0 10px 8px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .qr-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      margin-top: 8px;
+    }
+    .qr-row img {
+      width: 120px;
+      height: 120px;
+      border-radius: 10px;
+      border: 1px solid var(--lt-border);
+      background: #fff;
+      padding: 4px;
+    }
   </style>
 </head>
 <body>
@@ -132,8 +183,9 @@
     </header>
 
     <div class="note">
-      <strong>Phase 1:</strong> LOGICTECK enters the ICS reference (or scans QR) → calls <code>GET /api/logicteck/booking/{reference}</code>
-      → creates the return booking on the LOGICTECK side → at gate calls <code>POST /api/logicteck/validate-qr</code>.
+      <strong>Phase 1:</strong> LOGICTECK enters the ICS reference (or scans QR) → calls
+      <code>GET /api/logicteck/booking/{reference}/dossier</code> for full details and container photos → creates the return booking on the LOGICTECK side → at gate calls
+      <code>POST /api/logicteck/validate-qr</code>.
       ICS pre-advice status stays <strong>Approved</strong>; <code>isBooked</code> / <code>isRetrieved</code> track the LOGICTECK transfer only.
     </div>
 
@@ -154,19 +206,22 @@
         </div>
       </div>
       <div class="actions">
-        <button type="button" class="btn-primary" id="btnLookup">Lookup booking</button>
+        <button type="button" class="btn-primary" id="btnLookup">Load full transfer data</button>
         <button type="button" class="btn-outline" id="btnValidate">Simulate gate validate</button>
-        <button type="button" class="btn-ghost" id="btnCopyLookup">Copy lookup curl</button>
+        <button type="button" class="btn-ghost" id="btnCopyDossier">Copy dossier curl</button>
         <button type="button" class="btn-ghost" id="btnCopyValidate">Copy validate curl</button>
       </div>
       <p id="toast" class="hidden" style="margin:12px 0 0;color:var(--ok);font-size:0.875rem;font-weight:600;"></p>
       <p id="error" class="hidden" style="margin:12px 0 0;color:var(--err);font-size:0.875rem;"></p>
     </div>
 
-    <div class="card hidden" id="lookupCard">
-      <h2>Lookup result <span id="lookupStatus" class="status"></span></h2>
-      <div id="lookupFields" class="fields hidden"></div>
-      <pre id="lookupJson"></pre>
+    <div class="card hidden" id="dossierCard">
+      <h2>Full transfer dossier <span id="dossierStatus" class="status"></span></h2>
+      <div id="dossierContent"></div>
+      <details style="margin-top:16px;">
+        <summary style="cursor:pointer;font-weight:700;color:var(--muted);font-size:0.85rem;">Raw JSON response</summary>
+        <pre id="dossierJson"></pre>
+      </details>
     </div>
 
     <div class="card hidden" id="validateCard">
@@ -192,6 +247,7 @@
     const STORAGE_KEY = 'ics.logicteckTest.apiKey'
     const DEFAULT_BASE = 'https://ecms-production-42be.up.railway.app'
     const LOOKUP_PATH = '/api/logicteck/booking'
+    const DOSSIER_PATH = '/api/logicteck/booking'
     const VALIDATE_PATH = '/api/logicteck/validate-qr'
     const KEY_HEADER = 'X-Logicteck-Api-Key'
 
@@ -252,36 +308,100 @@
       return 'Ready to send'
     }
 
-    function renderLookup(httpStatus, body) {
-      $('lookupCard').classList.remove('hidden')
-      $('lookupJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
-      const badge = $('lookupStatus')
-      const fields = $('lookupFields')
-      fields.innerHTML = ''
-      if (body && body.found) {
-        const st = externalStatus(body)
-        badge.textContent = st || 'Found'
-        badge.className = 'status ' + (body.isRetrieved ? 'warn' : body.isBooked ? 'ok' : 'ok')
-        fields.classList.remove('hidden')
-        const items = [
-          ['Container', body.containerNo],
-          ['Pre-advice', body.preAdviceReference],
-          ['Shipping line', body.shippingLine],
-          ['Depot', body.depot],
-          ['Schedule', (body.scheduledDate || '') + ' ' + (body.scheduledTime || '')],
-          ['isBooked', String(body.isBooked)],
-          ['isRetrieved', String(body.isRetrieved)],
-        ]
-        items.forEach(([label, val]) => {
-          const d = document.createElement('div')
-          d.innerHTML = '<strong>' + label + '</strong>' + (val || '—')
-          fields.appendChild(d)
-        })
-      } else {
+    function tile(label, value) {
+      const v = value == null || value === '' ? '—' : String(value)
+      return '<div><strong>' + label + '</strong>' + escapeHtml(v) + '</div>'
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    }
+
+    function renderDossier(httpStatus, body) {
+      $('dossierCard').classList.remove('hidden')
+      $('dossierJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('dossierStatus')
+      const root = $('dossierContent')
+      root.innerHTML = ''
+
+      if (!body || !body.found) {
         badge.textContent = httpStatus === 401 ? 'Unauthorized' : 'Not found'
         badge.className = 'status err'
-        fields.classList.add('hidden')
+        root.innerHTML = '<p style="color:var(--err);margin:0;">' + escapeHtml(body && body.message ? body.message : 'Booking not found.') + '</p>'
+        return
       }
+
+      const st = externalStatus(body)
+      badge.textContent = st || 'Found'
+      badge.className = 'status ' + (body.isRetrieved ? 'warn' : body.isBooked ? 'ok' : 'ok')
+
+      const pa = body.preAdvice || {}
+      const sch = body.schedule || {}
+      const qr = body.qrBooking || {}
+
+      let html = ''
+      html += '<p class="section-title">Pre-advice summary</p>'
+      html += '<div class="fields">'
+      html += tile('Reference', pa.referenceNo)
+      html += tile('Status', pa.status)
+      html += tile('Trucker', pa.truckerName)
+      html += tile('Shipping line', pa.shippingLineName)
+      html += tile('Container', pa.containerNo)
+      html += tile('Size', pa.containerSize)
+      html += tile('Type', pa.containerType)
+      html += tile('Submitted', pa.createdAt ? new Date(pa.createdAt).toLocaleString() : '')
+      html += tile('Remarks', pa.remarks)
+      html += tile('Damage report', pa.hasDamageReport ? 'Yes' : 'No')
+      if (pa.complianceRemarks) html += tile('Compliance', pa.complianceRemarks)
+      html += tile('isBooked', String(body.isBooked))
+      html += tile('isRetrieved', String(body.isRetrieved))
+      html += '</div>'
+
+      if (sch && sch.depotName) {
+        html += '<p class="section-title" style="margin-top:20px;">Return schedule</p>'
+        html += '<div class="fields">'
+        html += tile('Depot (CY)', sch.depotName)
+        html += tile('Return slot', (sch.scheduledDate || '') + ' ' + (sch.scheduledTime || ''))
+        html += tile('Slot', sch.slotNo ? 'Slot ' + sch.slotNo : '')
+        html += tile('Schedule status', sch.status)
+        html += tile('Trucker', sch.truckerName)
+        html += '</div>'
+      }
+
+      if (qr && qr.qrCode) {
+        html += '<p class="section-title" style="margin-top:20px;">ICS transfer QR</p>'
+        html += '<div class="qr-row">'
+        if (qr.qrImageBase64) {
+          html += '<img src="' + qr.qrImageBase64 + '" alt="QR ' + escapeHtml(qr.qrCode) + '" />'
+        }
+        html += '<div class="fields" style="flex:1;min-width:220px;">'
+        html += tile('ICS reference', qr.qrCode)
+        html += tile('LOGICTECK status', qr.logicteckStatus)
+        html += tile('Generated', qr.generatedAt ? new Date(qr.generatedAt).toLocaleString() : '')
+        html += '</div></div>'
+      }
+
+      const docs = body.documents || []
+      html += '<p class="section-title" style="margin-top:20px;">Container identity photos (' + docs.length + ')</p>'
+      if (docs.length === 0) {
+        html += '<p style="color:var(--muted);margin:0;font-size:0.875rem;">No photos on file.</p>'
+      } else {
+        html += '<div class="photo-grid">'
+        docs.forEach(function (doc) {
+          html += '<div class="photo-card">'
+          if (doc.url) {
+            html += '<a href="' + escapeHtml(doc.url) + '" target="_blank" rel="noopener">'
+            html += '<img src="' + escapeHtml(doc.url) + '" alt="' + escapeHtml(doc.categoryLabel || doc.fileName) + '" loading="lazy" onerror="this.alt=\'Image unavailable\';this.style.objectFit=\'contain\'" />'
+            html += '</a>'
+          }
+          html += '<div class="cap">' + escapeHtml(doc.categoryLabel || doc.category || 'Photo') + '</div>'
+          if (doc.comment) html += '<div class="sub">' + escapeHtml(doc.comment) + '</div>'
+          html += '</div>'
+        })
+        html += '</div>'
+      }
+
+      root.innerHTML = html
     }
 
     function renderValidate(httpStatus, body) {
@@ -302,15 +422,15 @@
       saveSettings()
       const code = ref()
       if (!code) return showError('Enter an ICS reference (e.g. ICS-202600018).')
-      const url = base() + LOOKUP_PATH + '/' + encodeURIComponent(code)
+      const url = base() + DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier'
       try {
         const res = await fetch(url, { method: 'GET', headers: headers() })
         const text = await res.text()
         let body = text
         try { body = JSON.parse(text) } catch (_) {}
-        renderLookup(res.status, body)
+        renderDossier(res.status, body)
       } catch (e) {
-        showError('Lookup failed. Check API URL, CORS, and that Railway is running.')
+        showError('Dossier request failed. Check API URL, CORS, and that Railway is running.')
       }
     }
 
@@ -336,10 +456,10 @@
       }
     }
 
-    function curlLookup() {
+    function curlDossier() {
       const code = ref()
       if (!code) return ''
-      const url = base() + LOOKUP_PATH + '/' + encodeURIComponent(code)
+      const url = base() + DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier'
       const key = apiKey.value.trim()
       const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
       return 'curl -s -X GET "' + url + '" \\\n' + keyLine + '  -H "Accept: application/json"'
@@ -356,10 +476,10 @@
 
     $('btnLookup').addEventListener('click', runLookup)
     $('btnValidate').addEventListener('click', runValidate)
-    $('btnCopyLookup').addEventListener('click', () => {
-      const c = curlLookup()
+    $('btnCopyDossier').addEventListener('click', () => {
+      const c = curlDossier()
       if (!c) return showError('Enter ICS reference first.')
-      navigator.clipboard.writeText(c).then(() => toast('Lookup curl copied'))
+      navigator.clipboard.writeText(c).then(() => toast('Dossier curl copied'))
     })
     $('btnCopyValidate').addEventListener('click', () => {
       const c = curlValidate()
