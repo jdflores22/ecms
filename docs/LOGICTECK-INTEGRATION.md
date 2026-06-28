@@ -90,22 +90,17 @@ ASP.NET Core binds nested config with `__`:
 
 Set these in Railway, Hostinger VPS, or `backend/ECMS.API/.env.production` (see `.env.production.example` for other keys).
 
-### Frontend (optional)
-
-| Variable | Purpose |
-|----------|---------|
-| `VITE_LOGICTECK_PUBLIC_API_URL` | Default public API base on `/logicteck/api-test` (defaults to `http://localhost:5275`) |
-
----
-
-## ICS pages (internal testing)
+## ICS pages (internal)
 
 | Route | Purpose |
 |-------|---------|
-| `/logicteck/book?bookingId={id}` or `?qr=ICS-...` | LOGICTECK-style form; **Send to LOGICTECK** |
-| `/logicteck/api-test?qr=ICS-...` | Test public lookup/validate + view full pre-advice dossier (dossier requires ICS login) |
-| `/logicteck/empty-return` | Sample empty return form (photos, damage views) |
+| `/trucker/qr` | Transfer QR after payment verification (also from My returns) |
+| `/trucker/qr/print/{id}` | Printable QR pass |
 | `/preadvice/{id}?tab=overview` | Full pre-advice dossier with container photos |
+
+**Send to LOGICTECK** runs inline from return / pre-advice QR actions (calls `POST /api/qr/{id}/book-logicteck`).
+
+**Public API testing (outside ICS app):** `/logicteck-test.html?qr=ICS-...` — see [LOGICTECK-API-HANDOFF.md](./LOGICTECK-API-HANDOFF.md).
 
 ---
 
@@ -295,8 +290,8 @@ Pre-advice workflow status in ICS remains **Approved** — it does not change to
 1. **Start API:** `cd backend/ECMS.API && dotnet run --urls "http://localhost:5275"`
 2. **Start frontend:** `cd frontend && npm run dev` → `http://localhost:5173`
 3. Complete flow in ICS: pre-advice → approval → depot schedule → return confirmed → transfer QR published
-4. **Send to LOGICTECK:** `/logicteck/book?qr=ICS-...` or from trucker return / pre-advice QR tab
-5. **Verify externally:** `/logicteck/api-test?qr=ICS-...` or curl:
+4. **Send to LOGICTECK:** from trucker return / pre-advice QR tab (inline action)
+5. **Verify externally:** `http://localhost:5173/logicteck-test.html?qr=ICS-...` or curl:
 
 ```bash
 curl -s "http://localhost:5275/api/logicteck/booking/ICS-202600018"
@@ -325,7 +320,7 @@ curl -s "https://your-api.example.com/api/logicteck/booking/ICS-202600018" \
 - [ ] Generate and share `Logicteck__ApiKey` with LOGICTECK
 - [ ] Confirm CORS includes production frontend origin
 - [ ] Run database migrations (includes `LogicteckBookedAt`, `LogicteckExternalRef` on `QRBookings`)
-- [ ] Test lookup + validate from outside ICS (Postman or `/logicteck/api-test`)
+- [ ] Test lookup + validate from outside ICS (Postman or `/logicteck-test.html`)
 
 ### LOGICTECK team
 

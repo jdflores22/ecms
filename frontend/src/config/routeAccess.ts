@@ -18,9 +18,6 @@ export type AppPageKey =
   | 'truckerPayments'
   | 'truckerQr'
   | 'truckerQrPrint'
-  | 'logicteckEmptyReturn'
-  | 'logicteckApiTest'
-  | 'logicteckDirectBooking'
   | 'adminUsers'
   | 'adminRoles'
   | 'adminMasterData'
@@ -161,10 +158,10 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
   },
   truckerQr: {
     key: 'truckerQr',
-    label: 'Booking QR',
+    label: 'Pre-advice QR',
     path: '/trucker/qr',
     group: 'Trucker',
-    description: 'LOGICTECK booking QR codes after payment verification',
+    description: 'QR code for approved pre-advice after payment verification',
     showInNav: true,
   },
   truckerQrPrint: {
@@ -174,30 +171,6 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     group: 'Trucker',
     description: 'Printable QR pass for a confirmed return',
     showInNav: false,
-  },
-  logicteckEmptyReturn: {
-    key: 'logicteckEmptyReturn',
-    label: 'LOGICTECK return',
-    path: '/logicteck/empty-return',
-    group: 'Trucker',
-    description: 'Sample empty return form aligned to LOGICTECK integration',
-    showInNav: true,
-  },
-  logicteckApiTest: {
-    key: 'logicteckApiTest',
-    label: 'LOGICTECK API test',
-    path: '/logicteck/api-test',
-    group: 'Trucker',
-    description: 'Verify booking lookup and gate validation outside ICS screens',
-    showInNav: true,
-  },
-  logicteckDirectBooking: {
-    key: 'logicteckDirectBooking',
-    label: 'Send to LOGICTECK',
-    path: '/logicteck/book',
-    group: 'Trucker',
-    description: 'Transfer ICS pre-advice data to LOGICTECK (booking is on LOGICTECK side)',
-    showInNav: true,
   },
   adminUsers: {
     key: 'adminUsers',
@@ -254,8 +227,6 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'adminMasterData',
   'adminAudit',
   'adminRevenue',
-  'logicteckApiTest',
-  'logicteckDirectBooking',
 ]
 
 /** Default page pool per role — maximum pages that can be assigned. */
@@ -274,8 +245,6 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'depotDailyReturns',
     'depotSchedules',
     'depotReports',
-    'logicteckApiTest',
-    'logicteckDirectBooking',
   ],
   Trucker: [
     'dashboard',
@@ -286,17 +255,11 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'truckerPayments',
     'truckerQr',
     'truckerQrPrint',
-  'logicteckEmptyReturn',
-  'logicteckDirectBooking',
-  'logicteckApiTest',
-],
+  ],
   Administrator: ADMINISTRATOR_PAGES,
 }
 
 const PAGE_MATCH_ORDER: AppPageKey[] = [
-  'logicteckDirectBooking',
-  'logicteckApiTest',
-  'logicteckEmptyReturn',
   'truckerQrPrint',
   'truckerPayments',
   'truckerReturns',
@@ -471,9 +434,6 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'truckerReturns',
   'truckerPayments',
   'truckerQr',
-  'logicteckEmptyReturn',
-  'logicteckApiTest',
-  'logicteckDirectBooking',
 ]
 
 export function getNavPagesForRole(role: string, allowedPages?: string[] | null): AppPage[] {

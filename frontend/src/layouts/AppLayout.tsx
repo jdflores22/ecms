@@ -28,7 +28,6 @@ import WarehouseIcon from '@mui/icons-material/Warehouse'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
-import ApiOutlinedIcon from '@mui/icons-material/ApiOutlined'
 import HistoryIcon from '@mui/icons-material/History'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
@@ -41,7 +40,6 @@ import { authApi, roleApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout, updateUser } from '../store/slices/authSlice'
 import { ICS_BRAND } from '../config/brandCopy'
-import { LOGICTECK_QR } from '../config/logicteckQr'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import NotificationBell from '../components/NotificationBell'
@@ -128,9 +126,6 @@ export default function AppLayout() {
     truckerPayments: <PaymentsIcon fontSize="small" />,
     truckerQr: <QrCode2Icon fontSize="small" />,
     truckerQrPrint: <QrCode2Icon fontSize="small" />,
-    logicteckEmptyReturn: <LocalShippingIcon fontSize="small" />,
-    logicteckApiTest: <ApiOutlinedIcon fontSize="small" />,
-    logicteckDirectBooking: <LocalShippingIcon fontSize="small" />,
     adminUsers: <PeopleIcon fontSize="small" />,
     adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
     adminMasterData: <WarehouseIcon fontSize="small" />,
@@ -140,7 +135,7 @@ export default function AppLayout() {
 
   const menuItems = user?.role
     ? getNavPagesForRole(user.role, user.allowedPages).map((page) => ({
-        text: page.key === 'truckerQr' ? LOGICTECK_QR.menuLabel : page.label,
+        text: page.label,
         icon: navIcons[page.key],
         path: page.path,
       }))

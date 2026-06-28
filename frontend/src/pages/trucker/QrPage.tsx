@@ -69,7 +69,7 @@ import { qrApi, scheduleApi, type QrBooking, type Schedule } from '../../service
 import { store } from '../../store'
 
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
+import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 
 
 
@@ -184,6 +184,8 @@ export default function TruckerQrPage() {
   const [preview, setPreview] = useState<QrPreview | null>(null)
 
   const [notice, setNotice] = useState('')
+
+  const [bookLogicteckLoading, setBookLogicteckLoading] = useState(false)
 
 
 
@@ -375,10 +377,25 @@ export default function TruckerQrPage() {
 
 
 
-  const handleBookLogicteck = () => {
-    if (!preview) return
-    setPreview(null)
-    navigate(logicteckDirectBookPath(preview.qr.id))
+  const handleBookLogicteck = async () => {
+    if (!preview || !canBookLogicteck(preview.qr)) return
+    setBookLogicteckLoading(true)
+    setNotice('')
+    try {
+      const result = await bookLogicteckBooking(preview.qr.id)
+      if (result.success) {
+        const updated = applyBookLogicteckResult(preview.qr, result) ?? preview.qr
+        setQrMap((prev) => ({ ...prev, [updated.id]: updated }))
+        setPreview({ schedule: preview.schedule, qr: updated })
+        setNotice(result.message || LOGICTECK_QR.bookSuccess)
+      } else {
+        setNotice(result.message)
+      }
+    } catch {
+      setNotice('Could not send pre-advice data to LOGICTECK.')
+    } finally {
+      setBookLogicteckLoading(false)
+    }
   }
 
 
@@ -579,7 +596,7 @@ export default function TruckerQrPage() {
 
         <Alert severity="info" sx={{ borderRadius: 2 }}>
 
-          No confirmed returns yet. Complete payment and wait for depot verification to publish the booking QR for LOGICTECK integration.
+          No confirmed returns yet. Complete payment and wait for depot verification to publish the pre-advice QR.
 
         </Alert>
 
@@ -1115,13 +1132,13 @@ export default function TruckerQrPage() {
 
                 onClick={handleBookLogicteck}
 
-                disabled={!preview?.qr}
+                disabled={!preview?.qr || !canBookLogicteck(preview?.qr) || bookLogicteckLoading}
 
                 sx={{ fontWeight: 700, borderRadius: 2 }}
 
               >
 
-                {LOGICTECK_QR.bookLogicteck}
+                {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
 
               </Button>
 

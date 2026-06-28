@@ -63,7 +63,7 @@ import {
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
-import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
+import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const primaryDark = ICS_PRIMARY
@@ -214,6 +214,7 @@ export default function PreAdviceDetailPage() {
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
   const [qrLoading, setQrLoading] = useState(false)
   const [qrPreviewOpen, setQrPreviewOpen] = useState(false)
+  const [bookLogicteckLoading, setBookLogicteckLoading] = useState(false)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [activeTab, setActiveTab] = useState<PreAdviceDetailTab>('details')
 
@@ -427,9 +428,22 @@ export default function PreAdviceDetailPage() {
     URL.revokeObjectURL(url)
   }
 
-  const openLogicteckBookForm = () => {
-    if (!qrBooking) return
-    navigate(logicteckDirectBookPath(qrBooking.id))
+  const handleBookLogicteck = async () => {
+    if (!qrBooking || !canBookLogicteck(qrBooking)) return
+    setBookLogicteckLoading(true)
+    setActionError('')
+    try {
+      const result = await bookLogicteckBooking(qrBooking.id)
+      if (result.success) {
+        setQrBooking(applyBookLogicteckResult(qrBooking, result))
+      } else {
+        setActionError(result.message)
+      }
+    } catch (err) {
+      setActionError(apiErrorMessage(err, 'Could not send pre-advice data to LOGICTECK.'))
+    } finally {
+      setBookLogicteckLoading(false)
+    }
   }
 
   const logicteckHeroStatus = qrBooking
@@ -743,7 +757,8 @@ export default function PreAdviceDetailPage() {
               onCancelEdit={() => setEditing(false)}
               onDownloadQr={downloadQr}
               onQrPreview={openQrPreview}
-              onBookLogicteck={qrBooking ? openLogicteckBookForm : undefined}
+              onBookLogicteck={qrBooking && canBookLogicteck(qrBooking) ? handleBookLogicteck : undefined}
+              bookLogicteckLoading={bookLogicteckLoading}
             />
           </Paper>
         </>
@@ -757,7 +772,8 @@ export default function PreAdviceDetailPage() {
         qrImageUrl={qrImageUrl}
         payment={payment}
         onDownload={downloadQr}
-        onBookLogicteck={qrBooking ? openLogicteckBookForm : undefined}
+        onBookLogicteck={qrBooking && canBookLogicteck(qrBooking) ? handleBookLogicteck : undefined}
+        bookLogicteckLoading={bookLogicteckLoading}
       />
 
       <Dialog

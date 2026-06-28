@@ -23,9 +23,6 @@ import TruckerPaymentsPage from './pages/trucker/PaymentsPage'
 import TruckerPaymentUploadPage from './pages/trucker/PaymentUploadPage'
 import TruckerQrPage from './pages/trucker/QrPage'
 import QrPrintPage from './pages/trucker/QrPrintPage'
-import LogicteckEmptyReturnPage from './pages/logicteck/LogicteckEmptyReturnPage'
-import LogicteckApiTestPage from './pages/logicteck/LogicteckApiTestPage'
-import LogicteckDirectBookingPage from './pages/logicteck/LogicteckDirectBookingPage'
 import AdminUsersPage from './pages/admin/UsersPage'
 import RolesPage from './pages/admin/RolesPage'
 import MasterDataPage from './pages/admin/MasterDataPage'
@@ -223,30 +220,6 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <TruckerPaymentsPage />
-            </RoleRouteGuard>
-          }
-        />
-        <Route
-          path="logicteck/empty-return"
-          element={
-            <RoleRouteGuard>
-              <LogicteckEmptyReturnPage />
-            </RoleRouteGuard>
-          }
-        />
-        <Route
-          path="logicteck/api-test"
-          element={
-            <RoleRouteGuard>
-              <LogicteckApiTestPage />
-            </RoleRouteGuard>
-          }
-        />
-        <Route
-          path="logicteck/book"
-          element={
-            <RoleRouteGuard>
-              <LogicteckDirectBookingPage />
             </RoleRouteGuard>
           }
         />

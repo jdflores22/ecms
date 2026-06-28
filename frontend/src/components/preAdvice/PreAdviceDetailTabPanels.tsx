@@ -10,7 +10,6 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from './ContainerIdentityPhotos'
 import PreAdviceFullDossier from './PreAdviceFullDossier'
 import PreAdviceForm, { type PreAdviceFormSubmitValues } from './PreAdviceForm'
@@ -30,7 +29,7 @@ import type {
   Schedule,
 } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
+import { canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const primaryDark = ICS_PRIMARY
@@ -110,8 +109,8 @@ export default function PreAdviceDetailTabPanels({
   onCancelEdit,
   onDownloadQr,
   onQrPreview,
-  onBookLogicteck: _onBookLogicteck,
-  bookLogicteckLoading: _bookLogicteckLoading = false,
+  onBookLogicteck,
+  bookLogicteckLoading = false,
 }: PreAdviceDetailTabPanelsProps) {
   const isApproved = item.status === 'Approved'
 
@@ -284,8 +283,8 @@ export default function PreAdviceDetailTabPanels({
               {LOGICTECK_QR.integrationModel}
             </Alert>
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Booking QR is ready for LOGICTECK. Use the QR code or click{' '}
-              <strong>{LOGICTECK_QR.bookLogicteck}</strong> to transfer pre-advice data and create the return booking on LOGICTECK.
+              Pre-advice QR is ready. Scan or download the QR, or click{' '}
+              <strong>{LOGICTECK_QR.bookLogicteck}</strong> when you are ready to send data to LOGICTECK.
             </Alert>
             <Box
               sx={{
@@ -346,14 +345,14 @@ export default function PreAdviceDetailTabPanels({
                     {LOGICTECK_QR.viewQr}
                   </Button>
                 )}
-                {qrBooking && (
+                {onBookLogicteck && qrBooking && canBookLogicteck(qrBooking) && (
                   <Button
-                    component={RouterLink}
-                    to={logicteckDirectBookPath(qrBooking.id)}
                     variant="outlined"
+                    onClick={onBookLogicteck}
+                    disabled={bookLogicteckLoading}
                     sx={{ fontWeight: 700, borderRadius: 2 }}
                   >
-                    {LOGICTECK_QR.bookLogicteck}
+                    {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
                   </Button>
                 )}
                 <Button
@@ -365,13 +364,15 @@ export default function PreAdviceDetailTabPanels({
                   Download QR
                 </Button>
                 <Button
-                  component={RouterLink}
-                  to={`/logicteck/api-test?qr=${encodeURIComponent(qrBooking.qrCode)}`}
+                  component="a"
+                  href={`/logicteck-test.html?qr=${encodeURIComponent(qrBooking.qrCode)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   variant="outlined"
                   startIcon={<OpenInNewIcon />}
                   sx={{ fontWeight: 600, borderRadius: 2 }}
                 >
-                  Test API outside ICS
+                  Open LOGICTECK test page
                 </Button>
               </Box>
             </Box>

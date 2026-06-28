@@ -653,42 +653,6 @@ export const logicteckApi = {
     }),
 }
 
-export interface LogicteckEmptyReturnPayloadPreview {
-  submitMode: string
-  driverName: string
-  licenseNumber: string
-  plateNumber: string
-  shippingLine: string
-  blNumber?: string | null
-  containerSize: string
-  containerType: string
-  containerNumber: string
-  returnDate: string
-  returnTime: string
-  damageDescription?: string | null
-  icsBookingReference?: string | null
-  damageViews: { view: string; isDamaged: boolean }[]
-  preAdviseAttachmentName?: string | null
-  driversLicensePhotoName?: string | null
-  damagePhotos: { view: string; isDamaged: boolean; fileName: string; sizeBytes: number }[]
-}
-
-export interface LogicteckEmptyReturnSubmitResponse {
-  success: boolean
-  message: string
-  externalReference?: string | null
-  transmitted: boolean
-  targetUrl?: string | null
-  payloadPreview?: LogicteckEmptyReturnPayloadPreview | null
-}
-
-export const logicteckEmptyReturnApi = {
-  submit: (formData: FormData) =>
-    api.post<LogicteckEmptyReturnSubmitResponse>('/logicteck/empty-return/submit', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
-}
-
 export interface AuditLog {
   id: number
   userId: number

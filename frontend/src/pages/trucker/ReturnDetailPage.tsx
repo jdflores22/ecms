@@ -110,7 +110,7 @@ import { useAppSelector } from '../../store/hooks'
 
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
+import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 
 import {
 
@@ -293,6 +293,8 @@ export default function TruckerReturnDetailPage() {
   const [proofPreviewOpen, setProofPreviewOpen] = useState(false)
 
   const [qrPreviewOpen, setQrPreviewOpen] = useState(false)
+
+  const [bookLogicteckLoading, setBookLogicteckLoading] = useState(false)
 
   const [activeTab, setActiveTab] = useState<ReturnDetailTab>('details')
 
@@ -514,10 +516,21 @@ export default function TruckerReturnDetailPage() {
 
 
 
-  const handleBookLogicteck = () => {
-    if (!qrBooking) return
-    setQrPreviewOpen(false)
-    navigate(logicteckDirectBookPath(qrBooking.id))
+  const handleBookLogicteck = async () => {
+    if (!qrBooking || !canBookLogicteck(qrBooking)) return
+    setBookLogicteckLoading(true)
+    try {
+      const result = await bookLogicteckBooking(qrBooking.id)
+      if (result.success) {
+        setQrBooking(applyBookLogicteckResult(qrBooking, result))
+      } else {
+        setError(result.message)
+      }
+    } catch {
+      setError('Could not send pre-advice data to LOGICTECK.')
+    } finally {
+      setBookLogicteckLoading(false)
+    }
   }
 
 
@@ -1084,13 +1097,13 @@ export default function TruckerReturnDetailPage() {
 
                 onClick={handleBookLogicteck}
 
-                disabled={!qrBooking}
+                disabled={!qrBooking || !canBookLogicteck(qrBooking) || bookLogicteckLoading}
 
                 sx={{ fontWeight: 700, borderRadius: 2 }}
 
               >
 
-                {LOGICTECK_QR.bookLogicteck}
+                {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
 
               </Button>
 

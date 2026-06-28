@@ -1,44 +1,44 @@
 /**
- * ICS publishes a transfer QR with approved pre-advice data for LOGICTECK.
+ * ICS publishes a QR with approved pre-advice data for LOGICTECK integration.
  * The empty return booking is created and held in LOGICTECK — ICS does not book returns.
  */
 export const LOGICTECK_QR = {
   integrationModel:
-    'ICS only transfers approved pre-advice data to LOGICTECK. The empty return booking lives in LOGICTECK — not in ICS.',
-  menuLabel: 'LOGICTECK transfer',
-  pageTitle: 'Pre-advice transfer QR',
-  sectionTitle: 'Pre-advice transfer QR',
-  tabLabel: 'LOGICTECK transfer',
-  printTitle: 'PRE-ADVICE TRANSFER QR',
-  printSubtitle: 'Approved container details · data transfer to LOGICTECK',
+    'ICS supplies approved pre-advice data to LOGICTECK. The empty return booking lives in LOGICTECK — not in ICS.',
+  menuLabel: 'Pre-advice QR',
+  pageTitle: 'Pre-advice QR',
+  sectionTitle: 'Pre-advice QR',
+  tabLabel: 'Pre-advice QR',
+  printTitle: 'PRE-ADVICE QR',
+  printSubtitle: 'Approved container details from ICS',
   heroDescription:
-    'After depot verifies payment, ICS publishes a QR reference with approved pre-advice details for LOGICTECK. Send the data to LOGICTECK to create the return booking on their system.',
+    'After depot verifies payment, ICS publishes a QR with approved pre-advice details. Send to LOGICTECK when ready to create the return booking on their system.',
   scheduleSectionHint:
-    'This QR carries approved pre-advice container details from ICS to LOGICTECK. ICS does not hold the return booking — LOGICTECK does after you transfer the data.',
+    'This QR encodes approved pre-advice container details. The return booking is created on the LOGICTECK side after you send the data.',
   integrationNote:
-    'ICS supplies pre-advice data only. Use Send to LOGICTECK to transfer details and create the booking on the LOGICTECK side.',
+    'ICS supplies pre-advice data only. Use Send to LOGICTECK to create the booking on the LOGICTECK side.',
   readyAlert:
-    'Return confirmed. Transfer QR published — send pre-advice data to LOGICTECK to create the return booking there.',
-  viewQr: 'View transfer QR',
+    'Return confirmed. Pre-advice QR is published — send to LOGICTECK to create the return booking there.',
+  viewQr: 'View QR',
   bookLogicteck: 'Send to LOGICTECK',
   bookSuccess: 'Pre-advice data sent to LOGICTECK. Return booking is on the LOGICTECK side.',
   bookAlreadySubmitted: 'Already sent to LOGICTECK.',
   bookRetrieved: 'QR already retrieved by LOGICTECK at gate.',
   printFooter:
-    'For LOGICTECK integration only — transfers approved pre-advice data from ICS. Not for gate-in at ICS.',
+    'Pre-advice QR from ICS — for LOGICTECK integration. Not for gate-in at ICS.',
   approveConfirmHint:
-    'Confirming will mark the return as paid, confirm the schedule, and publish the transfer QR so LOGICTECK can receive pre-advice details.',
+    'Confirming will mark the return as paid, confirm the schedule, and publish the pre-advice QR.',
   approveSuccess:
-    'Payment approved. Return confirmed and transfer QR published for LOGICTECK.',
+    'Payment approved. Return confirmed and pre-advice QR published.',
   validationStatusLabel: 'LOGICTECK status',
   statusActive: 'Ready to send',
   statusBooked: 'Booked on LOGICTECK',
   statusUsed: 'Retrieved',
   bookingIdLabel: 'ICS QR reference',
   emptyState:
-    'Transfer QR not yet published. After depot confirmation, ICS will supply approved pre-advice data to LOGICTECK.',
+    'Pre-advice QR not yet published. It will be available after depot confirms payment.',
   integrationComingSoon:
-    'Transfer QR is ready — send pre-advice data to LOGICTECK to create the return booking there.',
+    'Pre-advice QR is ready — send to LOGICTECK to create the return booking there.',
 } as const
 
 export type LogicteckQrStatus =

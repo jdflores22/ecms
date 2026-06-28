@@ -57,6 +57,7 @@ export default function BookingQrPreviewDialog({
   onDownload,
   onPrint,
   onBookLogicteck,
+  bookLogicteckLoading = false,
   showPrint = false,
 }: BookingQrPreviewDialogProps) {
   return (
@@ -205,9 +206,10 @@ export default function BookingQrPreviewDialog({
           <Button
             variant="outlined"
             onClick={onBookLogicteck}
+            disabled={bookLogicteckLoading}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
-            {LOGICTECK_QR.bookLogicteck}
+            {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
           </Button>
         )}
         {qrBooking && showPrint && onPrint && (
