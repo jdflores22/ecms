@@ -39,14 +39,17 @@ export function LogicteckReadOnlyField({
       value={value}
       fullWidth
       disabled
-      InputProps={{
-        readOnly: true,
-        endAdornment: <LockOutlinedIcon sx={{ fontSize: 18, color: 'text.disabled', mr: 0.5 }} />,
+      slotProps={{
+        input: {
+          readOnly: true,
+          endAdornment: <LockOutlinedIcon sx={{ fontSize: 18, color: 'text.disabled', mr: 0.5 }} />,
+        },
       }}
-      sx={{
-        ...logicteckFieldSx,
-        '& .MuiInputBase-input': mono ? { fontFamily: 'monospace', fontWeight: 700 } : undefined,
-      }}
+      sx={
+        mono
+          ? { ...logicteckFieldSx, '& .MuiInputBase-input': { fontFamily: 'monospace', fontWeight: 700 } }
+          : logicteckFieldSx
+      }
     />
   )
 }

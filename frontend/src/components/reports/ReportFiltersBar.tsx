@@ -18,13 +18,13 @@ import FilterListIcon from '@mui/icons-material/FilterList'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
-import type { ReactNode } from 'react'
+import type { ReactElement } from 'react'
 import type { ReportTabId } from '../../config/reportConfig'
 import type { Depot } from '../../services/api'
 import { shiftIsoDate, todayIsoDate } from '../../utils/datetime'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 
-const TAB_ICONS: Record<ReportTabId, ReactNode> = {
+const TAB_ICONS: Record<ReportTabId, ReactElement> = {
   daily: <CalendarTodayOutlinedIcon fontSize="small" />,
   monthly: <CalendarMonthOutlinedIcon fontSize="small" />,
   shippingLines: <LocalShippingOutlinedIcon fontSize="small" />,

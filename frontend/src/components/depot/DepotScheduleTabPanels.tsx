@@ -23,7 +23,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
-import { qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Payment,
   PreAdvice,

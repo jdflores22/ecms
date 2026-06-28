@@ -69,7 +69,6 @@ export default function ReportStatusTable({
   rows,
 }: ReportStatusTableProps) {
   const totals = aggregateReportStatus(rows)
-  const colSpan = showCodeColumn ? 6 : 5
 
   return (
     <Paper elevation={0} sx={listTablePaperSx}>

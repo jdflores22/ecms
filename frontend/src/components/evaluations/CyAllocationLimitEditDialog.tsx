@@ -39,7 +39,6 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 function buildSizeCounts(
   allocation: CyAllocation,
-  containerSizes: ContainerSizeMaster[],
   overrides: Partial<Record<'20' | '40', number>>,
 ): Record<'20' | '40', number> {
   const counts: Record<'20' | '40', number> = {
@@ -52,7 +51,6 @@ function buildSizeCounts(
 }
 
 function buildSizesPayload(
-  allocation: CyAllocation,
   containerSizes: ContainerSizeMaster[],
   counts: Record<'20' | '40', number>,
 ) {
@@ -108,7 +106,7 @@ export default function CyAllocationLimitEditDialog({
     if (!allocation || !mode) return
     setError('')
 
-    const counts = buildSizeCounts(allocation, containerSizes, {
+    const counts = buildSizeCounts(allocation, {
       '20': mode === '20' || mode === 'teu' ? Number(size20 || 0) : undefined,
       '40': mode === '40' || mode === 'teu' ? Number(size40 || 0) : undefined,
     })
@@ -122,7 +120,7 @@ export default function CyAllocationLimitEditDialog({
       return
     }
 
-    const sizes = buildSizesPayload(allocation, containerSizes, counts)
+    const sizes = buildSizesPayload(containerSizes, counts)
     if (sizes.length === 0) {
       setError('Enter at least one size limit of 1 or more.')
       return

@@ -110,8 +110,8 @@ export default function PreAdviceDetailTabPanels({
   onCancelEdit,
   onDownloadQr,
   onQrPreview,
-  onBookLogicteck,
-  bookLogicteckLoading = false,
+  onBookLogicteck: _onBookLogicteck,
+  bookLogicteckLoading: _bookLogicteckLoading = false,
 }: PreAdviceDetailTabPanelsProps) {
   const isApproved = item.status === 'Approved'
 

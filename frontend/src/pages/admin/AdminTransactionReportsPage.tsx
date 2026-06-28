@@ -599,7 +599,8 @@ export default function AdminTransactionReportsPage() {
                   </TableContainer>
                 </ListDesktopOnly>
 
-                <ListMobileOnly sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <ListMobileOnly>
+                  <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {txReport.rows.map((row) => (
                     <ListMobileCard key={row.paymentId}>
                       <ListMobileTitle>{row.referenceNo}</ListMobileTitle>
@@ -622,6 +623,7 @@ export default function AdminTransactionReportsPage() {
                       </ListMobileChipRow>
                     </ListMobileCard>
                   ))}
+                  </Box>
                 </ListMobileOnly>
 
                 <TablePagination

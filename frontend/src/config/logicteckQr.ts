@@ -37,6 +37,8 @@ export const LOGICTECK_QR = {
   bookingIdLabel: 'ICS QR reference',
   emptyState:
     'Transfer QR not yet published. After depot confirmation, ICS will supply approved pre-advice data to LOGICTECK.',
+  integrationComingSoon:
+    'Transfer QR is ready — send pre-advice data to LOGICTECK to create the return booking there.',
 } as const
 
 export type LogicteckQrStatus =

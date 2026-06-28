@@ -364,7 +364,7 @@ export default function LogicteckEmptyReturnPage() {
             required
             value={returnDate}
             onChange={(e) => setReturnDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{ inputLabel: { shrink: true } }}
             sx={fieldSx}
           />
           <TextField
@@ -373,7 +373,7 @@ export default function LogicteckEmptyReturnPage() {
             required
             value={returnTime}
             onChange={(e) => setReturnTime(e.target.value)}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{ inputLabel: { shrink: true } }}
             sx={fieldSx}
           />
         </Box>
