@@ -142,6 +142,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<Payment>(e =>
         {
+            e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
             e.HasOne(x => x.Schedule).WithOne(x => x.Payment).HasForeignKey<Payment>(x => x.ScheduleId);
             e.HasOne(x => x.Trucker).WithMany(x => x.Payments).HasForeignKey(x => x.TruckerId);
         });

@@ -18,8 +18,10 @@ import {
   TableHead,
   TableRow,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material'
+import AutoFixHighOutlinedIcon from '@mui/icons-material/AutoFixHighOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -46,6 +48,13 @@ import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, type Payment } from '../../services/api'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
+import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
+import {
+  formatProofReferenceNo,
+  fromDatetimeLocalValue,
+  normalizeProofReferenceNo,
+  toDatetimeLocalValue,
+} from '../../utils/paymentProofTextParser'
 
 const primaryDark = LIST_PRIMARY
 
@@ -135,6 +144,12 @@ function PaymentSummaryPaper({ payment, variant }: { payment: Payment; variant: 
       {payment.paidAt && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
           Uploaded {formatDateTime(payment.paidAt)}
+        </Typography>
+      )}
+      {(payment.proofReferenceNo || payment.proofTransactionAt) && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+          Ref {formatProofReferenceNo(payment.proofReferenceNo)}
+          {payment.proofTransactionAt ? ` · ${formatDateTime(payment.proofTransactionAt)}` : ''}
         </Typography>
       )}
     </Paper>
@@ -230,6 +245,8 @@ function PaymentTable({
           >
             <TableCell>Schedule</TableCell>
             <TableCell>Trucker</TableCell>
+            <TableCell>Ref. no.</TableCell>
+            <TableCell>Transaction</TableCell>
             <TableCell>Amount</TableCell>
             <TableCell>Uploaded</TableCell>
             <TableCell>Status</TableCell>
@@ -250,6 +267,12 @@ function PaymentTable({
                 </Button>
               </TableCell>
               <TableCell>{p.truckerName}</TableCell>
+              <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                {formatProofReferenceNo(p.proofReferenceNo)}
+              </TableCell>
+              <TableCell>
+                {p.proofTransactionAt ? formatDateTime(p.proofTransactionAt) : '—'}
+              </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>{formatPeso(p.amount)}</TableCell>
               <TableCell>{p.paidAt ? formatDateTime(p.paidAt) : '—'}</TableCell>
               <TableCell>
@@ -291,6 +314,9 @@ export default function AdminPaymentsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [actionError, setActionError] = useState('')
+  const [detectingProofId, setDetectingProofId] = useState<number | null>(null)
+  const [verifyReferenceNo, setVerifyReferenceNo] = useState('')
+  const [verifyTransactionLocal, setVerifyTransactionLocal] = useState('')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -338,6 +364,8 @@ export default function AdminPaymentsPage() {
     setSaveSuccess(false)
     setSelectedPayment(payment)
     setVerifyAction(action)
+    setVerifyReferenceNo(payment.proofReferenceNo ?? '')
+    setVerifyTransactionLocal(toDatetimeLocalValue(payment.proofTransactionAt))
   }
 
   const closeVerify = () => {
@@ -345,6 +373,42 @@ export default function AdminPaymentsPage() {
     setVerifyAction(null)
     setSelectedPayment(null)
     setActionError('')
+    setVerifyReferenceNo('')
+    setVerifyTransactionLocal('')
+  }
+
+  const mergePaymentInLists = (updated: Payment) => {
+    setPending((items) => items.map((p) => (p.id === updated.id ? updated : p)))
+    setReviewed((items) => items.map((p) => (p.id === updated.id ? updated : p)))
+    setProofPreview((current) => (current?.id === updated.id ? updated : current))
+    setSelectedPayment((current) => (current?.id === updated.id ? updated : current))
+  }
+
+  const detectProofMetadata = async (payment: Payment) => {
+    if (!payment.proofFile || !isImageProof(payment.proofFile)) return
+    setDetectingProofId(payment.id)
+    setError('')
+    try {
+      const extracted = await extractPaymentProofMetadata(resolveAssetUrl(payment.proofFile))
+      const { data } = await paymentApi.updateProofMetadata(payment.id, {
+        proofReferenceNo: extracted.referenceNo,
+        proofTransactionAt: extracted.transactionAt,
+      })
+      mergePaymentInLists(data)
+      setVerifyReferenceNo(data.proofReferenceNo ?? '')
+      setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
+    } catch {
+      try {
+        const { data } = await paymentApi.extractProofMetadata(payment.id)
+        mergePaymentInLists(data)
+        setVerifyReferenceNo(data.proofReferenceNo ?? '')
+        setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
+      } catch {
+        setError('Could not read reference number or transaction time from this proof.')
+      }
+    } finally {
+      setDetectingProofId(null)
+    }
   }
 
   const handleVerify = async () => {
@@ -353,7 +417,11 @@ export default function AdminPaymentsPage() {
     setSubmitting(true)
     setActionError('')
     try {
-      await paymentApi.verify(selectedPayment.id, approved)
+      const metadata = {
+        proofReferenceNo: normalizeProofReferenceNo(verifyReferenceNo),
+        proofTransactionAt: fromDatetimeLocalValue(verifyTransactionLocal),
+      }
+      await paymentApi.verify(selectedPayment.id, approved, metadata)
       setSaveSuccess(true)
       setMessage(
         approved
@@ -488,6 +556,10 @@ export default function AdminPaymentsPage() {
                   </ListMobileChipRow>
                   <ListMobileMeta>{p.truckerName}</ListMobileMeta>
                   <ListMobileMeta>
+                    Ref {formatProofReferenceNo(p.proofReferenceNo)}
+                    {p.proofTransactionAt ? ` · ${formatDateTime(p.proofTransactionAt)}` : ''}
+                  </ListMobileMeta>
+                  <ListMobileMeta>
                     {formatPeso(p.amount)}
                     {p.paidAt ? ` · ${formatDateTime(p.paidAt)}` : ''}
                   </ListMobileMeta>
@@ -521,6 +593,14 @@ export default function AdminPaymentsPage() {
           {proofPreview && (
             <>
               <PaymentSummaryPaper payment={proofPreview} variant="neutral" />
+              {(proofPreview.proofReferenceNo || proofPreview.proofTransactionAt) && (
+                <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                  Detected ref {formatProofReferenceNo(proofPreview.proofReferenceNo)}
+                  {proofPreview.proofTransactionAt
+                    ? ` · ${formatDateTime(proofPreview.proofTransactionAt)}`
+                    : ''}
+                </Alert>
+              )}
               {proofPreview.proofFile ? (
                 <>
                   {isImageProof(proofPreview.proofFile) ? (
@@ -586,6 +666,23 @@ export default function AdminPaymentsPage() {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setProofPreview(null)}>Close</Button>
+          {proofPreview?.proofFile && isImageProof(proofPreview.proofFile) && (
+            <Button
+              variant="outlined"
+              startIcon={
+                detectingProofId === proofPreview.id ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <AutoFixHighOutlinedIcon />
+                )
+              }
+              disabled={detectingProofId === proofPreview.id}
+              onClick={() => void detectProofMetadata(proofPreview)}
+              sx={{ fontWeight: 600, borderRadius: 2 }}
+            >
+              Detect from proof
+            </Button>
+          )}
           {proofPreview?.proofFile && (
             <Button
               variant="contained"
@@ -667,6 +764,45 @@ export default function AdminPaymentsPage() {
                       <Typography color="text.secondary">Uploaded</Typography>
                       <Typography sx={{ fontWeight: 600 }}>{formatDateTime(selectedPayment.paidAt)}</Typography>
                     </>
+                  )}
+                </Box>
+
+                <Box sx={{ display: 'grid', gap: 1.5, mt: 2 }}>
+                  <TextField
+                    label="Proof reference no."
+                    value={verifyReferenceNo}
+                    onChange={(e) => setVerifyReferenceNo(e.target.value)}
+                    placeholder="e.g. 5014349566710"
+                    size="small"
+                    fullWidth
+                    slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
+                  />
+                  <TextField
+                    label="Proof transaction (PHT)"
+                    type="datetime-local"
+                    value={verifyTransactionLocal}
+                    onChange={(e) => setVerifyTransactionLocal(e.target.value)}
+                    size="small"
+                    fullWidth
+                    slotProps={{ inputLabel: { shrink: true } }}
+                  />
+                  {selectedPayment.proofFile && isImageProof(selectedPayment.proofFile) && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={
+                        detectingProofId === selectedPayment.id ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <AutoFixHighOutlinedIcon />
+                        )
+                      }
+                      disabled={detectingProofId === selectedPayment.id}
+                      onClick={() => void detectProofMetadata(selectedPayment)}
+                      sx={{ justifySelf: 'flex-start', fontWeight: 600, borderRadius: 2 }}
+                    >
+                      Detect from proof
+                    </Button>
                   )}
                 </Box>
 

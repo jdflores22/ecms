@@ -3,6 +3,7 @@ using ECMS.API.Filters;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECMS.API.Controllers;
@@ -69,6 +70,7 @@ public class QrController : ControllerBase
 
 [ApiController]
 [Route("api/logicteck")]
+[EnableCors("LogicteckPublic")]
 [ServiceFilter(typeof(LogicteckApiKeyFilter))]
 public class LogicteckController : ControllerBase
 {

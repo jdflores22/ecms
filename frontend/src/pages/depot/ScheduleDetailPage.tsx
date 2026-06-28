@@ -38,14 +38,11 @@ import {
 import { store } from '../../store'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import {
-  formatScheduleDate,
-  formatScheduleSlot,
-  formatScheduleTime,
-  isBeforeToday,
-  isValidTime24,
-  normalizeTime24Input,
-  SYSTEM_TIMEZONE,
   clampMinScheduleDate,
+  DEPOT_RETURN_DATE_ONLY_TIME,
+  formatScheduleDate,
+  isBeforeToday,
+  SYSTEM_TIMEZONE,
   todayIsoDate,
 } from '../../utils/datetime'
 import { useAppSelector } from '../../store/hooks'
@@ -121,7 +118,6 @@ export default function ScheduleDetailPage() {
   const [error, setError] = useState('')
 
   const [date, setDate] = useState('')
-  const [time, setTime] = useState('08:00')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -153,7 +149,6 @@ export default function ScheduleDetailPage() {
         const item = scheduleRes.data
         setSchedule(item)
         setDate(clampMinScheduleDate(item.date, minScheduleDate))
-        setTime(formatScheduleTime(item.time))
 
         const [paymentResult, preAdviceRes] = await Promise.all([
           paymentApi.getBySchedule(scheduleId).catch(() => null),
@@ -229,17 +224,12 @@ export default function ScheduleDetailPage() {
       setActionError('Return date cannot be in the past.')
       return
     }
-    const normalizedTime = normalizeTime24Input(time)
-    if (!isValidTime24(normalizedTime)) {
-      setActionError('Enter a valid time in 24-hour format (HH:mm).')
-      return
-    }
     setSubmitting(true)
     setActionError('')
     try {
       await scheduleApi.update(schedule.id, {
         date,
-        time: `${normalizedTime}:00`,
+        time: DEPOT_RETURN_DATE_ONLY_TIME,
         slotNo: 0,
         status: 'Scheduled',
       })
@@ -266,17 +256,12 @@ export default function ScheduleDetailPage() {
       setActionError('Return date cannot be in the past.')
       return
     }
-    if (!isValidTime24(normalizeTime24Input(time))) {
-      setActionError('Enter a valid time in 24-hour format (HH:mm).')
-      return
-    }
     setConfirmOpen(true)
   }
 
   const cancelEdit = () => {
     if (!schedule) return
     setDate(clampMinScheduleDate(schedule.date, minScheduleDate))
-    setTime(formatScheduleTime(schedule.time))
     setActionError('')
     setEditing(false)
   }
@@ -447,10 +432,10 @@ export default function ScheduleDetailPage() {
               {schedule.status !== 'WaitingSchedule' && schedule.date && (
                 <Box sx={{ flexShrink: 0, textAlign: { xs: 'left', md: 'right' } }}>
                   <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
-                    Return date & time
+                    Return date
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                    {formatScheduleSlot(schedule.date, schedule.time)}
+                    {formatScheduleDate(schedule.date)}
                   </Typography>
                 </Box>
               )}
@@ -472,8 +457,7 @@ export default function ScheduleDetailPage() {
                 </Button>
               }
             >
-              This return is waiting for depot assignment. Set the return date and time in the Schedule
-              assignment tab.
+              This return is waiting for depot assignment. Set the return date in the Schedule assignment tab.
             </Alert>
           )}
 
@@ -532,7 +516,6 @@ export default function ScheduleDetailPage() {
               showScheduledSummary={Boolean(showScheduledSummary)}
               editing={editing}
               date={date}
-              time={time}
               minScheduleDate={minScheduleDate}
               actionError={actionError}
               submitting={submitting}
@@ -541,7 +524,6 @@ export default function ScheduleDetailPage() {
               onDownloadQr={downloadQr}
               onEditSchedule={() => setEditing(true)}
               onDateChange={setDate}
-              onTimeChange={setTime}
               onCancelEdit={cancelEdit}
               onOpenConfirm={openConfirm}
             />
@@ -617,12 +599,8 @@ export default function ScheduleDetailPage() {
                   typography: 'body2',
                 }}
               >
-                <Typography color="text.secondary">Date</Typography>
+                <Typography color="text.secondary">Return date</Typography>
                 <Typography sx={{ fontWeight: 600 }}>{formatScheduleDate(date)}</Typography>
-                <Typography color="text.secondary">Time</Typography>
-                <Typography sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
-                  {formatScheduleTime(`${normalizeTime24Input(time)}:00`)} {SYSTEM_TIMEZONE.label}
-                </Typography>
                 <Typography color="text.secondary">Requesting trucker</Typography>
                 <Typography sx={{ fontWeight: 600 }}>{requestingTrucker ?? '—'}</Typography>
               </Box>

@@ -9,16 +9,10 @@ import {
   Button,
   Chip,
   CircularProgress,
-  FormControl,
-  FormHelperText,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   TextField,
   Typography,
 } from '@mui/material'
-import { useMemo } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { resolveAssetUrl } from '../../utils/assetUrl'
@@ -35,12 +29,7 @@ import {
   formatDateTime,
   formatPeso,
   formatScheduleDate,
-  formatScheduleSlot,
-  formatScheduleTime,
-  getDepotScheduleTimeOptions,
   isBeforeToday,
-  isValidTime24,
-  SYSTEM_TIMEZONE,
 } from '../../utils/datetime'
 
 const primaryDark = ICS_PRIMARY
@@ -126,7 +115,6 @@ type DepotScheduleTabPanelsProps = {
   showScheduledSummary: boolean
   editing: boolean
   date: string
-  time: string
   minScheduleDate: string
   actionError: string
   submitting: boolean
@@ -135,7 +123,6 @@ type DepotScheduleTabPanelsProps = {
   onDownloadQr: () => void
   onEditSchedule: () => void
   onDateChange: (value: string) => void
-  onTimeChange: (value: string) => void
   onCancelEdit: () => void
   onOpenConfirm: () => void
 }
@@ -157,7 +144,6 @@ export default function DepotScheduleTabPanels({
   showScheduledSummary,
   editing,
   date,
-  time,
   minScheduleDate,
   actionError,
   submitting,
@@ -166,15 +152,10 @@ export default function DepotScheduleTabPanels({
   onDownloadQr,
   onEditSchedule,
   onDateChange,
-  onTimeChange,
   onCancelEdit,
   onOpenConfirm,
 }: DepotScheduleTabPanelsProps) {
   const truckerName = requestingTruckerName(schedule, preAdvice)
-  const timeOptions = useMemo(
-    () => getDepotScheduleTimeOptions(schedule.time || time),
-    [schedule.time, time],
-  )
 
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
@@ -189,7 +170,7 @@ export default function DepotScheduleTabPanels({
           />
           <InfoTile label="Depot (CY)" value={schedule.depotName} />
           {schedule.date && (
-            <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
+            <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
           )}
           <InfoTile label="Submitted" value={formatDateTime(preAdvice.createdAt)} />
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
@@ -230,10 +211,7 @@ export default function DepotScheduleTabPanels({
 
             {showScheduledSummary && (
               <Box sx={infoGridSx}>
-                <InfoTile
-                  label="Return date & time"
-                  value={`${formatScheduleDate(schedule.date)} · ${formatScheduleTime(schedule.time)} ${SYSTEM_TIMEZONE.label}`}
-                />
+                <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
                 <InfoTile label="Requesting trucker" value={truckerName} />
                 <InfoTile label="Status" value={schedule.status} />
               </Box>
@@ -248,14 +226,14 @@ export default function DepotScheduleTabPanels({
                 )}
 
                 <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
-                  The trucker is fixed from the pre-advice request ({truckerName}). Assign return date and
-                  time from the available slots below.
+                  The trucker is fixed from the pre-advice request ({truckerName}). Assign the return date
+                  for this container yard.
                 </Alert>
 
                 <Box sx={{ ...infoGridSx, mt: 2 }}>
                   <TextField
                     fullWidth
-                    label="Date"
+                    label="Return date"
                     type="date"
                     value={date}
                     onChange={(e) => {
@@ -270,36 +248,6 @@ export default function DepotScheduleTabPanels({
                       htmlInput: { min: minScheduleDate },
                     }}
                   />
-                  <FormControl fullWidth sx={fieldSx}>
-                    <InputLabel shrink>Time (24-hour)</InputLabel>
-                    <Select
-                      label="Time (24-hour)"
-                      value={timeOptions.includes(time) ? time : ''}
-                      onChange={(e) => onTimeChange(String(e.target.value))}
-                      displayEmpty
-                      sx={{ fontFamily: 'monospace' }}
-                      MenuProps={{
-                        slotProps: {
-                          paper: {
-                            sx: { maxHeight: 240 },
-                          },
-                          list: {
-                            sx: { maxHeight: 240, overflow: 'auto', py: 0 },
-                          },
-                        },
-                      }}
-                    >
-                      <MenuItem value="" disabled>
-                        <em>Select time</em>
-                      </MenuItem>
-                      {timeOptions.map((slot) => (
-                        <MenuItem key={slot} value={slot}>
-                          {formatScheduleTime(`${slot}:00`)}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    <FormHelperText>HH:mm — full day from 00:00 to 23:30</FormHelperText>
-                  </FormControl>
                   <InfoTile label="Requesting trucker" value={truckerName} />
                 </Box>
 
@@ -321,7 +269,7 @@ export default function DepotScheduleTabPanels({
                   <Button
                     variant="contained"
                     onClick={onOpenConfirm}
-                    disabled={submitting || !isValidTime24(time)}
+                    disabled={submitting || !date}
                     sx={{ fontWeight: 700, borderRadius: 2 }}
                   >
                     {schedule.status === 'WaitingSchedule' ? 'Save & notify trucker' : 'Save changes'}
@@ -431,8 +379,8 @@ export default function DepotScheduleTabPanels({
             <Box sx={infoGridSx}>
               <InfoTile label="Booking ID" value={qrBooking.qrCode} mono />
               <InfoTile
-                label="Return date & time"
-                value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
+                label="Return date"
+                value={formatScheduleDate(qrBooking.payload.scheduleDate)}
               />
               <InfoTile
                 label="LOGICTECK status"

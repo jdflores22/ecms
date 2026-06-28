@@ -5,7 +5,6 @@ import {
   Chip,
   CircularProgress,
   FormControl,
-  Grid,
   InputLabel,
   LinearProgress,
   MenuItem,
@@ -37,7 +36,6 @@ import {
 import { useAppSelector } from '../../store/hooks'
 import {
   formatDisplayDate,
-  formatScheduleTime,
   shiftIsoDate,
   todayIsoDate,
 } from '../../utils/datetime'
@@ -104,9 +102,9 @@ export default function DailyReturnsPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
   const [depotId, setDepotId] = useState<number | ''>('')
-  const [slotInfo, setSlotInfo] = useState<SlotAvailability | null>(null)
+  const [capacityInfo, setCapacityInfo] = useState<SlotAvailability | null>(null)
   const [loading, setLoading] = useState(true)
-  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [capacityLoading, setCapacityLoading] = useState(false)
   const [error, setError] = useState('')
 
   const allowed = user?.role === 'DepotPersonnel' || user?.role === 'Administrator'
@@ -146,21 +144,21 @@ export default function DailyReturnsPage() {
 
   useEffect(() => {
     if (!effectiveDepotId) {
-      setSlotInfo(null)
+      setCapacityInfo(null)
       return
     }
-    setSlotsLoading(true)
+    setCapacityLoading(true)
     scheduleApi
       .slots(effectiveDepotId, selectedDate)
-      .then(({ data }) => setSlotInfo(data))
-      .catch(() => setSlotInfo(null))
-      .finally(() => setSlotsLoading(false))
+      .then(({ data }) => setCapacityInfo(data))
+      .catch(() => setCapacityInfo(null))
+      .finally(() => setCapacityLoading(false))
   }, [effectiveDepotId, selectedDate])
 
   const dayReturns = useMemo(() => {
     return schedules
       .filter((s) => s.date === selectedDate && (effectiveDepotId === null || s.depotId === effectiveDepotId))
-      .sort((a, b) => a.slotNo - b.slotNo || formatScheduleTime(a.time).localeCompare(formatScheduleTime(b.time)))
+      .sort((a, b) => a.referenceNo.localeCompare(b.referenceNo))
   }, [schedules, selectedDate, effectiveDepotId])
 
   const stats = useMemo(() => {
@@ -178,8 +176,8 @@ export default function DailyReturnsPage() {
     return <Navigate to="/" replace />
   }
 
-  const capacityPct = slotInfo
-    ? Math.min(100, Math.round((slotInfo.bookedCount / slotInfo.dailyLimit) * 100))
+  const capacityPct = capacityInfo
+    ? Math.min(100, Math.round((capacityInfo.bookedCount / capacityInfo.dailyLimit) * 100))
     : 0
 
   const capacityColor =
@@ -240,7 +238,7 @@ export default function DailyReturnsPage() {
                 Daily Returns
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Slot occupancy and return schedule for the selected day.
+                Return schedule and daily capacity for the selected day.
               </Typography>
             </Box>
           </Box>
@@ -351,7 +349,7 @@ export default function DailyReturnsPage() {
         <SummaryCard label="Completed" value={stats.completed} color="#6A1B9A" />
       </Box>
 
-      {slotInfo && (
+      {capacityInfo && (
         <Paper
           elevation={0}
           sx={{
@@ -376,14 +374,14 @@ export default function DailyReturnsPage() {
           >
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700, color: primaryDark }}>
-                {slotInfo.depotName}
+                {capacityInfo.depotName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Daily slot capacity
+                Daily return capacity
               </Typography>
             </Box>
             <Chip
-              label={`${slotInfo.bookedCount} / ${slotInfo.dailyLimit} booked`}
+              label={`${capacityInfo.bookedCount} / ${capacityInfo.dailyLimit} scheduled`}
               sx={{
                 fontWeight: 700,
                 bgcolor: hexToRgba(capacityColor, 0.1),
@@ -391,54 +389,21 @@ export default function DailyReturnsPage() {
               }}
             />
           </Box>
-          <LinearProgress
-            variant="determinate"
-            value={capacityPct}
-            sx={{
-              mb: 2.5,
-              height: 10,
-              borderRadius: 5,
-              bgcolor: hexToRgba(primaryDark, 0.08),
-              '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: capacityColor },
-            }}
-          />
-          {slotsLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          {capacityLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
               <CircularProgress size={28} sx={{ color: primaryDark }} />
             </Box>
           ) : (
-            <Grid container spacing={1.5}>
-              {slotInfo.slots.map((slot) => (
-                <Grid key={slot.slotNo} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: slot.available ? hexToRgba('#2E7D32', 0.35) : 'divider',
-                      bgcolor: slot.available ? hexToRgba('#2E7D32', 0.06) : hexToRgba(primaryDark, 0.03),
-                      minHeight: 76,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Slot {slot.slotNo}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 700,
-                        color: slot.available ? '#2E7D32' : primaryDark,
-                        mt: 0.25,
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {slot.available ? 'Available' : slot.referenceNo ?? 'Booked'}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
+            <LinearProgress
+              variant="determinate"
+              value={capacityPct}
+              sx={{
+                height: 10,
+                borderRadius: 5,
+                bgcolor: hexToRgba(primaryDark, 0.08),
+                '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: capacityColor },
+              }}
+            />
           )}
         </Paper>
       )}
@@ -462,8 +427,6 @@ export default function DailyReturnsPage() {
                   }}
                 >
                   <TableCell>Reference</TableCell>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Slot</TableCell>
                   <TableCell>Trucker</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
@@ -471,7 +434,7 @@ export default function DailyReturnsPage() {
               <TableBody>
                 {dayReturns.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+                    <TableCell colSpan={3} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
                       No returns scheduled for this day.
                     </TableCell>
                   </TableRow>
@@ -479,14 +442,6 @@ export default function DailyReturnsPage() {
                   dayReturns.map((item) => (
                     <TableRow key={item.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                       <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-                      <TableCell>{formatScheduleTime(item.time)}</TableCell>
-                      <TableCell>
-                        {item.slotNo ? (
-                          <Chip label={`Slot ${item.slotNo}`} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
                       <TableCell>{item.truckerName ?? '—'}</TableCell>
                       <TableCell>
                         <Chip

@@ -67,18 +67,6 @@ const primaryDark = ICS_PRIMARY
 
 type InventoryTab = 'inventory' | 'summary'
 
-const complianceLabel: Record<ContainerDwellCompliance, string> = {
-  WithinLimit: 'Within limit',
-  ApproachingLimit: 'Approaching 90 days',
-  Overstay: 'Overstay (90+ days)',
-}
-
-const complianceColor: Record<ContainerDwellCompliance, 'success' | 'warning' | 'error'> = {
-  WithinLimit: 'success',
-  ApproachingLimit: 'warning',
-  Overstay: 'error',
-}
-
 function rowKey(row: ContainerInventoryItem) {
   return row.scheduleId ?? row.manualEntryId ?? row.containerNo
 }
@@ -119,17 +107,6 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
         {value}
       </Typography>
     </Paper>
-  )
-}
-
-function ComplianceChip({ status }: { status: ContainerDwellCompliance }) {
-  return (
-    <Chip
-      size="small"
-      label={complianceLabel[status]}
-      color={complianceColor[status]}
-      sx={{ fontWeight: 600, maxWidth: '100%', height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
-    />
   )
 }
 
@@ -209,13 +186,7 @@ function InventoryTableRow({
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDisplayDate(row.yardInDate)}</TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatSlotTime(row.gateInTime)}</TableCell>
-      <TableCell sx={{ whiteSpace: 'nowrap' }}>{dwellLabel(row.dwellDays)}</TableCell>
-      <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
-        {row.daysRemaining}
-      </TableCell>
-      <TableCell>
-        <ComplianceChip status={row.complianceStatus} />
-      </TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{dwellLabel(row.dwellDays)}</TableCell>
       <TableCell sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {na(row.remarks)}
       </TableCell>
@@ -252,12 +223,10 @@ function InventoryMobileCard({
       </ListMobileMeta>
       <ListMobileMeta>
         <SourceChip source={row.source} />
-        {' · '}
-        <ComplianceChip status={row.complianceStatus} />
       </ListMobileMeta>
       <Typography variant="body2" sx={{ mt: 1 }}>
-        Yard-in: <strong>{formatDisplayDate(row.yardInDate)}</strong> · {row.dwellDays} days at yard ·{' '}
-        {row.daysRemaining} days left
+        Yard-in: <strong>{formatDisplayDate(row.yardInDate)}</strong> · Dwell time:{' '}
+        <strong>{dwellLabel(row.dwellDays)}</strong>
       </Typography>
       {row.source === 'Workflow' && row.preAdviceId ? (
         <Typography
@@ -295,9 +264,7 @@ const TABLE_HEADERS = [
   'Trucker',
   'Yard-in',
   'Slot',
-  'Dwell',
-  'Days left',
-  'CAO 08-2019',
+  'Dwell time',
   'Remarks',
   '',
 ] as const
@@ -431,8 +398,6 @@ export default function ContainerInventoryPage() {
       formatDisplayDate(row.yardInDate),
       formatSlotTime(row.gateInTime),
       dwellLabel(row.dwellDays),
-      row.daysRemaining,
-      complianceLabel[row.complianceStatus],
       na(row.remarks),
     ])
     const csv = [headers, ...rows]
@@ -489,7 +454,7 @@ export default function ContainerInventoryPage() {
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
                 Full visibility of containers at your contracted yards — from approved pre-advice returns and manual
-                registrations. Dwell time is tracked against CAO 08-2019 (90-day limit).
+                registrations. Dwell time is calculated from the yard-in date.
               </Typography>
             </Box>
           </Box>
@@ -570,7 +535,7 @@ export default function ContainerInventoryPage() {
       {summary && summary.overstayCount > 0 && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {summary.overstayCount} container{summary.overstayCount === 1 ? '' : 's'} exceed the{' '}
-          {summary.dwellLimitDays}-day limit under CAO 08-2019. Prioritize gate-out or customs compliance.
+          {summary.dwellLimitDays}-day dwell limit. Prioritize gate-out or customs compliance.
         </Alert>
       )}
 

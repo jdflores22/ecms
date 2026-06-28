@@ -365,6 +365,13 @@ namespace ECMS.Persistence.Migrations
                     b.Property<string>("ProofFile")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ProofReferenceNo")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime?>("ProofTransactionAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int>("ScheduleId")
                         .HasColumnType("int");
 

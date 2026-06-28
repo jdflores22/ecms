@@ -14,22 +14,30 @@ public class PaymentService : IPaymentService
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
     private readonly IPaymentSettingsService _paymentSettings;
+    private readonly IPaymentProofExtractionService _proofExtraction;
 
     public PaymentService(
         IEcmsDbContext db,
         IQrService qrService,
         IAuditService auditService,
         INotificationService notifications,
-        IPaymentSettingsService paymentSettings)
+        IPaymentSettingsService paymentSettings,
+        IPaymentProofExtractionService proofExtraction)
     {
         _db = db;
         _qrService = qrService;
         _auditService = auditService;
         _notifications = notifications;
         _paymentSettings = paymentSettings;
+        _proofExtraction = proofExtraction;
     }
 
-    public async Task<PaymentDto> UploadProofAsync(UploadPaymentRequest request, int truckerId, string proofFilePath, CancellationToken cancellationToken = default)
+    public async Task<PaymentDto> UploadProofAsync(
+        UploadPaymentRequest request,
+        int truckerId,
+        string proofFilePath,
+        string? absoluteProofPath = null,
+        CancellationToken cancellationToken = default)
     {
         var schedule = await _db.Schedules
             .Include(s => s.PreAdvice)
@@ -45,6 +53,15 @@ public class PaymentService : IPaymentService
         payment.ProofFile = proofFilePath;
         payment.Status = PaymentStatus.ForVerification;
         payment.PaidAt = PhilippinesTime.UtcNow;
+        ApplyProofMetadata(payment, request.ProofReferenceNo, request.ProofTransactionAt);
+
+        if (payment.ProofReferenceNo is null
+            && payment.ProofTransactionAt is null
+            && !string.IsNullOrWhiteSpace(absoluteProofPath))
+        {
+            var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
+            ApplyProofMetadata(payment, extracted.ReferenceNo, extracted.TransactionAt);
+        }
 
         if (payment.Id == 0)
             _db.Add(payment);
@@ -75,7 +92,11 @@ public class PaymentService : IPaymentService
         return payment is null ? null : new PaymentStatusDto(payment.Id, payment.Status, payment.ProofFile);
     }
 
-    public async Task<PaymentDto?> VerifyAsync(int id, bool approved, int actorUserId, CancellationToken cancellationToken = default)
+    public async Task<PaymentDto?> VerifyAsync(
+        int id,
+        VerifyPaymentRequest request,
+        int actorUserId,
+        CancellationToken cancellationToken = default)
     {
         var payment = await _db.Payments
             .Include(p => p.Schedule).ThenInclude(s => s.PreAdvice)
@@ -84,8 +105,11 @@ public class PaymentService : IPaymentService
 
         if (payment is null) return null;
 
-        payment.Status = approved ? PaymentStatus.Paid : PaymentStatus.Rejected;
-        if (approved)
+        payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
+        payment.ProofTransactionAt = request.ProofTransactionAt;
+
+        payment.Status = request.Approved ? PaymentStatus.Paid : PaymentStatus.Rejected;
+        if (request.Approved)
         {
             payment.PaidAt = PhilippinesTime.UtcNow;
             payment.Schedule.Status = ScheduleStatus.Confirmed;
@@ -99,7 +123,7 @@ public class PaymentService : IPaymentService
         var refNo = payment.Schedule.PreAdvice.ReferenceNo;
         await _auditService.LogAsync(
             actorUserId,
-            approved ? "Approve" : "Reject",
+            request.Approved ? "Approve" : "Reject",
             "Payment",
             $"{refNo} · schedule {payment.ScheduleId}",
             cancellationToken);
@@ -109,8 +133,8 @@ public class PaymentService : IPaymentService
             var paymentLink = $"/trucker/payments/{payment.ScheduleId}";
             await _notifications.NotifyUsersAsync(
                 new[] { payment.TruckerId },
-                approved ? "Payment approved — return confirmed" : "Payment rejected",
-                approved
+                request.Approved ? "Payment approved — return confirmed" : "Payment rejected",
+                request.Approved
                     ? $"{refNo} payment verified. Your return is confirmed — view payment details and download your LOGICTECK booking QR."
                     : $"{refNo} payment was rejected. Upload a new proof on the payment page.",
                 "Payment",
@@ -119,6 +143,64 @@ public class PaymentService : IPaymentService
                 refNo,
                 cancellationToken);
         }
+
+        return MapToDto(payment);
+    }
+
+    public async Task<PaymentDto?> UpdateProofMetadataAsync(
+        int id,
+        UpdatePaymentProofMetadataRequest request,
+        int actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var payment = await _db.Payments
+            .Include(p => p.Trucker)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (payment is null) return null;
+
+        payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
+        payment.ProofTransactionAt = request.ProofTransactionAt;
+        _db.Update(payment);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            actorUserId,
+            "Update",
+            "Payment",
+            $"Proof metadata · schedule {payment.ScheduleId}",
+            cancellationToken);
+
+        return MapToDto(payment);
+    }
+
+    public async Task<PaymentDto?> ExtractProofMetadataAsync(
+        int id,
+        string contentRoot,
+        int actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var payment = await _db.Payments
+            .Include(p => p.Trucker)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (payment is null || string.IsNullOrWhiteSpace(payment.ProofFile))
+            return null;
+
+        var relative = payment.ProofFile.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var absoluteProofPath = Path.Combine(contentRoot, relative);
+
+        var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
+        ApplyProofMetadata(payment, extracted.ReferenceNo, extracted.TransactionAt);
+        _db.Update(payment);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            actorUserId,
+            "ExtractProof",
+            "Payment",
+            $"Proof OCR · schedule {payment.ScheduleId}",
+            cancellationToken);
 
         return MapToDto(payment);
     }
@@ -196,7 +278,26 @@ public class PaymentService : IPaymentService
         return MapToDto(payment);
     }
 
+    private static void ApplyProofMetadata(Payment payment, string? referenceNo, DateTime? transactionAt)
+    {
+        if (referenceNo is not null)
+            payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(referenceNo);
+
+        if (transactionAt.HasValue)
+            payment.ProofTransactionAt = transactionAt.Value.Kind == DateTimeKind.Utc
+                ? transactionAt
+                : PhilippinesTime.ToUtcFromPhilippines(transactionAt.Value);
+    }
+
     private static PaymentDto MapToDto(Payment p) => new(
-        p.Id, p.ScheduleId, p.TruckerId, p.Trucker.FullName ?? p.Trucker.Username,
-        p.Amount, p.ProofFile, p.Status, p.PaidAt);
+        p.Id,
+        p.ScheduleId,
+        p.TruckerId,
+        p.Trucker.FullName ?? p.Trucker.Username,
+        p.Amount,
+        p.ProofFile,
+        p.ProofReferenceNo,
+        p.ProofTransactionAt,
+        p.Status,
+        p.PaidAt);
 }

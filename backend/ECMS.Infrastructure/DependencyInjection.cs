@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ISlotCapacityService, SlotCapacityService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
+        services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IDepotService, DepotService>();
         services.AddScoped<IShippingLineService, ShippingLineService>();

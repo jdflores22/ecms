@@ -47,19 +47,25 @@ builder.Services.AddScoped<ECMS.API.Filters.LogicteckApiKeyFilter>();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Frontend", policy =>
+    var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+    var productionOrigins = new[]
     {
-        var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
-        var productionOrigins = new[]
-        {
-            "https://deepskyblue-marten-415020.hostingersite.com",
-            "https://www.deepskyblue-marten-415020.hostingersite.com",
-        };
-        policy.WithOrigins(origins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
+        "https://deepskyblue-marten-415020.hostingersite.com",
+        "https://www.deepskyblue-marten-415020.hostingersite.com",
+    };
+    var allowedOrigins = origins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    options.AddDefaultPolicy(policy =>
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials();
-    });
+            .AllowCredentials());
+
+    // LOGICTECK + logicteck-test.html: API-key auth only (no cookies). Allow browser calls from any origin.
+    options.AddPolicy("LogicteckPublic", policy =>
+        policy.SetIsOriginAllowed(_ => true)
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 var jwtKey = builder.Configuration["Jwt:Key"]!;
@@ -109,7 +115,8 @@ else
     });
 }
 
-app.UseCors("Frontend");
+// Default policy for JWT endpoints; LogicteckController uses [EnableCors("LogicteckPublic")] per-endpoint.
+app.UseCors();
 
 var uploadPath = Path.Combine(app.Environment.ContentRootPath, builder.Configuration["FileStorage:UploadPath"] ?? "uploads");
 Directory.CreateDirectory(uploadPath);

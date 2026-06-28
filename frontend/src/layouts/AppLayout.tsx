@@ -41,6 +41,9 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout, updateUser } from '../store/slices/authSlice'
 import { ICS_BRAND } from '../config/brandCopy'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
+import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCount'
+import { useDepotWaitingScheduleCount } from '../hooks/useDepotWaitingScheduleCount'
+import { useTruckerPaymentDueCount } from '../hooks/useTruckerPaymentDueCount'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import NotificationBell from '../components/NotificationBell'
 import IcsLogo from '../components/brand/IcsLogo'
@@ -81,6 +84,21 @@ export default function AppLayout() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
+  const waitingScheduleCount = useDepotWaitingScheduleCount(
+    user?.role,
+    user?.allowedPages,
+    location.pathname,
+  )
+  const paymentDueCount = useTruckerPaymentDueCount(
+    user?.role,
+    user?.allowedPages,
+    location.pathname,
+  )
+  const pendingPaymentVerifyCount = useAdminPendingPaymentCount(
+    user?.role,
+    user?.allowedPages,
+    location.pathname,
+  )
 
   useEffect(() => {
     if (!user?.role) return
@@ -133,13 +151,21 @@ export default function AppLayout() {
     adminRevenue: <TrendingUpIcon fontSize="small" />,
   }
 
+  const navBadgeConfig: Partial<Record<AppPageKey, { count: number; ariaLabel: string }>> = {
+    depotSchedules: { count: waitingScheduleCount, ariaLabel: 'waiting schedule' },
+    truckerPayments: { count: paymentDueCount, ariaLabel: 'payment due' },
+    adminPayments: { count: pendingPaymentVerifyCount, ariaLabel: 'awaiting verification' },
+  }
+
   const menuItems = user?.role
     ? getNavPagesForRole(user.role, user.allowedPages).map((page) => ({
         text: page.label,
         icon: navIcons[page.key],
         path: page.path,
+        badge: navBadgeConfig[page.key]?.count ?? 0,
+        badgeAriaLabel: navBadgeConfig[page.key]?.ariaLabel,
       }))
-    : [{ text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/' }]
+    : [{ text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/', badge: 0, badgeAriaLabel: undefined }]
 
   const navPaths = menuItems.map((item) => item.path)
 
@@ -262,6 +288,32 @@ export default function AppLayout() {
                 primary={item.text}
                 slotProps={{ primary: { sx: { fontSize: '0.9rem', fontWeight: active ? 600 : 500 } } }}
               />
+              {item.badge > 0 ? (() => {
+                const badgeLabel = item.badge > 99 ? '99+' : String(item.badge)
+                const badgeSize = badgeLabel.length > 1 ? 26 : 22
+                return (
+                  <Box
+                    aria-label={`${badgeLabel} ${item.badgeAriaLabel ?? 'items'}`}
+                    sx={{
+                      width: badgeSize,
+                      height: badgeSize,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      bgcolor: 'rgba(237, 108, 2, 0.12)',
+                      border: '1px solid rgba(237, 108, 2, 0.22)',
+                      color: '#C2410C',
+                      fontSize: badgeLabel.length > 1 ? '0.625rem' : '0.7rem',
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {badgeLabel}
+                  </Box>
+                )
+              })() : null}
             </ListItemButton>
           )
         })}

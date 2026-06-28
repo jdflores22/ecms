@@ -29,6 +29,12 @@ public static class PhilippinesTime
 
     public static DateOnly AddDays(DateOnly date, int days) => date.AddDays(days);
 
+    public static DateTime ToUtcFromPhilippines(DateTime philippinesLocal)
+    {
+        var local = DateTime.SpecifyKind(philippinesLocal, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(local, Zone);
+    }
+
     private static TimeZoneInfo ResolveZone()
     {
         foreach (var id in new[] { "Asia/Manila", "Singapore Standard Time" })

@@ -10,6 +10,9 @@ export const SYSTEM_TIMEZONE = {
   labelLong: 'Philippines Time (UTC+8)',
 } as const
 
+/** Stored on schedules when the container yard assigns a return date only (no time-of-day). */
+export const DEPOT_RETURN_DATE_ONLY_TIME = '00:00:00'
+
 /** @deprecated Use SYSTEM_TIMEZONE.id */
 export const PH_TIMEZONE = SYSTEM_TIMEZONE.id
 /** @deprecated Use SYSTEM_TIMEZONE.locale */
@@ -171,10 +174,12 @@ export function formatScheduleDate(dateStr: string): string {
   return scheduleDateFormatter.format(calendarDate(dateStr))
 }
 
-/** Combined return slot label: date · time PHT */
+/** Combined return schedule label: date, or date · time when a specific time is set. */
 export function formatScheduleSlot(date: string, time?: string | null): string {
   const datePart = formatScheduleDate(date)
   if (!time) return datePart
+  const normalized = normalizeTime24Input(formatScheduleTime(time))
+  if (!normalized || normalized === '00:00') return datePart
   return `${datePart} · ${formatScheduleTime(time)} ${SYSTEM_TIMEZONE.label}`
 }
 

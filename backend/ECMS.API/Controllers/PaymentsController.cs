@@ -34,6 +34,9 @@ public class PaymentsController : ControllerBase
     private static string? UserRole(ClaimsPrincipal user) =>
         user.FindFirstValue(ClaimTypes.Role) ?? user.FindFirstValue("role");
 
+    private string UploadDirectory =>
+        Path.Combine(_env.ContentRootPath, _configuration["FileStorage:UploadPath"] ?? "uploads");
+
     [HttpGet("settings")]
     public async Task<ActionResult<PaymentSettingsDto>> GetSettings(CancellationToken cancellationToken)
         => Ok(await _settings.GetAsync(cancellationToken));
@@ -60,22 +63,37 @@ public class PaymentsController : ControllerBase
     public async Task<ActionResult<PaymentDto>> Upload(
         [FromForm] int scheduleId,
         IFormFile proof,
+        [FromForm] string? proofReferenceNo,
+        [FromForm] string? proofTransactionAt,
         CancellationToken cancellationToken)
     {
         if (proof is null || proof.Length == 0)
             return BadRequest(new { message = "Proof file is required." });
 
-        var uploadDir = Path.Combine(_env.ContentRootPath, _configuration["FileStorage:UploadPath"] ?? "uploads");
-        Directory.CreateDirectory(uploadDir);
+        Directory.CreateDirectory(UploadDirectory);
 
         var fileName = $"{Guid.NewGuid()}{Path.GetExtension(proof.FileName)}";
-        var filePath = Path.Combine(uploadDir, fileName);
+        var filePath = Path.Combine(UploadDirectory, fileName);
 
         await using (var stream = System.IO.File.Create(filePath))
             await proof.CopyToAsync(stream, cancellationToken);
 
         var relativePath = $"/uploads/{fileName}";
-        return Ok(await _service.UploadProofAsync(new UploadPaymentRequest(scheduleId), UserId, relativePath, cancellationToken));
+        DateTime? transactionAt = null;
+        if (!string.IsNullOrWhiteSpace(proofTransactionAt)
+            && DateTime.TryParse(proofTransactionAt, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+        {
+            transactionAt = parsed.Kind == DateTimeKind.Utc
+                ? parsed
+                : ECMS.Domain.Common.PhilippinesTime.ToUtcFromPhilippines(parsed);
+        }
+
+        return Ok(await _service.UploadProofAsync(
+            new UploadPaymentRequest(scheduleId, proofReferenceNo, transactionAt),
+            UserId,
+            relativePath,
+            filePath,
+            cancellationToken));
     }
 
     [HttpGet("status/{id:int}")]
@@ -121,15 +139,36 @@ public class PaymentsController : ControllerBase
             shippingLineId,
             cancellationToken);
 
-        // 200 + null when no payment yet (normal before trucker uploads proof).
         return new JsonResult(payment) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    [HttpPut("{id:int}/proof-metadata")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<PaymentDto>> UpdateProofMetadata(
+        int id,
+        [FromBody] UpdatePaymentProofMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        var payment = await _service.UpdateProofMetadataAsync(id, request, UserId, cancellationToken);
+        return payment is null ? NotFound() : Ok(payment);
+    }
+
+    [HttpPost("{id:int}/extract-proof")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<PaymentDto>> ExtractProofMetadata(int id, CancellationToken cancellationToken)
+    {
+        var updated = await _service.ExtractProofMetadataAsync(id, _env.ContentRootPath, UserId, cancellationToken);
+        return updated is null ? NotFound() : Ok(updated);
     }
 
     [HttpPost("{id:int}/verify")]
     [Authorize(Roles = RoleNames.Administrator)]
-    public async Task<ActionResult<PaymentDto>> Verify(int id, [FromQuery] bool approved, CancellationToken cancellationToken)
+    public async Task<ActionResult<PaymentDto>> Verify(
+        int id,
+        [FromBody] VerifyPaymentRequest request,
+        CancellationToken cancellationToken)
     {
-        var payment = await _service.VerifyAsync(id, approved, UserId, cancellationToken);
+        var payment = await _service.VerifyAsync(id, request, UserId, cancellationToken);
         return payment is null ? NotFound() : Ok(payment);
     }
 }

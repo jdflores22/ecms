@@ -41,6 +41,7 @@ import { paymentApi, preAdviceApi, scheduleApi, type Payment, type PreAdvice, ty
 import { useAppSelector } from '../../store/hooks'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
+import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import {
   needsPaymentUpload,
   paymentStatusColor,
@@ -254,7 +255,19 @@ export default function TruckerPaymentUploadPage() {
     setSubmitting(true)
     setActionError('')
     try {
-      await paymentApi.upload(schedule.id, file)
+      let metadata
+      if (file.type.startsWith('image/')) {
+        try {
+          const extracted = await extractPaymentProofMetadata(file)
+          metadata = {
+            proofReferenceNo: extracted.referenceNo,
+            proofTransactionAt: extracted.transactionAt,
+          }
+        } catch {
+          /* upload without OCR metadata */
+        }
+      }
+      await paymentApi.upload(schedule.id, file, metadata)
       setFile(null)
       setSaveSuccess(true)
       window.setTimeout(() => {

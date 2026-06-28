@@ -506,8 +506,15 @@ export interface Payment {
   truckerName: string
   amount: number
   proofFile?: string | null
+  proofReferenceNo?: string | null
+  proofTransactionAt?: string | null
   status: string
   paidAt?: string | null
+}
+
+export interface PaymentProofMetadataInput {
+  proofReferenceNo?: string | null
+  proofTransactionAt?: string | null
 }
 
 export interface QrBooking {
@@ -602,16 +609,29 @@ export const paymentApi = {
   updateSettings: (returnFeeAmount: number) =>
     api.put<PaymentSettings>('/payments/settings', { returnFeeAmount }),
   getBySchedule: (scheduleId: number) => api.get<Payment | null>(`/payments/by-schedule/${scheduleId}`),
-  upload: (scheduleId: number, proof: File) => {
+  upload: (
+    scheduleId: number,
+    proof: File,
+    metadata?: PaymentProofMetadataInput,
+  ) => {
     const form = new FormData()
     form.append('scheduleId', String(scheduleId))
     form.append('proof', proof)
+    if (metadata?.proofReferenceNo) form.append('proofReferenceNo', metadata.proofReferenceNo)
+    if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
     return api.post<Payment>('/payments/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  verify: (id: number, approved: boolean) =>
-    api.post<Payment>(`/payments/${id}/verify?approved=${approved}`),
+  updateProofMetadata: (id: number, metadata: PaymentProofMetadataInput) =>
+    api.put<Payment>(`/payments/${id}/proof-metadata`, metadata),
+  extractProofMetadata: (id: number) => api.post<Payment>(`/payments/${id}/extract-proof`),
+  verify: (id: number, approved: boolean, metadata?: PaymentProofMetadataInput) =>
+    api.post<Payment>(`/payments/${id}/verify`, {
+      approved,
+      proofReferenceNo: metadata?.proofReferenceNo ?? null,
+      proofTransactionAt: metadata?.proofTransactionAt ?? null,
+    }),
 }
 
 export const qrApi = {

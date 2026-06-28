@@ -35,7 +35,7 @@ import {
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
 import { scheduleApi, type Schedule } from '../../services/api'
-import { formatScheduleDate, formatScheduleTime } from '../../utils/datetime'
+import { formatScheduleDate } from '../../utils/datetime'
 
 const primaryDark = LIST_PRIMARY
 
@@ -201,7 +201,7 @@ export default function DepotSchedulesPage() {
                 Depot Scheduling
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Assign return date and time — validated against depot daily capacity.
+                Assign return date — validated against depot daily capacity.
               </Typography>
             </Box>
           </Box>
@@ -305,9 +305,7 @@ export default function DepotSchedulesPage() {
                   <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                   <ListMobileMeta>{item.depotName}</ListMobileMeta>
                   <ListMobileMeta>
-                    {item.date
-                      ? `${formatScheduleDate(item.date)} · ${formatScheduleTime(item.time)}`
-                      : 'Date not set'}
+                    {item.date ? formatScheduleDate(item.date) : 'Date not set'}
                   </ListMobileMeta>
                   {item.truckerName && <ListMobileMeta>Trucker: {item.truckerName}</ListMobileMeta>}
                   <ListMobileChipRow>
@@ -337,8 +335,7 @@ export default function DepotSchedulesPage() {
                     >
                       <TableCell>Reference</TableCell>
                       <TableCell>Depot</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Time</TableCell>
+                      <TableCell>Return date</TableCell>
                       <TableCell>Trucker</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
@@ -354,7 +351,6 @@ export default function DepotSchedulesPage() {
                         <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
                         <TableCell>{item.depotName}</TableCell>
                         <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
-                        <TableCell>{item.time ? formatScheduleTime(item.time) : '—'}</TableCell>
                         <TableCell>{item.truckerName ?? '—'}</TableCell>
                         <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                           <ScheduleRowActions item={item} />
