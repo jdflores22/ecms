@@ -26,6 +26,10 @@ public interface IPaymentService
         string contentRoot,
         int actorUserId,
         CancellationToken cancellationToken = default);
+    Task<PaymentProofFileInfo?> GetProofFileAsync(
+        int id,
+        string contentRoot,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentDto>> GetByTruckerAsync(int truckerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentDto>> GetPendingVerificationAsync(int? depotId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentDto>> GetForDepotAsync(int? depotId, CancellationToken cancellationToken = default);

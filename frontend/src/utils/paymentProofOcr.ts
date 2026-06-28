@@ -1,6 +1,6 @@
 import { parsePaymentProofText, type PaymentProofMetadata } from './paymentProofTextParser'
 
-export async function extractPaymentProofMetadata(source: File | string): Promise<PaymentProofMetadata> {
+export async function extractPaymentProofMetadata(source: Blob | File | string): Promise<PaymentProofMetadata> {
   const { createWorker } = await import('tesseract.js')
   const worker = await createWorker('eng')
   try {

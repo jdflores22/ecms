@@ -187,8 +187,9 @@ public class PaymentService : IPaymentService
         if (payment is null || string.IsNullOrWhiteSpace(payment.ProofFile))
             return null;
 
-        var relative = payment.ProofFile.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-        var absoluteProofPath = Path.Combine(contentRoot, relative);
+        var absoluteProofPath = ResolveProofAbsolutePath(contentRoot, payment.ProofFile);
+        if (absoluteProofPath is null)
+            return null;
 
         var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
         ApplyProofMetadata(payment, extracted.ReferenceNo, extracted.TransactionAt);
@@ -203,6 +204,27 @@ public class PaymentService : IPaymentService
             cancellationToken);
 
         return MapToDto(payment);
+    }
+
+    public async Task<PaymentProofFileInfo?> GetProofFileAsync(
+        int id,
+        string contentRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var payment = await _db.Payments.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (payment is null || string.IsNullOrWhiteSpace(payment.ProofFile))
+            return null;
+
+        var absoluteProofPath = ResolveProofAbsolutePath(contentRoot, payment.ProofFile);
+        if (absoluteProofPath is null || !File.Exists(absoluteProofPath))
+            return null;
+
+        return new PaymentProofFileInfo(
+            absoluteProofPath,
+            GuessProofContentType(absoluteProofPath),
+            Path.GetFileName(absoluteProofPath));
     }
 
     public async Task<IReadOnlyList<PaymentDto>> GetByTruckerAsync(int truckerId, CancellationToken cancellationToken = default)
@@ -288,6 +310,27 @@ public class PaymentService : IPaymentService
                 ? transactionAt
                 : PhilippinesTime.ToUtcFromPhilippines(transactionAt.Value);
     }
+
+    private static string? ResolveProofAbsolutePath(string contentRoot, string proofFile)
+    {
+        if (string.IsNullOrWhiteSpace(proofFile))
+            return null;
+
+        var relative = proofFile.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        return Path.Combine(contentRoot, relative);
+    }
+
+    private static string GuessProofContentType(string absolutePath) =>
+        Path.GetExtension(absolutePath).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".bmp" => "image/bmp",
+            ".pdf" => "application/pdf",
+            _ => "application/octet-stream",
+        };
 
     private static PaymentDto MapToDto(Payment p) => new(
         p.Id,

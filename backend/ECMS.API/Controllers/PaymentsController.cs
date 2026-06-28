@@ -161,6 +161,17 @@ public class PaymentsController : ControllerBase
         return updated is null ? NotFound() : Ok(updated);
     }
 
+    [HttpGet("{id:int}/proof-file")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<IActionResult> DownloadProofFile(int id, CancellationToken cancellationToken)
+    {
+        var file = await _service.GetProofFileAsync(id, _env.ContentRootPath, cancellationToken);
+        if (file is null)
+            return NotFound();
+
+        return PhysicalFile(file.AbsolutePath, file.ContentType, file.FileName);
+    }
+
     [HttpPost("{id:int}/verify")]
     [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<PaymentDto>> Verify(

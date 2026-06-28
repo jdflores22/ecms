@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ECMS.Application.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -22,7 +23,10 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(absoluteFilePath))
+        {
+            _logger.LogWarning("Payment proof file not found: {FilePath}", absoluteFilePath);
             return Task.FromResult<(string?, DateTime?)>((null, null));
+        }
 
         var extension = Path.GetExtension(absoluteFilePath);
         if (!ImageExtensions.Contains(extension))
@@ -30,11 +34,17 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
 
         try
         {
-            var text = TryRunTesseract(absoluteFilePath);
+            var text = ExtractText(absoluteFilePath);
             if (string.IsNullOrWhiteSpace(text))
+            {
+                _logger.LogWarning("Payment proof OCR returned no text for {FilePath}", absoluteFilePath);
                 return Task.FromResult<(string?, DateTime?)>((null, null));
+            }
 
             var parsed = PaymentProofTextParser.Parse(text);
+            if (parsed.ReferenceNo is null && parsed.TransactionAt is null)
+                _logger.LogInformation("Payment proof OCR text had no parseable metadata for {FilePath}", absoluteFilePath);
+
             return Task.FromResult((parsed.ReferenceNo, parsed.TransactionAt));
         }
         catch (Exception ex)
@@ -44,11 +54,24 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
         }
     }
 
-    private static string? TryRunTesseract(string absoluteFilePath)
+    private string? ExtractText(string absoluteFilePath)
+    {
+        var text = TryRunTesseractNet(absoluteFilePath);
+        if (!string.IsNullOrWhiteSpace(text))
+            return text;
+
+        text = TryRunTesseractCli(absoluteFilePath);
+        if (!string.IsNullOrWhiteSpace(text))
+            return text;
+
+        return null;
+    }
+
+    private static string? TryRunTesseractNet(string absoluteFilePath)
     {
         try
         {
-            using var engine = CreateEngine();
+            using var engine = CreateNetEngine();
             if (engine is null)
                 return null;
 
@@ -64,9 +87,59 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
         {
             return null;
         }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    private static Tesseract.TesseractEngine? CreateEngine()
+    private string? TryRunTesseractCli(string absoluteFilePath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "tesseract",
+                Arguments = $"\"{absoluteFilePath}\" stdout -l eng --psm 6",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi);
+            if (process is null)
+                return null;
+
+            var output = process.StandardOutput.ReadToEnd();
+            if (!process.WaitForExit(60_000))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                _logger.LogWarning("tesseract CLI timed out for {FilePath}", absoluteFilePath);
+                return null;
+            }
+
+            if (process.ExitCode != 0)
+            {
+                var err = process.StandardError.ReadToEnd();
+                _logger.LogWarning(
+                    "tesseract CLI exit {ExitCode} for {FilePath}: {Error}",
+                    process.ExitCode,
+                    absoluteFilePath,
+                    err.Trim());
+                return null;
+            }
+
+            return output;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "tesseract CLI unavailable for {FilePath}", absoluteFilePath);
+            return null;
+        }
+    }
+
+    private static Tesseract.TesseractEngine? CreateNetEngine()
     {
         var tessDataPath = ResolveTessDataPath();
         if (tessDataPath is null)
@@ -82,6 +155,7 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
             Path.Combine(AppContext.BaseDirectory, "tessdata"),
             "/usr/share/tesseract-ocr/5/tessdata",
             "/usr/share/tesseract-ocr/4.00/tessdata",
+            "/usr/share/tesseract-ocr/tessdata",
             @"C:\Program Files\Tesseract-OCR\tessdata",
         };
 

@@ -6,6 +6,8 @@ export type PaymentProofMetadata = {
 const referencePattern =
   /(?:Ref(?:erence)?\.?\s*No\.?|Reference\s*(?:Number|No\.?)|Txn?\s*ID|Transaction\s*ID)\s*[:.]?\s*([0-9][0-9\s-]{8,})/i
 
+const gcashReferenceFallback = /\b(\d{4}\s+\d{3}\s+\d{6})\b/
+
 const dateTimePattern =
   /((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2},?\s+\d{4}\s+\d{1,2}:\d{2}\s*(?:AM|PM))/i
 
@@ -35,10 +37,15 @@ function parsePhilippinesTransactionAt(raw: string): string | null {
 export function parsePaymentProofText(text: string): PaymentProofMetadata {
   const normalized = text.replace(/[ \t]+/g, ' ')
   const refMatch = normalized.match(referencePattern)
+  const gcashMatch = !refMatch ? normalized.match(gcashReferenceFallback) : null
   const dateMatch = normalized.match(dateTimePattern)
 
   return {
-    referenceNo: refMatch ? normalizeProofReferenceNo(refMatch[1]) : null,
+    referenceNo: refMatch
+      ? normalizeProofReferenceNo(refMatch[1])
+      : gcashMatch
+        ? normalizeProofReferenceNo(gcashMatch[1])
+        : null,
     transactionAt: dateMatch ? parsePhilippinesTransactionAt(dateMatch[1]) : null,
   }
 }

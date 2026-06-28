@@ -33,3 +33,5 @@ public record UploadPaymentRequest(
     int ScheduleId,
     string? ProofReferenceNo = null,
     DateTime? ProofTransactionAt = null);
+
+public record PaymentProofFileInfo(string AbsolutePath, string ContentType, string FileName);

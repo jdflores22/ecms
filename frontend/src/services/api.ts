@@ -626,6 +626,8 @@ export const paymentApi = {
   updateProofMetadata: (id: number, metadata: PaymentProofMetadataInput) =>
     api.put<Payment>(`/payments/${id}/proof-metadata`, metadata),
   extractProofMetadata: (id: number) => api.post<Payment>(`/payments/${id}/extract-proof`),
+  downloadProofFile: (id: number) =>
+    api.get<Blob>(`/payments/${id}/proof-file`, { responseType: 'blob' }),
   verify: (id: number, approved: boolean, metadata?: PaymentProofMetadataInput) =>
     api.post<Payment>(`/payments/${id}/verify`, {
       approved,

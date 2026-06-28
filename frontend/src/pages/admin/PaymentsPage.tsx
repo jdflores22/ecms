@@ -389,35 +389,42 @@ export default function AdminPaymentsPage() {
     setDetectingProofId(payment.id)
     setError('')
     try {
-      // Production: UI on Hostinger, files on Railway — tesseract.js fetch hits CORS; use server OCR.
+      let referenceNo: string | null = null
+      let transactionAt: string | null = null
+
       if (isCrossOriginAssetUrl(payment.proofFile)) {
-        const { data } = await paymentApi.extractProofMetadata(payment.id)
-        mergePaymentInLists(data)
-        setVerifyReferenceNo(data.proofReferenceNo ?? '')
-        setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
-        if (!data.proofReferenceNo && !data.proofTransactionAt) {
-          setError('Could not read reference number or transaction time from this proof.')
+        try {
+          const { data } = await paymentApi.extractProofMetadata(payment.id)
+          referenceNo = data.proofReferenceNo ?? null
+          transactionAt = data.proofTransactionAt ?? null
+        } catch {
+          /* server OCR unavailable — try client via authenticated download */
         }
-        return
+
+        if (!referenceNo && !transactionAt) {
+          const { data: blob } = await paymentApi.downloadProofFile(payment.id)
+          const extracted = await extractPaymentProofMetadata(blob)
+          referenceNo = extracted.referenceNo
+          transactionAt = extracted.transactionAt
+        }
+      } else {
+        const extracted = await extractPaymentProofMetadata(resolveAssetUrl(payment.proofFile))
+        referenceNo = extracted.referenceNo
+        transactionAt = extracted.transactionAt
       }
 
-      const extracted = await extractPaymentProofMetadata(resolveAssetUrl(payment.proofFile))
       const { data } = await paymentApi.updateProofMetadata(payment.id, {
-        proofReferenceNo: extracted.referenceNo,
-        proofTransactionAt: extracted.transactionAt,
+        proofReferenceNo: referenceNo,
+        proofTransactionAt: transactionAt,
       })
       mergePaymentInLists(data)
       setVerifyReferenceNo(data.proofReferenceNo ?? '')
       setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
-    } catch {
-      try {
-        const { data } = await paymentApi.extractProofMetadata(payment.id)
-        mergePaymentInLists(data)
-        setVerifyReferenceNo(data.proofReferenceNo ?? '')
-        setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
-      } catch {
+      if (!data.proofReferenceNo && !data.proofTransactionAt) {
         setError('Could not read reference number or transaction time from this proof.')
       }
+    } catch {
+      setError('Could not read reference number or transaction time from this proof.')
     } finally {
       setDetectingProofId(null)
     }
