@@ -46,7 +46,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, type Payment } from '../../services/api'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { isCrossOriginAssetUrl, resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import {
@@ -389,6 +389,18 @@ export default function AdminPaymentsPage() {
     setDetectingProofId(payment.id)
     setError('')
     try {
+      // Production: UI on Hostinger, files on Railway — tesseract.js fetch hits CORS; use server OCR.
+      if (isCrossOriginAssetUrl(payment.proofFile)) {
+        const { data } = await paymentApi.extractProofMetadata(payment.id)
+        mergePaymentInLists(data)
+        setVerifyReferenceNo(data.proofReferenceNo ?? '')
+        setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
+        if (!data.proofReferenceNo && !data.proofTransactionAt) {
+          setError('Could not read reference number or transaction time from this proof.')
+        }
+        return
+      }
+
       const extracted = await extractPaymentProofMetadata(resolveAssetUrl(payment.proofFile))
       const { data } = await paymentApi.updateProofMetadata(payment.id, {
         proofReferenceNo: extracted.referenceNo,

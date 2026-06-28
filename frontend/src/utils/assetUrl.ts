@@ -17,3 +17,14 @@ export function resolveAssetUrl(path: string | null | undefined): string {
 
   return path
 }
+
+/** True when the resolved asset URL is on a different origin (e.g. Hostinger UI → Railway API). */
+export function isCrossOriginAssetUrl(path: string | null | undefined): boolean {
+  const url = resolveAssetUrl(path)
+  if (!url.startsWith('http')) return false
+  try {
+    return new URL(url).origin !== window.location.origin
+  } catch {
+    return true
+  }
+}

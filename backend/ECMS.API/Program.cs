@@ -45,16 +45,16 @@ builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
 builder.Services.AddScoped<ECMS.API.Filters.LogicteckApiKeyFilter>();
 
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+var productionOrigins = new[]
+{
+    "https://deepskyblue-marten-415020.hostingersite.com",
+    "https://www.deepskyblue-marten-415020.hostingersite.com",
+};
+var allowedOrigins = corsOrigins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
 builder.Services.AddCors(options =>
 {
-    var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
-    var productionOrigins = new[]
-    {
-        "https://deepskyblue-marten-415020.hostingersite.com",
-        "https://www.deepskyblue-marten-415020.hostingersite.com",
-    };
-    var allowedOrigins = origins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-
     options.AddDefaultPolicy(policy =>
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
@@ -123,7 +123,16 @@ Directory.CreateDirectory(uploadPath);
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadPath),
-    RequestPath = "/uploads"
+    RequestPath = "/uploads",
+    OnPrepareResponse = ctx =>
+    {
+        var origin = ctx.Context.Request.Headers.Origin.ToString();
+        if (string.IsNullOrEmpty(origin)) return;
+        if (!allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) return;
+        ctx.Context.Response.Headers.AccessControlAllowOrigin = origin;
+        ctx.Context.Response.Headers.AccessControlAllowCredentials = "true";
+        ctx.Context.Response.Headers.Vary = "Origin";
+    },
 });
 
 app.UseAuthentication();
