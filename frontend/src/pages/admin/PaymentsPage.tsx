@@ -423,8 +423,14 @@ export default function AdminPaymentsPage() {
       if (!data.proofReferenceNo && !data.proofTransactionAt) {
         setError('Could not read reference number or transaction time from this proof.')
       }
-    } catch {
-      setError('Could not read reference number or transaction time from this proof.')
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setError(
+          'Proof file not found on the API server (common after a Railway redeploy without a volume). Ask the trucker to re-upload the proof.',
+        )
+      } else {
+        setError('Could not read reference number or transaction time from this proof.')
+      }
     } finally {
       setDetectingProofId(null)
     }
