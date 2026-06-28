@@ -45,6 +45,7 @@ import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCoun
 import { useDepotWaitingScheduleCount } from '../hooks/useDepotWaitingScheduleCount'
 import { useTruckerPaymentDueCount } from '../hooks/useTruckerPaymentDueCount'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
+import { resolveAssetUrl } from '../utils/assetUrl'
 import NotificationBell from '../components/NotificationBell'
 import IcsLogo from '../components/brand/IcsLogo'
 
@@ -245,6 +246,7 @@ export default function AppLayout() {
           }}
         >
           <Avatar
+            src={user?.profilePhoto ? resolveAssetUrl(user.profilePhoto) : undefined}
             sx={{
               width: 40,
               height: 40,
@@ -253,7 +255,7 @@ export default function AppLayout() {
               fontWeight: 700,
             }}
           >
-            {userInitials(user?.fullName)}
+            {user?.profilePhoto ? null : userInitials(user?.fullName)}
           </Avatar>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap>
@@ -415,8 +417,11 @@ export default function AppLayout() {
           <Tooltip title={`${user?.fullName ?? 'Profile'} — view profile`}>
             <Chip
               avatar={
-                <Avatar sx={{ bgcolor: primaryLight, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}>
-                  {userInitials(user?.fullName)}
+                <Avatar
+                  src={user?.profilePhoto ? resolveAssetUrl(user.profilePhoto) : undefined}
+                  sx={{ bgcolor: primaryLight, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}
+                >
+                  {user?.profilePhoto ? null : userInitials(user?.fullName)}
                 </Avatar>
               }
               label={user?.role ? roleLabel(user.role) : ''}

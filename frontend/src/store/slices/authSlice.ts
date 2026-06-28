@@ -6,6 +6,7 @@ export interface User {
   email: string
   fullName: string
   role: string
+  profilePhoto?: string | null
   shippingLineId?: number | null
   depotId?: number | null
   allowedPages?: string[]

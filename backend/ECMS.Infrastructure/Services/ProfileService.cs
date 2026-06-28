@@ -86,6 +86,64 @@ public class ProfileService : IProfileService
         await _auditService.LogAsync(userId, "ChangePassword", "Profile", user.Username, cancellationToken);
     }
 
+    public async Task<ProfileDto?> UploadPhotoAsync(
+        int userId,
+        string relativePhotoPath,
+        string contentRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _db.Users
+            .Include(u => u.Role)
+            .Include(u => u.ShippingLine)
+            .Include(u => u.Depot)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user is null) return null;
+
+        DeleteProfilePhotoFile(contentRoot, user.ProfilePhoto);
+        user.ProfilePhoto = relativePhotoPath;
+
+        _db.Update(user);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(userId, "UploadProfilePhoto", "Profile", user.Username, cancellationToken);
+
+        return MapProfile(user);
+    }
+
+    public async Task<ProfileDto?> RemovePhotoAsync(
+        int userId,
+        string contentRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _db.Users
+            .Include(u => u.Role)
+            .Include(u => u.ShippingLine)
+            .Include(u => u.Depot)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user is null) return null;
+
+        DeleteProfilePhotoFile(contentRoot, user.ProfilePhoto);
+        user.ProfilePhoto = null;
+
+        _db.Update(user);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(userId, "RemoveProfilePhoto", "Profile", user.Username, cancellationToken);
+
+        return MapProfile(user);
+    }
+
+    private static void DeleteProfilePhotoFile(string contentRoot, string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return;
+
+        var absolute = Path.Combine(contentRoot, relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(absolute))
+        {
+            try { File.Delete(absolute); } catch { /* best effort */ }
+        }
+    }
+
     private static ProfileDto MapProfile(Domain.Entities.User user) => new(
         user.Id,
         user.Username,
@@ -97,5 +155,6 @@ public class ProfileService : IProfileService
         user.ShippingLine?.Name,
         user.DepotId,
         user.Depot?.Name,
+        user.ProfilePhoto,
         user.CreatedAt);
 }

@@ -222,6 +222,7 @@ public class AuthService : IAuthService
                 user.Role.Name,
                 user.ShippingLineId,
                 user.DepotId,
+                user.ProfilePhoto,
                 RoleAllowedPagesJson.Resolve(user.Role.Name, user.Role.AllowedPagesJson)));
     }
 }

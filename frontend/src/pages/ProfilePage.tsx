@@ -5,50 +5,51 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Divider,
+  IconButton,
   InputAdornment,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
   Paper,
+  Tab,
+  Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import AlternateEmailOutlinedIcon from '@mui/icons-material/AlternateEmailOutlined'
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined'
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined'
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
+import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import SaveIcon from '@mui/icons-material/Save'
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import axios from 'axios'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { roleLabel } from '../config/roleConfig'
+import {
+  DetailErrorState,
+  DetailLoadingState,
+  DetailTabPanel,
+  ICS_PRIMARY,
+  detailTabsSx,
+  hexToRgba,
+  sectionPaperSx,
+} from '../components/layout/DetailPagePrimitives'
 import { profileApi, type Profile } from '../services/api'
 import { useAppDispatch } from '../store/hooks'
 import { updateUser } from '../store/slices/authSlice'
 import { formatDate } from '../utils/datetime'
-
-const primaryDark = '#0B3D91'
+import { resolveAssetUrl } from '../utils/assetUrl'
 
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
-
-const sectionPaperSx = {
-  p: 2.5,
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  borderRadius: 3,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: '#fff',
-  boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-}
-
-function hexToRgba(hex: string, alpha: number) {
-  const normalized = hex.replace('#', '')
-  const r = parseInt(normalized.slice(0, 2), 16)
-  const g = parseInt(normalized.slice(2, 4), 16)
-  const b = parseInt(normalized.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
 
 function userInitials(name?: string) {
   if (!name) return '?'
@@ -57,19 +58,14 @@ function userInitials(name?: string) {
   return name.slice(0, 2).toUpperCase()
 }
 
-function heroChipStyle(kind: 'role' | 'status', value: string) {
-  if (kind === 'role') {
-    return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
-  }
-  switch (value) {
+function statusChipOnGradient(status: string) {
+  switch (status) {
     case 'Active':
       return { bgcolor: 'rgba(46, 125, 50, 0.92)', color: '#fff' }
     case 'Suspended':
       return { bgcolor: 'rgba(198, 40, 40, 0.92)', color: '#fff' }
-    case 'Inactive':
-      return { bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)' }
     default:
-      return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
+      return { bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)' }
   }
 }
 
@@ -81,100 +77,43 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
-function SummaryCard({
+function AccountFact({
+  icon,
   label,
   value,
-  icon,
 }: {
+  icon: React.ReactNode
   label: string
-  value: React.ReactNode
-  icon: React.ReactNode
+  value: string
 }) {
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 2,
-        height: '100%',
-        borderRadius: 2.5,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: '#fff',
-        boxShadow: '0 2px 12px rgba(15, 23, 42, 0.04)',
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Box
-          sx={{
-            width: 28,
-            height: 28,
-            borderRadius: 1,
-            bgcolor: hexToRgba(primaryDark, 0.08),
-            color: primaryDark,
-            display: 'grid',
-            placeItems: 'center',
-          }}
-        >
-          {icon}
-        </Box>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          {label}
-        </Typography>
-      </Box>
-      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', wordBreak: 'break-word' }}>{value}</Typography>
-    </Paper>
-  )
-}
-
-function SectionHeader({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: React.ReactNode
-  title: string
-  subtitle?: string
-}) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1.5,
-          bgcolor: hexToRgba(primaryDark, 0.08),
-          color: primaryDark,
-          display: 'grid',
-          placeItems: 'center',
-          flexShrink: 0,
+    <ListItem disableGutters sx={{ py: 0.75, alignItems: 'flex-start' }}>
+      <ListItemIcon sx={{ minWidth: 36, mt: 0.25, color: ICS_PRIMARY }}>{icon}</ListItemIcon>
+      <ListItemText
+        primary={label}
+        secondary={value}
+        slotProps={{
+          primary: { variant: 'caption', sx: { fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'text.secondary' } },
+          secondary: { sx: { fontWeight: 600, color: 'text.primary', wordBreak: 'break-word' } },
         }}
-      >
-        {icon}
-      </Box>
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary">
-            {subtitle}
-          </Typography>
-        )}
-      </Box>
-    </Box>
+      />
+    </ListItem>
   )
 }
 
 export default function ProfilePage() {
   const dispatch = useAppDispatch()
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState('account')
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [profileSuccess, setProfileSuccess] = useState('')
   const [profileError, setProfileError] = useState('')
 
@@ -194,14 +133,60 @@ export default function ProfilePage() {
         setProfile(data)
         setFullName(data.fullName)
         setEmail(data.email)
+        dispatch(updateUser({ profilePhoto: data.profilePhoto ?? undefined }))
       })
       .catch(() => setError('Failed to load profile.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [dispatch])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setProfileError('Please choose an image file (JPG, PNG, WEBP, or GIF).')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError('Photo must be 5 MB or smaller.')
+      return
+    }
+
+    setUploadingPhoto(true)
+    setProfileError('')
+    setProfileSuccess('')
+    try {
+      const { data } = await profileApi.uploadPhoto(file)
+      setProfile(data)
+      dispatch(updateUser({ profilePhoto: data.profilePhoto ?? undefined }))
+      setProfileSuccess('Profile photo updated.')
+    } catch (err) {
+      setProfileError(apiErrorMessage(err, 'Failed to upload profile photo.'))
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  const handleRemovePhoto = async () => {
+    setUploadingPhoto(true)
+    setProfileError('')
+    setProfileSuccess('')
+    try {
+      const { data } = await profileApi.removePhoto()
+      setProfile(data)
+      dispatch(updateUser({ profilePhoto: undefined }))
+      setProfileSuccess('Profile photo removed.')
+    } catch (err) {
+      setProfileError(apiErrorMessage(err, 'Failed to remove profile photo.'))
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -248,278 +233,369 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) {
-    return (
-      <Paper
-        elevation={0}
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          py: 12,
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
-        }}
-      >
-        <CircularProgress sx={{ color: primaryDark }} />
-      </Paper>
-    )
-  }
-
-  if (error || !profile) {
-    return (
-      <Alert severity="error" sx={{ borderRadius: 2 }}>
-        {error || 'Profile not found.'}
-      </Alert>
-    )
-  }
+  if (loading) return <DetailLoadingState />
+  if (error || !profile) return <DetailErrorState message={error || 'Profile not found.'} />
 
   const profileDirty = fullName.trim() !== profile.fullName || email.trim() !== profile.email
   const memberSince = formatDate(profile.createdAt)
 
   return (
-    <Box>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -40,
-            top: -40,
-            width: 160,
-            height: 160,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            gap: 2.5,
-            position: 'relative',
-          }}
-        >
-          <Avatar
-            sx={{
-              width: { xs: 64, sm: 72 },
-              height: { xs: 64, sm: 72 },
-              bgcolor: 'rgba(255,255,255,0.18)',
-              border: '2px solid rgba(255,255,255,0.35)',
-              fontSize: { xs: '1.25rem', sm: '1.5rem' },
-              fontWeight: 800,
-              flexShrink: 0,
-            }}
-          >
-            {userInitials(profile.fullName)}
-          </Avatar>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography
-              variant="h4"
-              sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', sm: '1.75rem' }, wordBreak: 'break-word' }}
-            >
-              {profile.fullName}
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.88, mt: 0.5 }}>
-              @{profile.username} · {profile.email}
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.25 }}>
-              <Chip
-                label={roleLabel(profile.role)}
-                size="small"
-                sx={{ fontWeight: 700, ...heroChipStyle('role', profile.role) }}
-              />
-              <Chip
-                label={profile.status}
-                size="small"
-                sx={{ fontWeight: 700, ...heroChipStyle('status', profile.status) }}
-              />
-            </Box>
-          </Box>
-        </Box>
-      </Paper>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            lg: profile.shippingLineName || profile.depotName ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)',
-          },
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <SummaryCard label="Username" value={profile.username} icon={<BadgeOutlinedIcon sx={{ fontSize: 16 }} />} />
-        <SummaryCard label="Member since" value={memberSince} icon={<CalendarMonthOutlinedIcon sx={{ fontSize: 16 }} />} />
-        {profile.shippingLineName && (
-          <SummaryCard
-            label="Shipping line"
-            value={profile.shippingLineName}
-            icon={<VerifiedUserOutlinedIcon sx={{ fontSize: 16 }} />}
-          />
-        )}
-        {profile.depotName && (
-          <SummaryCard label="Depot" value={profile.depotName} icon={<WarehouseOutlinedIcon sx={{ fontSize: 16 }} />} />
-        )}
+    <Box sx={{ minWidth: 0, maxWidth: 1080, mx: 'auto' }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', sm: '1.75rem' }, color: ICS_PRIMARY }}>
+          Profile settings
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Manage your photo, contact details, and password
+        </Typography>
       </Box>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
-          gap: 3,
-          alignItems: 'stretch',
-        }}
-      >
-        <Paper elevation={0} component="form" onSubmit={handleSaveProfile} sx={sectionPaperSx}>
-          <SectionHeader
-            icon={<PersonOutlinedIcon fontSize="small" />}
-            title="Edit profile"
-            subtitle="Update your display name and contact email"
-          />
-
+      {(profileSuccess || profileError) && (
+        <Box sx={{ mb: 2 }}>
           {profileSuccess && (
-            <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setProfileSuccess('')}>
+            <Alert severity="success" sx={{ borderRadius: 2, mb: profileError ? 1 : 0 }} onClose={() => setProfileSuccess('')}>
               {profileSuccess}
             </Alert>
           )}
           {profileError && (
-            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setProfileError('')}>
+            <Alert severity="error" sx={{ borderRadius: 2 }} onClose={() => setProfileError('')}>
               {profileError}
             </Alert>
           )}
+        </Box>
+      )}
 
-          <TextField
-            fullWidth
-            label="Full name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <PersonOutlinedIcon fontSize="small" color="action" />
-                  </InputAdornment>
-                ),
-              },
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: '320px 1fr' },
+          gap: 3,
+          alignItems: 'start',
+        }}
+      >
+        {/* Identity sidebar */}
+        <Paper
+          elevation={0}
+          sx={{
+            ...sectionPaperSx,
+            mb: 0,
+            position: { lg: 'sticky' },
+            top: { lg: 88 },
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              mx: -2.5,
+              mt: -2.5,
+              mb: 2.5,
+              px: 2.5,
+              pt: 3,
+              pb: 4,
+              background: `linear-gradient(160deg, ${ICS_PRIMARY} 0%, #0C4DA8 100%)`,
+              textAlign: 'center',
+              color: '#fff',
             }}
-            sx={{ ...fieldSx, mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <AlternateEmailOutlinedIcon fontSize="small" color="action" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-            sx={{ ...fieldSx, mb: 'auto' }}
-          />
+          >
+            <Box sx={{ position: 'relative', display: 'inline-block' }}>
+              <Avatar
+                src={profile.profilePhoto ? resolveAssetUrl(profile.profilePhoto) : undefined}
+                sx={{
+                  width: 96,
+                  height: 96,
+                  mx: 'auto',
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  border: '4px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                  bgcolor: hexToRgba('#fff', 0.15),
+                }}
+              >
+                {profile.profilePhoto ? null : userInitials(profile.fullName)}
+              </Avatar>
+              <Tooltip title="Change photo">
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={uploadingPhoto}
+                    onClick={() => photoInputRef.current?.click()}
+                    sx={{
+                      position: 'absolute',
+                      right: 0,
+                      bottom: 0,
+                      bgcolor: '#fff',
+                      color: ICS_PRIMARY,
+                      boxShadow: 2,
+                      '&:hover': { bgcolor: '#f8fafc' },
+                    }}
+                  >
+                    {uploadingPhoto ? (
+                      <CircularProgress size={18} sx={{ color: ICS_PRIMARY }} />
+                    ) : (
+                      <PhotoCameraOutlinedIcon fontSize="small" />
+                    )}
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+                onChange={(e) => void handlePhotoSelected(e)}
+              />
+            </Box>
 
-          <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              startIcon={savingProfile ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-              disabled={savingProfile || !profileDirty}
-              sx={{ fontWeight: 700, py: 1.25, borderRadius: 2 }}
-            >
-              Save changes
-            </Button>
+            <Typography variant="h6" sx={{ fontWeight: 800, mt: 1.5, wordBreak: 'break-word' }}>
+              {profile.fullName}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.88 }}>
+              @{profile.username}
+            </Typography>
+
+            <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 0.75, mt: 1.5 }}>
+              <Chip
+                label={roleLabel(profile.role)}
+                size="small"
+                sx={{ fontWeight: 700, bgcolor: 'rgba(255,255,255,0.95)', color: ICS_PRIMARY }}
+              />
+              <Chip label={profile.status} size="small" sx={{ fontWeight: 700, ...statusChipOnGradient(profile.status) }} />
+            </Box>
           </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+            <Button
+              variant="outlined"
+              fullWidth
+              startIcon={<CloudUploadOutlinedIcon />}
+              disabled={uploadingPhoto}
+              onClick={() => photoInputRef.current?.click()}
+              sx={{ borderRadius: 2, fontWeight: 700, borderColor: hexToRgba(ICS_PRIMARY, 0.35), color: ICS_PRIMARY }}
+            >
+              Upload photo
+            </Button>
+            {profile.profilePhoto && (
+              <Button
+                variant="text"
+                fullWidth
+                color="error"
+                startIcon={<DeleteOutlinedIcon />}
+                disabled={uploadingPhoto}
+                onClick={() => void handleRemovePhoto()}
+                sx={{ fontWeight: 600, textTransform: 'none' }}
+              >
+                Remove photo
+              </Button>
+            )}
+          </Box>
+
+          <Divider sx={{ mb: 1.5 }} />
+
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1 }}>
+            Account
+          </Typography>
+          <List dense disablePadding sx={{ mt: 0.5 }}>
+            <AccountFact icon={<BadgeOutlinedIcon fontSize="small" />} label="Username" value={profile.username} />
+            <AccountFact icon={<AlternateEmailOutlinedIcon fontSize="small" />} label="Email" value={profile.email} />
+            <AccountFact icon={<CalendarMonthOutlinedIcon fontSize="small" />} label="Member since" value={memberSince} />
+            {profile.shippingLineName && (
+              <AccountFact
+                icon={<VerifiedUserOutlinedIcon fontSize="small" />}
+                label="Shipping line"
+                value={profile.shippingLineName}
+              />
+            )}
+            {profile.depotName && (
+              <AccountFact icon={<WarehouseOutlinedIcon fontSize="small" />} label="Depot" value={profile.depotName} />
+            )}
+          </List>
         </Paper>
 
-        <Paper elevation={0} component="form" onSubmit={handleChangePassword} sx={sectionPaperSx}>
-          <SectionHeader
-            icon={<LockOutlinedIcon fontSize="small" />}
-            title="Security"
-            subtitle="Change your sign-in password"
-          />
+        {/* Main settings panel */}
+        <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0, p: 0, overflow: 'hidden' }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, value: string) => setActiveTab(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ ...detailTabsSx, px: { xs: 1, sm: 2 } }}
+          >
+            <Tab icon={<PersonOutlinedIcon fontSize="small" />} iconPosition="start" label="Personal info" value="account" />
+            <Tab icon={<LockOutlinedIcon fontSize="small" />} iconPosition="start" label="Password" value="security" />
+          </Tabs>
 
-          {passwordSuccess && (
-            <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setPasswordSuccess('')}>
-              {passwordSuccess}
-            </Alert>
-          )}
-          {passwordError && (
-            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setPasswordError('')}>
-              {passwordError}
-            </Alert>
-          )}
+          <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
+            <DetailTabPanel value="account" activeTab={activeTab}>
+              <Box component="form" onSubmit={handleSaveProfile}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 1.5,
+                      bgcolor: hexToRgba(ICS_PRIMARY, 0.08),
+                      color: ICS_PRIMARY,
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <SettingsOutlinedIcon fontSize="small" />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Personal information
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Name and email shown across ICS
+                    </Typography>
+                  </Box>
+                </Box>
 
-          <TextField
-            fullWidth
-            label="Current password"
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            sx={{ ...fieldSx, mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="New password"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-            helperText="At least 8 characters"
-            sx={{ ...fieldSx, mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Confirm new password"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-            sx={{ ...fieldSx, mb: 'auto' }}
-          />
+                <TextField
+                  fullWidth
+                  label="Full name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonOutlinedIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                  sx={{ ...fieldSx, mb: 2 }}
+                />
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AlternateEmailOutlinedIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                  sx={{ ...fieldSx, mb: 3 }}
+                />
 
-          <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
-              sx={{
-                fontWeight: 700,
-                py: 1.25,
-                borderRadius: 2,
-                bgcolor: primaryDark,
-                '&:hover': { bgcolor: '#0A3580' },
-              }}
-            >
-              {savingPassword ? <CircularProgress size={22} color="inherit" /> : 'Update password'}
-            </Button>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={savingProfile ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+                    disabled={savingProfile || !profileDirty}
+                    sx={{
+                      fontWeight: 700,
+                      px: 3,
+                      py: 1.1,
+                      borderRadius: 2,
+                      bgcolor: ICS_PRIMARY,
+                      '&:hover': { bgcolor: '#0A3580' },
+                    }}
+                  >
+                    Save changes
+                  </Button>
+                </Box>
+              </Box>
+            </DetailTabPanel>
+
+            <DetailTabPanel value="security" activeTab={activeTab}>
+              <Box component="form" onSubmit={handleChangePassword}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 1.5,
+                      bgcolor: hexToRgba(ICS_PRIMARY, 0.08),
+                      color: ICS_PRIMARY,
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <LockOutlinedIcon fontSize="small" />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Change password
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Use a strong password you do not use elsewhere
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {passwordSuccess && (
+                  <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setPasswordSuccess('')}>
+                    {passwordSuccess}
+                  </Alert>
+                )}
+                {passwordError && (
+                  <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setPasswordError('')}>
+                    {passwordError}
+                  </Alert>
+                )}
+
+                <TextField
+                  fullWidth
+                  label="Current password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  sx={{ ...fieldSx, mb: 2 }}
+                />
+                <TextField
+                  fullWidth
+                  label="New password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  helperText="At least 8 characters"
+                  sx={{ ...fieldSx, mb: 2 }}
+                />
+                <TextField
+                  fullWidth
+                  label="Confirm new password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  sx={{ ...fieldSx, mb: 3 }}
+                />
+
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
+                    sx={{
+                      fontWeight: 700,
+                      px: 3,
+                      py: 1.1,
+                      borderRadius: 2,
+                      bgcolor: ICS_PRIMARY,
+                      '&:hover': { bgcolor: '#0A3580' },
+                    }}
+                  >
+                    {savingPassword ? <CircularProgress size={22} color="inherit" /> : 'Update password'}
+                  </Button>
+                </Box>
+              </Box>
+            </DetailTabPanel>
           </Box>
         </Paper>
       </Box>

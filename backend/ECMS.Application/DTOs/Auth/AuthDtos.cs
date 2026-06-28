@@ -32,6 +32,7 @@ public record UserDto(
     string Role,
     int? ShippingLineId,
     int? DepotId,
+    string? ProfilePhoto,
     IReadOnlyList<string> AllowedPages);
 
 public record RefreshTokenRequest(string RefreshToken);

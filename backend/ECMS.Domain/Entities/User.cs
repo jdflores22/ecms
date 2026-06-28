@@ -11,6 +11,8 @@ public class User : BaseEntity
     public int RoleId { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Active;
     public string? FullName { get; set; }
+    /// <summary>Relative path under uploads, e.g. /uploads/{guid}.jpg</summary>
+    public string? ProfilePhoto { get; set; }
     public int? ShippingLineId { get; set; }
     public int? DepotId { get; set; }
 

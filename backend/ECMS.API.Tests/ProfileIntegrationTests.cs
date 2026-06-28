@@ -91,5 +91,6 @@ public class ProfileIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         string? ShippingLineName,
         int? DepotId,
         string? DepotName,
+        string? ProfilePhoto,
         DateTime CreatedAt);
 }

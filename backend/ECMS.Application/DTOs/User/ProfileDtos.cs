@@ -11,6 +11,7 @@ public record ProfileDto(
     string? ShippingLineName,
     int? DepotId,
     string? DepotName,
+    string? ProfilePhoto,
     DateTime CreatedAt);
 
 public record UpdateProfileRequest(string Email, string FullName);

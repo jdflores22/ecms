@@ -785,6 +785,10 @@ namespace ECMS.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ProfilePhoto")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
                     b.Property<int>("RoleId")
                         .HasColumnType("int");
 

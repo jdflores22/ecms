@@ -63,6 +63,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<User>(e =>
         {
+            e.Property(x => x.ProfilePhoto).HasMaxLength(512);
             e.HasIndex(x => x.Username).IsUnique();
             e.HasIndex(x => x.Email).IsUnique();
             e.HasOne(x => x.Role).WithMany(x => x.Users).HasForeignKey(x => x.RoleId);

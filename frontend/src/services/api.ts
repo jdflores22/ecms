@@ -38,6 +38,7 @@ export interface LoginResponse {
     role: string
     shippingLineId?: number | null
     depotId?: number | null
+    profilePhoto?: string | null
     allowedPages?: string[]
   }
 }
@@ -81,12 +82,21 @@ export interface Profile {
   shippingLineName?: string | null
   depotId?: number | null
   depotName?: string | null
+  profilePhoto?: string | null
   createdAt: string
 }
 
 export const profileApi = {
   get: () => api.get<Profile>('/profile'),
   update: (data: { email: string; fullName: string }) => api.put<Profile>('/profile', data),
+  uploadPhoto: (photo: File) => {
+    const form = new FormData()
+    form.append('photo', photo)
+    return api.post<Profile>('/profile/photo', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  removePhoto: () => api.delete<Profile>('/profile/photo'),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<{ message: string }>('/profile/change-password', { currentPassword, newPassword }),
 }
