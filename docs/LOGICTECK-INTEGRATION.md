@@ -361,6 +361,11 @@ Photos visible in ICS (`/preadvice/{id}?tab=overview`) are for internal verifica
 
 ---
 
+## Related docs
+
+- **LOGICTECK team handoff (QR / reference + credentials):** [LOGICTECK-API-HANDOFF.md](./LOGICTECK-API-HANDOFF.md)
+- Railway deploy: [RAILWAY-DEPLOY.md](./RAILWAY-DEPLOY.md)
+
 ## Related files
 
 | Area | Path |

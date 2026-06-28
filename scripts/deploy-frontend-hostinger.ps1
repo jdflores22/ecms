@@ -49,6 +49,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
     "$dist/index.html" `
     "$dist/ics-logo.png" `
     "$dist/icons.svg" `
+    "$dist/logicteck-test.html" `
     "$dist/.htaccess" `
     "${remote}/"
 if ($LASTEXITCODE -ne 0) { exit 1 }

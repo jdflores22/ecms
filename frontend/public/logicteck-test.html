@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ICS → LOGICTECK API test</title>
+  <style>
+    :root {
+      --ics: #003366;
+      --ics-light: #004b7a;
+      --lt-bg: #edf7ef;
+      --lt-border: #b8dcc0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --ok: #15803d;
+      --warn: #b45309;
+      --err: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(160deg, #f0f7f2 0%, #e8f0f8 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    header {
+      background: linear-gradient(135deg, var(--ics) 0%, var(--ics-light) 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0, 51, 102, 0.2);
+    }
+    header h1 { margin: 0 0 8px; font-size: 1.5rem; font-weight: 800; }
+    header p { margin: 0; opacity: 0.92; font-size: 0.95rem; line-height: 1.5; }
+    .badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.15);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+    }
+    .card h2 { margin: 0 0 14px; font-size: 1rem; font-weight: 700; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+    }
+    input.mono { font-family: ui-monospace, monospace; font-weight: 700; }
+    input:focus { outline: 2px solid var(--ics-light); border-color: var(--ics-light); }
+    .grid { display: grid; gap: 0 16px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .full { grid-column: 1 / -1; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .btn-primary { background: var(--ics); color: #fff; }
+    .btn-primary:hover { background: var(--ics-light); }
+    .btn-outline { background: #fff; color: var(--ics); border: 2px solid var(--ics); }
+    .btn-outline:hover { background: #f0f7ff; }
+    .btn-ghost { background: #f1f5f9; color: var(--text); }
+    .note {
+      background: var(--lt-bg);
+      border: 1px solid var(--lt-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-left: 8px;
+    }
+    .status.ok { background: #dcfce7; color: var(--ok); }
+    .status.warn { background: #fef3c7; color: var(--warn); }
+    .status.err { background: #fee2e2; color: var(--err); }
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      background: #f8fafc;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+    }
+    .fields { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; margin: 12px 0; font-size: 0.875rem; }
+    .fields div { padding: 8px 10px; background: var(--lt-bg); border-radius: 8px; }
+    .fields strong { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    footer { text-align: center; margin-top: 24px; font-size: 0.8rem; color: var(--muted); }
+    footer a { color: var(--ics-light); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>ICS → LOGICTECK API test</h1>
+      <p>
+        Standalone page — <strong>no ICS login</strong>. Test transfer lookup and gate validation using an
+        <strong>ICS reference</strong> (e.g. <code>ICS-202600018</code>) or QR value against the public Railway API.
+      </p>
+      <span class="badge">OUTSIDE ICS APP · PUBLIC API ONLY</span>
+    </header>
+
+    <div class="note">
+      <strong>Phase 1:</strong> LOGICTECK enters the ICS reference (or scans QR) → calls <code>GET /api/logicteck/booking/{reference}</code>
+      → creates the return booking on the LOGICTECK side → at gate calls <code>POST /api/logicteck/validate-qr</code>.
+      ICS pre-advice status stays <strong>Approved</strong>; <code>isBooked</code> / <code>isRetrieved</code> track the LOGICTECK transfer only.
+    </div>
+
+    <div class="card">
+      <h2>Connection</h2>
+      <div class="grid">
+        <div class="full">
+          <label for="apiBase">ICS API base URL</label>
+          <input id="apiBase" type="url" placeholder="https://ecms-production-42be.up.railway.app" />
+        </div>
+        <div class="full">
+          <label for="apiKey">X-Logicteck-Api-Key (from ICS admin)</label>
+          <input id="apiKey" type="password" placeholder="Shared secret" autocomplete="off" />
+        </div>
+        <div class="full">
+          <label for="qrCode">ICS reference / QR code value</label>
+          <input id="qrCode" class="mono" type="text" placeholder="ICS-202600018" />
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-primary" id="btnLookup">Lookup booking</button>
+        <button type="button" class="btn-outline" id="btnValidate">Simulate gate validate</button>
+        <button type="button" class="btn-ghost" id="btnCopyLookup">Copy lookup curl</button>
+        <button type="button" class="btn-ghost" id="btnCopyValidate">Copy validate curl</button>
+      </div>
+      <p id="toast" class="hidden" style="margin:12px 0 0;color:var(--ok);font-size:0.875rem;font-weight:600;"></p>
+      <p id="error" class="hidden" style="margin:12px 0 0;color:var(--err);font-size:0.875rem;"></p>
+    </div>
+
+    <div class="card hidden" id="lookupCard">
+      <h2>Lookup result <span id="lookupStatus" class="status"></span></h2>
+      <div id="lookupFields" class="fields hidden"></div>
+      <pre id="lookupJson"></pre>
+    </div>
+
+    <div class="card hidden" id="validateCard">
+      <h2>Validate result <span id="validateStatus" class="status"></span></h2>
+      <pre id="validateJson"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Documentation</h2>
+      <p style="margin:0;font-size:0.9rem;line-height:1.6;color:var(--muted);">
+        Handoff for LOGICTECK team: <code>docs/LOGICTECK-API-HANDOFF.md</code> in the ICS repo.
+        Production API: <a href="https://ecms-production-42be.up.railway.app/health" target="_blank" rel="noopener">health check</a>
+      </p>
+    </div>
+
+    <footer>
+      Intelligent Container Solutions (ICS) · LOGICTECK integration test page
+    </footer>
+  </div>
+
+  <script>
+    const STORAGE_BASE = 'ics.logicteckTest.apiBase'
+    const STORAGE_KEY = 'ics.logicteckTest.apiKey'
+    const DEFAULT_BASE = 'https://ecms-production-42be.up.railway.app'
+    const LOOKUP_PATH = '/api/logicteck/booking'
+    const VALIDATE_PATH = '/api/logicteck/validate-qr'
+    const KEY_HEADER = 'X-Logicteck-Api-Key'
+
+    const $ = (id) => document.getElementById(id)
+    const apiBase = $('apiBase')
+    const apiKey = $('apiKey')
+    const qrCode = $('qrCode')
+
+    const params = new URLSearchParams(location.search)
+    apiBase.value = sessionStorage.getItem(STORAGE_BASE) || DEFAULT_BASE
+    apiKey.value = sessionStorage.getItem(STORAGE_KEY) || ''
+    qrCode.value = params.get('qr') || params.get('ref') || ''
+
+    function saveSettings() {
+      sessionStorage.setItem(STORAGE_BASE, apiBase.value.trim())
+      sessionStorage.setItem(STORAGE_KEY, apiKey.value)
+    }
+
+    apiBase.addEventListener('change', saveSettings)
+    apiKey.addEventListener('change', saveSettings)
+
+    function showError(msg) {
+      const el = $('error')
+      el.textContent = msg
+      el.classList.remove('hidden')
+    }
+
+    function clearError() {
+      $('error').classList.add('hidden')
+    }
+
+    function toast(msg) {
+      const el = $('toast')
+      el.textContent = msg
+      el.classList.remove('hidden')
+      setTimeout(() => el.classList.add('hidden'), 2500)
+    }
+
+    function headers() {
+      const h = { Accept: 'application/json' }
+      const key = apiKey.value.trim()
+      if (key) h[KEY_HEADER] = key
+      return h
+    }
+
+    function base() {
+      return apiBase.value.trim().replace(/\/$/, '')
+    }
+
+    function ref() {
+      return qrCode.value.trim()
+    }
+
+    function externalStatus(data) {
+      if (!data || !data.found) return null
+      if (data.isRetrieved) return 'Retrieved'
+      if (data.isBooked) return 'Booked on LOGICTECK'
+      return 'Ready to send'
+    }
+
+    function renderLookup(httpStatus, body) {
+      $('lookupCard').classList.remove('hidden')
+      $('lookupJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('lookupStatus')
+      const fields = $('lookupFields')
+      fields.innerHTML = ''
+      if (body && body.found) {
+        const st = externalStatus(body)
+        badge.textContent = st || 'Found'
+        badge.className = 'status ' + (body.isRetrieved ? 'warn' : body.isBooked ? 'ok' : 'ok')
+        fields.classList.remove('hidden')
+        const items = [
+          ['Container', body.containerNo],
+          ['Pre-advice', body.preAdviceReference],
+          ['Shipping line', body.shippingLine],
+          ['Depot', body.depot],
+          ['Schedule', (body.scheduledDate || '') + ' ' + (body.scheduledTime || '')],
+          ['isBooked', String(body.isBooked)],
+          ['isRetrieved', String(body.isRetrieved)],
+        ]
+        items.forEach(([label, val]) => {
+          const d = document.createElement('div')
+          d.innerHTML = '<strong>' + label + '</strong>' + (val || '—')
+          fields.appendChild(d)
+        })
+      } else {
+        badge.textContent = httpStatus === 401 ? 'Unauthorized' : 'Not found'
+        badge.className = 'status err'
+        fields.classList.add('hidden')
+      }
+    }
+
+    function renderValidate(httpStatus, body) {
+      $('validateCard').classList.remove('hidden')
+      $('validateJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('validateStatus')
+      if (body && body.valid) {
+        badge.textContent = 'Valid'
+        badge.className = 'status ok'
+      } else {
+        badge.textContent = body && body.message ? body.message : 'Invalid'
+        badge.className = 'status err'
+      }
+    }
+
+    async function runLookup() {
+      clearError()
+      saveSettings()
+      const code = ref()
+      if (!code) return showError('Enter an ICS reference (e.g. ICS-202600018).')
+      const url = base() + LOOKUP_PATH + '/' + encodeURIComponent(code)
+      try {
+        const res = await fetch(url, { method: 'GET', headers: headers() })
+        const text = await res.text()
+        let body = text
+        try { body = JSON.parse(text) } catch (_) {}
+        renderLookup(res.status, body)
+      } catch (e) {
+        showError('Lookup failed. Check API URL, CORS, and that Railway is running.')
+      }
+    }
+
+    async function runValidate() {
+      clearError()
+      saveSettings()
+      const code = ref()
+      if (!code) return showError('Enter an ICS reference before gate validate.')
+      const url = base() + VALIDATE_PATH
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { ...headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qrCode: code }),
+        })
+        const text = await res.text()
+        let body = text
+        try { body = JSON.parse(text) } catch (_) {}
+        renderValidate(res.status, body)
+        await runLookup()
+      } catch (e) {
+        showError('Validate failed. Check API URL and network.')
+      }
+    }
+
+    function curlLookup() {
+      const code = ref()
+      if (!code) return ''
+      const url = base() + LOOKUP_PATH + '/' + encodeURIComponent(code)
+      const key = apiKey.value.trim()
+      const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
+      return 'curl -s -X GET "' + url + '" \\\n' + keyLine + '  -H "Accept: application/json"'
+    }
+
+    function curlValidate() {
+      const code = ref()
+      if (!code) return ''
+      const url = base() + VALIDATE_PATH
+      const key = apiKey.value.trim()
+      const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
+      return 'curl -s -X POST "' + url + '" \\\n  -H "Content-Type: application/json" \\\n' + keyLine + '  -d "{\\"qrCode\\":\\"' + code + '\\"}"'
+    }
+
+    $('btnLookup').addEventListener('click', runLookup)
+    $('btnValidate').addEventListener('click', runValidate)
+    $('btnCopyLookup').addEventListener('click', () => {
+      const c = curlLookup()
+      if (!c) return showError('Enter ICS reference first.')
+      navigator.clipboard.writeText(c).then(() => toast('Lookup curl copied'))
+    })
+    $('btnCopyValidate').addEventListener('click', () => {
+      const c = curlValidate()
+      if (!c) return showError('Enter ICS reference first.')
+      navigator.clipboard.writeText(c).then(() => toast('Validate curl copied'))
+    })
+
+    if (qrCode.value) runLookup()
+  </script>
+</body>
+</html>
