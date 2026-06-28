@@ -1,3 +1,4 @@
+using ECMS.Application;
 using ECMS.Application.DTOs.ContainerInventory;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
@@ -34,6 +35,10 @@ public class ContainerInventoryService : IContainerInventoryService
         var schedules = await _db.Schedules
             .Include(s => s.PreAdvice)
             .ThenInclude(p => p.Container)
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.ShippingLine)
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.Trucker)
             .Include(s => s.Depot)
             .Include(s => s.Payment)
             .Where(s => s.Status == ScheduleStatus.Confirmed)
@@ -46,6 +51,7 @@ public class ContainerInventoryService : IContainerInventoryService
             .Include(e => e.ContainerSize)
             .Include(e => e.ContainerType)
             .Include(e => e.Depot)
+            .Include(e => e.ShippingLine)
             .Where(e => e.ShippingLineId == lineId)
             .Where(e => !depotId.HasValue || e.DepotId == depotId.Value)
             .ToListAsync(cancellationToken);
@@ -58,7 +64,7 @@ public class ContainerInventoryService : IContainerInventoryService
             .ThenByDescending(i => i.YardInDate)
             .ToList();
 
-        var summary = BuildSummary(items);
+        var summary = BuildSummary(items, await GetContractTeuAsync(lineId, cancellationToken));
 
         return new ContainerInventoryResponseDto(summary, items);
     }
@@ -228,13 +234,18 @@ public class ContainerInventoryService : IContainerInventoryService
             schedule.PreAdvice.Container.ContainerNo,
             schedule.PreAdvice.Container.Size,
             schedule.PreAdvice.Container.Type,
+            schedule.PreAdvice.ShippingLine.Code,
+            schedule.PreAdvice.ShippingLine.Name,
+            schedule.PreAdvice.Trucker.FullName,
             schedule.DepotId,
             schedule.Depot.Name,
             yardIn,
+            schedule.Time.ToString("HH:mm"),
             dwellDays,
             Math.Max(0, DwellLimitDays - dwellDays),
             compliance,
-            schedule.Status.ToString());
+            schedule.Status.ToString(),
+            schedule.PreAdvice.Remarks);
     }
 
     private static ContainerInventoryItemDto MapManualItem(ManualYardInventoryEntry entry)
@@ -251,13 +262,18 @@ public class ContainerInventoryService : IContainerInventoryService
             entry.ContainerNo,
             entry.ContainerSize.Label,
             entry.ContainerType.Code,
+            entry.ShippingLine.Code,
+            entry.ShippingLine.Name,
+            null,
             entry.DepotId,
             entry.Depot.Name,
             entry.YardInDate,
+            null,
             dwellDays,
             Math.Max(0, DwellLimitDays - dwellDays),
             compliance,
-            null);
+            null,
+            entry.Remarks);
     }
 
     private static ManualYardInventoryEntryDto MapManualEntryDto(ManualYardInventoryEntry entry) =>
@@ -304,7 +320,9 @@ public class ContainerInventoryService : IContainerInventoryService
         return string.Equals(status, filter.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static ContainerInventorySummaryDto BuildSummary(IReadOnlyList<ContainerInventoryItemDto> items)
+    private static ContainerInventorySummaryDto BuildSummary(
+        IReadOnlyList<ContainerInventoryItemDto> items,
+        decimal contractTeu)
     {
         var byDepot = items
             .GroupBy(i => new { i.DepotId, i.DepotName })
@@ -316,6 +334,10 @@ public class ContainerInventoryService : IContainerInventoryService
             .OrderBy(d => d.DepotName)
             .ToList();
 
+        var size20Count = items.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "20");
+        var size40Count = items.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "40");
+        var usedTeu = items.Sum(i => TeuCalculator.FromContainerSize(i.ContainerSize));
+
         return new ContainerInventorySummaryDto(
             items.Count,
             items.Count(i => i.ComplianceStatus == "WithinLimit"),
@@ -323,8 +345,17 @@ public class ContainerInventoryService : IContainerInventoryService
             items.Count(i => i.ComplianceStatus == "Overstay"),
             DwellLimitDays,
             WarningThresholdDays,
+            size20Count,
+            size40Count,
+            usedTeu,
+            contractTeu,
             byDepot);
     }
+
+    private async Task<decimal> GetContractTeuAsync(int shippingLineId, CancellationToken cancellationToken)
+        => await _db.ShippingLineDepotContracts
+            .Where(c => c.ShippingLineId == shippingLineId && c.IsActive && c.Depot.IsActive)
+            .SumAsync(c => c.ContractTeu, cancellationToken);
 
     private static string NormalizeContainerNo(string containerNo) => containerNo.Trim().ToUpperInvariant();
 

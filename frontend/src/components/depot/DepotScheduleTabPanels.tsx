@@ -23,7 +23,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
-import { qrLookupStatusLabel } from '../../config/logicteckQr'
+import { qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Payment,
   PreAdvice,
@@ -117,6 +117,7 @@ type DepotScheduleTabPanelsProps = {
   documentsLoading: boolean
   payment: Payment | null
   showPaymentSection: boolean
+  canVerifyPayment: boolean
   qrBooking: QrBooking | null
   qrImageUrl: string | null
   qrLoading: boolean
@@ -147,6 +148,7 @@ export default function DepotScheduleTabPanels({
   documentsLoading,
   payment,
   showPaymentSection,
+  canVerifyPayment,
   qrBooking,
   qrImageUrl,
   qrLoading,
@@ -334,11 +336,11 @@ export default function DepotScheduleTabPanels({
       <DetailTabPanel value="payment" activeTab={activeTab}>
         {showPaymentSection && payment ? (
           <>
-            {payment.status === 'ForVerification' && (
+            {payment.status === 'ForVerification' && canVerifyPayment && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                 <Button
                   component={RouterLink}
-                  to="/depot/payments"
+                  to="/admin/payments"
                   size="small"
                   variant="contained"
                   endIcon={<OpenInNewIcon />}
@@ -434,7 +436,7 @@ export default function DepotScheduleTabPanels({
               />
               <InfoTile
                 label="LOGICTECK status"
-                value={qrLookupStatusLabel(qrBooking.isUsed)}
+                value={qrLookupStatusLabel(qrBooking)}
               />
             </Box>
             <Box sx={{ mt: 2, textAlign: 'center' }}>

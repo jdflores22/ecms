@@ -89,6 +89,9 @@ public class DbSeeder
 
         await MigrateBrokerRoleToTruckerAsync();
         await SyncTruckerRoleFromCatalogAsync();
+        await SyncAdministratorRoleFromCatalogAsync();
+        await SyncDepotPersonnelRoleFromCatalogAsync();
+        await SyncShippingLineEvaluatorRoleFromCatalogAsync();
 
         if (!await _context.PaymentSettingsSet.AnyAsync())
         {
@@ -142,19 +145,34 @@ public class DbSeeder
         {
             var maersk = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MAERSK");
             var depot = await _context.DepotsSet.FirstAsync();
-            _context.ShippingLineDepotContractsSet.Add(new ShippingLineDepotContract
+            var size40 = await _context.ContainerSizesSet.FirstAsync(s => s.Label.StartsWith("40"));
+
+            var maerskContract = new ShippingLineDepotContract
             {
                 ShippingLineId = maersk.Id,
                 DepotId = depot.Id,
                 ContractTeu = 200,
+            };
+            maerskContract.SizeAllocations.Add(new ShippingLineDepotContractSizeAllocation
+            {
+                ContainerSizeId = size40.Id,
+                ContractCount = 100,
             });
+            _context.ShippingLineDepotContractsSet.Add(maerskContract);
+
             var msc = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MSC");
-            _context.ShippingLineDepotContractsSet.Add(new ShippingLineDepotContract
+            var mscContract = new ShippingLineDepotContract
             {
                 ShippingLineId = msc.Id,
                 DepotId = depot.Id,
                 ContractTeu = 150,
+            };
+            mscContract.SizeAllocations.Add(new ShippingLineDepotContractSizeAllocation
+            {
+                ContainerSizeId = size40.Id,
+                ContractCount = 75,
             });
+            _context.ShippingLineDepotContractsSet.Add(mscContract);
             await _context.SaveChangesAsync();
         }
 
@@ -227,6 +245,48 @@ public class DbSeeder
         truckerRole.Description = defaults.Description;
         truckerRole.CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities);
         truckerRole.AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SyncAdministratorRoleFromCatalogAsync()
+    {
+        var adminRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Administrator);
+        var defaults = RoleCatalogDefaults.Get(RoleNames.Administrator);
+        if (adminRole is null || defaults is null)
+            return;
+
+        adminRole.Label = defaults.Label;
+        adminRole.Description = defaults.Description;
+        adminRole.CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities);
+        adminRole.AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SyncDepotPersonnelRoleFromCatalogAsync()
+    {
+        var depotRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.DepotPersonnel);
+        var defaults = RoleCatalogDefaults.Get(RoleNames.DepotPersonnel);
+        if (depotRole is null || defaults is null)
+            return;
+
+        depotRole.Label = defaults.Label;
+        depotRole.Description = defaults.Description;
+        depotRole.CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities);
+        depotRole.AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SyncShippingLineEvaluatorRoleFromCatalogAsync()
+    {
+        var evaluatorRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.ShippingLineEvaluator);
+        var defaults = RoleCatalogDefaults.Get(RoleNames.ShippingLineEvaluator);
+        if (evaluatorRole is null || defaults is null)
+            return;
+
+        evaluatorRole.Label = defaults.Label;
+        evaluatorRole.Description = defaults.Description;
+        evaluatorRole.CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities);
+        evaluatorRole.AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages);
         await _context.SaveChangesAsync();
     }
 }

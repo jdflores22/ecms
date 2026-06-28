@@ -1,8 +1,11 @@
 using System.Text.Json;
+using ECMS.Application.Configuration;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
+using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using QRCoder;
 
 namespace ECMS.Infrastructure.Services;
@@ -10,19 +13,25 @@ namespace ECMS.Infrastructure.Services;
 public class QrCodeService : IQrService
 {
     private readonly IEcmsDbContext _db;
+    private readonly LogicteckOutboundClient _logicteckClient;
+    private readonly LogicteckOptions _logicteckOptions;
+    private readonly IAuditService _auditService;
 
-    public QrCodeService(IEcmsDbContext db)
+    public QrCodeService(
+        IEcmsDbContext db,
+        LogicteckOutboundClient logicteckClient,
+        IOptions<LogicteckOptions> logicteckOptions,
+        IAuditService auditService)
     {
         _db = db;
+        _logicteckClient = logicteckClient;
+        _logicteckOptions = logicteckOptions.Value;
+        _auditService = auditService;
     }
 
     public async Task<QrBookingDto?> GetByBookingIdAsync(int bookingId, CancellationToken cancellationToken = default)
     {
-        var booking = await _db.QRBookings
-            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
-            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
-            .Include(x => x.Schedule).ThenInclude(s => s.Depot)
-            .Include(x => x.Schedule).ThenInclude(s => s.Trucker)
+        var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
         return booking is null ? null : MapToDto(booking);
@@ -54,6 +63,7 @@ public class QrCodeService : IQrService
             return MapToDto(schedule.QRBooking);
 
         var bookingId = $"ICS-{PhilippinesTime.Year}{schedule.Id:D5}";
+        var validateUrl = BuildValidateUrl();
         var payload = new QrPayloadDto(
             bookingId,
             schedule.PreAdvice.Container.ContainerNo,
@@ -61,7 +71,8 @@ public class QrCodeService : IQrService
             schedule.Depot.Name,
             schedule.Date.ToString("yyyy-MM-dd"),
             schedule.Time.ToString("HH:mm"),
-            schedule.Trucker?.FullName ?? schedule.Trucker?.Username ?? "N/A");
+            schedule.Trucker?.FullName ?? schedule.Trucker?.Username ?? "N/A",
+            validateUrl);
 
         var payloadJson = JsonSerializer.Serialize(payload);
         var booking = new Domain.Entities.QRBooking
@@ -80,39 +91,222 @@ public class QrCodeService : IQrService
 
     public async Task<QrBookingDto?> GetByScheduleIdAsync(int scheduleId, CancellationToken cancellationToken = default)
     {
-        var booking = await _db.QRBookings
-            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
-            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
-            .Include(x => x.Schedule).ThenInclude(s => s.Depot)
-            .Include(x => x.Schedule).ThenInclude(s => s.Trucker)
+        var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.ScheduleId == scheduleId, cancellationToken);
 
         return booking is null ? null : MapToDto(booking);
     }
 
+    public async Task<QrBookingDto?> GetByQrCodeAsync(
+        string qrCode,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(qrCode)) return null;
+
+        var booking = await LoadBookingQuery()
+            .FirstOrDefaultAsync(x => x.QRCode == qrCode.Trim(), cancellationToken);
+
+        if (booking is null || !CanAccessBooking(booking, userId, role))
+            return null;
+
+        return MapToDto(booking);
+    }
+
     public async Task<ValidateQrResponse> ValidateAsync(ValidateQrRequest request, CancellationToken cancellationToken = default)
     {
-        var booking = await _db.QRBookings
-            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
-            .Include(x => x.Schedule).ThenInclude(s => s.Depot)
+        var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.QRCode == request.QrCode, cancellationToken);
 
-        if (booking is null || booking.IsUsed)
-            return new ValidateQrResponse(false, null, null, null, null);
+        if (booking is null)
+        {
+            return new ValidateQrResponse(
+                false,
+                "Booking reference not found.",
+                null, null, null, null, null, null, null, null);
+        }
 
-        return new ValidateQrResponse(
+        if (booking.IsUsed)
+        {
+            return new ValidateQrResponse(
+                false,
+                "QR already retrieved by LOGICTECK.",
+                booking.QRCode,
+                booking.Schedule.PreAdvice.Container.ContainerNo,
+                booking.Schedule.PreAdvice.ShippingLine.Code,
+                booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
+                booking.Schedule.PreAdvice.ReferenceNo,
+                booking.Schedule.Date.ToString("yyyy-MM-dd"),
+                booking.Schedule.Time.ToString("HH:mm"),
+                booking.Schedule.Depot.Name);
+        }
+
+        booking.IsUsed = true;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            booking.Schedule.PreAdvice.TruckerId,
+            "LOGICTECK_VALIDATE_QR",
+            "QR",
+            $"QR {booking.QRCode} validated for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
+            cancellationToken);
+
+        return BuildValidateResponse(booking, valid: true, message: "Valid booking.");
+    }
+
+    public async Task<LogicteckBookingLookupResponse?> LookupForLogicteckAsync(string qrCode, CancellationToken cancellationToken = default)
+    {
+        var booking = await LoadBookingQuery()
+            .FirstOrDefaultAsync(x => x.QRCode == qrCode, cancellationToken);
+
+        if (booking is null)
+        {
+            return new LogicteckBookingLookupResponse(
+                false,
+                "Booking reference not found.",
+                null, null, null, null, null, null, null, null,
+                false, false);
+        }
+
+        return new LogicteckBookingLookupResponse(
             true,
+            null,
+            booking.QRCode,
             booking.Schedule.PreAdvice.Container.ContainerNo,
+            booking.Schedule.PreAdvice.ShippingLine.Code,
+            booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
+            booking.Schedule.PreAdvice.ReferenceNo,
+            booking.Schedule.Date.ToString("yyyy-MM-dd"),
+            booking.Schedule.Time.ToString("HH:mm"),
+            booking.Schedule.Depot.Name,
+            booking.LogicteckBookedAt.HasValue,
+            booking.IsUsed);
+    }
+
+    public async Task<BookLogicteckResponse> BookLogicteckAsync(
+        int bookingId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await LoadBookingQuery()
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
+
+        if (booking is null)
+            return new BookLogicteckResponse(false, "Transfer QR not found.", null, null, null);
+
+        if (!CanAccessBooking(booking, userId, role))
+            return new BookLogicteckResponse(false, "You are not allowed to send this pre-advice data to LOGICTECK.", null, null, null);
+
+        if (booking.IsUsed)
+            return new BookLogicteckResponse(false, "QR already retrieved by LOGICTECK.", MapToDto(booking), null, null);
+
+        if (booking.LogicteckBookedAt.HasValue)
+        {
+            return new BookLogicteckResponse(
+                true,
+                "Pre-advice data already sent to LOGICTECK.",
+                MapToDto(booking),
+                booking.LogicteckExternalRef,
+                string.IsNullOrWhiteSpace(_logicteckOptions.PortalUrl) ? null : _logicteckOptions.PortalUrl);
+        }
+
+        var outboundPayload = new LogicteckOutboundPayload(
+            booking.QRCode,
+            booking.Schedule.PreAdvice.Container.ContainerNo,
+            booking.Schedule.PreAdvice.ShippingLine.Code,
+            booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username ?? "N/A",
+            booking.Schedule.PreAdvice.ReferenceNo,
             booking.Schedule.Date.ToString("yyyy-MM-dd"),
             booking.Schedule.Time.ToString("HH:mm"),
             booking.Schedule.Depot.Name);
+
+        var (success, externalRef, error) = await _logicteckClient.SubmitBookingAsync(outboundPayload, cancellationToken);
+        if (!success)
+            return new BookLogicteckResponse(false, error ?? "Could not transfer pre-advice data to LOGICTECK.", MapToDto(booking), null, null);
+
+        booking.LogicteckBookedAt = PhilippinesTime.UtcNow;
+        booking.LogicteckExternalRef = externalRef;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            userId,
+            "LOGICTECK_BOOK",
+            "QR",
+            $"QR {booking.QRCode} — pre-advice data transferred to LOGICTECK for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
+            cancellationToken);
+
+        var portalUrl = string.IsNullOrWhiteSpace(_logicteckOptions.PortalUrl) ? null : _logicteckOptions.PortalUrl;
+        return new BookLogicteckResponse(
+            true,
+            string.IsNullOrWhiteSpace(_logicteckOptions.BookUrl)
+                ? "Pre-advice data recorded for LOGICTECK transfer. Return booking is on the LOGICTECK side."
+                : "Pre-advice data transferred to LOGICTECK. Return booking is on the LOGICTECK side.",
+            MapToDto(booking),
+            externalRef,
+            portalUrl);
     }
+
+    private IQueryable<Domain.Entities.QRBooking> LoadBookingQuery()
+        => _db.QRBookings
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
+            .Include(x => x.Schedule).ThenInclude(s => s.Depot)
+            .Include(x => x.Schedule).ThenInclude(s => s.Trucker);
+
+    private string BuildValidateUrl()
+    {
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/logicteck/validate-qr";
+    }
+
+    private static bool CanAccessBooking(Domain.Entities.QRBooking booking, int userId, string role)
+    {
+        var normalized = RoleNames.NormalizeTransactionRole(role);
+        if (string.Equals(normalized, RoleNames.Administrator, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, RoleNames.DepotPersonnel, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, RoleNames.ShippingLineEvaluator, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return booking.Schedule.PreAdvice.TruckerId == userId;
+    }
+
+    private static ValidateQrResponse BuildValidateResponse(Domain.Entities.QRBooking booking, bool valid, string message)
+        => new(
+            valid,
+            message,
+            booking.QRCode,
+            booking.Schedule.PreAdvice.Container.ContainerNo,
+            booking.Schedule.PreAdvice.ShippingLine.Code,
+            booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
+            booking.Schedule.PreAdvice.ReferenceNo,
+            booking.Schedule.Date.ToString("yyyy-MM-dd"),
+            booking.Schedule.Time.ToString("HH:mm"),
+            booking.Schedule.Depot.Name);
 
     private static QrBookingDto MapToDto(Domain.Entities.QRBooking booking)
     {
         var payload = JsonSerializer.Deserialize<QrPayloadDto>(booking.PayloadJson)
             ?? new QrPayloadDto(booking.QRCode, "", "", "", "", "", "");
 
-        return new QrBookingDto(booking.Id, booking.ScheduleId, booking.QRCode, payload, booking.GeneratedAt, booking.IsUsed);
+        return new QrBookingDto(
+            booking.Id,
+            booking.ScheduleId,
+            booking.QRCode,
+            payload,
+            booking.GeneratedAt,
+            booking.IsUsed,
+            booking.LogicteckBookedAt,
+            ResolveLogicteckStatus(booking));
+    }
+
+    private static string ResolveLogicteckStatus(Domain.Entities.QRBooking booking)
+    {
+        if (booking.IsUsed) return "Retrieved";
+        if (booking.LogicteckBookedAt.HasValue) return "Booked";
+        return "Available";
     }
 }

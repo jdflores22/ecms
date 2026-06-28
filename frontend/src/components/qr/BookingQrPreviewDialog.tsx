@@ -14,7 +14,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type { Payment, QrBooking, Schedule } from '../../services/api'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
@@ -38,6 +38,8 @@ type BookingQrPreviewDialogProps = {
   payment?: Payment | null
   onDownload?: () => void
   onPrint?: () => void
+  onBookLogicteck?: () => void
+  bookLogicteckLoading?: boolean
   showPrint?: boolean
 }
 
@@ -54,6 +56,7 @@ export default function BookingQrPreviewDialog({
   payment,
   onDownload,
   onPrint,
+  onBookLogicteck,
   showPrint = false,
 }: BookingQrPreviewDialogProps) {
   return (
@@ -119,9 +122,9 @@ export default function BookingQrPreviewDialog({
                 label={LOGICTECK_QR.validationStatusLabel}
                 value={
                   <Chip
-                    label={qrLookupStatusLabel(qrBooking.isUsed)}
+                    label={qrLookupStatusLabel(qrBooking)}
                     size="small"
-                    color={qrBooking.isUsed ? 'default' : 'success'}
+                    color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
                     sx={{ fontWeight: 600 }}
                   />
                 }
@@ -198,10 +201,10 @@ export default function BookingQrPreviewDialog({
             Download
           </Button>
         )}
-        {qrBooking && (
+        {qrBooking && onBookLogicteck && (
           <Button
             variant="outlined"
-            onClick={() => undefined}
+            onClick={onBookLogicteck}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             {LOGICTECK_QR.bookLogicteck}

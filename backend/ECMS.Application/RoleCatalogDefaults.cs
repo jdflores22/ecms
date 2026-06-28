@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ECMS.Domain.Enums;
 
 namespace ECMS.Application;
 
@@ -10,10 +11,13 @@ public static class RolePageKeys
     public const string Evaluations = "evaluations";
     public const string CyAllocation = "cyAllocation";
     public const string ContainerInventory = "containerInventory";
-    public const string Reports = "reports";
+    public const string AdminReports = "adminReports";
+    public const string DepotReports = "depotReports";
+    public const string EvaluatorReports = "evaluatorReports";
+    public const string TruckerReports = "truckerReports";
     public const string DepotDailyReturns = "depotDailyReturns";
     public const string DepotSchedules = "depotSchedules";
-    public const string DepotPayments = "depotPayments";
+    public const string AdminPayments = "adminPayments";
     public const string TruckerReturns = "truckerReturns";
     public const string TruckerPayments = "truckerPayments";
     public const string TruckerQr = "truckerQr";
@@ -22,16 +26,43 @@ public static class RolePageKeys
     public const string AdminRoles = "adminRoles";
     public const string AdminMasterData = "adminMasterData";
     public const string AdminAudit = "adminAudit";
+    public const string AdminRevenue = "adminRevenue";
 
     public static readonly string[] Required = { Dashboard, Profile };
 
     public static readonly HashSet<string> All = new(StringComparer.Ordinal)
     {
-        Dashboard, Profile, Preadvice, Evaluations, CyAllocation, ContainerInventory, Reports,
-        DepotDailyReturns, DepotSchedules, DepotPayments,
+        Dashboard, Profile, Preadvice, Evaluations, CyAllocation, ContainerInventory,
+        AdminReports, DepotReports, EvaluatorReports, TruckerReports,
+        DepotDailyReturns, DepotSchedules,
+        AdminPayments,
         TruckerReturns, TruckerPayments, TruckerQr, TruckerQrPrint,
-        AdminUsers, AdminRoles, AdminMasterData, AdminAudit,
+        AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminRevenue,
     };
+
+    public static readonly string[] AdministratorPages =
+    {
+        Dashboard, Profile, AdminReports,
+        AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminRevenue,
+    };
+
+    /// <summary>Legacy RBAC page key mapped to the role-specific reports page.</summary>
+    public const string LegacyReports = "reports";
+
+    public static string? MapLegacyPageKey(string roleName, string pageKey)
+    {
+        if (!string.Equals(pageKey, LegacyReports, StringComparison.Ordinal))
+            return pageKey;
+
+        return roleName switch
+        {
+            RoleNames.Administrator => AdminReports,
+            RoleNames.DepotPersonnel => DepotReports,
+            RoleNames.ShippingLineEvaluator => EvaluatorReports,
+            RoleNames.Trucker => TruckerReports,
+            _ => null,
+        };
+    }
 }
 
 public static class RoleCatalogDefaults
@@ -48,15 +79,16 @@ public static class RoleCatalogDefaults
         new(
             "Administrator",
             "Administrator",
-            "Full system access for user, master data, and audit oversight.",
+            "System administration: users, master data, payments, revenue, and audit.",
             new[]
             {
                 "Manage users and roles",
-                "Shipping lines, depots, containers",
-                "View reports and audit log",
-                "All depot and evaluation functions",
+                "Shipping lines, depots, and container reference data",
+                "Verify trucker payment proofs",
+                "Payment transaction and revenue reports",
+                "Audit log and security oversight",
             },
-            RolePageKeys.All.ToArray()),
+            RolePageKeys.AdministratorPages),
         new(
             "Trucker",
             "Trucker",
@@ -72,7 +104,7 @@ public static class RoleCatalogDefaults
             },
             new[]
             {
-                RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preadvice, RolePageKeys.Reports,
+                RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preadvice, RolePageKeys.TruckerReports,
                 RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments,
                 RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
             }),
@@ -86,15 +118,14 @@ public static class RoleCatalogDefaults
                 "Assign container yard on approval",
                 "View evaluation history",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.Reports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.EvaluatorReports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",
-            "Schedules returns, verifies payments, and manages daily operations.",
+            "Schedules returns and manages daily depot operations.",
             new[]
             {
                 "Assign schedule slots",
-                "Verify trucker payments",
                 "Daily returns view",
                 "Depot reports",
             },
@@ -102,7 +133,7 @@ public static class RoleCatalogDefaults
             {
                 RolePageKeys.Dashboard, RolePageKeys.Profile,
                 RolePageKeys.DepotDailyReturns, RolePageKeys.DepotSchedules,
-                RolePageKeys.DepotPayments, RolePageKeys.Reports,
+                RolePageKeys.DepotReports,
             }),
     };
 
@@ -131,6 +162,15 @@ public static class RoleCapabilitiesJson
         }
     }
 
+    public static List<string> DeserializePages(string roleName, string? json)
+    {
+        return Deserialize(json)
+            .Select(p => RolePageKeys.MapLegacyPageKey(roleName, p) ?? p)
+            .Where(RolePageKeys.All.Contains)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public static string Serialize(IReadOnlyList<string> capabilities) =>
         JsonSerializer.Serialize(
             capabilities
@@ -144,6 +184,9 @@ public static class RoleCapabilitiesJson
 public static class RoleAllowedPagesJson
 {
     public static List<string> Deserialize(string? json) => RoleCapabilitiesJson.Deserialize(json);
+
+    public static List<string> DeserializeForRole(string roleName, string? json) =>
+        RoleCapabilitiesJson.DeserializePages(roleName, json);
 
     public static string Serialize(IReadOnlyList<string> pages) =>
         JsonSerializer.Serialize(
@@ -159,6 +202,7 @@ public static class RoleAllowedPagesJson
         var defaults = RoleCatalogDefaults.Get(roleName);
         var pool = defaults?.AllowedPages.ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(StringComparer.Ordinal);
         var pages = requested
+            .Select(p => RolePageKeys.MapLegacyPageKey(roleName, p) ?? p)
             .Where(p => pool.Contains(p))
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -178,7 +222,7 @@ public static class RoleAllowedPagesJson
     public static List<string> Resolve(string roleName, string? json)
     {
         var defaults = defaultsPages(roleName);
-        var stored = Deserialize(json);
+        var stored = DeserializeForRole(roleName, json);
         if (stored.Count > 0)
         {
             var normalized = NormalizeForRole(roleName, stored);
@@ -190,13 +234,12 @@ public static class RoleAllowedPagesJson
     }
 
     /// <summary>
-    /// When the role catalog gains pages (e.g. Broker merged into Trucker), older stored RBAC
-    /// lists may omit them. Trucker always receives the full catalog so nav and routes stay aligned.
+    /// When the role catalog gains pages, older stored RBAC lists may omit them.
+    /// Administrator, Trucker, and ShippingLineEvaluator receive any missing catalog pages.
     /// </summary>
     private static void MergeMissingCatalogPages(string roleName, List<string> defaults, List<string> normalized)
     {
-        if (!string.Equals(roleName, "Trucker", StringComparison.Ordinal)
-            && !string.Equals(roleName, "ShippingLineEvaluator", StringComparison.Ordinal))
+        if (!ShouldMergeCatalogPages(roleName))
             return;
 
         foreach (var page in defaults)
@@ -205,6 +248,11 @@ public static class RoleAllowedPagesJson
                 normalized.Add(page);
         }
     }
+
+    private static bool ShouldMergeCatalogPages(string roleName) =>
+        string.Equals(roleName, RoleNames.Administrator, StringComparison.Ordinal)
+        || string.Equals(roleName, RoleNames.Trucker, StringComparison.Ordinal)
+        || string.Equals(roleName, RoleNames.ShippingLineEvaluator, StringComparison.Ordinal);
 
     public static List<string> defaultsPages(string roleName) =>
         RoleCatalogDefaults.Get(roleName)?.AllowedPages.ToList() ?? RolePageKeys.Required.ToList();

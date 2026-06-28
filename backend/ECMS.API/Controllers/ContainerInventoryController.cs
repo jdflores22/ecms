@@ -9,7 +9,7 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 [Route("api/container-inventory")]
-[Authorize(Roles = RoleNames.ShippingLineEvaluator + "," + RoleNames.Administrator)]
+[Authorize(Roles = RoleNames.ShippingLineEvaluator)]
 public class ContainerInventoryController : ControllerBase
 {
     private readonly IContainerInventoryService _service;

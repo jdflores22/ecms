@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddHttpClient<LogicteckOutboundClient>();
         services.AddScoped<IQrService, QrCodeService>();
 
         services.AddScoped<IAuthService, AuthService>();
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<ILogicteckEmptyReturnService, LogicteckEmptyReturnService>();
 
         return services;
     }

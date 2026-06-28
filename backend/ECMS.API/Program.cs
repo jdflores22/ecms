@@ -41,6 +41,9 @@ var mysqlTarget = new MySqlConnectionStringBuilder(connectionString);
 builder.Logging.AddConsole();
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddInfrastructure();
+builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
+    builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
+builder.Services.AddScoped<ECMS.API.Filters.LogicteckApiKeyFilter>();
 
 builder.Services.AddCors(options =>
 {

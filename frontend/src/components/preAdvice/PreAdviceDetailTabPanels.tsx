@@ -1,4 +1,5 @@
 import DownloadIcon from '@mui/icons-material/Download'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 import {
   Alert,
@@ -9,7 +10,9 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from './ContainerIdentityPhotos'
+import PreAdviceFullDossier from './PreAdviceFullDossier'
 import PreAdviceForm, { type PreAdviceFormSubmitValues } from './PreAdviceForm'
 import {
   DetailTabPanel,
@@ -18,7 +21,7 @@ import {
   hexToRgba,
   infoGridSx,
 } from '../layout/DetailPagePrimitives'
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   PreAdvice,
   PreAdviceDocument,
@@ -27,10 +30,12 @@ import type {
   Schedule,
 } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
+import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const primaryDark = ICS_PRIMARY
 
-export type PreAdviceDetailTab = 'details' | 'photos' | 'schedule' | 'qr'
+export type PreAdviceDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr'
 
 const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   WaitingSchedule: 'warning',
@@ -75,6 +80,8 @@ type PreAdviceDetailTabPanelsProps = {
   onCancelEdit: () => void
   onDownloadQr: () => void
   onQrPreview?: () => void
+  onBookLogicteck?: () => void
+  bookLogicteckLoading?: boolean
 }
 
 export default function PreAdviceDetailTabPanels({
@@ -103,11 +110,39 @@ export default function PreAdviceDetailTabPanels({
   onCancelEdit,
   onDownloadQr,
   onQrPreview,
+  onBookLogicteck,
+  bookLogicteckLoading = false,
 }: PreAdviceDetailTabPanelsProps) {
   const isApproved = item.status === 'Approved'
 
+  const containerTypeDisplay = (() => {
+    const match = lookups?.containerTypes.find(
+      (t) => t.code === item.containerType || t.label === item.containerType,
+    )
+    return match ? `${match.code} — ${match.label}` : item.containerType
+  })()
+
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
+      <DetailTabPanel value="overview" activeTab={activeTab}>
+        {statusGuidance && (
+          <Alert severity={statusGuidance.severity} sx={{ mb: 2, borderRadius: 2 }}>
+            {statusGuidance.message}
+          </Alert>
+        )}
+        <PreAdviceFullDossier
+          item={item}
+          documents={documents}
+          documentsLoading={documentsLoading}
+          lookups={lookups}
+          schedule={schedule}
+          scheduleLoading={scheduleLoading}
+          qrBooking={qrBooking}
+          qrImageUrl={qrImageUrl}
+          qrLoading={qrLoading}
+        />
+      </DetailTabPanel>
+
       <DetailTabPanel value="details" activeTab={activeTab}>
         {statusGuidance && (
           <Alert severity={statusGuidance.severity} sx={{ mb: 2, borderRadius: 2 }}>
@@ -141,14 +176,21 @@ export default function PreAdviceDetailTabPanels({
           <Box sx={infoGridSx}>
             <InfoTile label="Trucker" value={item.truckerName} />
             <InfoTile label="Shipping line" value={item.shippingLineName} />
-            <InfoTile
-              label="Container"
-              value={`${item.containerNo} (${item.containerSize}' ${item.containerType})`}
-              mono
-            />
+            <Box
+              sx={{
+                gridColumn: { xs: '1', sm: '1 / -1' },
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+                gap: { xs: 1.5, sm: 2 },
+              }}
+            >
+              <InfoTile label="Container number" value={item.containerNo} mono />
+              <InfoTile label="Container size" value={formatContainerSizeLabel(item.containerSize)} />
+              <InfoTile label="Container type" value={containerTypeDisplay} />
+            </Box>
             <InfoTile label="Submitted" value={formatDateTime(item.createdAt)} />
             <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <InfoTile label="Submitted by remarks" value={item.remarks || '—'} />
+              <InfoTile label="Remarks" value={item.remarks || '—'} />
             </Box>
           </Box>
         )}
@@ -237,14 +279,22 @@ export default function PreAdviceDetailTabPanels({
             </Typography>
           </Box>
         ) : qrBooking && schedule ? (
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' },
-              gap: 2,
-              alignItems: 'start',
-            }}
-          >
+          <Box>
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              {LOGICTECK_QR.integrationModel}
+            </Alert>
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              Booking QR is ready for LOGICTECK. Use the QR code or click{' '}
+              <strong>{LOGICTECK_QR.bookLogicteck}</strong> to transfer pre-advice data and create the return booking on LOGICTECK.
+            </Alert>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' },
+                gap: 2,
+                alignItems: 'start',
+              }}
+            >
             {qrImageUrl && (
               <Box
                 component="img"
@@ -277,9 +327,9 @@ export default function PreAdviceDetailTabPanels({
                   label={LOGICTECK_QR.validationStatusLabel}
                   value={
                     <Chip
-                      label={qrLookupStatusLabel(qrBooking.isUsed)}
+                      label={qrLookupStatusLabel(qrBooking)}
                       size="small"
-                      color={qrBooking.isUsed ? 'default' : 'success'}
+                      color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
                       sx={{ fontWeight: 600 }}
                     />
                   }
@@ -296,6 +346,16 @@ export default function PreAdviceDetailTabPanels({
                     {LOGICTECK_QR.viewQr}
                   </Button>
                 )}
+                {qrBooking && (
+                  <Button
+                    component={RouterLink}
+                    to={logicteckDirectBookPath(qrBooking.id)}
+                    variant="outlined"
+                    sx={{ fontWeight: 700, borderRadius: 2 }}
+                  >
+                    {LOGICTECK_QR.bookLogicteck}
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<DownloadIcon />}
@@ -304,8 +364,18 @@ export default function PreAdviceDetailTabPanels({
                 >
                   Download QR
                 </Button>
+                <Button
+                  component={RouterLink}
+                  to={`/logicteck/api-test?qr=${encodeURIComponent(qrBooking.qrCode)}`}
+                  variant="outlined"
+                  startIcon={<OpenInNewIcon />}
+                  sx={{ fontWeight: 600, borderRadius: 2 }}
+                >
+                  Test API outside ICS
+                </Button>
               </Box>
             </Box>
+          </Box>
           </Box>
         ) : (
           <Paper

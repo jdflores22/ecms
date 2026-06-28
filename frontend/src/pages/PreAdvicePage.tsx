@@ -41,6 +41,7 @@ import {
   listTablePaperSx,
 } from '../components/layout/ListPagePrimitives'
 import { isPreAdviceManager } from '../config/roleConfig'
+import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor } from '../config/logicteckQr'
 import { preAdviceApi, type PreAdvice, type PreAdviceLookups } from '../services/api'
 import { useAppSelector } from '../store/hooks'
 import { formatDateTime, parsePhEndOfDay, parsePhStartOfDay } from '../utils/datetime'
@@ -416,11 +417,40 @@ export default function PreAdvicePage() {
                       size="small"
                       sx={{ fontWeight: 600 }}
                     />
+                    {item.hasQrBooking && (
+                      <>
+                        <Chip
+                          label={item.qrCode ?? 'QR ready'}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontWeight: 600, fontFamily: 'monospace' }}
+                        />
+                        {qrLogicteckStatusFromPreAdvice(item) && (
+                          <Chip
+                            label={qrLogicteckStatusFromPreAdvice(item)!}
+                            size="small"
+                            color={qrLookupStatusColor(qrLogicteckStatusFromPreAdvice(item)!)}
+                            sx={{ fontWeight: 600 }}
+                          />
+                        )}
+                      </>
+                    )}
                   </ListMobileChipRow>
                   <Box sx={listMobileActionsSx}>
+                    {item.hasQrBooking && (
+                      <Button
+                        component={RouterLink}
+                        to={`/preadvice/${item.id}?tab=qr`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                      >
+                        {LOGICTECK_QR.viewQr}
+                      </Button>
+                    )}
                     <Button
                       component={RouterLink}
-                      to={`/preadvice/${item.id}`}
+                      to={`/preadvice/${item.id}?tab=overview`}
                       size="small"
                       variant="contained"
                       startIcon={<OpenInNewIcon />}
@@ -453,6 +483,8 @@ export default function PreAdvicePage() {
                       <TableCell>Shipping line</TableCell>
                       <TableCell>Container</TableCell>
                       <TableCell>Status</TableCell>
+                      <TableCell>ICS QR</TableCell>
+                      <TableCell>LOGICTECK status</TableCell>
                       <TableCell>Created</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
@@ -470,7 +502,7 @@ export default function PreAdvicePage() {
                         <TableCell>
                           <Typography
                             component={RouterLink}
-                            to={`/preadvice/${item.id}`}
+                            to={`/preadvice/${item.id}?tab=overview`}
                             sx={{
                               fontWeight: 700,
                               color: primaryDark,
@@ -499,6 +531,42 @@ export default function PreAdvicePage() {
                           />
                         </TableCell>
                         <TableCell>
+                          {item.hasQrBooking ? (
+                            <Typography
+                              component={RouterLink}
+                              to={`/preadvice/${item.id}?tab=qr`}
+                              variant="body2"
+                              sx={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                color: primaryDark,
+                                textDecoration: 'none',
+                                '&:hover': { color: primaryLight },
+                              }}
+                            >
+                              {item.qrCode}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {qrLogicteckStatusFromPreAdvice(item) ? (
+                            <Chip
+                              label={qrLogicteckStatusFromPreAdvice(item)!}
+                              size="small"
+                              color={qrLookupStatusColor(qrLogicteckStatusFromPreAdvice(item)!)}
+                              sx={{ fontWeight: 600 }}
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Typography variant="body2" color="text.secondary">
                             {formatDateTime(item.createdAt)}
                           </Typography>
@@ -507,7 +575,7 @@ export default function PreAdvicePage() {
                           <Tooltip title="View details">
                             <IconButton
                               component={RouterLink}
-                              to={`/preadvice/${item.id}`}
+                              to={`/preadvice/${item.id}?tab=overview`}
                               size="small"
                               sx={{
                                 color: primaryDark,

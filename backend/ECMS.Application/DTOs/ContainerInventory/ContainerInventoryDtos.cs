@@ -11,6 +11,10 @@ public record ContainerInventorySummaryDto(
     int OverstayCount,
     int DwellLimitDays,
     int WarningThresholdDays,
+    int Size20Count,
+    int Size40Count,
+    decimal UsedTeu,
+    decimal ContractTeu,
     IReadOnlyList<ContainerInventoryDepotSummaryDto> ByDepot);
 
 public record ContainerInventoryDepotSummaryDto(
@@ -28,13 +32,18 @@ public record ContainerInventoryItemDto(
     string ContainerNo,
     string ContainerSize,
     string ContainerType,
+    string ShippingLineCode,
+    string ShippingLineName,
+    string? TruckerName,
     int DepotId,
     string DepotName,
     DateOnly YardInDate,
+    string? GateInTime,
     int DwellDays,
     int DaysRemaining,
     string ComplianceStatus,
-    string? ScheduleStatus);
+    string? ScheduleStatus,
+    string? Remarks);
 
 public record CreateManualYardInventoryRequest(
     string ContainerNo,

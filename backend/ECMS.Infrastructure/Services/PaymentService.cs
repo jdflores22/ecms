@@ -54,14 +54,13 @@ public class PaymentService : IPaymentService
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(truckerId, "UploadProof", "Payment", $"Schedule {request.ScheduleId}", cancellationToken);
 
-        var depotIds = await NotificationService.DepotPersonnelIdsAsync(_db, schedule.DepotId, cancellationToken);
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
         await _notifications.NotifyUsersAsync(
-            depotIds.Concat(adminIds),
+            adminIds,
             "Payment proof uploaded",
             $"{schedule.PreAdvice.ReferenceNo} — ₱{configuredAmount:N0} awaiting verification.",
             "Payment",
-            "/depot/payments",
+            "/admin/payments",
             truckerId,
             schedule.PreAdvice.ReferenceNo,
             cancellationToken);
@@ -88,6 +87,7 @@ public class PaymentService : IPaymentService
         payment.Status = approved ? PaymentStatus.Paid : PaymentStatus.Rejected;
         if (approved)
         {
+            payment.PaidAt = PhilippinesTime.UtcNow;
             payment.Schedule.Status = ScheduleStatus.Confirmed;
             _db.Update(payment.Schedule);
             await _qrService.GenerateForScheduleAsync(payment.ScheduleId, cancellationToken);

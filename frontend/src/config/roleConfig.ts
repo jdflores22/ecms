@@ -9,12 +9,13 @@ export const ROLE_CATALOG: RoleInfo[] = [
   {
     name: 'Administrator',
     label: 'Administrator',
-    description: 'Full system access for user, master data, and audit oversight.',
+    description: 'System administration: users, master data, payments, revenue, and audit.',
     capabilities: [
       'Manage users and roles',
-      'Shipping lines, depots, containers',
-      'View reports and audit log',
-      'All depot and evaluation functions',
+      'Shipping lines, depots, and container reference data',
+      'Verify trucker payment proofs',
+      'Payment transaction and revenue reports',
+      'Audit log and security oversight',
     ],
   },
   {
@@ -30,10 +31,9 @@ export const ROLE_CATALOG: RoleInfo[] = [
   {
     name: 'DepotPersonnel',
     label: 'Depot Personnel',
-    description: 'Schedules returns, verifies payments, and manages daily operations.',
+    description: 'Schedules returns and manages daily depot operations.',
     capabilities: [
       'Assign schedule slots',
-      'Verify trucker payments',
       'Daily returns view',
       'Depot reports',
     ],

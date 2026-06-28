@@ -80,7 +80,7 @@ import {
 
 import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 
 import {
 
@@ -110,6 +110,7 @@ import { useAppSelector } from '../../store/hooks'
 
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
 
 import {
 
@@ -509,6 +510,14 @@ export default function TruckerReturnDetailPage() {
 
     URL.revokeObjectURL(url)
 
+  }
+
+
+
+  const handleBookLogicteck = () => {
+    if (!qrBooking) return
+    setQrPreviewOpen(false)
+    navigate(logicteckDirectBookPath(qrBooking.id))
   }
 
 
@@ -1023,11 +1032,11 @@ export default function TruckerReturnDetailPage() {
 
                     <Chip
 
-                      label={qrLookupStatusLabel(qrBooking.isUsed)}
+                      label={qrLookupStatusLabel(qrBooking)}
 
                       size="small"
 
-                      color={qrBooking.isUsed ? 'default' : 'success'}
+                      color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
 
                       sx={{ fontWeight: 600 }}
 
@@ -1073,7 +1082,9 @@ export default function TruckerReturnDetailPage() {
 
                 variant="outlined"
 
-                onClick={() => undefined}
+                onClick={handleBookLogicteck}
+
+                disabled={!qrBooking}
 
                 sx={{ fontWeight: 700, borderRadius: 2 }}
 

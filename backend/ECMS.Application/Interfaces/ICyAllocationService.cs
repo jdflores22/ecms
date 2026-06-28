@@ -22,4 +22,11 @@ public interface ICyAllocationService
         int userId,
         string role,
         CancellationToken cancellationToken = default);
+
+    Task<CyAllocationDto> UpdateContractAsync(
+        int contractId,
+        UpdateShippingLineDepotContractRequest request,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
 }

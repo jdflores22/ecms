@@ -13,6 +13,9 @@ public interface IPreAdviceService
     Task<PreAdviceDto?> SubmitAsync(int id, int userId, CancellationToken cancellationToken = default);
     Task<PreAdviceDto?> CancelAsync(int id, int userId, string role, string? reason = null, CancellationToken cancellationToken = default);
     Task<PreAdviceLookupsDto> GetLookupsAsync(CancellationToken cancellationToken = default);
+    Task<PreAdviceDuplicateCheckDto> CheckDuplicateAsync(
+        CheckPreAdviceDuplicateRequest request,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PreAdviceDocumentDto>> GetDocumentsAsync(int preAdviceId, int userId, string role, CancellationToken cancellationToken = default);
     Task<PreAdviceDocumentDto?> UploadDocumentAsync(
         int preAdviceId,

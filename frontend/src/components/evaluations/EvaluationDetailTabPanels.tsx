@@ -17,7 +17,7 @@ import {
   hexToRgba,
   infoGridSx,
 } from '../layout/DetailPagePrimitives'
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Evaluation,
   PreAdvice,
@@ -26,6 +26,8 @@ import type {
   Schedule,
 } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { formatContainerSizeLabel } from '../../utils/containerSize'
+import DamageReportChip from './DamageReportChip'
 
 const primaryDark = ICS_PRIMARY
 
@@ -81,14 +83,36 @@ export default function EvaluationDetailTabPanels({
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
+        {item.hasDamageReport && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+              <DamageReportChip />
+              <Typography variant="body2">
+                Trucker uploaded damage photos. Review the Container identity photos tab for details.
+              </Typography>
+            </Box>
+          </Alert>
+        )}
         <Box sx={infoGridSx}>
           <InfoTile label="Trucker" value={item.truckerName} />
           <InfoTile label="Shipping line" value={item.shippingLineName} />
-          <InfoTile
-            label="Container"
-            value={`${item.containerNo} (${item.containerSize}' ${item.containerType})`}
-            mono
-          />
+          <Box
+            sx={{
+              gridColumn: { xs: '1', sm: '1 / -1' },
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+              gap: { xs: 1.5, sm: 2 },
+            }}
+          >
+            <InfoTile label="Container number" value={item.containerNo} mono />
+            <InfoTile label="Container size" value={formatContainerSizeLabel(item.containerSize)} />
+            <InfoTile label="Container type" value={item.containerType} />
+          </Box>
+          {item.remarks?.trim() && (
+            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+              <InfoTile label="Trucker remarks" value={item.remarks.trim()} />
+            </Box>
+          )}
           {decision?.depotName && <InfoTile label="Assigned CY" value={decision.depotName} />}
           {decision && (
             <InfoTile
@@ -234,9 +258,9 @@ export default function EvaluationDetailTabPanels({
                   label={LOGICTECK_QR.validationStatusLabel}
                   value={
                     <Chip
-                      label={qrLookupStatusLabel(qrBooking.isUsed)}
+                      label={qrLookupStatusLabel(qrBooking)}
                       size="small"
-                      color={qrBooking.isUsed ? 'default' : 'success'}
+                      color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
                       sx={{ fontWeight: 600 }}
                     />
                   }

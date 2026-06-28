@@ -90,6 +90,42 @@ public class PreAdviceController : ControllerBase
 
 
 
+    [HttpGet("check-duplicate")]
+
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+
+    public async Task<ActionResult<PreAdviceDuplicateCheckDto>> CheckDuplicate(
+
+        [FromQuery] string containerNo,
+
+        [FromQuery] int containerSizeId,
+
+        [FromQuery] int containerTypeId,
+
+        [FromQuery] int? excludePreAdviceId,
+
+        CancellationToken cancellationToken)
+
+    {
+
+        return Ok(await _service.CheckDuplicateAsync(
+
+            new CheckPreAdviceDuplicateRequest(
+
+                containerNo,
+
+                containerSizeId,
+
+                containerTypeId,
+
+                excludePreAdviceId),
+
+            cancellationToken));
+
+    }
+
+
+
     [HttpGet("{id:int}")]
 
     public async Task<ActionResult<PreAdviceDto>> GetById(int id, CancellationToken cancellationToken)

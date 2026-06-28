@@ -523,6 +523,7 @@ export default function ScheduleDetailPage() {
               documentsLoading={documentsLoading}
               payment={payment}
               showPaymentSection={Boolean(showPaymentSection)}
+              canVerifyPayment={user?.role === 'Administrator'}
               qrBooking={qrBooking}
               qrImageUrl={qrImageUrl}
               qrLoading={qrLoading}

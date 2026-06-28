@@ -59,3 +59,85 @@ public record DepotReportDto(
     IReadOnlyList<DepotReportRowDto> Rows,
     int TotalScheduled,
     int TotalCompleted);
+
+public record RevenueReportRowDto(
+    string Label,
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd,
+    int PaymentCount,
+    decimal TotalAmount);
+
+public record RevenueReportDto(
+    string Period,
+    DateOnly From,
+    DateOnly To,
+    IReadOnlyList<RevenueReportRowDto> Rows,
+    int TotalPayments,
+    decimal TotalRevenue,
+    decimal AveragePayment);
+
+public record TransactionReportRowDto(
+    int PaymentId,
+    int ScheduleId,
+    string ReferenceNo,
+    string TruckerName,
+    int ShippingLineId,
+    string ShippingLineCode,
+    string ShippingLineName,
+    int DepotId,
+    string DepotName,
+    string Status,
+    decimal Amount,
+    DateOnly TransactionDate,
+    DateTime? TransactionAt);
+
+public record TransactionShippingLineOverviewRowDto(
+    int ShippingLineId,
+    string Code,
+    string Name,
+    int TotalCount,
+    int PaidCount,
+    int PendingCount,
+    int RejectedCount,
+    decimal PaidAmount);
+
+public record TransactionDepotOverviewRowDto(
+    int DepotId,
+    string Name,
+    int TotalCount,
+    int PaidCount,
+    int PendingCount,
+    int RejectedCount,
+    decimal PaidAmount);
+
+public record TransactionShippingLineOverviewDto(
+    DateOnly From,
+    DateOnly To,
+    IReadOnlyList<TransactionShippingLineOverviewRowDto> Rows,
+    int TotalCount,
+    int PaidCount,
+    decimal PaidAmount,
+    int PendingCount,
+    int RejectedCount);
+
+public record TransactionDepotOverviewDto(
+    DateOnly From,
+    DateOnly To,
+    IReadOnlyList<TransactionDepotOverviewRowDto> Rows,
+    int TotalCount,
+    int PaidCount,
+    decimal PaidAmount,
+    int PendingCount,
+    int RejectedCount);
+
+public record TransactionReportDto(
+    DateOnly From,
+    DateOnly To,
+    IReadOnlyList<TransactionReportRowDto> Rows,
+    int Total,
+    int Page,
+    int PageSize,
+    int PaidCount,
+    decimal PaidAmount,
+    int PendingCount,
+    int RejectedCount);

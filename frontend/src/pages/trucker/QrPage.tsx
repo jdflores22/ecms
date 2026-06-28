@@ -62,13 +62,14 @@ import {
 
 } from '../../components/layout/ListPagePrimitives'
 
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 
 import { qrApi, scheduleApi, type QrBooking, type Schedule } from '../../services/api'
 
 import { store } from '../../store'
 
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
 
 
 
@@ -181,6 +182,8 @@ export default function TruckerQrPage() {
   const [error, setError] = useState('')
 
   const [preview, setPreview] = useState<QrPreview | null>(null)
+
+  const [notice, setNotice] = useState('')
 
 
 
@@ -366,6 +369,16 @@ export default function TruckerQrPage() {
 
     setPreview({ schedule, qr })
 
+    setNotice('')
+
+  }
+
+
+
+  const handleBookLogicteck = () => {
+    if (!preview) return
+    setPreview(null)
+    navigate(logicteckDirectBookPath(preview.qr.id))
   }
 
 
@@ -752,11 +765,11 @@ export default function TruckerQrPage() {
 
                         <Chip
 
-                          label={qrLookupStatusLabel(qr.isUsed)}
+                          label={qrLookupStatusLabel(qr)}
 
                           size="small"
 
-                          color={qr.isUsed ? 'default' : 'success'}
+                          color={qrLookupStatusColor(qrLookupStatusLabel(qr))}
 
                           sx={{ fontWeight: 600 }}
 
@@ -1040,11 +1053,11 @@ export default function TruckerQrPage() {
 
                     <Chip
 
-                      label={qrLookupStatusLabel(preview.qr.isUsed)}
+                      label={qrLookupStatusLabel(preview.qr)}
 
                       size="small"
 
-                      color={preview.qr.isUsed ? 'default' : 'success'}
+                      color={qrLookupStatusColor(qrLookupStatusLabel(preview.qr))}
 
                       sx={{ fontWeight: 600 }}
 
@@ -1055,6 +1068,16 @@ export default function TruckerQrPage() {
                 />
 
               </Box>
+
+              {notice && (
+
+                <Alert severity="success" sx={{ mt: 2, borderRadius: 2 }} onClose={() => setNotice('')}>
+
+                  {notice}
+
+                </Alert>
+
+              )}
 
             </>
 
@@ -1090,7 +1113,9 @@ export default function TruckerQrPage() {
 
                 variant="outlined"
 
-                onClick={() => undefined}
+                onClick={handleBookLogicteck}
+
+                disabled={!preview?.qr}
 
                 sx={{ fontWeight: 700, borderRadius: 2 }}
 

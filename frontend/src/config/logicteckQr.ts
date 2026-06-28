@@ -1,41 +1,76 @@
 /**
- * ICS booking QR — supplies approved pre-advice container details to LOGICTECK only.
- * LOGICTECK will call POST /api/logicteck/validate-qr when integration goes live.
- *
- * This QR is not for trucker gate-in. It exists solely for the upcoming LOGICTECK integration.
+ * ICS publishes a transfer QR with approved pre-advice data for LOGICTECK.
+ * The empty return booking is created and held in LOGICTECK — ICS does not book returns.
  */
 export const LOGICTECK_QR = {
-  menuLabel: 'Booking QR',
-  pageTitle: 'Pre-advice booking QR',
-  sectionTitle: 'Pre-advice booking QR',
-  tabLabel: 'Pre-advice booking QR',
-  printTitle: 'PRE-ADVICE BOOKING QR',
-  printSubtitle: 'Approved container details · for LOGICTECK integration',
-  integrationComingSoon: 'LOGICTECK integration coming soon',
+  integrationModel:
+    'ICS only transfers approved pre-advice data to LOGICTECK. The empty return booking lives in LOGICTECK — not in ICS.',
+  menuLabel: 'LOGICTECK transfer',
+  pageTitle: 'Pre-advice transfer QR',
+  sectionTitle: 'Pre-advice transfer QR',
+  tabLabel: 'LOGICTECK transfer',
+  printTitle: 'PRE-ADVICE TRANSFER QR',
+  printSubtitle: 'Approved container details · data transfer to LOGICTECK',
   heroDescription:
-    'After depot verifies payment, ICS publishes a booking QR that supplies approved pre-advice container details to LOGICTECK only. Full LOGICTECK integration is coming soon.',
+    'After depot verifies payment, ICS publishes a QR reference with approved pre-advice details for LOGICTECK. Send the data to LOGICTECK to create the return booking on their system.',
   scheduleSectionHint:
-    'This QR provides approved pre-advice container details to the LOGICTECK system via the ICS validation API. It is not used for gate-in — LOGICTECK integration is coming soon.',
+    'This QR carries approved pre-advice container details from ICS to LOGICTECK. ICS does not hold the return booking — LOGICTECK does after you transfer the data.',
   integrationNote:
-    'ICS supplies pre-advice container details to LOGICTECK only. LOGICTECK integration is coming soon.',
+    'ICS supplies pre-advice data only. Use Send to LOGICTECK to transfer details and create the booking on the LOGICTECK side.',
   readyAlert:
-    'Return confirmed. Booking QR published — provides approved pre-advice details for LOGICTECK integration (coming soon).',
-  viewQr: 'View booking QR',
-  bookLogicteck: 'Book LOGICTECK',
+    'Return confirmed. Transfer QR published — send pre-advice data to LOGICTECK to create the return booking there.',
+  viewQr: 'View transfer QR',
+  bookLogicteck: 'Send to LOGICTECK',
+  bookSuccess: 'Pre-advice data sent to LOGICTECK. Return booking is on the LOGICTECK side.',
+  bookAlreadySubmitted: 'Already sent to LOGICTECK.',
+  bookRetrieved: 'QR already retrieved by LOGICTECK at gate.',
   printFooter:
-    'For LOGICTECK integration only — supplies approved pre-advice container details from ICS. Not for gate-in.',
+    'For LOGICTECK integration only — transfers approved pre-advice data from ICS. Not for gate-in at ICS.',
   approveConfirmHint:
-    'Confirming will mark the return as paid, confirm the schedule, and publish the booking QR for LOGICTECK to retrieve pre-advice details.',
+    'Confirming will mark the return as paid, confirm the schedule, and publish the transfer QR so LOGICTECK can receive pre-advice details.',
   approveSuccess:
-    'Payment approved. Return confirmed and booking QR published for LOGICTECK integration.',
-  validationStatusLabel: 'LOGICTECK lookup status',
-  statusActive: 'Available',
+    'Payment approved. Return confirmed and transfer QR published for LOGICTECK.',
+  validationStatusLabel: 'LOGICTECK status',
+  statusActive: 'Ready to send',
+  statusBooked: 'Booked on LOGICTECK',
   statusUsed: 'Retrieved',
-  bookingIdLabel: 'Booking reference',
+  bookingIdLabel: 'ICS QR reference',
   emptyState:
-    'Booking QR not yet published. After depot confirmation, ICS will provide approved pre-advice container details to LOGICTECK.',
+    'Transfer QR not yet published. After depot confirmation, ICS will supply approved pre-advice data to LOGICTECK.',
 } as const
 
-export function qrLookupStatusLabel(isUsed: boolean) {
-  return isUsed ? LOGICTECK_QR.statusUsed : LOGICTECK_QR.statusActive
+export type LogicteckQrStatus =
+  | typeof LOGICTECK_QR.statusActive
+  | typeof LOGICTECK_QR.statusBooked
+  | typeof LOGICTECK_QR.statusUsed
+
+export function qrLookupStatusLabel(booking: {
+  isUsed: boolean
+  logicteckBookedAt?: string | null
+  logicteckStatus?: string
+}): LogicteckQrStatus {
+  if (booking.logicteckStatus === LOGICTECK_QR.statusUsed || booking.isUsed) return LOGICTECK_QR.statusUsed
+  if (booking.logicteckStatus === LOGICTECK_QR.statusBooked || booking.logicteckBookedAt)
+    return LOGICTECK_QR.statusBooked
+  return LOGICTECK_QR.statusActive
+}
+
+export function qrLookupStatusColor(status: LogicteckQrStatus): 'success' | 'info' | 'default' {
+  if (status === LOGICTECK_QR.statusUsed) return 'default'
+  if (status === LOGICTECK_QR.statusBooked) return 'info'
+  return 'success'
+}
+
+export function qrLogicteckStatusFromPreAdvice(item: {
+  hasQrBooking?: boolean
+  logicteckStatus?: string | null
+}): LogicteckQrStatus | null {
+  if (!item.hasQrBooking) return null
+  if (item.logicteckStatus === LOGICTECK_QR.statusUsed || item.logicteckStatus === 'Retrieved')
+    return LOGICTECK_QR.statusUsed
+  if (item.logicteckStatus === LOGICTECK_QR.statusBooked || item.logicteckStatus === 'Booked')
+    return LOGICTECK_QR.statusBooked
+  if (item.logicteckStatus === LOGICTECK_QR.statusActive || item.logicteckStatus === 'Available')
+    return LOGICTECK_QR.statusActive
+  return LOGICTECK_QR.statusActive
 }

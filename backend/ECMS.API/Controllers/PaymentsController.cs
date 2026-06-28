@@ -91,28 +91,14 @@ public class PaymentsController : ControllerBase
         => Ok(await _service.GetByTruckerAsync(UserId, cancellationToken));
 
     [HttpGet("pending")]
-    [Authorize(Roles = RoleNames.DepotPersonnel + "," + RoleNames.Administrator)]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<IReadOnlyList<PaymentDto>>> GetPending(CancellationToken cancellationToken)
-    {
-        int? depotId = null;
-        var depotClaim = User.FindFirstValue("depotId");
-        if (User.IsInRole(RoleNames.DepotPersonnel) && int.TryParse(depotClaim, out var id))
-            depotId = id;
-
-        return Ok(await _service.GetPendingVerificationAsync(depotId, cancellationToken));
-    }
+        => Ok(await _service.GetPendingVerificationAsync(null, cancellationToken));
 
     [HttpGet("depot")]
-    [Authorize(Roles = RoleNames.DepotPersonnel + "," + RoleNames.Administrator)]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<IReadOnlyList<PaymentDto>>> GetDepot(CancellationToken cancellationToken)
-    {
-        int? depotId = null;
-        var depotClaim = User.FindFirstValue("depotId");
-        if (User.IsInRole(RoleNames.DepotPersonnel) && int.TryParse(depotClaim, out var id))
-            depotId = id;
-
-        return Ok(await _service.GetForDepotAsync(depotId, cancellationToken));
-    }
+        => Ok(await _service.GetForDepotAsync(null, cancellationToken));
 
     [HttpGet("by-schedule/{scheduleId:int}")]
     public async Task<ActionResult<PaymentDto>> GetBySchedule(int scheduleId, CancellationToken cancellationToken)
@@ -140,7 +126,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPost("{id:int}/verify")]
-    [Authorize(Roles = RoleNames.Administrator + "," + RoleNames.DepotPersonnel)]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<PaymentDto>> Verify(int id, [FromQuery] bool approved, CancellationToken cancellationToken)
     {
         var payment = await _service.VerifyAsync(id, approved, UserId, cancellationToken);

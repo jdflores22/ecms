@@ -68,6 +68,11 @@ If the password contains `#`, paste it as-is in the Railway dashboard (no quotes
 |----------|--------|
 | `ConnectionStrings__Redis` | leave empty |
 | `Jwt__AccessTokenMinutes` | `60` |
+| `Logicteck__ApiKey` | Shared secret for `X-Logicteck-Api-Key` (see `docs/LOGICTECK-INTEGRATION.md`) |
+| `Logicteck__PublicApiBaseUrl` | `https://ecms-production-42be.up.railway.app` |
+| `Logicteck__BookUrl` | LOGICTECK inbound URL (when ready) |
+| `Logicteck__PortalUrl` | LOGICTECK portal URL (optional) |
+| `Logicteck__EmptyReturnUrl` | LOGICTECK empty-return URL (optional) |
 
 Click **Deploy** / wait for redeploy after saving variables.
 

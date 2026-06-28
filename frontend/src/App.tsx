@@ -16,18 +16,23 @@ import CyAllocationPage from './pages/evaluations/CyAllocationPage'
 import DailyReturnsPage from './pages/depot/DailyReturnsPage'
 import DepotSchedulesPage from './pages/depot/SchedulesPage'
 import ScheduleDetailPage from './pages/depot/ScheduleDetailPage'
-import DepotPaymentsPage from './pages/depot/PaymentsPage'
+import AdminPaymentsPage from './pages/admin/PaymentsPage'
 import TruckerReturnsPage from './pages/trucker/ReturnsPage'
 import TruckerReturnDetailPage from './pages/trucker/ReturnDetailPage'
 import TruckerPaymentsPage from './pages/trucker/PaymentsPage'
 import TruckerPaymentUploadPage from './pages/trucker/PaymentUploadPage'
 import TruckerQrPage from './pages/trucker/QrPage'
 import QrPrintPage from './pages/trucker/QrPrintPage'
+import LogicteckEmptyReturnPage from './pages/logicteck/LogicteckEmptyReturnPage'
+import LogicteckApiTestPage from './pages/logicteck/LogicteckApiTestPage'
+import LogicteckDirectBookingPage from './pages/logicteck/LogicteckDirectBookingPage'
 import AdminUsersPage from './pages/admin/UsersPage'
 import RolesPage from './pages/admin/RolesPage'
 import MasterDataPage from './pages/admin/MasterDataPage'
 import AdminAuditLogPage from './pages/admin/AuditLogPage'
-import ReportsPage from './pages/ReportsPage'
+import AdminTransactionReportsPage from './pages/admin/AdminTransactionReportsPage'
+import RoleReportsPage from './pages/reports/RoleReportsPage'
+import ReportsRedirect from './pages/reports/ReportsRedirect'
 import ProfilePage from './pages/ProfilePage'
 import AppLayout from './layouts/AppLayout'
 import RoleRouteGuard from './components/auth/RoleRouteGuard'
@@ -117,6 +122,14 @@ export default function App() {
           }
         />
         <Route
+          path="evaluations/reports"
+          element={
+            <RoleRouteGuard>
+              <RoleReportsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
           path="evaluations/cy-allocation"
           element={
             <RoleRouteGuard>
@@ -129,6 +142,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <EvaluationDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/reports"
+          element={
+            <RoleRouteGuard>
+              <RoleReportsPage />
             </RoleRouteGuard>
           }
         />
@@ -156,11 +177,20 @@ export default function App() {
             </RoleRouteGuard>
           }
         />
+        <Route path="depot/payments" element={<Navigate to="/admin/payments" replace />} />
         <Route
-          path="depot/payments"
+          path="admin/payments"
           element={
             <RoleRouteGuard>
-              <DepotPaymentsPage />
+              <AdminPaymentsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/reports"
+          element={
+            <RoleRouteGuard>
+              <RoleReportsPage />
             </RoleRouteGuard>
           }
         />
@@ -193,6 +223,30 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <TruckerPaymentsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="logicteck/empty-return"
+          element={
+            <RoleRouteGuard>
+              <LogicteckEmptyReturnPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="logicteck/api-test"
+          element={
+            <RoleRouteGuard>
+              <LogicteckApiTestPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="logicteck/book"
+          element={
+            <RoleRouteGuard>
+              <LogicteckDirectBookingPage />
             </RoleRouteGuard>
           }
         />
@@ -237,10 +291,19 @@ export default function App() {
           }
         />
         <Route
+          path="admin/reports"
+          element={
+            <RoleRouteGuard>
+              <AdminTransactionReportsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route path="admin/revenue" element={<Navigate to="/admin/reports?tab=revenue" replace />} />
+        <Route
           path="reports"
           element={
             <RoleRouteGuard>
-              <ReportsPage />
+              <ReportsRedirect />
             </RoleRouteGuard>
           }
         />

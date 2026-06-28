@@ -299,7 +299,7 @@ export default function RolesPage() {
 
       <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
         <strong>Role-based access control:</strong> page access is defined per role. For example, a Shipping
-        Line Evaluator only sees Dashboard, Evaluations, Reports, and Profile — not depot or trucker pages.
+        Line Evaluator only sees Dashboard, Evaluations, CY tools, Reports, and Profile — not depot or trucker pages.
         Edit a role to update its description and functional capabilities.
       </Alert>
 

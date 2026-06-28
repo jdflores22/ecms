@@ -2,14 +2,16 @@ import {
   Box,
   Button,
   FormControl,
+  FormHelperText,
   InputLabel,
   MenuItem,
   Select,
   TextField,
   Typography,
 } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PreAdviceLookups } from '../../services/api'
+import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': { borderRadius: 2 },
@@ -87,6 +89,12 @@ export default function PreAdviceForm({
     containerTypeId !== '' &&
     containerNo.trim().length > 0
 
+  const selectedSizeLabel = useMemo(() => {
+    if (containerSizeId === '') return ''
+    const size = lookups.containerSizes.find((item) => item.id === containerSizeId)
+    return size ? formatContainerSizeLabel(size.label) : ''
+  }, [containerSizeId, lookups.containerSizes])
+
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       <Box>
@@ -109,58 +117,69 @@ export default function PreAdviceForm({
             </Select>
           </FormControl>
 
-          <TextField
-            fullWidth
-            required
-            label="Container number"
-            value={containerNo}
-            onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
-            placeholder="e.g. MSCU1234567"
-            slotProps={{ input: { style: { fontFamily: 'monospace' } } }}
-            sx={fieldSx}
-          />
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+              gap: 2,
+            }}
+          >
+            <TextField
+              fullWidth
+              required
+              label="Container number"
+              value={containerNo}
+              onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
+              placeholder="e.g. MSCU1234567"
+              slotProps={{
+                input: { style: { fontFamily: 'monospace' } },
+              }}
+              sx={fieldSx}
+            />
 
-          <FormControl fullWidth required sx={fieldSx}>
-            <InputLabel>Container size</InputLabel>
-            <Select
-              label="Container size"
-              value={containerSizeId}
-              onChange={(e) => setContainerSizeId(e.target.value as number | '')}
-            >
-              {lookups.containerSizes.length === 0 ? (
-                <MenuItem disabled value="">
-                  No sizes configured — contact admin
-                </MenuItem>
-              ) : (
-                lookups.containerSizes.map((size) => (
-                  <MenuItem key={size.id} value={size.id}>
-                    {size.label}&apos;
+            <FormControl fullWidth required sx={fieldSx}>
+              <InputLabel>Container size</InputLabel>
+              <Select
+                label="Container size"
+                value={containerSizeId}
+                onChange={(e) => setContainerSizeId(e.target.value as number | '')}
+                renderValue={() => selectedSizeLabel || 'Select size'}
+              >
+                {lookups.containerSizes.length === 0 ? (
+                  <MenuItem disabled value="">
+                    No sizes configured — contact admin
                   </MenuItem>
-                ))
-              )}
-            </Select>
-          </FormControl>
+                ) : (
+                  lookups.containerSizes.map((size) => (
+                    <MenuItem key={size.id} value={size.id}>
+                      {formatContainerSizeLabel(size.label)}
+                    </MenuItem>
+                  ))
+                )}
+              </Select>
+            </FormControl>
 
-          <FormControl fullWidth required sx={fieldSx}>
-            <InputLabel>Container type</InputLabel>
-            <Select
-              label="Container type"
-              value={containerTypeId}
-              onChange={(e) => setContainerTypeId(e.target.value as number | '')}
-            >
-              {lookups.containerTypes.length === 0 ? (
-                <MenuItem disabled value="">
-                  No types configured — contact admin
-                </MenuItem>
-              ) : (
-                lookups.containerTypes.map((type) => (
-                  <MenuItem key={type.id} value={type.id}>
-                    {type.code} — {type.label}
+            <FormControl fullWidth required sx={fieldSx}>
+              <InputLabel>Container type</InputLabel>
+              <Select
+                label="Container type"
+                value={containerTypeId}
+                onChange={(e) => setContainerTypeId(e.target.value as number | '')}
+              >
+                {lookups.containerTypes.length === 0 ? (
+                  <MenuItem disabled value="">
+                    No types configured — contact admin
                   </MenuItem>
-                ))
-              )}
-            </Select>
-          </FormControl>
+                ) : (
+                  lookups.containerTypes.map((type) => (
+                    <MenuItem key={type.id} value={type.id}>
+                      {type.code} — {type.label}
+                    </MenuItem>
+                  ))
+                )}
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
       </Box>
 
@@ -178,6 +197,9 @@ export default function PreAdviceForm({
           placeholder="Optional notes for the shipping line evaluator"
           sx={fieldSx}
         />
+        <FormHelperText sx={{ mt: 0.75 }}>
+          Optional context for the evaluator (damage notes, special handling, etc.).
+        </FormHelperText>
       </Box>
 
       <Box

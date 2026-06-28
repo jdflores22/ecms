@@ -41,7 +41,7 @@ public class SchedulesController : ControllerBase
     }
 
     [HttpGet("slots")]
-    [Authorize(Roles = RoleNames.DepotPersonnel + "," + RoleNames.Administrator)]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
     public async Task<ActionResult<SlotAvailabilityDto>> GetSlots(
         [FromQuery] int depotId,
         [FromQuery] DateOnly date,
@@ -50,7 +50,7 @@ public class SchedulesController : ControllerBase
         => Ok(await _service.GetSlotAvailabilityAsync(depotId, date, excludeScheduleId, cancellationToken));
 
     [HttpPost]
-    [Authorize(Roles = RoleNames.DepotPersonnel + "," + RoleNames.Administrator)]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
     public async Task<ActionResult<ScheduleDto>> Create([FromBody] CreateScheduleRequest request, CancellationToken cancellationToken)
     {
         try
@@ -64,7 +64,7 @@ public class SchedulesController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = RoleNames.DepotPersonnel + "," + RoleNames.Administrator)]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
     public async Task<ActionResult<ScheduleDto>> Update(int id, [FromBody] UpdateScheduleRequest request, CancellationToken cancellationToken)
     {
         try

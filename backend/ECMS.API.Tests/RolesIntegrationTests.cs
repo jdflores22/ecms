@@ -38,7 +38,7 @@ public class RolesIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
 
         var trucker = roles!.First(r => r.Name == "Trucker");
         var updatedCapabilities = trucker.Capabilities.Append("Integration test capability").Distinct().ToList();
-        var updatedPages = trucker.AllowedPages.Where(p => p != "reports").ToList();
+        var updatedPages = trucker.AllowedPages.Where(p => p != "truckerReports").ToList();
 
         var updateResponse = await _client.PutAsJsonAsync("/api/roles/Trucker", new
         {
@@ -51,7 +51,7 @@ public class RolesIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         var updated = await updateResponse.Content.ReadFromJsonAsync<RoleCatalogResponse>();
         Assert.NotNull(updated);
         Assert.Contains("Integration test capability", updated!.Capabilities);
-        Assert.DoesNotContain("reports", updated.AllowedPages);
+        Assert.DoesNotContain("truckerReports", updated.AllowedPages);
 
         var restoreResponse = await _client.PutAsJsonAsync("/api/roles/Trucker", new
         {

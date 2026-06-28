@@ -6,33 +6,43 @@ import {
   CircularProgress,
   FormControl,
   IconButton,
+  InputAdornment,
   InputLabel,
+  LinearProgress,
   MenuItem,
   Paper,
   Select,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
+import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import ManualInventoryAddDialog from '../../components/evaluations/ManualInventoryAddDialog'
+import ContainerInventorySummaryTable from '../../components/evaluations/ContainerInventorySummaryTable'
 import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
   ListMobileCard,
-  ListMobileChipRow,
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
+  listHeroActionSx,
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
@@ -42,9 +52,20 @@ import {
   type ContainerInventoryItem,
   type ContainerInventoryResponse,
 } from '../../services/api'
+import { cyUtilizationPctUncapped, getAllocationSizeLabel, progressBarColor } from '../../utils/cyAllocation'
 import { formatDisplayDate } from '../../utils/datetime'
+import { getShippingLineDisplayCode, getShippingLineFullName } from '../../utils/shippingLine'
+import {
+  ECMS_INVENTORY_TYPE_CODES,
+  INVENTORY_SOURCE_LABELS,
+  buildInventorySummaryRows,
+  formatInventorySizeLabel,
+  sumInventorySummaryRows,
+} from '../../utils/inventorySummary'
 
 const primaryDark = ICS_PRIMARY
+
+type InventoryTab = 'inventory' | 'summary'
 
 const complianceLabel: Record<ContainerDwellCompliance, string> = {
   WithinLimit: 'Within limit',
@@ -52,10 +73,7 @@ const complianceLabel: Record<ContainerDwellCompliance, string> = {
   Overstay: 'Overstay (90+ days)',
 }
 
-const complianceColor: Record<
-  ContainerDwellCompliance,
-  'default' | 'success' | 'warning' | 'error'
-> = {
+const complianceColor: Record<ContainerDwellCompliance, 'success' | 'warning' | 'error'> = {
   WithinLimit: 'success',
   ApproachingLimit: 'warning',
   Overstay: 'error',
@@ -63,6 +81,17 @@ const complianceColor: Record<
 
 function rowKey(row: ContainerInventoryItem) {
   return row.scheduleId ?? row.manualEntryId ?? row.containerNo
+}
+
+function formatSlotTime(value: string | null): string {
+  if (!value) return '—'
+  const [hourText, minuteText] = value.split(':')
+  const hour = Number.parseInt(hourText, 10)
+  const minute = Number.parseInt(minuteText, 10)
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return value
+  const period = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -104,23 +133,27 @@ function ComplianceChip({ status }: { status: ContainerDwellCompliance }) {
   )
 }
 
-function SourceChip({ row }: { row: ContainerInventoryItem }) {
-  if (row.source === 'Manual') {
-    return <Chip size="small" label="Manual entry" variant="outlined" sx={{ fontWeight: 600 }} />
-  }
+function SourceChip({ source }: { source: ContainerInventoryItem['source'] }) {
   return (
-    <Typography
-      component={RouterLink}
-      to={`/evaluations/${row.preAdviceId}`}
-      variant="body2"
-      sx={{ fontWeight: 600, color: primaryDark }}
-    >
-      {row.referenceNo}
-    </Typography>
+    <Chip
+      size="small"
+      label={INVENTORY_SOURCE_LABELS[source]}
+      variant={source === 'Manual' ? 'outlined' : 'filled'}
+      color={source === 'Workflow' ? 'primary' : 'default'}
+      sx={{ fontWeight: 600 }}
+    />
   )
 }
 
-function InventoryRowCells({
+function dwellLabel(days: number): string {
+  return days === 1 ? '1 day' : `${days} days`
+}
+
+function na(value: string | null | undefined): string {
+  return value?.trim() ? value : '—'
+}
+
+function InventoryTableRow({
   row,
   onDeleteManual,
 }: {
@@ -128,28 +161,65 @@ function InventoryRowCells({
   onDeleteManual: (id: number) => void
 }) {
   return (
-    <>
+    <TableRow hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+      <TableCell sx={{ width: 44, px: 1 }}>
+        {row.preAdviceId ? (
+          <Tooltip title="View pre-advice">
+            <IconButton
+              component={RouterLink}
+              to={`/evaluations/${row.preAdviceId}`}
+              size="small"
+              aria-label="View pre-advice"
+            >
+              <DescriptionOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ) : null}
+      </TableCell>
+      <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace', color: primaryDark, whiteSpace: 'nowrap' }}>
+        {row.containerNo}
+      </TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+        <Tooltip title={getShippingLineFullName(row.shippingLineCode, row.shippingLineName)}>
+          <span>{getShippingLineDisplayCode(row.shippingLineCode, row.shippingLineName)}</span>
+        </Tooltip>
+      </TableCell>
+      <TableCell>{formatInventorySizeLabel(row.containerSize)}</TableCell>
+      <TableCell>{row.containerType}</TableCell>
       <TableCell>
-        <Typography sx={{ fontWeight: 700, color: primaryDark, fontFamily: 'monospace' }}>
-          {row.containerNo}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {row.containerSize}&apos; {row.containerType}
-        </Typography>
+        <SourceChip source={row.source} />
       </TableCell>
-      <TableCell>
-        <Typography sx={{ fontWeight: 600 }}>{row.depotName}</Typography>
-        <SourceChip row={row} />
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+        {row.source === 'Workflow' ? (
+          <Typography
+            component={RouterLink}
+            to={`/evaluations/${row.preAdviceId}`}
+            variant="body2"
+            sx={{ fontWeight: 600, color: primaryDark }}
+          >
+            {row.referenceNo}
+          </Typography>
+        ) : (
+          '—'
+        )}
       </TableCell>
-      <TableCell>{formatDisplayDate(row.yardInDate)}</TableCell>
-      <TableCell align="right" sx={{ fontWeight: 700 }}>
-        {row.dwellDays}
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.depotName}</TableCell>
+      <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {na(row.truckerName)}
       </TableCell>
-      <TableCell align="right">{row.daysRemaining}</TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDisplayDate(row.yardInDate)}</TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatSlotTime(row.gateInTime)}</TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>{dwellLabel(row.dwellDays)}</TableCell>
+      <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
+        {row.daysRemaining}
+      </TableCell>
       <TableCell>
         <ComplianceChip status={row.complianceStatus} />
       </TableCell>
-      <TableCell align="right">
+      <TableCell sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {na(row.remarks)}
+      </TableCell>
+      <TableCell align="right" sx={{ width: 48 }}>
         {row.source === 'Manual' && row.manualEntryId ? (
           <Tooltip title="Remove manual entry">
             <IconButton
@@ -161,24 +231,82 @@ function InventoryRowCells({
               <DeleteOutlineOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-        ) : row.preAdviceId ? (
-          <Typography
-            component={RouterLink}
-            to={`/evaluations/${row.preAdviceId}`}
-            variant="body2"
-            sx={{ fontWeight: 600, color: primaryDark }}
-          >
-            View
-          </Typography>
         ) : null}
       </TableCell>
-    </>
+    </TableRow>
   )
 }
 
+function InventoryMobileCard({
+  row,
+  onDeleteManual,
+}: {
+  row: ContainerInventoryItem
+  onDeleteManual: (id: number) => void
+}) {
+  return (
+    <ListMobileCard key={rowKey(row)}>
+      <ListMobileTitle>{row.containerNo}</ListMobileTitle>
+      <ListMobileMeta>
+        {row.depotName} · {formatInventorySizeLabel(row.containerSize)} {row.containerType}
+      </ListMobileMeta>
+      <ListMobileMeta>
+        <SourceChip source={row.source} />
+        {' · '}
+        <ComplianceChip status={row.complianceStatus} />
+      </ListMobileMeta>
+      <Typography variant="body2" sx={{ mt: 1 }}>
+        Yard-in: <strong>{formatDisplayDate(row.yardInDate)}</strong> · {row.dwellDays} days at yard ·{' '}
+        {row.daysRemaining} days left
+      </Typography>
+      {row.source === 'Workflow' && row.preAdviceId ? (
+        <Typography
+          component={RouterLink}
+          to={`/evaluations/${row.preAdviceId}`}
+          variant="body2"
+          sx={{ display: 'inline-block', mt: 1.25, fontWeight: 600, color: primaryDark }}
+        >
+          View pre-advice {row.referenceNo} →
+        </Typography>
+      ) : row.manualEntryId ? (
+        <Button
+          size="small"
+          color="error"
+          startIcon={<DeleteOutlineOutlinedIcon />}
+          onClick={() => onDeleteManual(row.manualEntryId!)}
+          sx={{ mt: 1, fontWeight: 600 }}
+        >
+          Remove
+        </Button>
+      ) : null}
+    </ListMobileCard>
+  )
+}
+
+const TABLE_HEADERS = [
+  '',
+  'Container',
+  'Line',
+  'Size',
+  'Type',
+  'Source',
+  'Pre-advice',
+  'Container yard',
+  'Trucker',
+  'Yard-in',
+  'Slot',
+  'Dwell',
+  'Days left',
+  'CAO 08-2019',
+  'Remarks',
+  '',
+] as const
+
 export default function ContainerInventoryPage() {
+  const [activeTab, setActiveTab] = useState<InventoryTab>('inventory')
   const [depotFilter, setDepotFilter] = useState<number | ''>('')
   const [complianceFilter, setComplianceFilter] = useState<ContainerDwellCompliance | ''>('')
+  const [search, setSearch] = useState('')
   const [items, setItems] = useState<ContainerInventoryItem[]>([])
   const [summary, setSummary] = useState<ContainerInventoryResponse['summary'] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -207,6 +335,35 @@ export default function ContainerInventoryPage() {
 
   const depotOptions = useMemo(() => summary?.byDepot ?? [], [summary])
 
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return items
+    return items.filter((row) => {
+      const haystack = [
+        row.containerNo,
+        getShippingLineDisplayCode(row.shippingLineCode, row.shippingLineName),
+        row.shippingLineName,
+        row.containerType,
+        row.containerSize,
+        row.depotName,
+        row.truckerName,
+        row.referenceNo,
+        row.remarks,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [items, search])
+
+  const teuPct = useMemo(() => {
+    if (!summary) return 0
+    return cyUtilizationPctUncapped(summary.usedTeu, summary.contractTeu)
+  }, [summary])
+
+  const summaryRows = useMemo(() => buildInventorySummaryRows(filteredItems), [filteredItems])
+
   const handleDeleteManual = async (id: number) => {
     if (!window.confirm('Remove this manual inventory entry?')) return
     try {
@@ -215,6 +372,79 @@ export default function ContainerInventoryPage() {
     } catch {
       setError('Failed to remove manual entry.')
     }
+  }
+
+  const handleExport = () => {
+    if (activeTab === 'summary') {
+      const totals = sumInventorySummaryRows(summaryRows)
+      const headers = [
+        'Container Yard',
+        getAllocationSizeLabel('20'),
+        getAllocationSizeLabel('40'),
+        ...ECMS_INVENTORY_TYPE_CODES,
+        'Pre-advised',
+        'Manual',
+        'Booking',
+        'TEUs',
+        'Units',
+        'Overstay',
+        'Yard-in (Today)',
+      ]
+      const mapRow = (row: (typeof summaryRows)[number]) => [
+        row.depotName,
+        row.size20Count || '',
+        row.size40Count || '',
+        ...ECMS_INVENTORY_TYPE_CODES.map((code) => row.typeCounts[code] || ''),
+        row.preAdvisedCount || '',
+        row.manualCount || '',
+        row.bookingCount || '',
+        row.teus,
+        row.units,
+        row.overstayCount || '',
+        row.yardInToday || '',
+      ]
+      const rows = summaryRows.map(mapRow)
+      if (summaryRows.length > 1) rows.push(mapRow(totals))
+      const csv = [headers, ...rows]
+        .map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'cy-inventory-summary.csv'
+      link.click()
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    const headers = TABLE_HEADERS.filter((h) => h !== '')
+    const rows = filteredItems.map((row) => [
+      row.containerNo,
+      getShippingLineDisplayCode(row.shippingLineCode, row.shippingLineName),
+      formatInventorySizeLabel(row.containerSize),
+      row.containerType,
+      INVENTORY_SOURCE_LABELS[row.source],
+      row.source === 'Workflow' ? row.referenceNo : '',
+      row.depotName,
+      na(row.truckerName),
+      formatDisplayDate(row.yardInDate),
+      formatSlotTime(row.gateInTime),
+      dwellLabel(row.dwellDays),
+      row.daysRemaining,
+      complianceLabel[row.complianceStatus],
+      na(row.remarks),
+    ])
+    const csv = [headers, ...rows]
+      .map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'yard-inventory.csv'
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -230,7 +460,15 @@ export default function ContainerInventoryPage() {
           boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 2,
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+          }}
+        >
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
             <Box
               sx={{
@@ -250,7 +488,7 @@ export default function ContainerInventoryPage() {
                 CY container inventory
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-                Full visibility of containers at your contracted yards — from approved returns and manual
+                Full visibility of containers at your contracted yards — from approved pre-advice returns and manual
                 registrations. Dwell time is tracked against CAO 08-2019 (90-day limit).
               </Typography>
             </Box>
@@ -259,14 +497,7 @@ export default function ContainerInventoryPage() {
             variant="contained"
             startIcon={<AddOutlinedIcon />}
             onClick={() => setAddOpen(true)}
-            sx={{
-              fontWeight: 700,
-              borderRadius: 2,
-              bgcolor: '#fff',
-              color: primaryDark,
-              flexShrink: 0,
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-            }}
+            sx={{ ...listHeroActionSx, borderRadius: 2 }}
           >
             Register containers
           </Button>
@@ -295,6 +526,47 @@ export default function ContainerInventoryPage() {
         </Box>
       )}
 
+      {summary && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 1.5, sm: 2 },
+            mb: 2,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: '#fff',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.25 }}>
+            <WarehouseOutlinedIcon sx={{ color: 'text.secondary', mt: 0.25 }} />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Yard capacity
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {getAllocationSizeLabel('20')}: {summary.size20Count} · {getAllocationSizeLabel('40')}:{' '}
+                {summary.size40Count} · {Math.round(summary.usedTeu)} / {Math.round(summary.contractTeu)} TEUs (
+                {Number.isInteger(teuPct) ? teuPct : teuPct.toFixed(1)}% utilized)
+              </Typography>
+            </Box>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={Math.min(100, teuPct)}
+            sx={{
+              height: 8,
+              borderRadius: 4,
+              bgcolor: hexToRgba(primaryDark, 0.08),
+              '& .MuiLinearProgress-bar': {
+                bgcolor: progressBarColor(teuPct),
+                borderRadius: 4,
+              },
+            }}
+          />
+        </Paper>
+      )}
+
       {summary && summary.overstayCount > 0 && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {summary.overstayCount} container{summary.overstayCount === 1 ? '' : 's'} exceed the{' '}
@@ -316,8 +588,9 @@ export default function ContainerInventoryPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1.4fr auto' },
             gap: 1.5,
+            alignItems: 'center',
           }}
         >
           <FormControl size="small" fullWidth>
@@ -348,19 +621,62 @@ export default function ContainerInventoryPage() {
               <MenuItem value="Overstay">Overstay (90+ days)</MenuItem>
             </Select>
           </FormControl>
+          {activeTab === 'inventory' && (
+            <TextField
+              size="small"
+              label="Search"
+              placeholder="Container, yard, ref…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlinedIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          )}
+          <Button
+            variant="outlined"
+            startIcon={<DownloadOutlinedIcon />}
+            onClick={handleExport}
+            disabled={activeTab === 'inventory' ? filteredItems.length === 0 : summaryRows.length === 0}
+            sx={{ fontWeight: 700, borderRadius: 2, height: 40 }}
+          >
+            Export
+          </Button>
         </Box>
       </Paper>
 
       <Paper elevation={0} sx={listTablePaperSx}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, value: InventoryTab) => setActiveTab(value)}
+          sx={{
+            px: { xs: 1, sm: 2 },
+            borderBottom: 1,
+            borderColor: 'divider',
+            minHeight: 48,
+            '& .MuiTab-root': { fontWeight: 700, textTransform: 'none', minHeight: 48 },
+          }}
+        >
+          <Tab value="inventory" label={`Yard inventory (${filteredItems.length})`} />
+          <Tab value="summary" label="Summary" />
+        </Tabs>
+
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
             <CircularProgress sx={{ color: primaryDark }} />
           </Box>
-        ) : items.length === 0 ? (
+        ) : activeTab === 'summary' ? (
+          <ContainerInventorySummaryTable rows={summaryRows} />
+        ) : filteredItems.length === 0 ? (
           <Box sx={{ py: 8, px: 2, textAlign: 'center' }}>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              No containers at yard yet. Approved returns appear here automatically, or register existing
-              containers manually.
+              No containers at yard yet. Approved returns appear here automatically, or register existing containers
+              manually.
             </Typography>
             <Button variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => setAddOpen(true)} sx={{ fontWeight: 700, borderRadius: 2 }}>
               Register containers
@@ -369,49 +685,13 @@ export default function ContainerInventoryPage() {
         ) : (
           <>
             <ListMobileOnly>
-              {items.map((row) => (
-                <ListMobileCard key={rowKey(row)}>
-                  <ListMobileTitle>{row.containerNo}</ListMobileTitle>
-                  <ListMobileMeta>
-                    {row.depotName} · {row.containerSize}&apos; {row.containerType}
-                  </ListMobileMeta>
-                  <ListMobileChipRow>
-                    <ComplianceChip status={row.complianceStatus} />
-                    {row.source === 'Manual' ? (
-                      <Chip size="small" label="Manual entry" variant="outlined" sx={{ fontWeight: 600 }} />
-                    ) : (
-                      <Chip size="small" label={`${row.dwellDays} days at yard`} variant="outlined" sx={{ fontWeight: 600 }} />
-                    )}
-                  </ListMobileChipRow>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Yard-in: <strong>{formatDisplayDate(row.yardInDate)}</strong> · {row.daysRemaining} days left
-                  </Typography>
-                  {row.source === 'Workflow' && row.preAdviceId ? (
-                    <Typography
-                      component={RouterLink}
-                      to={`/evaluations/${row.preAdviceId}`}
-                      variant="body2"
-                      sx={{ display: 'inline-block', mt: 1.25, fontWeight: 600, color: primaryDark }}
-                    >
-                      View pre-advice {row.referenceNo} →
-                    </Typography>
-                  ) : row.manualEntryId ? (
-                    <Button
-                      size="small"
-                      color="error"
-                      startIcon={<DeleteOutlineOutlinedIcon />}
-                      onClick={() => handleDeleteManual(row.manualEntryId!)}
-                      sx={{ mt: 1, fontWeight: 600 }}
-                    >
-                      Remove
-                    </Button>
-                  ) : null}
-                </ListMobileCard>
+              {filteredItems.map((row) => (
+                <InventoryMobileCard key={rowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
               ))}
             </ListMobileOnly>
             <ListDesktopOnly>
               <TableContainer>
-                <Table>
+                <Table size="small">
                   <TableHead>
                     <TableRow
                       sx={{
@@ -419,20 +699,16 @@ export default function ContainerInventoryPage() {
                         '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                       }}
                     >
-                      <TableCell>Container</TableCell>
-                      <TableCell>Container yard</TableCell>
-                      <TableCell>Yard-in date</TableCell>
-                      <TableCell align="right">Dwell (days)</TableCell>
-                      <TableCell align="right">Days left</TableCell>
-                      <TableCell>CAO 08-2019</TableCell>
-                      <TableCell align="right"> </TableCell>
+                      {TABLE_HEADERS.map((header) => (
+                        <TableCell key={header || 'actions'} align={header === '' ? 'right' : 'left'}>
+                          {header}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {items.map((row) => (
-                      <TableRow key={rowKey(row)} hover>
-                        <InventoryRowCells row={row} onDeleteManual={handleDeleteManual} />
-                      </TableRow>
+                    {filteredItems.map((row) => (
+                      <InventoryTableRow key={rowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
                     ))}
                   </TableBody>
                 </Table>

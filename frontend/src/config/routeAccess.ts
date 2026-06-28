@@ -7,18 +7,25 @@ export type AppPageKey =
   | 'evaluations'
   | 'cyAllocation'
   | 'containerInventory'
-  | 'reports'
+  | 'adminReports'
+  | 'depotReports'
+  | 'evaluatorReports'
+  | 'truckerReports'
   | 'depotDailyReturns'
   | 'depotSchedules'
-  | 'depotPayments'
+  | 'adminPayments'
   | 'truckerReturns'
   | 'truckerPayments'
   | 'truckerQr'
   | 'truckerQrPrint'
+  | 'logicteckEmptyReturn'
+  | 'logicteckApiTest'
+  | 'logicteckDirectBooking'
   | 'adminUsers'
   | 'adminRoles'
   | 'adminMasterData'
   | 'adminAudit'
+  | 'adminRevenue'
 
 export type PageGroup = 'Common' | 'Evaluation' | 'Depot' | 'Trucker' | 'Admin' | 'Reports'
 
@@ -80,12 +87,36 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Container visibility and dwell time at container yards (CAO 08-2019)',
     showInNav: true,
   },
-  reports: {
-    key: 'reports',
+  adminReports: {
+    key: 'adminReports',
     label: 'Reports',
-    path: '/reports',
-    group: 'Reports',
-    description: 'Operational and role-specific reports',
+    path: '/admin/reports',
+    group: 'Admin',
+    description: 'Payment transactions and verified revenue summaries',
+    showInNav: true,
+  },
+  depotReports: {
+    key: 'depotReports',
+    label: 'Reports',
+    path: '/depot/reports',
+    group: 'Depot',
+    description: 'Depot return reports for your assigned container yard',
+    showInNav: true,
+  },
+  evaluatorReports: {
+    key: 'evaluatorReports',
+    label: 'Reports',
+    path: '/evaluations/reports',
+    group: 'Evaluation',
+    description: 'Shipping line return statistics and CY activity',
+    showInNav: true,
+  },
+  truckerReports: {
+    key: 'truckerReports',
+    label: 'Reports',
+    path: '/trucker/reports',
+    group: 'Trucker',
+    description: 'Your return schedule and completion history',
     showInNav: true,
   },
   depotDailyReturns: {
@@ -104,11 +135,11 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Assign return date, slot, and trucker',
     showInNav: true,
   },
-  depotPayments: {
-    key: 'depotPayments',
+  adminPayments: {
+    key: 'adminPayments',
     label: 'Verify payments',
-    path: '/depot/payments',
-    group: 'Depot',
+    path: '/admin/payments',
+    group: 'Admin',
     description: 'Review and verify trucker payment proofs',
     showInNav: true,
   },
@@ -144,6 +175,30 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Printable QR pass for a confirmed return',
     showInNav: false,
   },
+  logicteckEmptyReturn: {
+    key: 'logicteckEmptyReturn',
+    label: 'LOGICTECK return',
+    path: '/logicteck/empty-return',
+    group: 'Trucker',
+    description: 'Sample empty return form aligned to LOGICTECK integration',
+    showInNav: true,
+  },
+  logicteckApiTest: {
+    key: 'logicteckApiTest',
+    label: 'LOGICTECK API test',
+    path: '/logicteck/api-test',
+    group: 'Trucker',
+    description: 'Verify booking lookup and gate validation outside ICS screens',
+    showInNav: true,
+  },
+  logicteckDirectBooking: {
+    key: 'logicteckDirectBooking',
+    label: 'Send to LOGICTECK',
+    path: '/logicteck/book',
+    group: 'Trucker',
+    description: 'Transfer ICS pre-advice data to LOGICTECK (booking is on LOGICTECK side)',
+    showInNav: true,
+  },
   adminUsers: {
     key: 'adminUsers',
     label: 'Users',
@@ -176,51 +231,92 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'System activity and security audit trail',
     showInNav: true,
   },
+  adminRevenue: {
+    key: 'adminRevenue',
+    label: 'Revenue',
+    path: '/admin/reports',
+    group: 'Admin',
+    description: 'Verified pre-advised fee collections (Reports → Revenue tab)',
+    showInNav: false,
+  },
 }
 
 export const REQUIRED_PAGE_KEYS: AppPageKey[] = ['dashboard', 'profile']
 
+/** Admin portal pages — oversight and configuration, not operational depot/evaluation workflows. */
+export const ADMINISTRATOR_PAGES: AppPageKey[] = [
+  'dashboard',
+  'profile',
+  'adminReports',
+  'adminPayments',
+  'adminUsers',
+  'adminRoles',
+  'adminMasterData',
+  'adminAudit',
+  'adminRevenue',
+  'logicteckApiTest',
+  'logicteckDirectBooking',
+]
+
 /** Default page pool per role — maximum pages that can be assigned. */
 export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
-  ShippingLineEvaluator: ['dashboard', 'profile', 'evaluations', 'cyAllocation', 'containerInventory', 'reports'],
+  ShippingLineEvaluator: [
+    'dashboard',
+    'profile',
+    'evaluations',
+    'cyAllocation',
+    'containerInventory',
+    'evaluatorReports',
+  ],
   DepotPersonnel: [
     'dashboard',
     'profile',
     'depotDailyReturns',
     'depotSchedules',
-    'depotPayments',
-    'reports',
+    'depotReports',
+    'logicteckApiTest',
+    'logicteckDirectBooking',
   ],
   Trucker: [
     'dashboard',
     'profile',
     'preadvice',
-    'reports',
+    'truckerReports',
     'truckerReturns',
     'truckerPayments',
     'truckerQr',
     'truckerQrPrint',
-  ],
-  Administrator: Object.keys(APP_PAGES) as AppPageKey[],
+  'logicteckEmptyReturn',
+  'logicteckDirectBooking',
+  'logicteckApiTest',
+],
+  Administrator: ADMINISTRATOR_PAGES,
 }
 
 const PAGE_MATCH_ORDER: AppPageKey[] = [
+  'logicteckDirectBooking',
+  'logicteckApiTest',
+  'logicteckEmptyReturn',
   'truckerQrPrint',
   'truckerPayments',
   'truckerReturns',
+  'truckerReports',
   'truckerQr',
+  'evaluatorReports',
+  'depotReports',
   'depotDailyReturns',
   'depotSchedules',
-  'depotPayments',
+  'adminReports',
+  'adminPayments',
   'adminUsers',
   'adminRoles',
   'adminMasterData',
   'adminAudit',
+  'adminRevenue',
   'preadvice',
   'cyAllocation',
   'containerInventory',
   'evaluations',
-  'reports',
   'profile',
   'dashboard',
 ]
@@ -233,18 +329,27 @@ export function getAssignablePageKeys(role: string): AppPageKey[] {
   return getAccessiblePageKeys(role)
 }
 
-/** Pages administrators manage in RBAC but do not use in the trucker portal. */
+/** Legacy or mis-assigned pages stripped from the admin runtime session. */
 const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
   'truckerReturns',
   'truckerPayments',
   'truckerQr',
   'truckerQrPrint',
   'preadvice',
+  'evaluations',
+  'cyAllocation',
+  'containerInventory',
+  'depotDailyReturns',
+  'depotSchedules',
 ]
+
+import { migrateLegacyReportPageKey } from './reportConfig'
 
 export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | null): AppPageKey[] {
   const normalizedRole = role === 'Broker' ? 'Trucker' : role
-  const valid = (allowedPages ?? []).filter((key): key is AppPageKey => key in APP_PAGES)
+  const valid = (allowedPages ?? [])
+    .map((key) => migrateLegacyReportPageKey(normalizedRole, key) ?? key)
+    .filter((key): key is AppPageKey => key in APP_PAGES)
   let keys: AppPageKey[]
   if (valid.length > 0) {
     const withRequired = [...new Set<AppPageKey>([...REQUIRED_PAGE_KEYS, ...valid])]
@@ -263,6 +368,11 @@ export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | n
   }
   if (normalizedRole === 'Administrator') {
     keys = keys.filter((key) => !ADMIN_RUNTIME_EXCLUDE.includes(key))
+    for (const key of ROLE_PAGE_ACCESS.Administrator) {
+      if (!ADMIN_RUNTIME_EXCLUDE.includes(key) && !keys.includes(key)) {
+        keys.push(key)
+      }
+    }
   }
   return keys
 }
@@ -343,20 +453,27 @@ export const PAGE_GROUPS_ORDER: PageGroup[] = [
 export const NAV_PAGE_ORDER: AppPageKey[] = [
   'dashboard',
   'preadvice',
-  'reports',
+  'evaluatorReports',
+  'depotReports',
+  'truckerReports',
+  'adminReports',
   'evaluations',
   'cyAllocation',
   'containerInventory',
   'adminUsers',
   'adminRoles',
   'adminMasterData',
+  'adminRevenue',
+  'adminPayments',
   'adminAudit',
   'depotDailyReturns',
   'depotSchedules',
-  'depotPayments',
   'truckerReturns',
   'truckerPayments',
   'truckerQr',
+  'logicteckEmptyReturn',
+  'logicteckApiTest',
+  'logicteckDirectBooking',
 ]
 
 export function getNavPagesForRole(role: string, allowedPages?: string[] | null): AppPage[] {

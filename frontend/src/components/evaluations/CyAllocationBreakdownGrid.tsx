@@ -1,5 +1,6 @@
 import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import type { CyAllocationBreakdownRow } from '../../services/api'
+import { getCapacityDisplayLabel } from '../../utils/cyAllocation'
 
 const primaryDark = '#0B3D91'
 
@@ -7,6 +8,44 @@ interface CyAllocationBreakdownGridProps {
   rows: CyAllocationBreakdownRow[]
   /** Hide the section title (e.g. when nested in a tight mobile card) */
   compact?: boolean
+}
+
+function CellVolume({ preAdvisedCount, preAdvisedTeu, bookingCount, bookingTeu }: {
+  preAdvisedCount: number
+  preAdvisedTeu: number
+  bookingCount: number
+  bookingTeu: number
+}) {
+  if (preAdvisedCount === 0 && bookingCount === 0) {
+    return (
+      <Typography variant="body2" color="text.disabled">
+        —
+      </Typography>
+    )
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, alignItems: 'center' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
+        Pre-advised
+      </Typography>
+      <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: '#ED6C02' }}>
+        {preAdvisedCount}
+        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+          ({preAdvisedTeu.toFixed(1)} TEU)
+        </Typography>
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2, mt: 0.25 }}>
+        Booking
+      </Typography>
+      <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: '#6A1B9A' }}>
+        {bookingCount}
+        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+          ({bookingTeu.toFixed(1)} TEU)
+        </Typography>
+      </Typography>
+    </Box>
+  )
 }
 
 export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyAllocationBreakdownGridProps) {
@@ -30,7 +69,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
           variant="caption"
           sx={{ display: 'block', px: 1.5, py: 1, fontWeight: 700, color: 'text.secondary' }}
         >
-          Active returns by size and type
+          Pre-advised · booking by size and type (counts · TEU)
         </Typography>
       )}
 
@@ -50,7 +89,8 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
             }}
           >
             <Typography variant="body2" sx={{ fontWeight: 700, color: primaryDark, mb: 1 }}>
-              {row.sizeLabel}&apos; · {row.teuPerContainer.toFixed(1)} TEU each
+              {getCapacityDisplayLabel(row.sizeLabel)} · contract {row.contractCount} · {row.availableCount}{' '}
+              available · pre-advised {row.preAdvisedCount} · booking {row.bookingCount}
             </Typography>
             <Box
               sx={{
@@ -75,18 +115,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>
                     {cell.typeCode}
                   </Typography>
-                  {cell.activeReturns > 0 ? (
-                    <>
-                      <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{cell.activeReturns}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {cell.usedTeu.toFixed(1)} TEU
-                      </Typography>
-                    </>
-                  ) : (
-                    <Typography variant="body2" color="text.disabled" sx={{ py: 0.25 }}>
-                      —
-                    </Typography>
-                  )}
+                  <CellVolume {...cell} />
                 </Box>
               ))}
             </Box>
@@ -114,27 +143,14 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
             {rows.map((row) => (
               <TableRow key={row.sizeLabel}>
                 <TableCell sx={{ fontWeight: 700, color: primaryDark }}>
-                  {row.sizeLabel}&apos;
+                  {getCapacityDisplayLabel(row.sizeLabel)}
                   <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
                     {row.teuPerContainer.toFixed(1)} TEU
                   </Typography>
                 </TableCell>
                 {row.cells.map((cell) => (
                   <TableCell key={cell.typeCode} align="center">
-                    {cell.activeReturns > 0 ? (
-                      <>
-                        <Typography component="span" sx={{ fontWeight: 700 }}>
-                          {cell.activeReturns}
-                        </Typography>
-                        <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-                          {cell.usedTeu.toFixed(1)} TEU
-                        </Typography>
-                      </>
-                    ) : (
-                      <Typography variant="body2" color="text.disabled">
-                        —
-                      </Typography>
-                    )}
+                    <CellVolume {...cell} />
                   </TableCell>
                 ))}
               </TableRow>

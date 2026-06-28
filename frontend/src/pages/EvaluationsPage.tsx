@@ -31,9 +31,21 @@ import {
   listTablePaperSx,
 } from '../components/layout/ListPagePrimitives'
 import { evaluationApi, preAdviceApi, type Evaluation, type PreAdvice } from '../services/api'
+import DamageReportChip, { DamageReportChipMuted } from '../components/evaluations/DamageReportChip'
 import { formatDateTime } from '../utils/datetime'
+import { formatContainerSizeLabel } from '../utils/containerSize'
 
 const primaryDark = LIST_PRIMARY
+
+function remarksPreview(value?: string | null) {
+  const text = value?.trim()
+  if (!text) return '—'
+  return (
+    <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 220, wordBreak: 'break-word' }}>
+      {text}
+    </Typography>
+  )
+}
 
 const STATUS_TABS = [
   { key: 'Submitted', label: 'Submitted', summaryColor: '#1565C0' },
@@ -56,9 +68,11 @@ interface EvaluationQueueItem {
   containerType: string
   status: StatusTabKey
   createdAt: string
+  truckerRemarks?: string | null
+  hasDamageReport: boolean
   depotName?: string | null
   evaluatorName?: string | null
-  remarks?: string | null
+  evaluatorRemarks?: string | null
   evaluatedAt?: string | null
 }
 
@@ -79,9 +93,11 @@ function mergeQueue(preAdvices: PreAdvice[], evaluations: Evaluation[]): Evaluat
         containerType: p.containerType,
         status: p.status as StatusTabKey,
         createdAt: p.createdAt,
+        truckerRemarks: p.remarks,
+        hasDamageReport: p.hasDamageReport,
         depotName: ev?.depotName,
         evaluatorName: ev?.evaluatorName,
-        remarks: ev?.remarks ?? p.complianceRemarks,
+        evaluatorRemarks: ev?.remarks ?? p.complianceRemarks,
         evaluatedAt: ev?.evaluatedAt,
       }
     })
@@ -208,6 +224,11 @@ export default function EvaluationsPage() {
       onClick={isPendingTab ? () => navigate(`/evaluations/${item.preAdviceId}`) : undefined}
     >
       <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+      {item.hasDamageReport && (
+        <Box sx={{ mt: 0.5, mb: 0.5 }}>
+          <DamageReportChip />
+        </Box>
+      )}
       <ListMobileMeta>{item.shippingLineName}</ListMobileMeta>
       <Typography
         variant="body2"
@@ -217,13 +238,19 @@ export default function EvaluationsPage() {
         {item.containerNo}
       </Typography>
       <ListMobileMeta>
-        {item.containerSize}&apos; {item.containerType}
+        Size: {formatContainerSizeLabel(item.containerSize)}
       </ListMobileMeta>
+      <ListMobileMeta>Type: {item.containerType}</ListMobileMeta>
+      {item.truckerRemarks?.trim() && (
+        <ListMobileMeta>Trucker remarks: {item.truckerRemarks.trim()}</ListMobileMeta>
+      )}
       {!isPendingTab && (
         <>
           {item.depotName && <ListMobileMeta>CY: {item.depotName}</ListMobileMeta>}
           {item.evaluatorName && <ListMobileMeta>Evaluator: {item.evaluatorName}</ListMobileMeta>}
-          {item.remarks && <ListMobileMeta>{item.remarks}</ListMobileMeta>}
+          {item.evaluatorRemarks?.trim() && (
+            <ListMobileMeta>Evaluator remarks: {item.evaluatorRemarks.trim()}</ListMobileMeta>
+          )}
           {item.evaluatedAt && (
             <ListMobileMeta>{formatDateTime(item.evaluatedAt)}</ListMobileMeta>
           )}
@@ -265,19 +292,16 @@ export default function EvaluationsPage() {
       onClick={isPendingTab ? () => navigate(`/evaluations/${item.preAdviceId}`) : undefined}
     >
       <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
+      <TableCell>{item.hasDamageReport ? <DamageReportChip /> : <DamageReportChipMuted />}</TableCell>
       <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.containerNo}</TableCell>
-      <TableCell>
-        {item.containerSize}&apos; {item.containerType}
-      </TableCell>
+      <TableCell>{formatContainerSizeLabel(item.containerSize)}</TableCell>
+      <TableCell>{item.containerType}</TableCell>
+      <TableCell>{remarksPreview(item.truckerRemarks)}</TableCell>
       {!isPendingTab && (
         <>
           <TableCell>{item.depotName ?? '—'}</TableCell>
           <TableCell>{item.evaluatorName ?? '—'}</TableCell>
-          <TableCell>
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-              {item.remarks ?? '—'}
-            </Typography>
-          </TableCell>
+          <TableCell>{remarksPreview(item.evaluatorRemarks)}</TableCell>
         </>
       )}
       <TableCell>
@@ -436,19 +460,25 @@ export default function EvaluationsPage() {
           isPendingTab ? (
             <>
               <TableCell>Reference</TableCell>
+              <TableCell>Damage</TableCell>
               <TableCell>Container</TableCell>
-              <TableCell>Size / type</TableCell>
+              <TableCell>Size</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Trucker remarks</TableCell>
               <TableCell>Submitted</TableCell>
               <TableCell align="right">Actions</TableCell>
             </>
           ) : (
             <>
               <TableCell>Reference</TableCell>
+              <TableCell>Damage</TableCell>
               <TableCell>Container</TableCell>
-              <TableCell>Size / type</TableCell>
+              <TableCell>Size</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Trucker remarks</TableCell>
               <TableCell>Assigned CY</TableCell>
               <TableCell>Evaluator</TableCell>
-              <TableCell>Remarks</TableCell>
+              <TableCell>Evaluator remarks</TableCell>
               <TableCell>Evaluated</TableCell>
               <TableCell align="right">Actions</TableCell>
             </>

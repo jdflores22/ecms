@@ -9,7 +9,7 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 [Route("api/evaluations")]
-[Authorize(Roles = RoleNames.ShippingLineEvaluator + "," + RoleNames.Administrator)]
+[Authorize(Roles = RoleNames.ShippingLineEvaluator)]
 public class EvaluationsController : ControllerBase
 {
     private readonly IEvaluationService _service;

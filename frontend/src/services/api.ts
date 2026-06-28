@@ -111,6 +111,18 @@ export const preAdviceApi = {
   list: () => api.get<PreAdvice[]>('/preadvice'),
   get: (id: number) => api.get<PreAdvice>(`/preadvice/${id}`),
   lookups: () => api.get<PreAdviceLookups>('/preadvice/lookups'),
+  checkDuplicate: (params: {
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+    excludePreAdviceId?: number
+  }) =>
+    api.get<{
+      isDuplicate: boolean
+      referenceNo?: string | null
+      status?: string | null
+      truckerName?: string | null
+    }>('/preadvice/check-duplicate', { params }),
   create: (data: {
     shippingLineId: number
     containerNo: string
@@ -182,6 +194,11 @@ export interface PreAdvice {
   createdAt: string
   complianceRemarks?: string | null
   complianceRequestedAt?: string | null
+  hasDamageReport: boolean
+  hasQrBooking: boolean
+  qrCode?: string | null
+  qrBookingId?: number | null
+  logicteckStatus?: string | null
 }
 
 export interface Evaluation {
@@ -218,26 +235,39 @@ export const evaluationApi = {
 export interface CyAllocationBreakdownCell {
   typeCode: string
   typeLabel: string
-  activeReturns: number
-  usedTeu: number
+  preAdvisedCount: number
+  preAdvisedTeu: number
+  bookingCount: number
+  bookingTeu: number
 }
 
 export interface CyAllocationBreakdownRow {
   sizeLabel: string
   teuPerContainer: number
+  containerSizeId: number
+  contractCount: number
+  preAdvisedCount: number
+  availableCount: number
+  bookingCount: number
   cells: CyAllocationBreakdownCell[]
 }
 
 export interface CyAllocation {
+  contractId: number
   depotId: number
   depotName: string
   depotAddress: string
   shippingLineId: number
+  shippingLineCode: string
   shippingLineName: string
   contractTeu: number
-  usedTeu: number
+  contractCount: number
+  preAdvisedTeu: number
+  bookingTeu: number
   availableTeu: number
-  activeReturns: number
+  availableCount: number
+  preAdvisedCount: number
+  bookingCount: number
   hasCapacity: boolean
   breakdown: CyAllocationBreakdownRow[]
 }
@@ -245,7 +275,6 @@ export interface CyAllocation {
 export interface CyAllocationForApproval {
   preAdviceId: number
   referenceNo: string
-  requestedTeu: number
   containerNo: string
   containerSize: string
   allocations: CyAllocation[]
@@ -258,6 +287,10 @@ export const cyAllocationApi = {
     }),
   forApproval: (preAdviceId: number) =>
     api.get<CyAllocationForApproval>(`/cy-allocations/for-approval/${preAdviceId}`),
+  updateContract: (
+    contractId: number,
+    data: { sizes: { containerSizeId: number; contractCount: number }[]; isActive?: boolean },
+  ) => api.put<CyAllocation>(`/cy-allocations/contracts/${contractId}`, { ...data, isActive: data.isActive ?? true }),
 }
 
 export type ContainerDwellCompliance = 'WithinLimit' | 'ApproachingLimit' | 'Overstay'
@@ -273,13 +306,18 @@ export interface ContainerInventoryItem {
   containerNo: string
   containerSize: string
   containerType: string
+  shippingLineCode: string
+  shippingLineName: string
+  truckerName: string | null
   depotId: number
   depotName: string
   yardInDate: string
+  gateInTime: string | null
   dwellDays: number
   daysRemaining: number
   complianceStatus: ContainerDwellCompliance
   scheduleStatus: string | null
+  remarks: string | null
 }
 
 export interface ContainerInventoryDepotSummary {
@@ -296,6 +334,10 @@ export interface ContainerInventorySummary {
   overstayCount: number
   dwellLimitDays: number
   warningThresholdDays: number
+  size20Count: number
+  size40Count: number
+  usedTeu: number
+  contractTeu: number
   byDepot: ContainerInventoryDepotSummary[]
 }
 
@@ -331,24 +373,36 @@ export const containerInventoryApi = {
   deleteManual: (id: number) => api.delete(`/container-inventory/manual/${id}`),
 }
 
+export interface ShippingLineDepotContractSize {
+  containerSizeId: number
+  sizeLabel: string
+  teuPerContainer: number
+  contractCount: number
+  preAdvisedCount: number
+  availableCount: number
+}
+
 export interface ShippingLineDepotContract {
   id: number
   shippingLineId: number
   shippingLineName: string
   depotId: number
   depotName: string
-  contractTeu: number
-  usedTeu: number
-  availableTeu: number
+  sizes: ShippingLineDepotContractSize[]
   isActive: boolean
 }
 
 export const shippingLineDepotContractApi = {
   list: () => api.get<ShippingLineDepotContract[]>('/shipping-line-depot-contracts'),
-  create: (data: { shippingLineId: number; depotId: number; contractTeu: number }) =>
-    api.post<ShippingLineDepotContract>('/shipping-line-depot-contracts', data),
-  update: (id: number, data: { contractTeu: number; isActive: boolean }) =>
-    api.put<ShippingLineDepotContract>(`/shipping-line-depot-contracts/${id}`, data),
+  create: (data: {
+    shippingLineId: number
+    depotId: number
+    sizes: { containerSizeId: number; contractCount: number }[]
+  }) => api.post<ShippingLineDepotContract>('/shipping-line-depot-contracts', data),
+  update: (
+    id: number,
+    data: { sizes: { containerSizeId: number; contractCount: number }[]; isActive: boolean },
+  ) => api.put<ShippingLineDepotContract>(`/shipping-line-depot-contracts/${id}`, data),
   deactivate: (id: number) => api.post(`/shipping-line-depot-contracts/${id}/deactivate`),
 }
 
@@ -468,9 +522,20 @@ export interface QrBooking {
     scheduleDate: string
     scheduleTime: string
     trucker: string
+    validateUrl?: string | null
   }
   generatedAt: string
   isUsed: boolean
+  logicteckBookedAt?: string | null
+  logicteckStatus: string
+}
+
+export interface BookLogicteckResponse {
+  success: boolean
+  message: string
+  booking?: QrBooking | null
+  externalReference?: string | null
+  portalUrl?: string | null
 }
 
 export interface UserListItem {
@@ -552,7 +617,76 @@ export const paymentApi = {
 export const qrApi = {
   get: (bookingId: number) => api.get<QrBooking>(`/qr/${bookingId}`),
   getBySchedule: (scheduleId: number) => api.get<QrBooking>(`/qr/schedule/${scheduleId}`),
+  getByCode: (qrCode: string) => api.get<QrBooking>(`/qr/code/${encodeURIComponent(qrCode)}`),
   downloadUrl: (bookingId: number) => resolveAssetUrl(`/api/qr/download/${bookingId}`),
+  bookLogicteck: (bookingId: number) => api.post<BookLogicteckResponse>(`/qr/${bookingId}/book-logicteck`),
+}
+
+export const logicteckApi = {
+  validateQr: (qrCode: string, apiKey?: string) =>
+    api.post<{
+      valid: boolean
+      message?: string | null
+      bookingReference?: string | null
+      containerNo?: string | null
+      shippingLine?: string | null
+      trucker?: string | null
+      preAdviceReference?: string | null
+      scheduledDate?: string | null
+      scheduledTime?: string | null
+      depot?: string | null
+    }>(
+      '/logicteck/validate-qr',
+      { qrCode },
+      apiKey ? { headers: { 'X-Logicteck-Api-Key': apiKey } } : undefined,
+    ),
+  lookupBooking: (qrCode: string, apiKey?: string) =>
+    api.get<{
+      found: boolean
+      message?: string | null
+      bookingReference?: string | null
+      containerNo?: string | null
+      isBooked: boolean
+      isRetrieved: boolean
+    }>(`/logicteck/booking/${encodeURIComponent(qrCode)}`, {
+      headers: apiKey ? { 'X-Logicteck-Api-Key': apiKey } : undefined,
+    }),
+}
+
+export interface LogicteckEmptyReturnPayloadPreview {
+  submitMode: string
+  driverName: string
+  licenseNumber: string
+  plateNumber: string
+  shippingLine: string
+  blNumber?: string | null
+  containerSize: string
+  containerType: string
+  containerNumber: string
+  returnDate: string
+  returnTime: string
+  damageDescription?: string | null
+  icsBookingReference?: string | null
+  damageViews: { view: string; isDamaged: boolean }[]
+  preAdviseAttachmentName?: string | null
+  driversLicensePhotoName?: string | null
+  damagePhotos: { view: string; isDamaged: boolean; fileName: string; sizeBytes: number }[]
+}
+
+export interface LogicteckEmptyReturnSubmitResponse {
+  success: boolean
+  message: string
+  externalReference?: string | null
+  transmitted: boolean
+  targetUrl?: string | null
+  payloadPreview?: LogicteckEmptyReturnPayloadPreview | null
+}
+
+export const logicteckEmptyReturnApi = {
+  submit: (formData: FormData) =>
+    api.post<LogicteckEmptyReturnSubmitResponse>('/logicteck/empty-return/submit', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 }
 
 export interface AuditLog {
@@ -680,6 +814,96 @@ export interface DepotReport {
   totalCompleted: number
 }
 
+export interface RevenueReportRow {
+  label: string
+  periodStart: string
+  periodEnd: string
+  paymentCount: number
+  totalAmount: number
+}
+
+export interface RevenueReport {
+  period: string
+  from: string
+  to: string
+  rows: RevenueReportRow[]
+  totalPayments: number
+  totalRevenue: number
+  averagePayment: number
+}
+
+export interface TransactionReportRow {
+  paymentId: number
+  scheduleId: number
+  referenceNo: string
+  truckerName: string
+  shippingLineId: number
+  shippingLineCode: string
+  shippingLineName: string
+  depotId: number
+  depotName: string
+  status: string
+  amount: number
+  transactionDate: string
+  transactionAt: string | null
+}
+
+export interface TransactionReport {
+  from: string
+  to: string
+  rows: TransactionReportRow[]
+  total: number
+  page: number
+  pageSize: number
+  paidCount: number
+  paidAmount: number
+  pendingCount: number
+  rejectedCount: number
+}
+
+export interface TransactionShippingLineOverviewRow {
+  shippingLineId: number
+  code: string
+  name: string
+  totalCount: number
+  paidCount: number
+  pendingCount: number
+  rejectedCount: number
+  paidAmount: number
+}
+
+export interface TransactionDepotOverviewRow {
+  depotId: number
+  name: string
+  totalCount: number
+  paidCount: number
+  pendingCount: number
+  rejectedCount: number
+  paidAmount: number
+}
+
+export interface TransactionShippingLineOverview {
+  from: string
+  to: string
+  rows: TransactionShippingLineOverviewRow[]
+  totalCount: number
+  paidCount: number
+  paidAmount: number
+  pendingCount: number
+  rejectedCount: number
+}
+
+export interface TransactionDepotOverview {
+  from: string
+  to: string
+  rows: TransactionDepotOverviewRow[]
+  totalCount: number
+  paidCount: number
+  paidAmount: number
+  pendingCount: number
+  rejectedCount: number
+}
+
 export const reportApi = {
   dailyReturns: (params: { from?: string; to?: string; depotId?: number }) =>
     api.get<DailyReturnReport>('/reports/returns/daily', { params }),
@@ -689,6 +913,14 @@ export const reportApi = {
     api.get<ShippingLineReport>('/reports/shipping-lines', { params }),
   depots: (params: { from?: string; to?: string; depotId?: number }) =>
     api.get<DepotReport>('/reports/depots', { params }),
+  revenue: (params: { period: 'weekly' | 'monthly' | 'yearly'; year?: number }) =>
+    api.get<RevenueReport>('/reports/revenue', { params }),
+  transactions: (params: { from?: string; to?: string; page?: number; pageSize?: number }) =>
+    api.get<TransactionReport>('/reports/transactions', { params }),
+  transactionShippingLines: (params: { from?: string; to?: string }) =>
+    api.get<TransactionShippingLineOverview>('/reports/transactions/shipping-lines', { params }),
+  transactionDepots: (params: { from?: string; to?: string }) =>
+    api.get<TransactionDepotOverview>('/reports/transactions/depots', { params }),
 }
 
 export const userApi = {

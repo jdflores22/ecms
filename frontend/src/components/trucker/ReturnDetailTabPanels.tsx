@@ -14,7 +14,7 @@ import {
   hexToRgba,
   infoGridSx,
 } from '../layout/DetailPagePrimitives'
-import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type { Payment, PreAdvice, PreAdviceDocument, QrBooking, Schedule } from '../../services/api'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
@@ -303,9 +303,9 @@ export default function ReturnDetailTabPanels({
                   label={LOGICTECK_QR.validationStatusLabel}
                   value={
                     <Chip
-                      label={qrLookupStatusLabel(qrBooking.isUsed)}
+                      label={qrLookupStatusLabel(qrBooking)}
                       size="small"
-                      color={qrBooking.isUsed ? 'default' : 'success'}
+                      color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
                       sx={{ fontWeight: 600 }}
                     />
                   }

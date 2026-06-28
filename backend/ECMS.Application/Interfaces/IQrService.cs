@@ -8,5 +8,8 @@ public interface IQrService
     Task<byte[]?> DownloadQrAsync(int bookingId, CancellationToken cancellationToken = default);
     Task<QrBookingDto> GenerateForScheduleAsync(int scheduleId, CancellationToken cancellationToken = default);
     Task<QrBookingDto?> GetByScheduleIdAsync(int scheduleId, CancellationToken cancellationToken = default);
+    Task<QrBookingDto?> GetByQrCodeAsync(string qrCode, int userId, string role, CancellationToken cancellationToken = default);
     Task<ValidateQrResponse> ValidateAsync(ValidateQrRequest request, CancellationToken cancellationToken = default);
+    Task<LogicteckBookingLookupResponse?> LookupForLogicteckAsync(string qrCode, CancellationToken cancellationToken = default);
+    Task<BookLogicteckResponse> BookLogicteckAsync(int bookingId, int userId, string role, CancellationToken cancellationToken = default);
 }

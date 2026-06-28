@@ -1,3 +1,4 @@
+using ECMS.Application;
 using ECMS.Domain.Common;
 using ECMS.Application.DTOs.Evaluation;
 using ECMS.Application.Interfaces;
@@ -75,6 +76,7 @@ public class EvaluationService : IEvaluationService
         else
             _db.Update(evaluation);
 
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
 
         var schedule = await _db.Schedules.FirstOrDefaultAsync(s => s.PreAdviceId == preAdvice.Id, cancellationToken);
@@ -148,6 +150,7 @@ public class EvaluationService : IEvaluationService
         else
             _db.Update(evaluation);
 
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(evaluatorId, "Reject", "Evaluation", preAdvice.ReferenceNo, cancellationToken);
@@ -197,6 +200,7 @@ public class EvaluationService : IEvaluationService
         else
             _db.Update(evaluation);
 
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(evaluatorId, "ReturnForCompliance", "Evaluation", preAdvice.ReferenceNo, cancellationToken);

@@ -13,6 +13,7 @@ import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import WarehouseIcon from '@mui/icons-material/Warehouse'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import { LOGICTECK_QR } from './logicteckQr'
 
 export type UserRole =
@@ -82,7 +83,6 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     actions: [
       { label: 'Daily returns', path: '/depot/daily-returns', icon: CalendarViewDayIcon },
       { label: 'Manage schedules', path: '/depot/schedules', icon: CalendarMonthIcon },
-      { label: 'Verify payments', path: '/depot/payments', icon: PaymentsIcon },
     ],
   },
   Trucker: {
@@ -114,7 +114,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     subtitle: 'Cross-role metrics and operational health',
     workflow: [
       'Review audit log for critical system actions',
-      'Use depot tools to verify payments and manage slots',
+      'Use admin tools to verify payments and manage slots',
       'Create and manage users with role-specific assignments',
     ],
     stats: [
@@ -127,10 +127,9 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       { label: 'Manage users', path: '/admin/users', icon: PeopleIcon },
       { label: 'Roles', path: '/admin/roles', icon: AdminPanelSettingsIcon },
       { label: 'Master data', path: '/admin/master-data', icon: WarehouseIcon },
+      { label: 'Reports', path: '/admin/reports', icon: TrendingUpIcon },
       { label: 'Audit log', path: '/admin/audit', icon: HistoryIcon },
-      { label: 'Evaluations', path: '/evaluations', icon: FactCheckIcon },
-      { label: 'Schedules', path: '/depot/schedules', icon: CalendarMonthIcon },
-      { label: 'Payments', path: '/depot/payments', icon: PaymentsIcon },
+      { label: 'Verify payments', path: '/admin/payments', icon: PaymentsIcon },
     ],
   },
 }

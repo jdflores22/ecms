@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   Chip,
   CircularProgress,
@@ -23,15 +24,22 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  containerSizeApi,
   depotApi,
   shippingLineApi,
   shippingLineDepotContractApi,
+  type ContainerSizeMaster,
   type Depot,
   type ShippingLine,
   type ShippingLineDepotContract,
 } from '../../services/api'
+import {
+  formatCyCountSplit,
+  getCapacityDisplayLabel,
+  isSecondaryCapacitySize,
+} from '../../utils/cyAllocation'
 
 const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
@@ -40,28 +48,69 @@ const tableHeadSx = {
   '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
 }
 
+type SizeCountForm = Record<number, number | ''>
+
+function emptySizeForm(sizes: ContainerSizeMaster[]): SizeCountForm {
+  return Object.fromEntries(sizes.map((s) => [s.id, '']))
+}
+
+function sizeFormFromContract(contract: ShippingLineDepotContract, sizes: ContainerSizeMaster[]): SizeCountForm {
+  const form = emptySizeForm(sizes)
+  for (const row of contract.sizes) {
+    const match =
+      sizes.find((s) => s.id === row.containerSizeId) ??
+      sizes.find((s) => getCapacityDisplayLabel(s.label) === row.sizeLabel)
+    if (match) form[match.id] = row.contractCount
+  }
+  return form
+}
+
+function buildSizePayload(form: SizeCountForm) {
+  return Object.entries(form)
+    .filter(([, count]) => typeof count === 'number' && count > 0)
+    .map(([containerSizeId, contractCount]) => ({
+      containerSizeId: Number(containerSizeId),
+      contractCount: Number(contractCount),
+    }))
+}
+
 export default function CyContractsMasterTab() {
   const [contracts, setContracts] = useState<ShippingLineDepotContract[]>([])
   const [lines, setLines] = useState<ShippingLine[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
+  const [containerSizes, setContainerSizes] = useState<ContainerSizeMaster[]>([])
   const [loading, setLoading] = useState(true)
   const [dialog, setDialog] = useState<'create' | 'edit' | null>(null)
   const [selected, setSelected] = useState<ShippingLineDepotContract | null>(null)
   const [form, setForm] = useState({
     shippingLineId: '' as number | '',
     depotId: '' as number | '',
-    contractTeu: 200,
     isActive: true,
   })
+  const [sizeForm, setSizeForm] = useState<SizeCountForm>({})
   const [submitting, setSubmitting] = useState(false)
+
+  const activeSizes = useMemo(
+    () =>
+      containerSizes
+        .filter((s) => s.isActive && !isSecondaryCapacitySize(s.label))
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label)),
+    [containerSizes],
+  )
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([shippingLineDepotContractApi.list(), shippingLineApi.list(), depotApi.listAdmin()])
-      .then(([c, l, d]) => {
+    Promise.all([
+      shippingLineDepotContractApi.list(),
+      shippingLineApi.list(),
+      depotApi.listAdmin(),
+      containerSizeApi.list(),
+    ])
+      .then(([c, l, d, sizes]) => {
         setContracts(c.data)
         setLines(l.data.filter((x) => x.isActive))
         setDepots(d.data.filter((x) => x.isActive))
+        setContainerSizes(sizes.data)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -74,9 +123,9 @@ export default function CyContractsMasterTab() {
     setForm({
       shippingLineId: lines[0]?.id ?? '',
       depotId: depots[0]?.id ?? '',
-      contractTeu: 200,
       isActive: true,
     })
+    setSizeForm(emptySizeForm(activeSizes))
     setDialog('create')
   }
 
@@ -85,25 +134,27 @@ export default function CyContractsMasterTab() {
     setForm({
       shippingLineId: contract.shippingLineId,
       depotId: contract.depotId,
-      contractTeu: contract.contractTeu,
       isActive: contract.isActive,
     })
+    setSizeForm(sizeFormFromContract(contract, activeSizes))
     setDialog('edit')
   }
 
   const save = async () => {
     if (form.shippingLineId === '' || form.depotId === '') return
+    const sizes = buildSizePayload(sizeForm)
+    if (sizes.length === 0) return
     setSubmitting(true)
     try {
       if (dialog === 'create') {
         await shippingLineDepotContractApi.create({
           shippingLineId: Number(form.shippingLineId),
           depotId: Number(form.depotId),
-          contractTeu: form.contractTeu,
+          sizes,
         })
       } else if (selected) {
         await shippingLineDepotContractApi.update(selected.id, {
-          contractTeu: form.contractTeu,
+          sizes,
           isActive: form.isActive,
         })
       }
@@ -122,11 +173,15 @@ export default function CyContractsMasterTab() {
 
   return (
     <>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 720 }}>
+        Set maximum container counts per size for each shipping line and container yard. Sizes{' '}
+        <strong>40 / 45</strong> share one pool (one slot whether the container is 40 or 45).
+      </Typography>
       <Button
         variant="contained"
         startIcon={<AddIcon />}
         onClick={openCreate}
-        disabled={lines.length === 0 || depots.length === 0}
+        disabled={lines.length === 0 || depots.length === 0 || activeSizes.length === 0}
         sx={{ fontWeight: 700, borderRadius: 2, mb: 2 }}
       >
         Add CY contract
@@ -140,9 +195,8 @@ export default function CyContractsMasterTab() {
               <TableRow sx={tableHeadSx}>
                 <TableCell>Shipping line</TableCell>
                 <TableCell>Container yard</TableCell>
-                <TableCell align="right">Contract TEU</TableCell>
-                <TableCell align="right">Used TEU</TableCell>
-                <TableCell align="right">Available TEU</TableCell>
+                <TableCell>Contract by size</TableCell>
+                <TableCell>Usage (pre-advised · booking)</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -150,7 +204,7 @@ export default function CyContractsMasterTab() {
             <TableBody>
               {contracts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+                  <TableCell colSpan={6} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
                     No CY contracts configured.
                   </TableCell>
                 </TableRow>
@@ -159,9 +213,28 @@ export default function CyContractsMasterTab() {
                   <TableRow key={c.id} hover>
                     <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{c.shippingLineName}</TableCell>
                     <TableCell>{c.depotName}</TableCell>
-                    <TableCell align="right">{c.contractTeu}</TableCell>
-                    <TableCell align="right">{c.usedTeu.toFixed(1)}</TableCell>
-                    <TableCell align="right">{c.availableTeu.toFixed(1)}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                        {c.sizes.map((size) => (
+                          <Chip
+                            key={size.containerSizeId}
+                            size="small"
+                            label={`${getCapacityDisplayLabel(size.sizeLabel)}: ${size.contractCount}`}
+                            sx={{ fontWeight: 600 }}
+                          />
+                        ))}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {c.sizes.map((size) => (
+                          <Typography key={size.containerSizeId} variant="body2">
+                            {getCapacityDisplayLabel(size.sizeLabel)}:{' '}
+                            {formatCyCountSplit(size.preAdvisedCount, 0)} · {size.availableCount} available
+                          </Typography>
+                        ))}
+                      </Box>
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={c.isActive ? 'Active' : 'Inactive'}
@@ -228,15 +301,34 @@ export default function CyContractsMasterTab() {
               {selected.shippingLineName} · {selected.depotName}
             </Typography>
           ) : null}
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Contract allocation (TEU)"
-            type="number"
-            value={form.contractTeu}
-            onChange={(e) => setForm({ ...form, contractTeu: Number(e.target.value) })}
-            sx={fieldSx}
-          />
+
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1, mb: 1 }}>
+            Contract allocation by container size
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
+            {activeSizes.map((size) => (
+              <TextField
+                key={size.id}
+                fullWidth
+                label={`${getCapacityDisplayLabel(size.label)} (max containers)`}
+                type="number"
+                value={sizeForm[size.id] ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  setSizeForm({
+                    ...sizeForm,
+                    [size.id]: raw === '' ? '' : Math.max(0, Number(raw)),
+                  })
+                }}
+                slotProps={{ htmlInput: { min: 0 } }}
+                sx={fieldSx}
+              />
+            ))}
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Enter at least one size with a count of 1 or more. 40 / 45 use a single shared limit.
+          </Typography>
+
           {dialog === 'edit' && (
             <FormControlLabel
               control={
@@ -246,6 +338,7 @@ export default function CyContractsMasterTab() {
                 />
               }
               label="Active"
+              sx={{ mt: 2 }}
             />
           )}
         </DialogContent>

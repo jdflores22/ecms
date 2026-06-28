@@ -14,6 +14,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 import CancelIcon from '@mui/icons-material/Cancel'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
@@ -22,7 +23,7 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import SendIcon from '@mui/icons-material/Send'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import PreAdviceDetailTabPanels, {
   type PreAdviceDetailTab,
 } from '../../components/preAdvice/PreAdviceDetailTabPanels'
@@ -45,7 +46,7 @@ import {
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
 import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
-import { LOGICTECK_QR } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel, qrLogicteckStatusFromPreAdvice } from '../../config/logicteckQr'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import {
   paymentApi,
@@ -62,6 +63,8 @@ import {
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
+import { logicteckDirectBookPath } from '../../utils/logicteckDirectBook'
+import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const primaryDark = ICS_PRIMARY
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
@@ -150,7 +153,7 @@ function statusGuidance(
         severity: 'success',
         message:
           schedule?.status === 'Confirmed' || schedule?.status === 'Completed'
-            ? 'Return schedule is confirmed. The assigned trucker can complete payment and receive a LOGICTECK booking QR.'
+            ? 'Return schedule is confirmed. Pre-advice stays Approved in ICS — send data to LOGICTECK to create the return booking there (LOGICTECK status: Ready to send → Booked on LOGICTECK → Retrieved).'
             : schedule?.status === 'Scheduled'
               ? 'Return schedule assigned. The trucker has been notified and can upload payment proof.'
               : 'Approved. The depot will assign a return schedule and notify the assigned trucker.',
@@ -187,6 +190,7 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 export default function PreAdviceDetailPage() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
   const preAdviceId = Number(id)
@@ -315,11 +319,31 @@ export default function PreAdviceDetailPage() {
 
   useEffect(() => {
     if (!item) return
+    const tab = searchParams.get('tab')
+    if (tab === 'qr' && item.status === 'Approved') {
+      setActiveTab('qr')
+      return
+    }
+    if (tab === 'overview') {
+      setActiveTab('overview')
+      return
+    }
+    if (tab === 'details') {
+      setActiveTab('details')
+      return
+    }
+    if (tab === 'photos') {
+      setActiveTab('photos')
+      return
+    }
+    if (tab === 'schedule' && item.status === 'Approved') {
+      setActiveTab('schedule')
+      return
+    }
     if (item.status === 'Draft' || item.status === 'ForCompliance') setActiveTab('photos')
-    else if (PENDING_STATUSES.includes(item.status)) setActiveTab('photos')
-    else if (schedule?.status === 'Confirmed' || schedule?.status === 'Completed') setActiveTab('qr')
-    else if (item.status === 'Approved') setActiveTab('schedule')
-  }, [item?.id, item?.status, schedule?.status])
+    else if (PENDING_STATUSES.includes(item.status)) setActiveTab('overview')
+    else setActiveTab('overview')
+  }, [item?.id, item?.status, schedule?.status, searchParams])
 
   const photoProgress = useMemo(() => {
     const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
@@ -402,6 +426,15 @@ export default function PreAdviceDetailPage() {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const openLogicteckBookForm = () => {
+    if (!qrBooking) return
+    navigate(logicteckDirectBookPath(qrBooking.id))
+  }
+
+  const logicteckHeroStatus = qrBooking
+    ? qrLookupStatusLabel(qrBooking)
+    : qrLogicteckStatusFromPreAdvice(item ?? {})
 
   const handleUpdate = async (values: {
     shippingLineId: number
@@ -486,7 +519,7 @@ export default function PreAdviceDetailPage() {
           <DetailHero
             icon={<DescriptionOutlinedIcon />}
             title={item.referenceNo}
-            subtitle={`${item.shippingLineName} · ${item.containerNo} (${item.containerSize}' ${item.containerType})`}
+            subtitle={`${item.shippingLineName} · ${item.containerNo} · ${formatContainerSizeLabel(item.containerSize)} · ${item.containerType}`}
             chips={
               <>
                 <Chip
@@ -499,6 +532,24 @@ export default function PreAdviceDetailPage() {
                     label={scheduleStatusLabel[schedule.status] ?? schedule.status}
                     size="small"
                     sx={{ fontWeight: 700, ...heroScheduleChipStyle(schedule.status) }}
+                  />
+                )}
+                {(item.hasQrBooking || qrBooking) && logicteckHeroStatus && (
+                  <Chip
+                    icon={
+                      <QrCode2OutlinedIcon sx={{ fontSize: '16px !important', color: 'inherit !important' }} />
+                    }
+                    label={`LOGICTECK · ${logicteckHeroStatus}`}
+                    size="small"
+                    color={qrLookupStatusColor(logicteckHeroStatus)}
+                    sx={{ fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
+                  />
+                )}
+                {(item.hasQrBooking || qrBooking) && (item.qrCode || qrBooking?.qrCode) && (
+                  <Chip
+                    label={item.qrCode ?? qrBooking?.qrCode ?? 'QR ready'}
+                    size="small"
+                    sx={{ ...heroMutedChipSx, fontFamily: 'monospace', fontWeight: 600 }}
                   />
                 )}
                 <Chip
@@ -652,6 +703,7 @@ export default function PreAdviceDetailPage() {
               allowScrollButtonsMobile
               sx={detailTabsSx}
             >
+              <Tab label="Full overview" value="overview" />
               <Tab label="Request details" value="details" />
               <Tab
                 label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
@@ -691,6 +743,7 @@ export default function PreAdviceDetailPage() {
               onCancelEdit={() => setEditing(false)}
               onDownloadQr={downloadQr}
               onQrPreview={openQrPreview}
+              onBookLogicteck={qrBooking ? openLogicteckBookForm : undefined}
             />
           </Paper>
         </>
@@ -704,6 +757,7 @@ export default function PreAdviceDetailPage() {
         qrImageUrl={qrImageUrl}
         payment={payment}
         onDownload={downloadQr}
+        onBookLogicteck={qrBooking ? openLogicteckBookForm : undefined}
       />
 
       <Dialog

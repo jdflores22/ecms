@@ -31,6 +31,7 @@ import EvaluationDetailTabPanels, {
 import EvaluationProgressStrip, {
   buildEvaluationProgressSteps,
 } from '../../components/evaluations/EvaluationProgressStrip'
+import DamageReportChip from '../../components/evaluations/DamageReportChip'
 import BookingQrPreviewDialog from '../../components/qr/BookingQrPreviewDialog'
 import {
   DetailBackButton,
@@ -68,6 +69,8 @@ import {
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
+import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { formatCySizeOptionLabel, getCapacityDisplayLabel } from '../../utils/cyAllocation'
 
 const primaryDark = ICS_PRIMARY
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
@@ -166,7 +169,7 @@ export default function EvaluationDetailPage() {
   const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
   const [allocationsLoading, setAllocationsLoading] = useState(false)
 
-  const allowedRole = user?.role === 'ShippingLineEvaluator' || user?.role === 'Administrator'
+  const allowedRole = user?.role === 'ShippingLineEvaluator'
 
   const loadDocuments = useCallback(() => {
     if (!preAdviceId) return
@@ -401,9 +404,10 @@ export default function EvaluationDetailPage() {
           <DetailHero
             icon={<DescriptionOutlinedIcon />}
             title={item.referenceNo}
-            subtitle={`${item.shippingLineName} · ${item.containerNo} (${item.containerSize}' ${item.containerType})`}
+            subtitle={`${item.shippingLineName} · ${item.containerNo} · ${formatContainerSizeLabel(item.containerSize)} · ${item.containerType}`}
             chips={
               <>
+                {item.hasDamageReport && <DamageReportChip />}
                 <Chip
                   label={statusLabel[item.status] ?? item.status}
                   size="small"
@@ -564,15 +568,18 @@ export default function EvaluationDetailPage() {
               <Typography variant="caption" color="text.secondary">
                 {item.containerNo} · {item.shippingLineName}
                 {approvalAllocations
-                  ? ` · ${approvalAllocations.requestedTeu} TEU required`
-                  : ''}
+                  ? ` · ${getCapacityDisplayLabel(approvalAllocations.containerSize)} pool`
+                  : item.containerSize
+                    ? ` · ${formatContainerSizeLabel(item.containerSize)} container`
+                    : ''}
               </Typography>
             </Paper>
           )}
           {approvalAllocations && (
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Container {approvalAllocations.containerNo} ({approvalAllocations.containerSize}&apos;) requires{' '}
-              <strong>{approvalAllocations.requestedTeu} TEU</strong>.{' '}
+              Container {approvalAllocations.containerNo} (
+              {formatContainerSizeLabel(approvalAllocations.containerSize)}) — pick a CY with space in the{' '}
+              {getCapacityDisplayLabel(approvalAllocations.containerSize)} pool.{' '}
               <RouterLink to={`/evaluations/cy-allocation?preAdviceId=${item?.id ?? ''}`}>
                 View full CY allocation
               </RouterLink>
@@ -590,26 +597,22 @@ export default function EvaluationDetailPage() {
               value={depotId}
               onChange={(e) => setDepotId(e.target.value as number)}
             >
-              {(approvalAllocations?.allocations.length
-                ? approvalAllocations.allocations
-                : depots.map((d) => ({
-                    depotId: d.id,
-                    depotName: d.name,
-                    depotAddress: d.address,
-                    availableTeu: 0,
-                    contractTeu: 0,
-                    usedTeu: 0,
-                    hasCapacity: true,
-                  }))
-              ).map((row) => (
-                <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
-                  {row.depotName}
-                  {approvalAllocations
-                    ? ` — ${row.availableTeu.toFixed(1)} TEU available (${row.usedTeu.toFixed(1)}/${row.contractTeu} used)`
-                    : ` — ${row.depotAddress}`}
-                  {!row.hasCapacity && approvalAllocations ? ' — insufficient space' : ''}
-                </MenuItem>
-              ))}
+              {approvalAllocations?.allocations.length
+                ? approvalAllocations.allocations.map((row) => (
+                    <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
+                      {formatCySizeOptionLabel(
+                        row.depotName,
+                        row,
+                        approvalAllocations.containerSize,
+                        row.hasCapacity,
+                      )}
+                    </MenuItem>
+                  ))
+                : depots.map((d) => (
+                    <MenuItem key={d.id} value={d.id}>
+                      {d.name} — {d.address}
+                    </MenuItem>
+                  ))}
             </Select>
           </FormControl>
           <TextField

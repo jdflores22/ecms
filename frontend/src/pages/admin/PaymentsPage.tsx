@@ -277,7 +277,7 @@ function PaymentTable({
   )
 }
 
-export default function DepotPaymentsPage() {
+export default function AdminPaymentsPage() {
   const [pending, setPending] = useState<Payment[]>([])
   const [reviewed, setReviewed] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)

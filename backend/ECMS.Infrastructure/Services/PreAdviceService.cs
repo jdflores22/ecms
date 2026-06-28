@@ -40,22 +40,96 @@ public class PreAdviceService : IPreAdviceService
         }
 
         var items = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(cancellationToken);
-        return items.Select(MapToDto).ToList();
+        var damageIds = await LoadDamageReportIdsAsync(items.Select(p => p.Id).ToList(), cancellationToken);
+        var qrByPreAdvice = await LoadQrInfoByPreAdviceIdsAsync(items.Select(p => p.Id).ToList(), cancellationToken);
+        return items.Select(p => MapToDto(p, damageIds.Contains(p.Id), qrByPreAdvice.GetValueOrDefault(p.Id))).ToList();
     }
 
     public async Task<PreAdviceDto?> GetByIdAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
     {
         var item = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
-        return item is null ? null : MapToDto(item);
+        if (item is null) return null;
+        var damageIds = await LoadDamageReportIdsAsync(new[] { item.Id }, cancellationToken);
+        var qrByPreAdvice = await LoadQrInfoByPreAdviceIdsAsync(new[] { item.Id }, cancellationToken);
+        return MapToDto(item, damageIds.Contains(item.Id), qrByPreAdvice.GetValueOrDefault(item.Id));
+    }
+
+    private async Task<HashSet<int>> LoadDamageReportIdsAsync(
+        IReadOnlyList<int> preAdviceIds,
+        CancellationToken cancellationToken)
+    {
+        if (preAdviceIds.Count == 0)
+            return new HashSet<int>();
+
+        var ids = await _db.PreAdviceDocuments
+            .AsNoTracking()
+            .Where(d => preAdviceIds.Contains(d.PreAdviceId) && d.Category == ContainerPhotoCategory.Damage)
+            .Select(d => d.PreAdviceId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return ids.ToHashSet();
+    }
+
+    private sealed record PreAdviceQrInfo(int QrBookingId, string QrCode, string LogicteckStatus);
+
+    private async Task<Dictionary<int, PreAdviceQrInfo>> LoadQrInfoByPreAdviceIdsAsync(
+        IReadOnlyList<int> preAdviceIds,
+        CancellationToken cancellationToken)
+    {
+        if (preAdviceIds.Count == 0)
+            return new Dictionary<int, PreAdviceQrInfo>();
+
+        var rows = await _db.QRBookings
+            .AsNoTracking()
+            .Include(q => q.Schedule)
+            .Where(q => preAdviceIds.Contains(q.Schedule.PreAdviceId))
+            .Select(q => new
+            {
+                q.Id,
+                q.QRCode,
+                q.Schedule.PreAdviceId,
+                q.IsUsed,
+                q.LogicteckBookedAt,
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(
+            r => r.PreAdviceId,
+            r => new PreAdviceQrInfo(
+                r.Id,
+                r.QRCode,
+                ResolveLogicteckStatus(r.IsUsed, r.LogicteckBookedAt)));
+    }
+
+    private static string ResolveLogicteckStatus(bool isUsed, DateTime? logicteckBookedAt)
+    {
+        if (isUsed) return "Retrieved";
+        if (logicteckBookedAt.HasValue) return "Booked";
+        return "Available";
+    }
+
+    private async Task<PreAdviceDto> MapToDtoAsync(PreAdvice p, CancellationToken cancellationToken)
+    {
+        var damageIds = await LoadDamageReportIdsAsync(new[] { p.Id }, cancellationToken);
+        var qrByPreAdvice = await LoadQrInfoByPreAdviceIdsAsync(new[] { p.Id }, cancellationToken);
+        return MapToDto(p, damageIds.Contains(p.Id), qrByPreAdvice.GetValueOrDefault(p.Id));
     }
 
     public async Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int truckerId, CancellationToken cancellationToken = default)
     {
-        var containerId = await ResolveContainerIdAsync(
+        var catalog = await ValidateCatalogAsync(
             request.ShippingLineId,
             request.ContainerNo,
             request.ContainerSizeId,
             request.ContainerTypeId,
+            cancellationToken);
+
+        var containerId = await ResolveContainerIdAsync(
+            request.ShippingLineId,
+            catalog.NormalizedNo,
+            catalog.SizeLabel,
+            catalog.TypeCode,
             cancellationToken);
 
         var referenceNo = await GenerateReferenceNoAsync(cancellationToken);
@@ -65,9 +139,13 @@ public class PreAdviceService : IPreAdviceService
             TruckerId = truckerId,
             ShippingLineId = request.ShippingLineId,
             ContainerId = containerId,
+            ContainerNoNormalized = catalog.NormalizedNo,
+            ContainerSizeId = request.ContainerSizeId,
+            ContainerTypeId = request.ContainerTypeId,
             Remarks = request.Remarks,
-            Status = PreAdviceStatus.Draft
+            Status = PreAdviceStatus.Draft,
         };
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Add(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
@@ -83,21 +161,33 @@ public class PreAdviceService : IPreAdviceService
         if (preAdvice is null || preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             return null;
 
-        var containerId = await ResolveContainerIdAsync(
+        var catalog = await ValidateCatalogAsync(
             request.ShippingLineId,
             request.ContainerNo,
             request.ContainerSizeId,
             request.ContainerTypeId,
             cancellationToken);
 
+        var containerId = await ResolveContainerIdAsync(
+            request.ShippingLineId,
+            catalog.NormalizedNo,
+            catalog.SizeLabel,
+            catalog.TypeCode,
+            cancellationToken);
+
         preAdvice.ShippingLineId = request.ShippingLineId;
         preAdvice.ContainerId = containerId;
+        preAdvice.ContainerNoNormalized = catalog.NormalizedNo;
+        preAdvice.ContainerSizeId = request.ContainerSizeId;
+        preAdvice.ContainerTypeId = request.ContainerTypeId;
         preAdvice.Remarks = request.Remarks;
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
+
         _db.Update(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Update", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
 
-        return MapToDto(preAdvice);
+        return await MapToDtoAsync(preAdvice, cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
@@ -135,9 +225,29 @@ public class PreAdviceService : IPreAdviceService
             throw new InvalidOperationException(
                 $"All container identity photos are required before submit. Missing: {string.Join(", ", missing)}.");
 
+        await EnsureNoDuplicateAsync(
+            preAdvice.ContainerNoNormalized,
+            preAdvice.ContainerSizeId,
+            preAdvice.ContainerTypeId,
+            excludePreAdviceId: id,
+            cancellationToken);
+
         preAdvice.Status = PreAdviceStatus.Submitted;
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            throw DuplicateConflictException(await FindDuplicateAsync(
+                preAdvice.ContainerNoNormalized,
+                preAdvice.ContainerSizeId,
+                preAdvice.ContainerTypeId,
+                id,
+                cancellationToken));
+        }
         await _auditService.LogAsync(
             userId,
             wasCompliance ? "Resubmit" : "Submit",
@@ -159,7 +269,7 @@ public class PreAdviceService : IPreAdviceService
             preAdvice.ReferenceNo,
             cancellationToken);
 
-        return MapToDto(preAdvice);
+        return await MapToDtoAsync(preAdvice, cancellationToken);
     }
 
     public async Task<PreAdviceDto?> CancelAsync(
@@ -180,6 +290,7 @@ public class PreAdviceService : IPreAdviceService
         if (!string.IsNullOrWhiteSpace(reason))
             preAdvice.Remarks = reason.Trim();
 
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Cancel", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
@@ -195,7 +306,7 @@ public class PreAdviceService : IPreAdviceService
             preAdvice.ReferenceNo,
             cancellationToken);
 
-        return MapToDto(preAdvice);
+        return await MapToDtoAsync(preAdvice, cancellationToken);
     }
 
     public async Task<PreAdviceLookupsDto> GetLookupsAsync(CancellationToken cancellationToken = default)
@@ -221,6 +332,35 @@ public class PreAdviceService : IPreAdviceService
             .ToListAsync(cancellationToken);
 
         return new PreAdviceLookupsDto(lines, sizes, types);
+    }
+
+    public async Task<PreAdviceDuplicateCheckDto> CheckDuplicateAsync(
+        CheckPreAdviceDuplicateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.ContainerSizeId <= 0
+            || request.ContainerTypeId <= 0
+            || string.IsNullOrWhiteSpace(request.ContainerNo))
+        {
+            return new PreAdviceDuplicateCheckDto(false, null, null, null);
+        }
+
+        if (!await _db.ContainerSizes.AnyAsync(s => s.Id == request.ContainerSizeId && s.IsActive, cancellationToken)
+            || !await _db.ContainerTypes.AnyAsync(t => t.Id == request.ContainerTypeId && t.IsActive, cancellationToken))
+        {
+            return new PreAdviceDuplicateCheckDto(false, null, null, null);
+        }
+
+        var duplicate = await FindDuplicateAsync(
+            PreAdviceDuplicateGuard.NormalizeContainerNo(request.ContainerNo),
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            request.ExcludePreAdviceId,
+            cancellationToken);
+
+        return duplicate is null
+            ? new PreAdviceDuplicateCheckDto(false, null, null, null)
+            : new PreAdviceDuplicateCheckDto(true, duplicate.ReferenceNo, duplicate.Status, duplicate.TruckerName);
     }
 
     public async Task<IReadOnlyList<PreAdviceDocumentDto>> GetDocumentsAsync(
@@ -379,6 +519,40 @@ public class PreAdviceService : IPreAdviceService
 
     private async Task<int> ResolveContainerIdAsync(
         int shippingLineId,
+        string normalizedNo,
+        string sizeLabel,
+        string typeCode,
+        CancellationToken cancellationToken)
+    {
+        var container = await _db.Containers.FirstOrDefaultAsync(c => c.ContainerNo == normalizedNo, cancellationToken);
+        if (container is not null)
+        {
+            if (container.ShippingLineId != shippingLineId)
+                throw new InvalidOperationException($"Container {normalizedNo} is already registered under another shipping line.");
+
+            container.Size = sizeLabel;
+            container.Type = typeCode;
+            _db.Update(container);
+            await _db.SaveChangesAsync(cancellationToken);
+            return container.Id;
+        }
+
+        container = new Container
+        {
+            ContainerNo = normalizedNo,
+            Size = sizeLabel,
+            Type = typeCode,
+            ShippingLineId = shippingLineId,
+        };
+        _db.Add(container);
+        await _db.SaveChangesAsync(cancellationToken);
+        return container.Id;
+    }
+
+    private sealed record CatalogSelection(string NormalizedNo, string SizeLabel, string TypeCode);
+
+    private async Task<CatalogSelection> ValidateCatalogAsync(
+        int shippingLineId,
         string containerNo,
         int containerSizeId,
         int containerTypeId,
@@ -395,41 +569,79 @@ public class PreAdviceService : IPreAdviceService
             .FirstOrDefaultAsync(t => t.Id == containerTypeId && t.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("Invalid container type.");
 
-        var normalizedNo = containerNo.Trim().ToUpperInvariant();
+        var normalizedNo = PreAdviceDuplicateGuard.NormalizeContainerNo(containerNo);
         if (string.IsNullOrWhiteSpace(normalizedNo))
             throw new InvalidOperationException("Container number is required.");
 
-        var container = await _db.Containers.FirstOrDefaultAsync(c => c.ContainerNo == normalizedNo, cancellationToken);
-        if (container is not null)
-        {
-            if (container.ShippingLineId != shippingLineId)
-                throw new InvalidOperationException($"Container {normalizedNo} is already registered under another shipping line.");
-
-            container.Size = size.Label;
-            container.Type = type.Code;
-            _db.Update(container);
-            await _db.SaveChangesAsync(cancellationToken);
-            return container.Id;
-        }
-
-        container = new Container
-        {
-            ContainerNo = normalizedNo,
-            Size = size.Label,
-            Type = type.Code,
-            ShippingLineId = shippingLineId,
-        };
-        _db.Add(container);
-        await _db.SaveChangesAsync(cancellationToken);
-        return container.Id;
+        return new CatalogSelection(normalizedNo, size.Label, type.Code);
     }
 
-    private static PreAdviceDto MapToDto(PreAdvice p) => new(
+    private async Task EnsureNoDuplicateAsync(
+        string normalizedNo,
+        int containerSizeId,
+        int containerTypeId,
+        int? excludePreAdviceId,
+        CancellationToken cancellationToken)
+    {
+        var duplicate = await FindDuplicateAsync(
+            normalizedNo,
+            containerSizeId,
+            containerTypeId,
+            excludePreAdviceId,
+            cancellationToken);
+
+        if (duplicate is not null)
+            throw DuplicateConflictException(duplicate);
+    }
+
+    private async Task<DuplicateMatch?> FindDuplicateAsync(
+        string normalizedNo,
+        int containerSizeId,
+        int containerTypeId,
+        int? excludePreAdviceId,
+        CancellationToken cancellationToken)
+    {
+        var key = PreAdviceDuplicateGuard.BuildKey(normalizedNo, containerSizeId, containerTypeId);
+
+        return await _db.PreAdvices
+            .AsNoTracking()
+            .Where(p => p.ActiveRequestKey == key)
+            .Where(p => excludePreAdviceId == null || p.Id != excludePreAdviceId.Value)
+            .Select(p => new DuplicateMatch(
+                p.ReferenceNo,
+                p.Status,
+                p.Trucker.FullName ?? p.Trucker.Username))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private sealed record DuplicateMatch(string ReferenceNo, PreAdviceStatus Status, string TruckerName);
+
+    private static InvalidOperationException DuplicateConflictException(DuplicateMatch? duplicate)
+    {
+        if (duplicate is null)
+            return new InvalidOperationException(
+                "This container already has a submitted pre-advice with the same number, size, and type.");
+
+        return new InvalidOperationException(
+            $"This container is already submitted ({duplicate.ReferenceNo}, {duplicate.Status}, trucker: {duplicate.TruckerName}). Wait for that request to finish or contact support.");
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
+        ex.InnerException?.Message.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true
+        || ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true
+        || ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static PreAdviceDto MapToDto(PreAdvice p, bool hasDamageReport, PreAdviceQrInfo? qrInfo = null) => new(
         p.Id, p.ReferenceNo, p.TruckerId, p.Trucker.FullName ?? p.Trucker.Username,
         p.ShippingLineId, p.ShippingLine.Name, p.ContainerId, p.Container.ContainerNo,
         p.Container.Size, p.Container.Type, p.Status, p.Remarks, p.CreatedAt,
         p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.Remarks : null,
-        p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.EvaluatedAt : null);
+        p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.EvaluatedAt : null,
+        hasDamageReport,
+        qrInfo is not null,
+        qrInfo?.QrCode,
+        qrInfo?.QrBookingId,
+        qrInfo?.LogicteckStatus);
 
     private static PreAdviceDocumentDto MapDocumentToDto(PreAdviceDocument d) => new(
         d.Id,

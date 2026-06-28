@@ -98,12 +98,26 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId);
         });
 
+        modelBuilder.Entity<ShippingLineDepotContractSizeAllocation>(e =>
+        {
+            e.HasIndex(x => new { x.ContractId, x.ContainerSizeId }).IsUnique();
+            e.HasOne(x => x.Contract)
+                .WithMany(x => x.SizeAllocations)
+                .HasForeignKey(x => x.ContractId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
+        });
+
         modelBuilder.Entity<PreAdvice>(e =>
         {
             e.HasIndex(x => x.ReferenceNo).IsUnique();
+            e.HasIndex(x => x.ActiveRequestKey).IsUnique();
+            e.HasIndex(x => new { x.ContainerNoNormalized, x.ContainerSizeId, x.ContainerTypeId });
             e.HasOne(x => x.Trucker).WithMany(x => x.PreAdvices).HasForeignKey(x => x.TruckerId);
             e.HasOne(x => x.ShippingLine).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ShippingLineId);
             e.HasOne(x => x.Container).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ContainerId);
+            e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
+            e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
         });
 
         modelBuilder.Entity<PreAdviceDocument>(e =>

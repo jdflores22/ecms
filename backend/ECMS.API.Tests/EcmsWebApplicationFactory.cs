@@ -24,6 +24,7 @@ public class EcmsWebApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = TestConnectionString,
+                ["Logicteck:ApiKey"] = "",
             });
         });
     }

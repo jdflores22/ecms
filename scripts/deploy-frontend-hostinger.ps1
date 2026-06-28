@@ -47,7 +47,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 # Root files + hidden .htaccess
 & scp -P $SshPort `
     "$dist/index.html" `
-    "$dist/favicon.svg" `
+    "$dist/ics-logo.png" `
     "$dist/icons.svg" `
     "$dist/.htaccess" `
     "${remote}/"

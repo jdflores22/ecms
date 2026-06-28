@@ -28,8 +28,10 @@ import WarehouseIcon from '@mui/icons-material/Warehouse'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import ApiOutlinedIcon from '@mui/icons-material/ApiOutlined'
 import HistoryIcon from '@mui/icons-material/History'
 import AssessmentIcon from '@mui/icons-material/Assessment'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import { useEffect, useState } from 'react'
@@ -115,18 +117,25 @@ export default function AppLayout() {
     evaluations: <FactCheckIcon fontSize="small" />,
     cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
     containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
-    reports: <AssessmentIcon fontSize="small" />,
+    adminReports: <AssessmentIcon fontSize="small" />,
+    depotReports: <AssessmentIcon fontSize="small" />,
+    evaluatorReports: <AssessmentIcon fontSize="small" />,
+    truckerReports: <AssessmentIcon fontSize="small" />,
     depotDailyReturns: <CalendarViewDayIcon fontSize="small" />,
     depotSchedules: <CalendarMonthIcon fontSize="small" />,
-    depotPayments: <PaymentsIcon fontSize="small" />,
+    adminPayments: <PaymentsIcon fontSize="small" />,
     truckerReturns: <LocalShippingIcon fontSize="small" />,
     truckerPayments: <PaymentsIcon fontSize="small" />,
     truckerQr: <QrCode2Icon fontSize="small" />,
     truckerQrPrint: <QrCode2Icon fontSize="small" />,
+    logicteckEmptyReturn: <LocalShippingIcon fontSize="small" />,
+    logicteckApiTest: <ApiOutlinedIcon fontSize="small" />,
+    logicteckDirectBooking: <LocalShippingIcon fontSize="small" />,
     adminUsers: <PeopleIcon fontSize="small" />,
     adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
     adminMasterData: <WarehouseIcon fontSize="small" />,
     adminAudit: <HistoryIcon fontSize="small" />,
+    adminRevenue: <TrendingUpIcon fontSize="small" />,
   }
 
   const menuItems = user?.role

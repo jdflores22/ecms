@@ -17,7 +17,12 @@ public record PreAdviceDto(
     string? Remarks,
     DateTime CreatedAt,
     string? ComplianceRemarks,
-    DateTime? ComplianceRequestedAt);
+    DateTime? ComplianceRequestedAt,
+    bool HasDamageReport,
+    bool HasQrBooking,
+    string? QrCode,
+    int? QrBookingId,
+    string? LogicteckStatus);
 
 public record CreatePreAdviceRequest(
     int ShippingLineId,
@@ -34,6 +39,18 @@ public record UpdatePreAdviceRequest(
     string? Remarks);
 
 public record CancelPreAdviceRequest(string? Reason);
+
+public record CheckPreAdviceDuplicateRequest(
+    string ContainerNo,
+    int ContainerSizeId,
+    int ContainerTypeId,
+    int? ExcludePreAdviceId);
+
+public record PreAdviceDuplicateCheckDto(
+    bool IsDuplicate,
+    string? ReferenceNo,
+    PreAdviceStatus? Status,
+    string? TruckerName);
 
 public record ShippingLineLookupDto(int Id, string Name, string Code);
 
