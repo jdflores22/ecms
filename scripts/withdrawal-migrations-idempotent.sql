@@ -130,7 +130,7 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260630120000_AddWithdrawalRequests') THEN
 
-    CREATE INDEX `IX_WithdrawalRequestsSet_ContainerNoNormalized_ContainerSizeId_C` ON `WithdrawalRequestsSet` (`ContainerNoNormalized`, `ContainerSizeId`, `ContainerTypeId`);
+    CREATE INDEX `IX_WR_ContainerNo_Size_Type` ON `WithdrawalRequestsSet` (`ContainerNoNormalized`, `ContainerSizeId`, `ContainerTypeId`);
 
     END IF;
 END //
@@ -398,7 +398,7 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260630160000_AddWithdrawalRequestLines') THEN
 
-    ALTER TABLE `WithdrawalRequestsSet` DROP INDEX `IX_WithdrawalRequestsSet_ContainerNoNormalized_ContainerSizeId_ContainerTypeId`;
+    ALTER TABLE `WithdrawalRequestsSet` DROP INDEX `IX_WR_ContainerNo_Size_Type`;
 
     END IF;
 END //
