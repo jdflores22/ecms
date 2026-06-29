@@ -33,6 +33,7 @@ public class SchedulesController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    [HttpGet("by-preforecast/{preAdviceId:int}")]
     [HttpGet("by-preadvice/{preAdviceId:int}")]
     public async Task<ActionResult<ScheduleDto>> GetByPreAdvice(int preAdviceId, CancellationToken cancellationToken)
     {
@@ -48,6 +49,11 @@ public class SchedulesController : ControllerBase
         [FromQuery] int? excludeScheduleId,
         CancellationToken cancellationToken)
         => Ok(await _service.GetSlotAvailabilityAsync(depotId, date, excludeScheduleId, cancellationToken));
+
+    [HttpGet("waiting/count")]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
+    public async Task<ActionResult<ECMS.Application.DTOs.Common.CountDto>> GetWaitingCount(CancellationToken cancellationToken)
+        => Ok(new ECMS.Application.DTOs.Common.CountDto(await _service.GetWaitingScheduleCountAsync(UserId, Role, cancellationToken)));
 
     [HttpPost]
     [Authorize(Roles = RoleNames.DepotPersonnel)]

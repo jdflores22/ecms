@@ -149,7 +149,7 @@ User ──► RefreshToken
 
 | Module | Base path | Roles |
 |--------|-----------|-------|
-| Pre-Advice | `/api/preadvice` | Broker (write), others (read scoped) |
+| Pre-Advice | `/api/preforecast` | Broker (write), others (read scoped) |
 | Evaluation | `/api/evaluations` | ShippingLineEvaluator |
 | Schedule | `/api/schedules` | DepotPersonnel |
 | Payment | `/api/payments` | Trucker (upload), Depot/Admin (verify) |
@@ -213,7 +213,7 @@ User ──► RefreshToken
 |------|-------|--------|
 | Login | `/login` | Done |
 | Dashboard | `/` | Done (generic cards) |
-| Pre-Advice | `/preadvice` | Done (broker) |
+| Pre-Advice | `/preforecast` | Done (broker) |
 | Evaluations | `/evaluations` | Planned |
 | Schedules | `/schedules` | Planned |
 | Payments | `/payments` | Planned |

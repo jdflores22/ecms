@@ -19,10 +19,8 @@ export function useAdminPendingPaymentCount(
       return
     }
     paymentApi
-      .pending()
-      .then(({ data }) => {
-        setCount(data.filter((p) => p.status === 'ForVerification').length)
-      })
+      .pendingCount()
+      .then(({ data }) => setCount(data.count))
       .catch(() => {})
   }, [enabled])
 

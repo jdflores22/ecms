@@ -67,7 +67,7 @@ public class CyAllocationService : ICyAllocationService
         CancellationToken cancellationToken = default)
     {
         var context = await GetForApprovalAsync(preAdviceId, userId, role, cancellationToken)
-            ?? throw new InvalidOperationException("Pre-advice not found.");
+            ?? throw new InvalidOperationException("Pre-forecast not found.");
 
         var allocation = context.Allocations.FirstOrDefault(a => a.DepotId == depotId)
             ?? throw new InvalidOperationException("No contract allocation exists for this container yard and shipping line.");
@@ -121,7 +121,7 @@ public class CyAllocationService : ICyAllocationService
                 if (input.ContractCount < preAdvised)
                 {
                     throw new InvalidOperationException(
-                        $"Cannot set {CyCapacityGroups.GetDisplayLabel(groupKey)} limit below current pre-advised count ({preAdvised}).");
+                        $"Cannot set {CyCapacityGroups.GetDisplayLabel(groupKey)} limit below current pre-forecasted count ({preAdvised}).");
                 }
             }
         }

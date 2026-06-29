@@ -20,18 +20,18 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     [Fact]
     public async Task Trucker_through_evaluator_depot_workflow_completes_with_qr()
     {
-        // 1. Trucker — create and submit pre-advice
+        // 1. Trucker — create and submit pre-forecast
         var submitterToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
         ApiTestHelper.UseBearer(_client, submitterToken);
 
-        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preadvice/lookups");
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preforecast/lookups");
         Assert.NotNull(lookups);
         Assert.NotEmpty(lookups.ShippingLines);
         Assert.NotEmpty(lookups.ContainerSizes);
         Assert.NotEmpty(lookups.ContainerTypes);
 
         var createResponse = await _client.PostAsJsonAsync(
-            "/api/preadvice",
+            "/api/preforecast",
             ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Integration test {Guid.NewGuid():N}"));
         Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
         var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
@@ -39,7 +39,7 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
 
         await ApiTestHelper.UploadAllStandardPhotosAsync(_client, preAdvice.Id);
 
-        var submitResponse = await _client.PostAsync($"/api/preadvice/{preAdvice.Id}/submit", null);
+        var submitResponse = await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
 
         // 2. Evaluator — approve and assign CY

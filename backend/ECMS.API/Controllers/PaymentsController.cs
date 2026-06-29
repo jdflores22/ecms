@@ -70,6 +70,10 @@ public class PaymentsController : ControllerBase
         if (proof is null || proof.Length == 0)
             return BadRequest(new { message = "Proof file is required." });
 
+        var extension = Path.GetExtension(proof.FileName).ToLowerInvariant();
+        if (extension is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".pdf"))
+            return BadRequest(new { message = "Proof must be JPG, PNG, WEBP, or PDF." });
+
         Directory.CreateDirectory(UploadDirectory);
 
         var fileName = $"{Guid.NewGuid()}{Path.GetExtension(proof.FileName)}";
@@ -99,7 +103,8 @@ public class PaymentsController : ControllerBase
     [HttpGet("status/{id:int}")]
     public async Task<ActionResult<PaymentStatusDto>> GetStatus(int id, CancellationToken cancellationToken)
     {
-        var status = await _service.GetStatusAsync(id, cancellationToken);
+        var role = UserRole(User) ?? string.Empty;
+        var status = await _service.GetStatusAsync(id, UserId, role, cancellationToken);
         return status is null ? NotFound() : Ok(status);
     }
 
@@ -112,6 +117,16 @@ public class PaymentsController : ControllerBase
     [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<IReadOnlyList<PaymentDto>>> GetPending(CancellationToken cancellationToken)
         => Ok(await _service.GetPendingVerificationAsync(null, cancellationToken));
+
+    [HttpGet("pending/count")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<ECMS.Application.DTOs.Common.CountDto>> GetPendingCount(CancellationToken cancellationToken)
+        => Ok(new ECMS.Application.DTOs.Common.CountDto(await _service.GetPendingVerificationCountAsync(cancellationToken)));
+
+    [HttpGet("due/count")]
+    [Authorize(Roles = RoleNames.Trucker)]
+    public async Task<ActionResult<ECMS.Application.DTOs.Common.CountDto>> GetDueCount(CancellationToken cancellationToken)
+        => Ok(new ECMS.Application.DTOs.Common.CountDto(await _service.GetPaymentDueCountAsync(UserId, cancellationToken)));
 
     [HttpGet("depot")]
     [Authorize(Roles = RoleNames.Administrator)]

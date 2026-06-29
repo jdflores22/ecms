@@ -29,6 +29,7 @@ import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import HistoryIcon from '@mui/icons-material/History'
+import SystemUpdateAltOutlinedIcon from '@mui/icons-material/SystemUpdateAltOutlined'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
@@ -130,10 +131,11 @@ export default function AppLayout() {
   const navIcons: Record<AppPageKey, React.ReactNode> = {
     dashboard: <DashboardIcon fontSize="small" />,
     profile: <PersonOutlinedIcon fontSize="small" />,
-    preadvice: <DescriptionIcon fontSize="small" />,
+    preforecast: <DescriptionIcon fontSize="small" />,
     evaluations: <FactCheckIcon fontSize="small" />,
     cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
     containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
+    demurrageBilling: <PaymentsIcon fontSize="small" />,
     adminReports: <AssessmentIcon fontSize="small" />,
     depotReports: <AssessmentIcon fontSize="small" />,
     evaluatorReports: <AssessmentIcon fontSize="small" />,
@@ -143,12 +145,14 @@ export default function AppLayout() {
     adminPayments: <PaymentsIcon fontSize="small" />,
     truckerReturns: <LocalShippingIcon fontSize="small" />,
     truckerPayments: <PaymentsIcon fontSize="small" />,
+    truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
     truckerQr: <QrCode2Icon fontSize="small" />,
     truckerQrPrint: <QrCode2Icon fontSize="small" />,
     adminUsers: <PeopleIcon fontSize="small" />,
     adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
     adminMasterData: <WarehouseIcon fontSize="small" />,
     adminAudit: <HistoryIcon fontSize="small" />,
+    adminVersion: <SystemUpdateAltOutlinedIcon fontSize="small" />,
     adminRevenue: <TrendingUpIcon fontSize="small" />,
   }
 

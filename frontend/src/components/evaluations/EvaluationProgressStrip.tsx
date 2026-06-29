@@ -28,6 +28,7 @@ export function buildEvaluationProgressSteps(
   qrLoading: boolean,
   onViewQr?: () => void,
   onReviewPhotos?: () => void,
+  onOpenSchedule?: () => void,
 ): EvaluationProgressStep[] {
   const isPending = PENDING_STATUSES.includes(item.status)
   const isApproved = item.status === 'Approved'
@@ -84,6 +85,9 @@ export function buildEvaluationProgressSteps(
         label: 'Return scheduling',
         detail: 'Loading schedule details…',
         state: 'current',
+        action: onOpenSchedule
+          ? { label: 'View schedule tab', onClick: onOpenSchedule }
+          : undefined,
       }
     }
     if (!schedule) {
@@ -91,6 +95,9 @@ export function buildEvaluationProgressSteps(
         label: 'Return scheduling',
         detail: 'Waiting for depot to create the return schedule',
         state: 'current',
+        action: onOpenSchedule
+          ? { label: 'View schedule tab', onClick: onOpenSchedule }
+          : undefined,
       }
     }
     if (schedule.status === 'WaitingSchedule') {
@@ -98,6 +105,9 @@ export function buildEvaluationProgressSteps(
         label: 'Return scheduling',
         detail: 'Depot is assigning date, time slot, and trucker',
         state: 'current',
+        action: onOpenSchedule
+          ? { label: 'View schedule tab', onClick: onOpenSchedule }
+          : undefined,
       }
     }
     const slotDetail = schedule.date
@@ -109,6 +119,9 @@ export function buildEvaluationProgressSteps(
       label: 'Return scheduling',
       detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : 'Scheduled'} · ${slotDetail}`,
       state: 'complete',
+      action: onOpenSchedule
+        ? { label: 'View return schedule', onClick: onOpenSchedule }
+        : undefined,
     }
   }
 
@@ -145,7 +158,7 @@ export function buildEvaluationProgressSteps(
 
   return [
     {
-      label: 'Pre-advice submitted',
+      label: 'Pre-forecast submitted',
       detail: `${item.truckerName} · ${formatDateTime(item.createdAt)}`,
       state: 'complete',
     },
@@ -155,7 +168,7 @@ export function buildEvaluationProgressSteps(
   ]
 }
 
-/** Trucker pre-advice detail — draft and pending messaging without evaluation API access. */
+/** Trucker pre-forecast detail — draft and pending messaging without evaluation API access. */
 export function buildPreAdviceProgressSteps(
   item: PreAdvice,
   schedule: Schedule | null,
@@ -164,6 +177,7 @@ export function buildPreAdviceProgressSteps(
   qrLoading: boolean,
   onViewQr?: () => void,
   onManagePhotos?: () => void,
+  onOpenSchedule?: () => void,
 ): EvaluationProgressStep[] {
   const isDraft = item.status === 'Draft'
   const isPending = PENDING_STATUSES.includes(item.status)
@@ -174,7 +188,7 @@ export function buildPreAdviceProgressSteps(
   const submittedStep = (): EvaluationProgressStep => {
     if (isDraft) {
       return {
-        label: 'Pre-advice draft',
+        label: 'Pre-forecast draft',
         detail: 'Add container identity photos, then submit for evaluation',
         state: 'current',
         action: onManagePhotos
@@ -183,7 +197,7 @@ export function buildPreAdviceProgressSteps(
       }
     }
     return {
-      label: 'Pre-advice submitted',
+      label: 'Pre-forecast submitted',
       detail: `${item.truckerName} · ${formatDateTime(item.createdAt)}`,
       state: 'complete',
     }
@@ -193,7 +207,7 @@ export function buildPreAdviceProgressSteps(
     if (isDraft) {
       return {
         label: 'Shipping line evaluation',
-        detail: 'Submit the pre-advice to begin evaluation',
+        detail: 'Submit the pre-forecast to begin evaluation',
         state: 'upcoming',
       }
     }
@@ -257,6 +271,9 @@ export function buildPreAdviceProgressSteps(
         label: 'Return scheduling',
         detail: 'Loading schedule details…',
         state: 'current',
+        action: onOpenSchedule
+          ? { label: 'View schedule tab', onClick: onOpenSchedule }
+          : undefined,
       }
     }
     if (!schedule) {
@@ -264,6 +281,9 @@ export function buildPreAdviceProgressSteps(
         label: 'Return scheduling',
         detail: 'Waiting for depot to create the return schedule',
         state: 'current',
+        action: onOpenSchedule
+          ? { label: 'View schedule tab', onClick: onOpenSchedule }
+          : undefined,
       }
     }
     if (schedule.status === 'WaitingSchedule') {
@@ -271,6 +291,9 @@ export function buildPreAdviceProgressSteps(
         label: 'Return scheduling',
         detail: 'Depot is assigning date, time slot, and trucker',
         state: 'current',
+        action: onOpenSchedule
+          ? { label: 'View schedule tab', onClick: onOpenSchedule }
+          : undefined,
       }
     }
     const slotDetail = schedule.date
@@ -282,6 +305,9 @@ export function buildPreAdviceProgressSteps(
       label: 'Return scheduling',
       detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : 'Scheduled'} · ${slotDetail}`,
       state: 'complete',
+      action: onOpenSchedule
+        ? { label: 'View return schedule', onClick: onOpenSchedule }
+        : undefined,
     }
   }
 

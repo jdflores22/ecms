@@ -23,8 +23,8 @@ import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import axios from 'axios'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate, useNavigate, useParams, Link as RouterLink } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Navigate, useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom'
 import EvaluationDetailTabPanels, {
   type EvaluationDetailTab,
 } from '../../components/evaluations/EvaluationDetailTabPanels'
@@ -119,6 +119,12 @@ function heroScheduleChipStyle(status: string): { bgcolor: string; color: string
   }
 }
 
+function defaultDemurrageValidUntil(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
+
 async function loadQrImage(bookingId: number): Promise<string> {
   const token = store.getState().auth.accessToken
   const res = await fetch(qrApi.downloadUrl(bookingId), {
@@ -139,6 +145,7 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 export default function EvaluationDetailPage() {
   const { id } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
   const preAdviceId = Number(id)
@@ -155,6 +162,7 @@ export default function EvaluationDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [complianceOpen, setComplianceOpen] = useState(false)
   const [depotId, setDepotId] = useState<number | ''>('')
+  const [demurrageValidUntil, setDemurrageValidUntil] = useState(defaultDemurrageValidUntil)
   const [remarks, setRemarks] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -165,7 +173,8 @@ export default function EvaluationDetailPage() {
   const [qrLoading, setQrLoading] = useState(false)
   const [qrPreviewOpen, setQrPreviewOpen] = useState(false)
   const [payment, setPayment] = useState<Payment | null>(null)
-  const [activeTab, setActiveTab] = useState<EvaluationDetailTab>('details')
+  const [activeTab, setActiveTab] = useState<EvaluationDetailTab>('overview')
+  const tabContextRef = useRef<{ id: number; status: string } | null>(null)
   const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
   const [allocationsLoading, setAllocationsLoading] = useState(false)
 
@@ -185,14 +194,14 @@ export default function EvaluationDetailPage() {
     if (!preAdviceId) return
     setLoading(true)
     setError('')
-    Promise.all([preAdviceApi.get(preAdviceId), evaluationApi.list(), depotApi.list()])
+    Promise.all([preAdviceApi.get(preAdviceId), evaluationApi.getByPreAdvice(preAdviceId), depotApi.list()])
       .then(([preAdviceRes, evalRes, depotRes]) => {
         setItem(preAdviceRes.data)
-        setDecision(evalRes.data.find((e) => e.preAdviceId === preAdviceId) ?? null)
+        setDecision(evalRes.data)
         setDepots(depotRes.data)
         setDepotId(depotRes.data[0]?.id ?? '')
       })
-      .catch(() => setError('Pre-advice request not found or not accessible.'))
+      .catch(() => setError('Pre-forecast request not found or not accessible.'))
       .finally(() => setLoading(false))
   }, [preAdviceId])
 
@@ -277,10 +286,52 @@ export default function EvaluationDetailPage() {
 
   useEffect(() => {
     if (!item) return
-    if (PENDING_STATUSES.includes(item.status)) setActiveTab('photos')
-    else if (schedule?.status === 'Confirmed' || schedule?.status === 'Completed') setActiveTab('qr')
-    else if (item.status === 'Approved') setActiveTab('schedule')
-  }, [item?.id, item?.status, schedule?.status])
+
+    const tab = searchParams.get('tab') as EvaluationDetailTab | null
+    const showScheduleTabs = item.status === 'Approved'
+    const allowed: EvaluationDetailTab[] = ['overview', 'details', 'photos']
+    if (showScheduleTabs) allowed.push('schedule', 'qr')
+
+    const contextChanged =
+      tabContextRef.current?.id !== item.id || tabContextRef.current?.status !== item.status
+
+    if (contextChanged) {
+      tabContextRef.current = { id: item.id, status: item.status }
+      if (tab && allowed.includes(tab)) {
+        setActiveTab(tab)
+      } else if (PENDING_STATUSES.includes(item.status)) {
+        setActiveTab('photos')
+      } else {
+        setActiveTab('overview')
+      }
+      return
+    }
+
+    if (tab && allowed.includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [item?.id, item?.status, searchParams])
+
+  const showScheduleTabs = item?.status === 'Approved'
+
+  const handleTabChange = (_: React.SyntheticEvent, value: EvaluationDetailTab) => {
+    setActiveTab(value)
+    if (value === 'overview') {
+      setSearchParams({}, { replace: true })
+    } else {
+      setSearchParams({ tab: value }, { replace: true })
+    }
+  }
+
+  const openScheduleTab = useCallback(() => {
+    setActiveTab('schedule')
+    setSearchParams({ tab: 'schedule' }, { replace: true })
+  }, [setSearchParams])
+
+  const openPhotosTab = useCallback(() => {
+    setActiveTab('photos')
+    setSearchParams({ tab: 'photos' }, { replace: true })
+  }, [setSearchParams])
 
   const photoProgress = useMemo(() => {
     const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
@@ -291,8 +342,9 @@ export default function EvaluationDetailPage() {
 
   const openQrPreview = useCallback(() => {
     setActiveTab('qr')
+    setSearchParams({ tab: 'qr' }, { replace: true })
     setQrPreviewOpen(true)
-  }, [])
+  }, [setSearchParams])
 
   const progressSteps = useMemo(() => {
     if (!item) return []
@@ -304,9 +356,20 @@ export default function EvaluationDetailPage() {
       qrBooking,
       qrLoading,
       openQrPreview,
-      () => setActiveTab('photos'),
+      openPhotosTab,
+      openScheduleTab,
     )
-  }, [item, decision, schedule, scheduleLoading, qrBooking, qrLoading, openQrPreview])
+  }, [
+    item,
+    decision,
+    schedule,
+    scheduleLoading,
+    qrBooking,
+    qrLoading,
+    openQrPreview,
+    openPhotosTab,
+    openScheduleTab,
+  ])
 
   if (!allowedRole) {
     return <Navigate to="/" replace />
@@ -338,12 +401,17 @@ export default function EvaluationDetailPage() {
       setActionError('Please select a container yard (CY).')
       return
     }
+    if (!demurrageValidUntil) {
+      setActionError('Demurrage validity date is required.')
+      return
+    }
     setSubmitting(true)
     setActionError('')
     try {
       await evaluationApi.approve({
         preAdviceId: item.id,
         depotId: Number(depotId),
+        demurrageValidUntil,
         remarks: remarks || undefined,
       })
       setApproveOpen(false)
@@ -429,6 +497,21 @@ export default function EvaluationDetailPage() {
                   sx={{ ...heroMutedChipSx, '& .MuiChip-icon': { color: 'inherit' } }}
                 />
                 <PhotoProgressChip uploaded={photoProgress.uploaded} total={photoProgress.total} />
+                {item.demurrageValidUntil && (
+                  <Chip
+                    label={`Demurrage valid until ${item.demurrageValidUntil}`}
+                    size="small"
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor:
+                        item.demurrageValidUntil < new Date().toISOString().slice(0, 10)
+                          ? 'rgba(198, 40, 40, 0.92)'
+                          : 'rgba(255,255,255,0.95)',
+                      color:
+                        item.demurrageValidUntil < new Date().toISOString().slice(0, 10) ? '#fff' : primaryDark,
+                    }}
+                  />
+                )}
                 <TimezoneChip />
               </>
             }
@@ -474,6 +557,7 @@ export default function EvaluationDetailPage() {
                     variant="contained"
                     onClick={() => {
                       setRemarks('')
+                      setDemurrageValidUntil(defaultDemurrageValidUntil())
                       setActionError('')
                       setApproveOpen(true)
                     }}
@@ -502,19 +586,20 @@ export default function EvaluationDetailPage() {
           <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
             <Tabs
               value={activeTab}
-              onChange={(_, value: EvaluationDetailTab) => setActiveTab(value)}
+              onChange={handleTabChange}
               variant="scrollable"
               scrollButtons="auto"
               allowScrollButtonsMobile
               sx={detailTabsSx}
             >
+              <Tab label="Full overview" value="overview" />
+              {showScheduleTabs ? <Tab label="Return schedule" value="schedule" /> : null}
+              {showScheduleTabs ? <Tab label={LOGICTECK_QR.tabLabel} value="qr" /> : null}
               <Tab label="Request details" value="details" />
               <Tab
                 label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
                 value="photos"
               />
-              <Tab label="Return schedule" value="schedule" />
-              <Tab label={LOGICTECK_QR.tabLabel} value="qr" />
             </Tabs>
 
             <EvaluationDetailTabPanels
@@ -548,7 +633,7 @@ export default function EvaluationDetailPage() {
       />
 
       <Dialog open={approveOpen} onClose={() => setApproveOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Approve pre-advice</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Approve pre-forecast</DialogTitle>
         <DialogContent>
           {item && (
             <Paper
@@ -590,6 +675,18 @@ export default function EvaluationDetailPage() {
               {actionError}
             </Alert>
           )}
+          <TextField
+            fullWidth
+            required
+            label="Demurrage validity / expiration date"
+            type="date"
+            margin="normal"
+            value={demurrageValidUntil}
+            onChange={(e) => setDemurrageValidUntil(e.target.value)}
+            helperText="Last day the empty may be returned without demurrage and detention charges"
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={fieldSx}
+          />
           <FormControl fullWidth margin="normal" required sx={fieldSx} disabled={allocationsLoading}>
             <InputLabel>Container yard (CY)</InputLabel>
             <Select
@@ -643,7 +740,7 @@ export default function EvaluationDetailPage() {
       </Dialog>
 
       <Dialog open={rejectOpen} onClose={() => setRejectOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Reject pre-advice</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Reject pre-forecast</DialogTitle>
         <DialogContent>
           {item && (
             <Paper

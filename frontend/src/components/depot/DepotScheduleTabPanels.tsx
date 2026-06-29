@@ -226,7 +226,7 @@ export default function DepotScheduleTabPanels({
                 )}
 
                 <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
-                  The trucker is fixed from the pre-advice request ({truckerName}). Assign the return date
+                  The trucker is fixed from the pre-forecast request ({truckerName}). Assign the return date
                   for this container yard.
                 </Alert>
 

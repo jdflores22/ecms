@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   FormControl,
@@ -11,6 +12,7 @@ import {
 } from '@mui/material'
 import { useEffect, useMemo, useState } from 'react'
 import type { PreAdviceLookups } from '../../services/api'
+import { demurrageBillingApi } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const fieldSx = {
@@ -55,6 +57,8 @@ export default function PreAdviceForm({
   const [containerSizeId, setContainerSizeId] = useState<number | ''>(initial.containerSizeId)
   const [containerTypeId, setContainerTypeId] = useState<number | ''>(initial.containerTypeId)
   const [remarks, setRemarks] = useState(initial.remarks)
+  const [demurrageBlock, setDemurrageBlock] = useState<string | null>(null)
+  const [checkingBlock, setCheckingBlock] = useState(false)
 
   useEffect(() => {
     setShippingLineId(initial.shippingLineId)
@@ -64,13 +68,42 @@ export default function PreAdviceForm({
     setRemarks(initial.remarks)
   }, [initial])
 
+  useEffect(() => {
+    if (
+      shippingLineId === '' ||
+      containerSizeId === '' ||
+      containerTypeId === '' ||
+      !containerNo.trim()
+    ) {
+      setDemurrageBlock(null)
+      return
+    }
+
+    setCheckingBlock(true)
+    const timer = window.setTimeout(() => {
+      demurrageBillingApi
+        .checkBlock({
+          containerNo: containerNo.trim().toUpperCase(),
+          shippingLineId,
+          containerSizeId,
+          containerTypeId,
+        })
+        .then(({ data }) => setDemurrageBlock(data.isBlocked ? data.message ?? 'Outstanding demurrage must be settled first.' : null))
+        .catch(() => setDemurrageBlock(null))
+        .finally(() => setCheckingBlock(false))
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [shippingLineId, containerNo, containerSizeId, containerTypeId])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (
       shippingLineId === '' ||
       containerSizeId === '' ||
       containerTypeId === '' ||
-      !containerNo.trim()
+      !containerNo.trim() ||
+      demurrageBlock
     ) {
       return
     }
@@ -87,7 +120,9 @@ export default function PreAdviceForm({
     shippingLineId !== '' &&
     containerSizeId !== '' &&
     containerTypeId !== '' &&
-    containerNo.trim().length > 0
+    containerNo.trim().length > 0 &&
+    !demurrageBlock &&
+    !checkingBlock
 
   const selectedSizeLabel = useMemo(() => {
     if (containerSizeId === '') return ''
@@ -201,6 +236,13 @@ export default function PreAdviceForm({
           Optional context for the evaluator (damage notes, special handling, etc.).
         </FormHelperText>
       </Box>
+
+      {demurrageBlock && (
+        <Alert severity="error" sx={{ borderRadius: 2 }}>
+          {demurrageBlock}{' '}
+          <strong>Settle demurrage and detention under Demurrage in the menu before creating a new pre-forecast.</strong>
+        </Alert>
+      )}
 
       <Box
         sx={{

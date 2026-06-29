@@ -105,7 +105,7 @@ public static class ApiTestHelper
             form.Add(fileContent, "file", $"{category.Replace(' ', '-').ToLowerInvariant()}.png");
             form.Add(new StringContent(category), "category");
 
-            var response = await client.PostAsync($"/api/preadvice/{preAdviceId}/documents", form);
+            var response = await client.PostAsync($"/api/preforecast/{preAdviceId}/documents", form);
             response.EnsureSuccessStatusCode();
         }
     }

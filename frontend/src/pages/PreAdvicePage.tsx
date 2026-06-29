@@ -106,7 +106,7 @@ export default function PreAdvicePage() {
         setItems(listRes.data)
         setLookups(lookupsRes.data)
       })
-      .catch(() => setLoadError('Failed to load pre-advice. Log out and sign in again if this continues.'))
+      .catch(() => setLoadError('Failed to load pre-forecast. Log out and sign in again if this continues.'))
       .finally(() => setLoading(false))
   }
 
@@ -209,7 +209,7 @@ export default function PreAdvicePage() {
             </Box>
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                Pre-Advice Requests
+                Pre-forecast requests
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
                 Create and manage empty container return requests.
@@ -218,7 +218,7 @@ export default function PreAdvicePage() {
           </Box>
           <Button
             component={RouterLink}
-            to="/preadvice/new"
+            to="/preforecast/new"
             variant="contained"
             startIcon={<AddIcon />}
             sx={{
@@ -226,7 +226,7 @@ export default function PreAdvicePage() {
               px: 2.5,
             }}
           >
-            New pre-advice
+            New pre-forecast
           </Button>
         </Box>
       </Paper>
@@ -380,13 +380,13 @@ export default function PreAdvicePage() {
           <Box sx={{ py: 8, textAlign: 'center', px: 2 }}>
             <Typography color="text.secondary" sx={{ mb: 1 }}>
               {items.length === 0
-                ? 'No pre-advice requests yet.'
+                ? 'No pre-forecast requests yet.'
                 : 'No requests match the selected filters.'}
             </Typography>
             {items.length === 0 && (
               <Button
                 component={RouterLink}
-                to="/preadvice/new"
+                to="/preforecast/new"
                 variant="contained"
                 startIcon={<AddIcon />}
                 sx={{ mt: 1, width: { xs: '100%', sm: 'auto' }, maxWidth: 320 }}
@@ -440,7 +440,7 @@ export default function PreAdvicePage() {
                     {item.hasQrBooking && (
                       <Button
                         component={RouterLink}
-                        to={`/preadvice/${item.id}?tab=qr`}
+                        to={`/preforecast/${item.id}?tab=qr`}
                         size="small"
                         variant="outlined"
                         sx={{ fontWeight: 600, borderRadius: 2 }}
@@ -450,7 +450,7 @@ export default function PreAdvicePage() {
                     )}
                     <Button
                       component={RouterLink}
-                      to={`/preadvice/${item.id}?tab=overview`}
+                      to={`/preforecast/${item.id}?tab=overview`}
                       size="small"
                       variant="contained"
                       startIcon={<OpenInNewIcon />}
@@ -502,7 +502,7 @@ export default function PreAdvicePage() {
                         <TableCell>
                           <Typography
                             component={RouterLink}
-                            to={`/preadvice/${item.id}?tab=overview`}
+                            to={`/preforecast/${item.id}?tab=overview`}
                             sx={{
                               fontWeight: 700,
                               color: primaryDark,
@@ -534,7 +534,7 @@ export default function PreAdvicePage() {
                           {item.hasQrBooking ? (
                             <Typography
                               component={RouterLink}
-                              to={`/preadvice/${item.id}?tab=qr`}
+                              to={`/preforecast/${item.id}?tab=qr`}
                               variant="body2"
                               sx={{
                                 fontFamily: 'monospace',
@@ -575,7 +575,7 @@ export default function PreAdvicePage() {
                           <Tooltip title="View details">
                             <IconButton
                               component={RouterLink}
-                              to={`/preadvice/${item.id}?tab=overview`}
+                              to={`/preforecast/${item.id}?tab=overview`}
                               size="small"
                               sx={{
                                 color: primaryDark,

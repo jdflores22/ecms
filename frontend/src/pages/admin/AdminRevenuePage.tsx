@@ -135,7 +135,7 @@ export default function AdminRevenuePage() {
               </Typography>
             </Box>
             <Typography sx={{ color: 'rgba(255,255,255,0.88)', maxWidth: 560 }}>
-              Verified pre-advised fee collections from trucker payments approved by depot personnel.
+              Verified pre-forecasted fee collections from trucker payments approved by depot personnel.
             </Typography>
           </Box>
           <Button

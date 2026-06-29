@@ -108,18 +108,18 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
         var submitterToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
         ApiTestHelper.UseBearer(_client, submitterToken);
 
-        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preadvice/lookups");
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preforecast/lookups");
         Assert.NotNull(lookups);
 
         var createResponse = await _client.PostAsJsonAsync(
-            "/api/preadvice",
+            "/api/preforecast",
             ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Logicteck test {Guid.NewGuid():N}"));
         createResponse.EnsureSuccessStatusCode();
         var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
         Assert.NotNull(preAdvice);
 
         await ApiTestHelper.UploadAllStandardPhotosAsync(_client, preAdvice.Id);
-        await _client.PostAsync($"/api/preadvice/{preAdvice.Id}/submit", null);
+        await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
 
         var evaluatorToken = await ApiTestHelper.LoginAsync(_client, "evaluator1", "Evaluator@123");
         ApiTestHelper.UseBearer(_client, evaluatorToken);

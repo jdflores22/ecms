@@ -182,7 +182,7 @@ export default function MasterDataPage() {
       setReturnFeeUpdatedAt(data.updatedAt)
       setSuccessMessage(`Pre-advised fee updated to ${formatPeso(data.returnFeeAmount)}.`)
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to update pre-advised fee.'))
+      setError(apiErrorMessage(err, 'Failed to update pre-forecasted fee.'))
     } finally {
       setPaymentSettingsSaving(false)
     }
@@ -822,7 +822,7 @@ export default function MasterDataPage() {
                 Pre-advised fee
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 560 }}>
-                Calibrate the fixed pre-advised fee truckers pay for each scheduled container return. This amount
+                Calibrate the fixed pre-forecasted fee truckers pay for each scheduled container return. This amount
                 appears on the trucker payment page and is applied automatically when proof is submitted.
               </Typography>
             </Box>
@@ -840,7 +840,7 @@ export default function MasterDataPage() {
               helperText={
                 returnFeeUpdatedAt
                   ? `Last updated ${formatDateTime(returnFeeUpdatedAt)}`
-                  : 'Set the pre-advised fee truckers see before uploading proof.'
+                  : 'Set the pre-forecasted fee truckers see before uploading proof.'
               }
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
@@ -850,7 +850,7 @@ export default function MasterDataPage() {
                 disabled={paymentSettingsSaving}
                 sx={{ fontWeight: 700, borderRadius: 2 }}
               >
-                {paymentSettingsSaving ? 'Saving…' : 'Save pre-advised fee'}
+                {paymentSettingsSaving ? 'Saving…' : 'Save pre-forecasted fee'}
               </Button>
             </Box>
             <Paper

@@ -63,9 +63,9 @@ export default function PreAdviceNewPage() {
     setError('')
     try {
       const { data } = await preAdviceApi.create(values)
-      navigate(`/preadvice/${data.id}`)
+      navigate(`/preforecast/${data.id}`)
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to create pre-advice.'))
+      setError(apiErrorMessage(err, 'Failed to create pre-forecast.'))
       setSubmitting(false)
     }
   }
@@ -74,7 +74,7 @@ export default function PreAdviceNewPage() {
     <Box>
       <Button
         component={RouterLink}
-        to="/preadvice"
+        to="/preforecast"
         startIcon={<ArrowBackIcon />}
         sx={{
           mb: 2,
@@ -126,7 +126,7 @@ export default function PreAdviceNewPage() {
           </Box>
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              New pre-advice
+              New pre-forecast
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
               Create a draft empty container return request. You can submit it to the shipping line after review.
@@ -182,7 +182,7 @@ export default function PreAdviceNewPage() {
                 remarks: '',
               }}
               onSubmit={handleCreate}
-              onCancel={() => navigate('/preadvice')}
+              onCancel={() => navigate('/preforecast')}
               submitLabel="Create draft"
               submitting={submitting}
             />

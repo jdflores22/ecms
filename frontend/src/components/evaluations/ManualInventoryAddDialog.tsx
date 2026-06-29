@@ -300,7 +300,7 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
       <DialogTitle sx={{ fontWeight: 700 }}>Register existing yard containers</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Add containers already at your contracted yards without going through pre-advice. Details only — no
+          Add containers already at your contracted yards without going through pre-forecast. Details only — no
           photos or documents required.
         </Typography>
 

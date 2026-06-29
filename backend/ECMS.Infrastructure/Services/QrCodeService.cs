@@ -7,6 +7,7 @@ using ECMS.Domain.Common;
 using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ECMS.Infrastructure.Security;
 using QRCoder;
 
 namespace ECMS.Infrastructure.Services;
@@ -17,31 +18,48 @@ public class QrCodeService : IQrService
     private readonly LogicteckOutboundClient _logicteckClient;
     private readonly LogicteckOptions _logicteckOptions;
     private readonly IAuditService _auditService;
+    private readonly IUploadUrlSigner _uploadUrlSigner;
 
     public QrCodeService(
         IEcmsDbContext db,
         LogicteckOutboundClient logicteckClient,
         IOptions<LogicteckOptions> logicteckOptions,
-        IAuditService auditService)
+        IAuditService auditService,
+        IUploadUrlSigner uploadUrlSigner)
     {
         _db = db;
         _logicteckClient = logicteckClient;
         _logicteckOptions = logicteckOptions.Value;
         _auditService = auditService;
+        _uploadUrlSigner = uploadUrlSigner;
     }
 
-    public async Task<QrBookingDto?> GetByBookingIdAsync(int bookingId, CancellationToken cancellationToken = default)
+    public async Task<QrBookingDto?> GetByBookingIdAsync(
+        int bookingId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
     {
         var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
-        return booking is null ? null : MapToDto(booking);
+        if (booking is null || !CanAccessBooking(booking, userId, role))
+            return null;
+
+        return MapToDto(booking);
     }
 
-    public async Task<byte[]?> DownloadQrAsync(int bookingId, CancellationToken cancellationToken = default)
+    public async Task<byte[]?> DownloadQrAsync(
+        int bookingId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
     {
-        var booking = await _db.QRBookings.FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
-        if (booking is null) return null;
+        var booking = await LoadBookingQuery()
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
+
+        if (booking is null || !CanAccessBooking(booking, userId, role))
+            return null;
 
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(booking.PayloadJson, QRCodeGenerator.ECCLevel.Q);
@@ -49,7 +67,11 @@ public class QrCodeService : IQrService
         return png.GetGraphic(20);
     }
 
-    public async Task<QrBookingDto> GenerateForScheduleAsync(int scheduleId, CancellationToken cancellationToken = default)
+    public async Task<QrBookingDto> GenerateForScheduleAsync(
+        int scheduleId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
     {
         var schedule = await _db.Schedules
             .Include(x => x.PreAdvice).ThenInclude(p => p.Container)
@@ -62,7 +84,17 @@ public class QrCodeService : IQrService
             ?? throw new InvalidOperationException("Schedule not found.");
 
         if (schedule.QRBooking is not null)
+        {
+            schedule.QRBooking.Schedule ??= schedule;
+            if (!CanAccessBooking(schedule.QRBooking, userId, role))
+                throw new UnauthorizedAccessException("You are not allowed to access this QR booking.");
+
             return MapToDto(schedule.QRBooking);
+        }
+
+        var normalizedRole = RoleNames.NormalizeTransactionRole(role);
+        if (!string.Equals(normalizedRole, RoleNames.Administrator, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Only administrators can publish QR bookings.");
 
         var bookingId = $"ICS-{PhilippinesTime.Year}{schedule.Id:D5}";
         var payload = BuildQrPayload(schedule, bookingId, qrBookingId: 0);
@@ -94,12 +126,19 @@ public class QrCodeService : IQrService
         return MapToDto(booking);
     }
 
-    public async Task<QrBookingDto?> GetByScheduleIdAsync(int scheduleId, CancellationToken cancellationToken = default)
+    public async Task<QrBookingDto?> GetByScheduleIdAsync(
+        int scheduleId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
     {
         var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.ScheduleId == scheduleId, cancellationToken);
 
-        return booking is null ? null : MapToDto(booking);
+        if (booking is null || !CanAccessBooking(booking, userId, role))
+            return null;
+
+        return MapToDto(booking);
     }
 
     public async Task<QrBookingDto?> GetByQrCodeAsync(
@@ -211,7 +250,7 @@ public class QrCodeService : IQrService
 
         var preAdvice = booking.Schedule.PreAdvice;
         var hasDamage = preAdvice.Documents.Any(d => d.Category == ContainerPhotoCategory.Damage);
-        var qrBytes = await DownloadQrAsync(booking.Id, cancellationToken);
+        var qrBytes = await DownloadQrAsync(booking.Id, booking.Schedule.PreAdvice.TruckerId, RoleNames.Trucker, cancellationToken);
         var qrBase64 = qrBytes is null
             ? null
             : $"data:image/png;base64,{Convert.ToBase64String(qrBytes)}";
@@ -291,7 +330,7 @@ public class QrCodeService : IQrService
             return new BookLogicteckResponse(false, "Transfer QR not found.", null, null, null);
 
         if (!CanAccessBooking(booking, userId, role))
-            return new BookLogicteckResponse(false, "You are not allowed to send this pre-advice data to LOGICTECK.", null, null, null);
+            return new BookLogicteckResponse(false, "You are not allowed to send this pre-forecast data to LOGICTECK.", null, null, null);
 
         if (booking.IsUsed)
             return new BookLogicteckResponse(false, "QR already retrieved by LOGICTECK.", MapToDto(booking), null, null);
@@ -300,7 +339,7 @@ public class QrCodeService : IQrService
         {
             return new BookLogicteckResponse(
                 true,
-                "Pre-advice data already sent to LOGICTECK.",
+                "Pre-forecast data already sent to LOGICTECK.",
                 MapToDto(booking),
                 booking.LogicteckExternalRef,
                 string.IsNullOrWhiteSpace(_logicteckOptions.PortalUrl) ? null : _logicteckOptions.PortalUrl);
@@ -312,14 +351,14 @@ public class QrCodeService : IQrService
             "LOGICTECK_BOOK",
             cancellationToken);
         if (!transfer.Success)
-            return new BookLogicteckResponse(false, transfer.Error ?? "Could not transfer pre-advice data to LOGICTECK.", MapToDto(booking), null, null);
+            return new BookLogicteckResponse(false, transfer.Error ?? "Could not transfer pre-forecast data to LOGICTECK.", MapToDto(booking), null, null);
 
         var portalUrl = string.IsNullOrWhiteSpace(_logicteckOptions.PortalUrl) ? null : _logicteckOptions.PortalUrl;
         return new BookLogicteckResponse(
             true,
             string.IsNullOrWhiteSpace(_logicteckOptions.BookUrl)
-                ? "Pre-advice data recorded for LOGICTECK transfer. Return booking is on the LOGICTECK side."
-                : "Pre-advice data transferred to LOGICTECK. Return booking is on the LOGICTECK side.",
+                ? "Pre-forecast data recorded for LOGICTECK transfer. Return booking is on the LOGICTECK side."
+                : "Pre-forecast data transferred to LOGICTECK. Return booking is on the LOGICTECK side.",
             MapToDto(booking),
             transfer.ExternalRef,
             portalUrl);
@@ -347,7 +386,7 @@ public class QrCodeService : IQrService
             auditUserId,
             auditAction,
             "QR",
-            $"QR {booking.QRCode} — pre-advice data transferred to LOGICTECK for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
+            $"QR {booking.QRCode} — pre-forecast data transferred to LOGICTECK for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
             cancellationToken);
 
         return (true, externalRef, null);
@@ -460,9 +499,10 @@ public class QrCodeService : IQrService
             return filePath;
         }
 
-        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
         var path = filePath.StartsWith('/') ? filePath : $"/{filePath}";
-        return $"{baseUrl}{path}";
+        var signedPath = _uploadUrlSigner.SignRelativePath(path, TimeSpan.FromHours(24));
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}{signedPath}";
     }
 
     private string BuildValidateUrl()

@@ -19,10 +19,8 @@ export function useDepotWaitingScheduleCount(
       return
     }
     scheduleApi
-      .list()
-      .then(({ data }) => {
-        setCount(data.filter((s) => s.status === 'WaitingSchedule').length)
-      })
+      .waitingCount()
+      .then(({ data }) => setCount(data.count))
       .catch(() => {})
   }, [enabled])
 

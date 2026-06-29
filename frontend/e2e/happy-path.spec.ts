@@ -16,12 +16,12 @@ test.describe('ICS happy path', () => {
   test('trucker through evaluator, depot to QR', async ({ page }) => {
     let referenceNo = ''
 
-    // 1. Trucker — create and submit pre-advice
+    // 1. Trucker — create and submit pre-forecast
     await login(page, users.trucker.username, users.trucker.password)
-    await openNav(page, 'Pre-Advice')
-    await expect(page.getByRole('heading', { name: 'Pre-Advice Requests' })).toBeVisible()
-    await page.getByRole('button', { name: 'New Pre-Advice' }).click()
-    await expect(page.getByRole('heading', { name: 'New Pre-Advice' })).toBeVisible()
+    await openNav(page, 'Pre-forecast')
+    await expect(page.getByRole('heading', { name: 'Pre-forecast requests' })).toBeVisible()
+    await page.getByRole('button', { name: 'New pre-forecast' }).click()
+    await expect(page.getByRole('heading', { name: 'New pre-forecast' })).toBeVisible()
 
     await page.getByLabel('Shipping line').click()
     await page.getByRole('option').first().click()
@@ -43,9 +43,9 @@ test.describe('ICS happy path', () => {
     const evalRow = page.locator('tr').filter({ hasText: referenceNo })
     await expect(evalRow).toBeVisible()
     await evalRow.getByRole('button', { name: 'Approve' }).click()
-    await expect(page.getByRole('heading', { name: 'Approve Pre-Advice' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Approve pre-forecast' })).toBeVisible()
     await page.getByRole('button', { name: 'Approve & Assign CY' }).click()
-    await expect(page.getByRole('heading', { name: 'Approve Pre-Advice' })).toBeHidden({ timeout: 10_000 })
+    await expect(page.getByRole('heading', { name: 'Approve pre-forecast' })).toBeHidden({ timeout: 10_000 })
     await logout(page)
 
     // 3. Depot — schedule return and assign trucker

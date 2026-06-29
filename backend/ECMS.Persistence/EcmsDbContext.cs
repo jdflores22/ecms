@@ -28,6 +28,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<PasswordResetToken> PasswordResetTokensSet => Set<PasswordResetToken>();
     public DbSet<ManualYardInventoryEntry> ManualYardInventoryEntriesSet => Set<ManualYardInventoryEntry>();
     public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
+    public DbSet<DemurrageBilling> DemurrageBillingsSet => Set<DemurrageBilling>();
+    public DbSet<DemurrageBillingFeeLine> DemurrageBillingFeeLinesSet => Set<DemurrageBillingFeeLine>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -49,6 +51,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<PasswordResetToken> IEcmsDbContext.PasswordResetTokens => PasswordResetTokensSet;
     IQueryable<ManualYardInventoryEntry> IEcmsDbContext.ManualYardInventoryEntries => ManualYardInventoryEntriesSet;
     IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
+    IQueryable<DemurrageBilling> IEcmsDbContext.DemurrageBillings => DemurrageBillingsSet;
+    IQueryable<DemurrageBillingFeeLine> IEcmsDbContext.DemurrageBillingFeeLines => DemurrageBillingFeeLinesSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -114,6 +118,9 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasIndex(x => x.ReferenceNo).IsUnique();
             e.HasIndex(x => x.ActiveRequestKey).IsUnique();
             e.HasIndex(x => new { x.ContainerNoNormalized, x.ContainerSizeId, x.ContainerTypeId });
+            e.HasIndex(x => new { x.TruckerId, x.CreatedAt });
+            e.HasIndex(x => new { x.ShippingLineId, x.Status });
+            e.HasIndex(x => new { x.Status, x.DemurrageValidUntil });
             e.HasOne(x => x.Trucker).WithMany(x => x.PreAdvices).HasForeignKey(x => x.TruckerId);
             e.HasOne(x => x.ShippingLine).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ShippingLineId);
             e.HasOne(x => x.Container).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ContainerId);
@@ -123,6 +130,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<PreAdviceDocument>(e =>
         {
+            e.HasIndex(x => new { x.PreAdviceId, x.Category });
             e.HasOne(x => x.PreAdvice).WithMany(x => x.Documents).HasForeignKey(x => x.PreAdviceId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedById);
         });
@@ -136,6 +144,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<Schedule>(e =>
         {
+            e.HasIndex(x => new { x.DepotId, x.Date, x.Status });
+            e.HasIndex(x => x.TruckerId);
             e.HasOne(x => x.PreAdvice).WithOne(x => x.Schedule).HasForeignKey<Schedule>(x => x.PreAdviceId);
             e.HasOne(x => x.Depot).WithMany(x => x.Schedules).HasForeignKey(x => x.DepotId);
             e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId).OnDelete(DeleteBehavior.SetNull);
@@ -143,6 +153,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<Payment>(e =>
         {
+            e.HasIndex(x => new { x.Status, x.PaidAt });
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
             e.HasOne(x => x.Schedule).WithOne(x => x.Payment).HasForeignKey<Payment>(x => x.ScheduleId);
             e.HasOne(x => x.Trucker).WithMany(x => x.Payments).HasForeignKey(x => x.TruckerId);
@@ -156,6 +167,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<AuditLog>(e =>
         {
+            e.HasIndex(x => x.Timestamp);
+            e.HasIndex(x => new { x.Module, x.Timestamp });
             e.HasOne(x => x.User).WithMany(x => x.AuditLogs).HasForeignKey(x => x.UserId);
         });
 
@@ -192,6 +205,33 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.ReturnFeeAmount).HasPrecision(18, 2);
+            e.Property(x => x.DemurrageFeeAmount).HasPrecision(18, 2);
+            e.Property(x => x.DetentionFeeAmount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<DemurrageBilling>(e =>
+        {
+            e.HasIndex(x => x.ReferenceNo).IsUnique();
+            e.HasIndex(x => x.PreAdviceId).IsUnique();
+            e.HasIndex(x => new { x.ContainerNoNormalized, x.ShippingLineId, x.ContainerSizeId, x.ContainerTypeId });
+            e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
+            e.Property(x => x.DemurrageAmount).HasPrecision(18, 2);
+            e.Property(x => x.DetentionAmount).HasPrecision(18, 2);
+            e.HasOne(x => x.PreAdvice).WithMany().HasForeignKey(x => x.PreAdviceId);
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
+            e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId);
+            e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
+            e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
+        });
+
+        modelBuilder.Entity<DemurrageBillingFeeLine>(e =>
+        {
+            e.Property(x => x.Description).HasMaxLength(200);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasOne(x => x.DemurrageBilling)
+                .WithMany(x => x.FeeLines)
+                .HasForeignKey(x => x.DemurrageBillingId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

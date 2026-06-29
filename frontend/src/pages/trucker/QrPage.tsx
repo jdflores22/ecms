@@ -392,7 +392,7 @@ export default function TruckerQrPage() {
         setNotice(result.message)
       }
     } catch {
-      setNotice('Could not send pre-advice data to LOGICTECK.')
+      setNotice('Could not send pre-forecast data to LOGICTECK.')
     } finally {
       setBookLogicteckLoading(false)
     }
@@ -596,7 +596,7 @@ export default function TruckerQrPage() {
 
         <Alert severity="info" sx={{ borderRadius: 2 }}>
 
-          No confirmed returns yet. Complete payment and wait for depot verification to publish the pre-advice QR.
+          No confirmed returns yet. Complete payment and wait for depot verification to publish the pre-forecast QR.
 
         </Alert>
 

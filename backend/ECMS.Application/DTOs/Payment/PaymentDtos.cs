@@ -25,9 +25,17 @@ public record VerifyPaymentRequest(
 
 public record PaymentStatusDto(int Id, PaymentStatus Status, string? ProofFile);
 
-public record PaymentSettingsDto(decimal ReturnFeeAmount, DateTime UpdatedAt);
+public record PaymentSettingsDto(
+    decimal ReturnFeeAmount,
+    decimal DemurrageFeeAmount,
+    decimal DetentionFeeAmount,
+    DateTime UpdatedAt);
 
 public record UpdatePaymentSettingsRequest(decimal ReturnFeeAmount);
+
+public record UpdateDemurrageFeeSettingsRequest(
+    decimal DemurrageFeeAmount,
+    decimal DetentionFeeAmount);
 
 public record UploadPaymentRequest(
     int ScheduleId,

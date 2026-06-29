@@ -527,7 +527,7 @@ export default function TruckerReturnDetailPage() {
         setError(result.message)
       }
     } catch {
-      setError('Could not send pre-advice data to LOGICTECK.')
+      setError('Could not send pre-forecast data to LOGICTECK.')
     } finally {
       setBookLogicteckLoading(false)
     }

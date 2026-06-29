@@ -21,9 +21,9 @@ export const ROLE_CATALOG: RoleInfo[] = [
   {
     name: 'ShippingLineEvaluator',
     label: 'Shipping Line Evaluator',
-    description: 'Reviews pre-advice for assigned shipping line and assigns CY.',
+    description: 'Reviews pre-forecast for assigned shipping line and assigns CY.',
     capabilities: [
-      'Approve or reject pre-advice',
+      'Approve or reject pre-forecast',
       'Assign container yard on approval',
       'View evaluation history',
     ],
@@ -41,9 +41,9 @@ export const ROLE_CATALOG: RoleInfo[] = [
   {
     name: 'Trucker',
     label: 'Trucker',
-    description: 'Creates pre-advice, manages returns, uploads payment proof, and receives booking QR codes.',
+    description: 'Creates pre-forecast, manages returns, uploads payment proof, and receives booking QR codes.',
     capabilities: [
-      'Create and submit pre-advice',
+      'Create and submit pre-forecast',
       'Upload container identity photos',
       'View assigned return schedules',
       'Upload payment proof',
@@ -57,7 +57,7 @@ export function roleLabel(role: string) {
   return ROLE_CATALOG.find((r) => r.name === role)?.label ?? role
 }
 
-/** Trucker-only pre-advice access; legacy Broker JWTs are still accepted until re-login. */
+/** Trucker-only pre-forecast access; legacy Broker JWTs are still accepted until re-login. */
 export function isPreAdviceManager(role?: string | null) {
   return role === 'Trucker' || role === 'Broker'
 }

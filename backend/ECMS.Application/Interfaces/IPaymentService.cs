@@ -10,7 +10,11 @@ public interface IPaymentService
         string proofFilePath,
         string? absoluteProofPath = null,
         CancellationToken cancellationToken = default);
-    Task<PaymentStatusDto?> GetStatusAsync(int id, CancellationToken cancellationToken = default);
+    Task<PaymentStatusDto?> GetStatusAsync(
+        int id,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
     Task<PaymentDto?> VerifyAsync(
         int id,
         VerifyPaymentRequest request,
@@ -40,4 +44,6 @@ public interface IPaymentService
         int? depotId,
         int? shippingLineId,
         CancellationToken cancellationToken = default);
+    Task<int> GetPendingVerificationCountAsync(CancellationToken cancellationToken = default);
+    Task<int> GetPaymentDueCountAsync(int truckerId, CancellationToken cancellationToken = default);
 }

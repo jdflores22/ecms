@@ -3,10 +3,11 @@ import type { UserRole } from './dashboardConfig'
 export type AppPageKey =
   | 'dashboard'
   | 'profile'
-  | 'preadvice'
+  | 'preforecast'
   | 'evaluations'
   | 'cyAllocation'
   | 'containerInventory'
+  | 'demurrageBilling'
   | 'adminReports'
   | 'depotReports'
   | 'evaluatorReports'
@@ -16,12 +17,14 @@ export type AppPageKey =
   | 'adminPayments'
   | 'truckerReturns'
   | 'truckerPayments'
+  | 'truckerDemurrageBilling'
   | 'truckerQr'
   | 'truckerQrPrint'
   | 'adminUsers'
   | 'adminRoles'
   | 'adminMasterData'
   | 'adminAudit'
+  | 'adminVersion'
   | 'adminRevenue'
 
 export type PageGroup = 'Common' | 'Evaluation' | 'Depot' | 'Trucker' | 'Admin' | 'Reports'
@@ -52,12 +55,12 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Account details and password',
     showInNav: false,
   },
-  preadvice: {
-    key: 'preadvice',
-    label: 'Pre-advice',
-    path: '/preadvice',
+  preforecast: {
+    key: 'preforecast',
+    label: 'Pre-forecast',
+    path: '/preforecast',
     group: 'Trucker',
-    description: 'Create, submit, and track pre-advice for returns to CY or Port Terminal',
+    description: 'Create, submit, and track pre-forecast for returns to CY or Port Terminal',
     showInNav: true,
   },
   evaluations: {
@@ -65,7 +68,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     label: 'Evaluations',
     path: '/evaluations',
     group: 'Evaluation',
-    description: 'Review pre-advice requests and assign container yards',
+    description: 'Review pre-forecast requests and assign container yards',
     showInNav: true,
   },
   cyAllocation: {
@@ -82,6 +85,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/evaluations/container-inventory',
     group: 'Evaluation',
     description: 'Container visibility and dwell time at container yards (CAO 08-2019)',
+    showInNav: true,
+  },
+  demurrageBilling: {
+    key: 'demurrageBilling',
+    label: 'Demurrage billing',
+    path: '/evaluations/demurrage-billing',
+    group: 'Evaluation',
+    description: 'Expired pre-forecast with outstanding demurrage and detention charges',
     showInNav: true,
   },
   adminReports: {
@@ -156,12 +167,20 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Upload and track payment proofs',
     showInNav: true,
   },
+  truckerDemurrageBilling: {
+    key: 'truckerDemurrageBilling',
+    label: 'Demurrage',
+    path: '/trucker/demurrage-billing',
+    group: 'Trucker',
+    description: 'Settle demurrage and detention before new pre-forecast',
+    showInNav: true,
+  },
   truckerQr: {
     key: 'truckerQr',
-    label: 'Pre-advice QR',
+    label: 'Pre-forecast QR',
     path: '/trucker/qr',
     group: 'Trucker',
-    description: 'QR code for approved pre-advice after payment verification',
+    description: 'QR code for approved pre-forecast after payment verification',
     showInNav: true,
   },
   truckerQrPrint: {
@@ -204,12 +223,20 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'System activity and security audit trail',
     showInNav: true,
   },
+  adminVersion: {
+    key: 'adminVersion',
+    label: 'Version',
+    path: '/admin/version',
+    group: 'Admin',
+    description: 'Release notes, what is new, and previous versions',
+    showInNav: true,
+  },
   adminRevenue: {
     key: 'adminRevenue',
     label: 'Revenue',
     path: '/admin/reports',
     group: 'Admin',
-    description: 'Verified pre-advised fee collections (Reports → Revenue tab)',
+    description: 'Verified pre-forecasted fee collections (Reports → Revenue tab)',
     showInNav: false,
   },
 }
@@ -226,6 +253,7 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'adminRoles',
   'adminMasterData',
   'adminAudit',
+  'adminVersion',
   'adminRevenue',
 ]
 
@@ -237,6 +265,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'evaluations',
     'cyAllocation',
     'containerInventory',
+    'demurrageBilling',
     'evaluatorReports',
   ],
   DepotPersonnel: [
@@ -249,10 +278,11 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
   Trucker: [
     'dashboard',
     'profile',
-    'preadvice',
+    'preforecast',
     'truckerReports',
     'truckerReturns',
     'truckerPayments',
+    'truckerDemurrageBilling',
     'truckerQr',
     'truckerQrPrint',
   ],
@@ -262,6 +292,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
 const PAGE_MATCH_ORDER: AppPageKey[] = [
   'truckerQrPrint',
   'truckerPayments',
+  'truckerDemurrageBilling',
   'truckerReturns',
   'truckerReports',
   'truckerQr',
@@ -275,10 +306,12 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'adminRoles',
   'adminMasterData',
   'adminAudit',
+  'adminVersion',
   'adminRevenue',
-  'preadvice',
+  'preforecast',
   'cyAllocation',
   'containerInventory',
+  'demurrageBilling',
   'evaluations',
   'profile',
   'dashboard',
@@ -298,7 +331,7 @@ const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
   'truckerPayments',
   'truckerQr',
   'truckerQrPrint',
-  'preadvice',
+  'preforecast',
   'evaluations',
   'cyAllocation',
   'containerInventory',
@@ -308,10 +341,18 @@ const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
 
 import { migrateLegacyReportPageKey } from './reportConfig'
 
+function migrateLegacyAppPageKey(key: string): string {
+  if (key === 'preadvice') return 'preforecast'
+  return key
+}
+
 export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | null): AppPageKey[] {
   const normalizedRole = role === 'Broker' ? 'Trucker' : role
   const valid = (allowedPages ?? [])
-    .map((key) => migrateLegacyReportPageKey(normalizedRole, key) ?? key)
+    .map((key) => {
+      const migrated = migrateLegacyAppPageKey(key)
+      return migrateLegacyReportPageKey(normalizedRole, migrated) ?? migrated
+    })
     .filter((key): key is AppPageKey => key in APP_PAGES)
   let keys: AppPageKey[]
   if (valid.length > 0) {
@@ -415,7 +456,7 @@ export const PAGE_GROUPS_ORDER: PageGroup[] = [
 /** Sidebar display order (subset of pages with showInNav). */
 export const NAV_PAGE_ORDER: AppPageKey[] = [
   'dashboard',
-  'preadvice',
+  'preforecast',
   'evaluatorReports',
   'depotReports',
   'truckerReports',
@@ -423,16 +464,19 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'evaluations',
   'cyAllocation',
   'containerInventory',
+  'demurrageBilling',
   'adminUsers',
   'adminRoles',
   'adminMasterData',
   'adminRevenue',
   'adminPayments',
   'adminAudit',
+  'adminVersion',
   'depotDailyReturns',
   'depotSchedules',
   'truckerReturns',
   'truckerPayments',
+  'truckerDemurrageBilling',
   'truckerQr',
 ]
 

@@ -196,7 +196,7 @@ export default function CyContractsMasterTab() {
                 <TableCell>Shipping line</TableCell>
                 <TableCell>Container yard</TableCell>
                 <TableCell>Contract by size</TableCell>
-                <TableCell>Usage (pre-advised · booking)</TableCell>
+                <TableCell>Usage (pre-forecasted · booking)</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>

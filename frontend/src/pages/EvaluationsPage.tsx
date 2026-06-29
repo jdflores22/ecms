@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Paper,
   Tab,
@@ -74,6 +75,22 @@ interface EvaluationQueueItem {
   evaluatorName?: string | null
   evaluatorRemarks?: string | null
   evaluatedAt?: string | null
+  demurrageValidUntil?: string | null
+}
+
+function demurrageChip(validUntil?: string | null) {
+  if (!validUntil) return null
+  const today = new Date().toISOString().slice(0, 10)
+  const expired = validUntil < today
+  return (
+    <Chip
+      label={expired ? `Demurrage expired ${validUntil}` : `Valid until ${validUntil}`}
+      size="small"
+      color={expired ? 'error' : 'success'}
+      variant={expired ? 'filled' : 'outlined'}
+      sx={{ fontWeight: 700, maxWidth: '100%' }}
+    />
+  )
 }
 
 function mergeQueue(preAdvices: PreAdvice[], evaluations: Evaluation[]): EvaluationQueueItem[] {
@@ -99,6 +116,7 @@ function mergeQueue(preAdvices: PreAdvice[], evaluations: Evaluation[]): Evaluat
         evaluatorName: ev?.evaluatorName,
         evaluatorRemarks: ev?.remarks ?? p.complianceRemarks,
         evaluatedAt: ev?.evaluatedAt,
+        demurrageValidUntil: p.demurrageValidUntil,
       }
     })
 }
@@ -254,6 +272,9 @@ export default function EvaluationsPage() {
           {item.evaluatedAt && (
             <ListMobileMeta>{formatDateTime(item.evaluatedAt)}</ListMobileMeta>
           )}
+          {item.status === 'Approved' && demurrageChip(item.demurrageValidUntil) && (
+            <Box sx={{ mt: 1 }}>{demurrageChip(item.demurrageValidUntil)}</Box>
+          )}
         </>
       )}
       {isPendingTab && (
@@ -302,6 +323,7 @@ export default function EvaluationsPage() {
           <TableCell>{item.depotName ?? '—'}</TableCell>
           <TableCell>{item.evaluatorName ?? '—'}</TableCell>
           <TableCell>{remarksPreview(item.evaluatorRemarks)}</TableCell>
+          <TableCell>{demurrageChip(item.demurrageValidUntil) ?? '—'}</TableCell>
         </>
       )}
       <TableCell>
@@ -376,7 +398,7 @@ export default function EvaluationsPage() {
               Request Evaluations
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              Review pre-advice requests and assign container yard (CY) for approved returns.{' '}
+              Review pre-forecast requests and assign container yard (CY) for approved returns.{' '}
               <RouterLink to="/evaluations/cy-allocation" style={{ color: '#fff', fontWeight: 600 }}>
                 View CY contract allocation
               </RouterLink>
@@ -479,6 +501,7 @@ export default function EvaluationsPage() {
               <TableCell>Assigned CY</TableCell>
               <TableCell>Evaluator</TableCell>
               <TableCell>Evaluator remarks</TableCell>
+              <TableCell>Demurrage</TableCell>
               <TableCell>Evaluated</TableCell>
               <TableCell align="right">Actions</TableCell>
             </>

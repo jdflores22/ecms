@@ -211,7 +211,7 @@ export default function PreAdviceDetailTabPanels({
       <DetailTabPanel value="schedule" activeTab={activeTab}>
         {!isApproved ? (
           <Typography variant="body2" color="text.secondary">
-            Return schedule details will appear here after this pre-advice is approved.
+            Return schedule details will appear here after this pre-forecast is approved.
           </Typography>
         ) : scheduleLoading ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
@@ -251,7 +251,7 @@ export default function PreAdviceDetailTabPanels({
           </>
         ) : (
           <Typography variant="body2" color="text.secondary">
-            No return schedule has been created for this pre-advice yet.
+            No return schedule has been created for this pre-forecast yet.
           </Typography>
         )}
       </DetailTabPanel>
@@ -283,7 +283,7 @@ export default function PreAdviceDetailTabPanels({
               {LOGICTECK_QR.integrationModel}
             </Alert>
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Pre-advice QR is ready. Scan or download the QR, or click{' '}
+              Pre-forecast QR is ready. Scan or download the QR, or click{' '}
               <strong>{LOGICTECK_QR.bookLogicteck}</strong> when you are ready to send data to LOGICTECK.
             </Alert>
             <Box
@@ -313,7 +313,7 @@ export default function PreAdviceDetailTabPanels({
             )}
             <Box sx={{ minWidth: 0 }}>
               <Box sx={infoGridSx}>
-                <InfoTile label="Pre-advice" value={item.referenceNo} mono />
+                <InfoTile label="Pre-forecast" value={item.referenceNo} mono />
                 <InfoTile label={LOGICTECK_QR.bookingIdLabel} value={qrBooking.qrCode} mono />
                 <InfoTile label="Generated" value={formatDateTime(qrBooking.generatedAt)} />
                 <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />

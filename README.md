@@ -80,7 +80,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-The happy-path test walks through: trucker pre-advice → evaluator approval → depot scheduling → trucker payment → depot verification → trucker QR download.
+The happy-path test walks through: trucker pre-forecast → evaluator approval → depot scheduling → trucker payment → depot verification → trucker QR download.
 
 ## Demo Accounts
 
@@ -96,7 +96,7 @@ The happy-path test walks through: trucker pre-advice → evaluator approval →
 | Module | Endpoints |
 |--------|-----------|
 | Auth | `POST /api/auth/login`, `register`, `refresh`, `logout` |
-| Pre-Advice | `GET/POST/PUT/DELETE /api/preadvice` |
+| Pre-Advice | `GET/POST/PUT/DELETE /api/preforecast` |
 | Evaluation | `GET /api/evaluations`, `POST approve/reject` |
 | Scheduling | `GET/POST/PUT /api/schedules` |
 | Payments | `POST /api/payments/upload`, `GET status/{id}` |

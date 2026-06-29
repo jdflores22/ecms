@@ -48,7 +48,7 @@ export interface RoleDashboardConfig {
 export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
   ShippingLineEvaluator: {
     title: 'Evaluation queue',
-    subtitle: 'Review pre-advice requests and assign container yards',
+    subtitle: 'Review pre-forecast requests and assign container yards',
     workflow: [
       'Open the pending queue for new submissions',
       'Approve with a CY assignment or reject with remarks',
@@ -87,23 +87,23 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
   },
   Trucker: {
     title: 'Trucker overview',
-    subtitle: 'Pre-advice, returns, payments, and booking QR',
+    subtitle: 'Pre-forecast, returns, payments, and booking QR',
     workflow: [
-      'Create and submit pre-advice',
+      'Create and submit pre-forecast',
       'Review assigned return schedules',
       'Upload payment proof',
       'Download booking QR after verification',
     ],
     stats: [
-      { key: 'pendingRequests', label: 'Pending pre-advice', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
       { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'totalRequests', label: 'Total pre-advice', description: 'All requests you submitted', icon: AssignmentIcon, color: '#1565c0' },
+      { key: 'totalRequests', label: 'Total pre-forecast', description: 'All requests you submitted', icon: AssignmentIcon, color: '#1565c0' },
     ],
     actions: [
-      { label: 'Pre-advice', path: '/preadvice', icon: AssignmentIcon },
-      { label: 'New pre-advice', path: '/preadvice/new', icon: AssignmentIcon },
+      { label: 'Pre-forecast', path: '/preforecast', icon: AssignmentIcon },
+      { label: 'New pre-forecast', path: '/preforecast/new', icon: AssignmentIcon },
       { label: 'My returns', path: '/trucker/returns', icon: LocalShippingIcon },
       { label: 'Payments', path: '/trucker/payments', icon: PaymentsIcon },
       { label: LOGICTECK_QR.menuLabel, path: '/trucker/qr', icon: QrCode2Icon },
@@ -119,7 +119,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
     stats: [
       { key: 'totalUsers', label: 'Total users', description: 'Registered system users', icon: PeopleIcon, color: '#1565c0' },
-      { key: 'totalPreAdvices', label: 'Pre-advices', description: 'All pre-advice requests', icon: AssignmentIcon, color: '#6a1b9a' },
+      { key: 'totalPreAdvices', label: 'Pre-forecasts', description: 'All pre-forecast requests', icon: AssignmentIcon, color: '#6a1b9a' },
       { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting shipping line action', icon: FactCheckIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'activeSchedules', label: 'Active schedules', description: 'Scheduled or confirmed returns', icon: CalendarMonthIcon, color: '#2e7d32' },
     ],

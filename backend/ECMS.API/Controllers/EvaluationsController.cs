@@ -26,6 +26,14 @@ public class EvaluationsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<EvaluationDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _service.GetAllAsync(UserId, Role, cancellationToken));
 
+    [HttpGet("by-preforecast/{preAdviceId:int}")]
+    [HttpGet("by-preadvice/{preAdviceId:int}")]
+    public async Task<ActionResult<EvaluationDto>> GetByPreAdvice(int preAdviceId, CancellationToken cancellationToken)
+    {
+        var item = await _service.GetByPreAdviceIdAsync(preAdviceId, UserId, Role, cancellationToken);
+        return item is null ? NotFound() : Ok(item);
+    }
+
     [HttpPost("approve")]
     public async Task<ActionResult<EvaluationDto>> Approve([FromBody] ApproveEvaluationRequest request, CancellationToken cancellationToken)
     {

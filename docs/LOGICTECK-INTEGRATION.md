@@ -4,10 +4,10 @@ How ICS (ECMS) connects to **LOGICTECK** for empty container return bookings.
 
 | System | Role |
 |--------|------|
-| **ICS** | Pre-advice workflow, transfer QR, **data transfer only** |
+| **ICS** | Pre-forecast workflow, transfer QR, **data transfer only** |
 | **LOGICTECK** | Empty return **booking** (created and held on their side) |
 
-ICS pre-advice status stays **Approved** after transfer. It does **not** become “Booked” in ICS — `isBooked` on the public API means **data was sent to LOGICTECK**, not an ICS workflow state.
+ICS pre-forecast status stays **Approved** after transfer. It does **not** become “Booked” in ICS — `isBooked` on the public API means **data was sent to LOGICTECK**, not an ICS workflow state.
 
 ---
 
@@ -19,11 +19,11 @@ sequenceDiagram
     participant ICS as ICS API
     participant LT as LOGICTECK
 
-    Note over ICS: Pre-advice approved, depot confirms return
+    Note over ICS: Pre-forecast approved, depot confirms return
     ICS->>ICS: Publish transfer QR (e.g. ICS-202600018)
 
     Trucker->>ICS: Send to LOGICTECK
-    ICS->>LT: POST BookUrl (pre-advice payload)
+    ICS->>LT: POST BookUrl (pre-forecast payload)
     LT-->>ICS: { "reference": "..." }
     ICS->>ICS: LogicteckBookedAt set
 
@@ -48,7 +48,7 @@ Section: `Logicteck` in `backend/ECMS.API/appsettings.json` or `appsettings.Prod
 |-----|----------|-------------|
 | `ApiKey` | Recommended in production | Shared secret. When set, LOGICTECK must send header `X-Logicteck-Api-Key` on public ICS endpoints. ICS also sends this header on outbound POSTs to LOGICTECK. |
 | `PublicApiBaseUrl` | Yes | Public ICS API base URL embedded in new QR payloads (e.g. `https://api.your-domain.com`). Used for validate URL in QR. |
-| `BookUrl` | For live transfer | LOGICTECK endpoint that **receives** pre-advice data when trucker clicks **Send to LOGICTECK**. If empty, ICS records transfer locally without HTTP call (dev mode). |
+| `BookUrl` | For live transfer | LOGICTECK endpoint that **receives** pre-forecast data when trucker clicks **Send to LOGICTECK**. If empty, ICS records transfer locally without HTTP call (dev mode). |
 | `PortalUrl` | Optional | URL opened in ICS UI after successful send (LOGICTECK portal). |
 | `EmptyReturnUrl` | Optional | LOGICTECK endpoint for full empty-return form + photos. Falls back to `BookUrl` if empty. |
 
@@ -96,9 +96,9 @@ Set these in Railway, Hostinger VPS, or `backend/ECMS.API/.env.production` (see 
 |-------|---------|
 | `/trucker/qr` | Transfer QR after payment verification (also from My returns) |
 | `/trucker/qr/print/{id}` | Printable QR pass |
-| `/preadvice/{id}?tab=overview` | Full pre-advice dossier with container photos |
+| `/preforecast/{id}?tab=overview` | Full pre-forecast dossier with container photos |
 
-**Send to LOGICTECK** runs inline from return / pre-advice QR actions (calls `POST /api/qr/{id}/book-logicteck`).
+**Send to LOGICTECK** runs inline from return / pre-forecast QR actions (calls `POST /api/qr/{id}/book-logicteck`).
 
 **Public API testing (outside ICS app):** `/logicteck-test.html?qr=ICS-...` — see [LOGICTECK-API-HANDOFF.md](./LOGICTECK-API-HANDOFF.md).
 
@@ -157,7 +157,7 @@ GET /api/logicteck/booking/{qrCode}
 
 | Field | Meaning |
 |-------|---------|
-| `isBooked` | ICS has sent pre-advice data to LOGICTECK (`LogicteckBookedAt` set) |
+| `isBooked` | ICS has sent pre-forecast data to LOGICTECK (`LogicteckBookedAt` set) |
 | `isRetrieved` | LOGICTECK gate validated the QR (`IsUsed` — one-time) |
 
 ### 2. Validate QR (gate scan)
@@ -281,7 +281,7 @@ LOGICTECK can scan the QR or use the reference string with the lookup/validate A
 | Booked on LOGICTECK | `Booked` | `isBooked: true`, `isRetrieved: false` |
 | Retrieved | `Retrieved` | `isRetrieved: true` |
 
-Pre-advice workflow status in ICS remains **Approved** — it does not change to “Booked” when LOGICTECK receives data.
+Pre-forecast workflow status in ICS remains **Approved** — it does not change to “Booked” when LOGICTECK receives data.
 
 ---
 
@@ -289,8 +289,8 @@ Pre-advice workflow status in ICS remains **Approved** — it does not change to
 
 1. **Start API:** `cd backend/ECMS.API && dotnet run --urls "http://localhost:5275"`
 2. **Start frontend:** `cd frontend && npm run dev` → `http://localhost:5173`
-3. Complete flow in ICS: pre-advice → approval → depot schedule → return confirmed → transfer QR published
-4. **Send to LOGICTECK:** from trucker return / pre-advice QR tab (inline action)
+3. Complete flow in ICS: pre-forecast → approval → depot schedule → return confirmed → transfer QR published
+4. **Send to LOGICTECK:** from trucker return / pre-forecast QR tab (inline action)
 5. **Verify externally:** `http://localhost:5173/logicteck-test.html?qr=ICS-...` or curl:
 
 ```bash
@@ -324,7 +324,7 @@ curl -s "https://your-api.example.com/api/logicteck/booking/ICS-202600018" \
 
 ### LOGICTECK team
 
-- [ ] Provide **inbound URL** (`BookUrl`) that accepts the pre-advice JSON payload
+- [ ] Provide **inbound URL** (`BookUrl`) that accepts the pre-forecast JSON payload
 - [ ] Return `{ "reference": "..." }` on success
 - [ ] Implement lookup: `GET {PublicApiBaseUrl}/api/logicteck/booking/{qrCode}`
 - [ ] Implement gate scan: `POST {PublicApiBaseUrl}/api/logicteck/validate-qr`
@@ -338,12 +338,12 @@ curl -s "https://your-api.example.com/api/logicteck/booking/ICS-202600018" \
 | Data | Public lookup/validate | Outbound BookUrl POST | Empty return POST |
 |------|------------------------|----------------------|-------------------|
 | Container no, line, trucker | Yes | Yes | Yes |
-| Pre-advice ref, schedule, depot | Yes | Yes | Yes |
+| Pre-forecast ref, schedule, depot | Yes | Yes | Yes |
 | `isBooked` / `isRetrieved` | Yes | N/A | N/A |
 | Container identity photos | **No** | **No** | Yes (base64) |
-| Full pre-advice dossier | **No** | **No** | Partial |
+| Full pre-forecast dossier | **No** | **No** | Partial |
 
-Photos visible in ICS (`/preadvice/{id}?tab=overview`) are for internal verification unless sent via the empty-return integration.
+Photos visible in ICS (`/preforecast/{id}?tab=overview`) are for internal verification unless sent via the empty-return integration.
 
 ---
 
@@ -385,4 +385,4 @@ Give their integration team:
 4. This document (or the two public endpoints + outbound payload above)
 5. A **test QR reference** (e.g. `ICS-202600018`) after one successful ICS flow
 
-**Remember:** the return booking is created and owned by **LOGICTECK**. ICS only transfers approved pre-advice data and tracks send/retrieve status on the transfer QR.
+**Remember:** the return booking is created and owned by **LOGICTECK**. ICS only transfers approved pre-forecast data and tracks send/retrieve status on the transfer QR.

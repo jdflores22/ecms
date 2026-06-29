@@ -103,6 +103,11 @@ public class ScheduleService : IScheduleService
         await _slotCapacity.ValidateAssignmentAsync(
             request.DepotId, request.Date, request.SlotNo, null, cancellationToken);
 
+        var referenceNo = await _db.PreAdvices
+            .Where(p => p.Id == request.PreAdviceId)
+            .Select(p => p.ReferenceNo)
+            .FirstAsync(cancellationToken);
+
         var schedule = await _db.Schedules.FirstOrDefaultAsync(s => s.PreAdviceId == request.PreAdviceId, cancellationToken)
             ?? new Schedule { PreAdviceId = request.PreAdviceId };
 
@@ -119,19 +124,17 @@ public class ScheduleService : IScheduleService
         else
             _db.Update(schedule);
 
+        _auditService.QueueLog(
+            actorUserId,
+            isNew ? "Create" : "Update",
+            "Schedule",
+            $"{referenceNo} · {schedule.Date} {schedule.Time:HH:mm}");
         await _db.SaveChangesAsync(cancellationToken);
 
         schedule.PreAdvice = await _db.PreAdvices.FirstAsync(p => p.Id == request.PreAdviceId, cancellationToken);
         schedule.Depot = await _db.Depots.FirstAsync(d => d.Id == request.DepotId, cancellationToken);
         if (request.TruckerId.HasValue)
             schedule.Trucker = await _db.Users.FirstOrDefaultAsync(u => u.Id == request.TruckerId, cancellationToken);
-
-        await _auditService.LogAsync(
-            actorUserId,
-            isNew ? "Create" : "Update",
-            "Schedule",
-            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}",
-            cancellationToken);
 
         await NotifyScheduleAssignedAsync(schedule, actorUserId, isNew, cancellationToken);
 
@@ -163,14 +166,12 @@ public class ScheduleService : IScheduleService
             schedule.TruckerId = schedule.PreAdvice.TruckerId;
 
         _db.Update(schedule);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _auditService.LogAsync(
+        _auditService.QueueLog(
             actorUserId,
             "Update",
             "Schedule",
-            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}",
-            cancellationToken);
+            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}");
+        await _db.SaveChangesAsync(cancellationToken);
 
         await NotifyScheduleAssignedAsync(schedule, actorUserId, false, cancellationToken);
 
@@ -202,7 +203,7 @@ public class ScheduleService : IScheduleService
             title,
             message,
             "Schedule",
-            $"/preadvice/{schedule.PreAdviceId}",
+            $"/preforecast/{schedule.PreAdviceId}",
             actorUserId,
             refNo,
             cancellationToken);
@@ -219,6 +220,25 @@ public class ScheduleService : IScheduleService
                 refNo,
                 cancellationToken);
         }
+    }
+
+    public async Task<int> GetWaitingScheduleCountAsync(int userId, string role, CancellationToken cancellationToken = default)
+    {
+        var query = _db.Schedules.AsNoTracking()
+            .Where(s => s.Status == ScheduleStatus.WaitingSchedule);
+
+        if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, cancellationToken);
+            if (user.DepotId.HasValue)
+                query = query.Where(s => s.DepotId == user.DepotId);
+        }
+        else if (role != RoleNames.Administrator)
+        {
+            return 0;
+        }
+
+        return await query.CountAsync(cancellationToken);
     }
 
     private static ScheduleDto MapToDto(Schedule s) => new(

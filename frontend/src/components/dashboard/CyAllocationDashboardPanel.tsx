@@ -128,7 +128,7 @@ function YardCapacityRow({ row }: { row: CyAllocation }) {
         </Box>
         {' · '}
         <Box component="span" sx={{ color: '#ED6C02' }}>
-          {row.preAdvisedCount} pre-advised
+          {row.preAdvisedCount} pre-forecasted
         </Box>
         {' · '}
         <Box component="span" sx={{ color: '#6A1B9A' }}>
@@ -216,7 +216,7 @@ export default function CyAllocationDashboardPanel({ items }: CyAllocationDashbo
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary">
-            Container slots by yard — pre-advised · booking (see full view for size/type breakdown).
+            Container slots by yard — pre-forecasted · booking (see full view for size/type breakdown).
           </Typography>
         </Box>
         <Button

@@ -1,4 +1,4 @@
-/** Shared ICS product messaging — pre-advised returns to CY or Port Terminal. */
+/** Shared ICS product messaging — pre-forecasted returns to CY or Port Terminal. */
 export const ICS_BRAND = {
   name: 'Intelligent Container Solutions',
   shortName: 'ICS',
@@ -6,10 +6,10 @@ export const ICS_BRAND = {
   logoAlt: 'ICS — Intelligent Container Solutions',
   tagline: 'Pre-advise empty containers for return to CY or Port Terminal',
   description:
-    'Coordinate pre-advice, shipping-line evaluation, depot scheduling, trucker payments, and LOGICTECK booking QR — whether the container returns to a Container Yard (CY) or Port Terminal.',
-  appBarCaption: 'Pre-advice & returns to CY or Port Terminal',
+    'Coordinate pre-forecast, shipping-line evaluation, depot scheduling, trucker payments, and LOGICTECK booking QR — whether the container returns to a Container Yard (CY) or Port Terminal.',
+  appBarCaption: 'Pre-forecast & returns to CY or Port Terminal',
   truckerSignup:
-    'Register to submit pre-advice, manage assigned returns, upload payments, and access booking QR codes.',
+    'Register to submit pre-forecast, manage assigned returns, upload payments, and access booking QR codes.',
   truckerCard:
-    'Submit pre-advice for empty containers, track returns, upload payment proof, and download booking QR codes.',
+    'Submit pre-forecast for empty containers, track returns, upload payment proof, and download booking QR codes.',
 } as const

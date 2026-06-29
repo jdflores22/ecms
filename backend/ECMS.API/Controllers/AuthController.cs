@@ -1,8 +1,10 @@
 using ECMS.Application.DTOs.Auth;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Enums;
+using ECMS.API.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ECMS.API.Controllers;
 
@@ -21,11 +23,14 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await _authService.LoginAsync(request, cancellationToken));
+            var response = await _authService.LoginAsync(request, cancellationToken);
+            AuthCookieHelper.SetAccessTokenCookie(Response, Request, response.AccessToken, response.ExpiresAt);
+            return Ok(response);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -43,7 +48,9 @@ public class AuthController : ControllerBase
     {
         try
         {
-            return Ok(await _authService.RegisterAsync(request, cancellationToken));
+            var response = await _authService.RegisterAsync(request, cancellationToken);
+            AuthCookieHelper.SetAccessTokenCookie(Response, Request, response.AccessToken, response.ExpiresAt);
+            return Ok(response);
         }
         catch (InvalidOperationException ex)
         {
@@ -53,11 +60,14 @@ public class AuthController : ControllerBase
 
     [HttpPost("signup")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<AuthResponse>> SignUp([FromBody] SignUpRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await _authService.SignUpAsync(request, cancellationToken));
+            var response = await _authService.SignUpAsync(request, cancellationToken);
+            AuthCookieHelper.SetAccessTokenCookie(Response, Request, response.AccessToken, response.ExpiresAt);
+            return Ok(response);
         }
         catch (InvalidOperationException ex)
         {
@@ -67,11 +77,14 @@ public class AuthController : ControllerBase
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await _authService.RefreshTokenAsync(request, cancellationToken));
+            var response = await _authService.RefreshTokenAsync(request, cancellationToken);
+            AuthCookieHelper.SetAccessTokenCookie(Response, Request, response.AccessToken, response.ExpiresAt);
+            return Ok(response);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -84,11 +97,13 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
     {
         await _authService.LogoutAsync(request, cancellationToken);
+        AuthCookieHelper.ClearAccessTokenCookie(Response, Request);
         return NoContent();
     }
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
         [FromBody] ForgotPasswordRequest request,
         CancellationToken cancellationToken)
@@ -99,6 +114,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> ResetPassword(
         [FromBody] ResetPasswordRequest request,
         CancellationToken cancellationToken)

@@ -42,6 +42,38 @@ public class EvaluationService : IEvaluationService
         return items.Select(MapToDto).ToList();
     }
 
+    public async Task<EvaluationDto?> GetByPreAdviceIdAsync(
+        int preAdviceId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var evaluation = await _db.Evaluations
+            .Include(e => e.PreAdvice)
+            .Include(e => e.Evaluator)
+            .Include(e => e.Depot)
+            .FirstOrDefaultAsync(e => e.PreAdviceId == preAdviceId, cancellationToken);
+
+        if (evaluation is null)
+            return null;
+
+        if (role == RoleNames.ShippingLineEvaluator)
+        {
+            var user = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.ShippingLineId.HasValue
+                || user.ShippingLineId.Value != evaluation.PreAdvice.ShippingLineId)
+            {
+                return null;
+            }
+        }
+        else if (role != RoleNames.Administrator)
+        {
+            return null;
+        }
+
+        return MapToDto(evaluation);
+    }
+
     public async Task<EvaluationDto> ApproveAsync(
         ApproveEvaluationRequest request,
         int evaluatorId,
@@ -51,10 +83,13 @@ public class EvaluationService : IEvaluationService
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
-            ?? throw new InvalidOperationException("Pre-advice not found.");
+            ?? throw new InvalidOperationException("Pre-forecast not found.");
 
         if (preAdvice.Status is not (PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation))
-            throw new InvalidOperationException("Pre-advice is not eligible for approval.");
+            throw new InvalidOperationException("Pre-forecast is not eligible for approval.");
+
+        if (request.DemurrageValidUntil < PhilippinesTime.Today)
+            throw new InvalidOperationException("Demurrage validity date cannot be in the past.");
 
         await _cyAllocations.EnsureCapacityForApprovalAsync(
             request.PreAdviceId,
@@ -64,6 +99,7 @@ public class EvaluationService : IEvaluationService
             cancellationToken);
 
         preAdvice.Status = PreAdviceStatus.Approved;
+        preAdvice.DemurrageValidUntil = request.DemurrageValidUntil;
         var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
         evaluation.EvaluatorId = evaluatorId;
         evaluation.DepotId = request.DepotId;
@@ -94,8 +130,8 @@ public class EvaluationService : IEvaluationService
             });
         }
 
+        _auditService.QueueLog(evaluatorId, "Approve", "Evaluation", preAdvice.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(evaluatorId, "Approve", "Evaluation", preAdvice.ReferenceNo, cancellationToken);
 
         var depot = await _db.Depots.FirstAsync(d => d.Id == request.DepotId, cancellationToken);
         var depotIds = await NotificationService.DepotPersonnelIdsAsync(_db, request.DepotId, cancellationToken);
@@ -103,10 +139,10 @@ public class EvaluationService : IEvaluationService
 
         await _notifications.NotifyUsersAsync(
             new[] { preAdvice.TruckerId },
-            "Pre-advice approved",
+            "Pre-forecast approved",
             $"{preAdvice.ReferenceNo} was approved. CY: {depot.Name}.",
             "Evaluation",
-            $"/preadvice/{preAdvice.Id}",
+            $"/preforecast/{preAdvice.Id}",
             evaluatorId,
             preAdvice.ReferenceNo,
             cancellationToken);
@@ -133,10 +169,10 @@ public class EvaluationService : IEvaluationService
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
-            ?? throw new InvalidOperationException("Pre-advice not found.");
+            ?? throw new InvalidOperationException("Pre-forecast not found.");
 
         if (preAdvice.Status is not (PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation))
-            throw new InvalidOperationException("Pre-advice is not eligible for rejection.");
+            throw new InvalidOperationException("Pre-forecast is not eligible for rejection.");
 
         preAdvice.Status = PreAdviceStatus.Rejected;
         var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
@@ -152,15 +188,15 @@ public class EvaluationService : IEvaluationService
 
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
+        _auditService.QueueLog(evaluatorId, "Reject", "Evaluation", preAdvice.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(evaluatorId, "Reject", "Evaluation", preAdvice.ReferenceNo, cancellationToken);
 
         await _notifications.NotifyUsersAsync(
             new[] { preAdvice.TruckerId },
-            "Pre-advice rejected",
+            "Pre-forecast rejected",
             $"{preAdvice.ReferenceNo} was rejected.{(string.IsNullOrWhiteSpace(request.Remarks) ? "" : $" Remarks: {request.Remarks}")}",
             "Evaluation",
-            $"/preadvice/{preAdvice.Id}",
+            $"/preforecast/{preAdvice.Id}",
             evaluatorId,
             preAdvice.ReferenceNo,
             cancellationToken);
@@ -182,10 +218,10 @@ public class EvaluationService : IEvaluationService
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
-            ?? throw new InvalidOperationException("Pre-advice not found.");
+            ?? throw new InvalidOperationException("Pre-forecast not found.");
 
         if (preAdvice.Status is not (PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation))
-            throw new InvalidOperationException("Pre-advice is not eligible for compliance review.");
+            throw new InvalidOperationException("Pre-forecast is not eligible for compliance review.");
 
         preAdvice.Status = PreAdviceStatus.ForCompliance;
         var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
@@ -202,15 +238,15 @@ public class EvaluationService : IEvaluationService
 
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
+        _auditService.QueueLog(evaluatorId, "ReturnForCompliance", "Evaluation", preAdvice.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(evaluatorId, "ReturnForCompliance", "Evaluation", preAdvice.ReferenceNo, cancellationToken);
 
         await _notifications.NotifyUsersAsync(
             new[] { preAdvice.TruckerId },
-            "Pre-advice returned for compliance",
+            "Pre-forecast returned for compliance",
             $"{preAdvice.ReferenceNo} needs corrections before it can be approved. {request.Remarks.Trim()}",
             "Evaluation",
-            $"/preadvice/{preAdvice.Id}",
+            $"/preforecast/{preAdvice.Id}",
             evaluatorId,
             preAdvice.ReferenceNo,
             cancellationToken);

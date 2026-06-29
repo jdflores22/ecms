@@ -20,6 +20,7 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 
+[Route("api/preforecast")]
 [Route("api/preadvice")]
 
 [Authorize]

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using ECMS.API.Filters;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
+using ECMS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
@@ -26,7 +27,7 @@ public class QrController : ControllerBase
     [Authorize]
     public async Task<ActionResult<QrBookingDto>> Get(int bookingId, CancellationToken cancellationToken)
     {
-        var booking = await _service.GetByBookingIdAsync(bookingId, cancellationToken);
+        var booking = await _service.GetByBookingIdAsync(bookingId, UserId, Role, cancellationToken);
         return booking is null ? NotFound() : Ok(booking);
     }
 
@@ -34,7 +35,7 @@ public class QrController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Download(int bookingId, CancellationToken cancellationToken)
     {
-        var bytes = await _service.DownloadQrAsync(bookingId, cancellationToken);
+        var bytes = await _service.DownloadQrAsync(bookingId, UserId, Role, cancellationToken);
         return bytes is null ? NotFound() : File(bytes, "image/png", $"qr-{bookingId}.png");
     }
 
@@ -42,7 +43,7 @@ public class QrController : ControllerBase
     [Authorize]
     public async Task<ActionResult<QrBookingDto>> GetBySchedule(int scheduleId, CancellationToken cancellationToken)
     {
-        var booking = await _service.GetByScheduleIdAsync(scheduleId, cancellationToken);
+        var booking = await _service.GetByScheduleIdAsync(scheduleId, UserId, Role, cancellationToken);
         return booking is null ? NotFound() : Ok(booking);
     }
 
@@ -55,9 +56,9 @@ public class QrController : ControllerBase
     }
 
     [HttpPost("generate/{scheduleId:int}")]
-    [Authorize]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<QrBookingDto>> Generate(int scheduleId, CancellationToken cancellationToken)
-        => Ok(await _service.GenerateForScheduleAsync(scheduleId, cancellationToken));
+        => Ok(await _service.GenerateForScheduleAsync(scheduleId, UserId, Role, cancellationToken));
 
     [HttpPost("{bookingId:int}/book-logicteck")]
     [Authorize]
@@ -104,7 +105,7 @@ public class LogicteckController : ControllerBase
         return result!.Found ? Ok(result) : NotFound(result);
     }
 
-    /// <summary>Full pre-advice transfer dossier for LOGICTECK (details + photo URLs + QR image).</summary>
+    /// <summary>Full pre-forecast transfer dossier for LOGICTECK (details + photo URLs + QR image).</summary>
     [HttpGet("booking/{qrCode}/dossier")]
     [AllowAnonymous]
     public async Task<ActionResult<LogicteckBookingDossierResponse>> GetBookingDossier(string qrCode, CancellationToken cancellationToken)

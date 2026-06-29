@@ -14,6 +14,7 @@ public record PreAdviceDto(
     string ContainerSize,
     string ContainerType,
     PreAdviceStatus Status,
+    string? DemurrageValidUntil,
     string? Remarks,
     DateTime CreatedAt,
     string? ComplianceRemarks,

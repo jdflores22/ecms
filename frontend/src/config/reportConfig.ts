@@ -42,7 +42,7 @@ export const REPORT_PAGE_CONFIG: Record<ReportPageKey, RoleReportConfig> = {
   evaluatorReports: {
     role: 'ShippingLineEvaluator',
     title: 'Shipping line reports',
-    subtitle: 'Return statistics for pre-advices under your shipping line.',
+    subtitle: 'Return statistics for pre-forecasts under your shipping line.',
     tabs: [
       { id: 'daily', label: 'Daily' },
       { id: 'monthly', label: 'Monthly' },

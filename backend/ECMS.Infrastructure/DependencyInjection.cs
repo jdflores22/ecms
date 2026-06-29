@@ -9,6 +9,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
+        services.AddMemoryCache();
+        services.AddSingleton<IUploadUrlSigner, UploadUrlSigner>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuditService, AuditService>();
@@ -22,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IScheduleService, ScheduleService>();
         services.AddScoped<ISlotCapacityService, SlotCapacityService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IDemurrageBillingService, DemurrageBillingService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
         services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();
         services.AddScoped<IDashboardService, DashboardService>();

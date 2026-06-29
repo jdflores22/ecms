@@ -90,7 +90,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
           >
             <Typography variant="body2" sx={{ fontWeight: 700, color: primaryDark, mb: 1 }}>
               {getCapacityDisplayLabel(row.sizeLabel)} · contract {row.contractCount} · {row.availableCount}{' '}
-              available · pre-advised {row.preAdvisedCount} · booking {row.bookingCount}
+              available · pre-forecasted {row.preAdvisedCount} · booking {row.bookingCount}
             </Typography>
             <Box
               sx={{

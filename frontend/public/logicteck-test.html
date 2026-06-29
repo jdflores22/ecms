@@ -294,7 +294,7 @@
       <h1>ICS → LOGICTECK API test</h1>
       <p>
         Standalone page — <strong>no ICS login</strong>. Look up ICS transfer data by
-        <strong>reference</strong> (e.g. <code>ICS-202600018</code>) to receive pre-advice details and book the empty
+        <strong>reference</strong> (e.g. <code>ICS-202600018</code>) to receive pre-forecast details and book the empty
         return on <strong>LOGICTECK</strong> via the public Railway API.
       </p>
       <span class="badge">OUTSIDE ICS APP · PUBLIC API ONLY</span>
@@ -319,8 +319,8 @@
           <label for="apiKey">X-Logicteck-Api-Key</label>
           <input id="apiKey" type="password" placeholder="Shared secret (Logicteck:ApiKey)" autocomplete="off" />
           <p id="apiKeyHint" class="hint hidden">
-            Local dev: same value as <code>Logicteck:ApiKey</code> in <code>backend/ECMS.API/appsettings.json</code>.
-            Production: set in Railway as <code>Logicteck__ApiKey</code>.
+            Local dev: same value as <code>Logicteck:ApiKey</code> in <code>backend/ECMS.API/appsettings.Development.json</code>.
+            Production: set environment variable <code>LOGICTECK_API_KEY</code>.
           </p>
         </div>
         <div class="full">
@@ -371,8 +371,8 @@
     const STORAGE_KEY = 'ics.logicteckTest.apiKey'
     const PRODUCTION_BASE = 'https://ecms-production-42be.up.railway.app'
     const LOCAL_BASE = 'http://localhost:5275'
-    // Matches Logicteck:ApiKey in backend/ECMS.API/appsettings.json (local dev only).
-    const LOCAL_DEV_API_KEY = 'ltck_komcsinQU7e5aT75fFWJ5Z3DBHnlu1us'
+    // Matches Logicteck:ApiKey in backend/ECMS.API/appsettings.Development.json (local dev only).
+    const LOCAL_DEV_API_KEY = 'dev-logicteck-local-key'
     const LOOKUP_PATH = '/api/logicteck/booking'
     const DOSSIER_PATH = '/api/logicteck/booking'
     const VALIDATE_PATH = '/api/logicteck/validate-qr'
@@ -421,8 +421,8 @@
       if (status !== 401) return ''
       const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
       return onLocal
-        ? ' Check backend/ECMS.API/appsettings.json → Logicteck:ApiKey matches the value above.'
-        : ' Check Railway variable Logicteck__ApiKey matches the value above.'
+        ? ' Check backend/ECMS.API/appsettings.Development.json → Logicteck:ApiKey matches the value above.'
+        : ' Check environment variable LOGICTECK_API_KEY matches the value above.'
     }
 
     function showError(msg) {
@@ -503,14 +503,14 @@
         html += tile('Transfer reference', link.transferReference)
         html += tile('ICS trucker', link.icsTruckerName)
         html += tile('ICS trucker ID', link.icsTruckerId)
-        html += tile('Pre-advice ref', link.icsPreAdviceReference)
+        html += tile('Pre-forecast ref', link.icsPreAdviceReference)
         html += tile('Lookup URL', link.lookupUrl)
         html += tile('Dossier URL', link.dossierUrl)
         html += tile('Validate URL', link.validateUrl)
         html += '</div>'
       }
 
-      html += '<p class="section-title"' + (link.transferReference ? ' style="margin-top:20px;"' : '') + '>Pre-advice summary</p>'
+      html += '<p class="section-title"' + (link.transferReference ? ' style="margin-top:20px;"' : '') + '>Pre-forecast summary</p>'
       html += '<div class="fields">'
       html += tile('Reference', pa.referenceNo)
       html += tile('Status', pa.status)

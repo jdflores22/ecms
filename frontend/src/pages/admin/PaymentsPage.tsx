@@ -45,7 +45,7 @@ import {
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
-import { paymentApi, type Payment } from '../../services/api'
+import { paymentApi, demurrageBillingApi, type Payment, type DemurrageBilling } from '../../services/api'
 import { isCrossOriginAssetUrl, resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
@@ -317,13 +317,16 @@ export default function AdminPaymentsPage() {
   const [detectingProofId, setDetectingProofId] = useState<number | null>(null)
   const [verifyReferenceNo, setVerifyReferenceNo] = useState('')
   const [verifyTransactionLocal, setVerifyTransactionLocal] = useState('')
+  const [demurrageItems, setDemurrageItems] = useState<DemurrageBilling[]>([])
+  const [demurrageSubmittingId, setDemurrageSubmittingId] = useState<number | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([paymentApi.pending(), paymentApi.depot()])
-      .then(([pendingRes, reviewedRes]) => {
+    Promise.all([paymentApi.pending(), paymentApi.depot(), demurrageBillingApi.list()])
+      .then(([pendingRes, reviewedRes, demurrageRes]) => {
         setPending(pendingRes.data)
         setReviewed(reviewedRes.data)
+        setDemurrageItems(demurrageRes.data)
       })
       .catch(() => setError('Failed to load payments.'))
       .finally(() => setLoading(false))
@@ -335,6 +338,24 @@ export default function AdminPaymentsPage() {
 
   const verified = useMemo(() => reviewed.filter((p) => p.status === 'Paid'), [reviewed])
   const rejected = useMemo(() => reviewed.filter((p) => p.status === 'Rejected'), [reviewed])
+  const demurragePending = useMemo(
+    () => demurrageItems.filter((b) => b.status === 'ForVerification'),
+    [demurrageItems],
+  )
+
+  const handleDemurrageVerify = async (id: number, approved: boolean) => {
+    setDemurrageSubmittingId(id)
+    setError('')
+    try {
+      await demurrageBillingApi.verify(id, approved)
+      setMessage(approved ? 'Demurrage payment verified.' : 'Demurrage payment rejected.')
+      load()
+    } catch {
+      setError('Failed to update demurrage billing.')
+    } finally {
+      setDemurrageSubmittingId(null)
+    }
+  }
 
   const summary = useMemo(
     () => ({
@@ -611,6 +632,77 @@ export default function AdminPaymentsPage() {
           </>
         )}
       </Paper>
+
+      {demurragePending.length > 0 && (
+        <Paper elevation={0} sx={{ ...listTablePaperSx, mt: 3, p: { xs: 2, sm: 2.5 } }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+            Demurrage & detention ({demurragePending.length} awaiting verification)
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Reference</TableCell>
+                  <TableCell>Container</TableCell>
+                  <TableCell>Trucker</TableCell>
+                  <TableCell>Amount</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {demurragePending.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{item.referenceNo}</TableCell>
+                    <TableCell>{item.containerNo}</TableCell>
+                    <TableCell>{item.truckerName}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {formatPeso(item.totalAmount)}
+                      </Typography>
+                      {(item.feeLines?.length
+                        ? item.feeLines
+                        : [
+                            ...(item.demurrageAmount > 0
+                              ? [{ description: 'Demurrage', amount: item.demurrageAmount, sortOrder: 1 }]
+                              : []),
+                            ...(item.detentionAmount > 0
+                              ? [{ description: 'Detention', amount: item.detentionAmount, sortOrder: 2 }]
+                              : []),
+                          ]
+                      ).map((line) => (
+                        <Typography key={`${line.description}-${line.sortOrder}`} variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {line.description}: {formatPeso(line.amount)}
+                        </Typography>
+                      ))}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button
+                        size="small"
+                        color="success"
+                        startIcon={<CheckCircleOutlinedIcon />}
+                        disabled={demurrageSubmittingId === item.id}
+                        onClick={() => void handleDemurrageVerify(item.id, true)}
+                        sx={{ mr: 1 }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="small"
+                        color="error"
+                        startIcon={<CancelOutlinedIcon />}
+                        disabled={demurrageSubmittingId === item.id}
+                        onClick={() => void handleDemurrageVerify(item.id, false)}
+                      >
+                        Reject
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
 
       <Dialog open={proofPreview !== null} onClose={() => setProofPreview(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>Payment proof</DialogTitle>

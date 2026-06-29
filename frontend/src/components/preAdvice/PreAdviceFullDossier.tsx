@@ -9,13 +9,14 @@ import ContainerIdentityPhotos from './ContainerIdentityPhotos'
 import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
+  Evaluation,
   PreAdvice,
   PreAdviceDocument,
   PreAdviceLookups,
   QrBooking,
   Schedule,
 } from '../../services/api'
-import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const primaryDark = ICS_PRIMARY
@@ -57,6 +58,7 @@ type PreAdviceFullDossierProps = {
   qrBooking?: QrBooking | null
   qrImageUrl?: string | null
   qrLoading?: boolean
+  decision?: Evaluation | null
   compact?: boolean
 }
 
@@ -78,6 +80,7 @@ export default function PreAdviceFullDossier({
   qrBooking,
   qrImageUrl,
   qrLoading = false,
+  decision,
   compact = false,
 }: PreAdviceFullDossierProps) {
   const containerTypeDisplay = (() => {
@@ -99,7 +102,7 @@ export default function PreAdviceFullDossier({
           bgcolor: hexToRgba(primaryDark, 0.02),
         }}
       >
-        <SectionTitle>Pre-advice summary</SectionTitle>
+        <SectionTitle>Pre-forecast summary</SectionTitle>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
           <Chip
             label={statusLabel[item.status] ?? item.status}
@@ -144,6 +147,44 @@ export default function PreAdviceFullDossier({
           )}
         </Box>
       </Paper>
+
+      {decision && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: hexToRgba(primaryDark, 0.12),
+          }}
+        >
+          <SectionTitle>Shipping line evaluation</SectionTitle>
+          <Box sx={infoGridSx}>
+            <InfoTile
+              label="Decision"
+              value={
+                <Chip
+                  label={decision.status}
+                  size="small"
+                  color={decision.status === 'Approved' ? 'success' : 'error'}
+                  sx={{ fontWeight: 600 }}
+                />
+              }
+            />
+            {decision.depotName && <InfoTile label="Assigned CY" value={decision.depotName} />}
+            <InfoTile label="Evaluator" value={decision.evaluatorName} />
+            <InfoTile label="Evaluated" value={formatDateTime(decision.evaluatedAt)} />
+            {item.demurrageValidUntil && (
+              <InfoTile label="Demurrage valid until" value={formatDate(item.demurrageValidUntil)} />
+            )}
+            {decision.remarks && (
+              <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                <InfoTile label="Evaluation remarks" value={decision.remarks} />
+              </Box>
+            )}
+          </Box>
+        </Paper>
+      )}
 
       {(schedule || scheduleLoading) && item.status === 'Approved' && (
         <Paper
@@ -267,7 +308,7 @@ export default function PreAdviceFullDossier({
         <SectionTitle>Container identity photos</SectionTitle>
         {!compact && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            All container views submitted with this pre-advice — used for evaluation and LOGICTECK integration.
+            All container views submitted with this pre-forecast — used for evaluation and LOGICTECK integration.
           </Typography>
         )}
         <ContainerIdentityPhotos

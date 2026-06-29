@@ -7,10 +7,11 @@ public static class RolePageKeys
 {
     public const string Dashboard = "dashboard";
     public const string Profile = "profile";
-    public const string Preadvice = "preadvice";
+    public const string Preforecast = "preforecast";
     public const string Evaluations = "evaluations";
     public const string CyAllocation = "cyAllocation";
     public const string ContainerInventory = "containerInventory";
+    public const string DemurrageBilling = "demurrageBilling";
     public const string AdminReports = "adminReports";
     public const string DepotReports = "depotReports";
     public const string EvaluatorReports = "evaluatorReports";
@@ -20,30 +21,32 @@ public static class RolePageKeys
     public const string AdminPayments = "adminPayments";
     public const string TruckerReturns = "truckerReturns";
     public const string TruckerPayments = "truckerPayments";
+    public const string TruckerDemurrageBilling = "truckerDemurrageBilling";
     public const string TruckerQr = "truckerQr";
     public const string TruckerQrPrint = "truckerQrPrint";
     public const string AdminUsers = "adminUsers";
     public const string AdminRoles = "adminRoles";
     public const string AdminMasterData = "adminMasterData";
     public const string AdminAudit = "adminAudit";
+    public const string AdminVersion = "adminVersion";
     public const string AdminRevenue = "adminRevenue";
 
     public static readonly string[] Required = { Dashboard, Profile };
 
     public static readonly HashSet<string> All = new(StringComparer.Ordinal)
     {
-        Dashboard, Profile, Preadvice, Evaluations, CyAllocation, ContainerInventory,
+        Dashboard, Profile, Preforecast, Evaluations, CyAllocation, ContainerInventory, DemurrageBilling,
         AdminReports, DepotReports, EvaluatorReports, TruckerReports,
         DepotDailyReturns, DepotSchedules,
         AdminPayments,
-        TruckerReturns, TruckerPayments, TruckerQr, TruckerQrPrint,
-        AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminRevenue,
+        TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerQr, TruckerQrPrint,
+        AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue,
     };
 
     public static readonly string[] AdministratorPages =
     {
         Dashboard, Profile, AdminReports,
-        AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminRevenue,
+        AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue,
     };
 
     /// <summary>Legacy RBAC page key mapped to the role-specific reports page.</summary>
@@ -51,6 +54,9 @@ public static class RolePageKeys
 
     public static string? MapLegacyPageKey(string roleName, string pageKey)
     {
+        if (string.Equals(pageKey, "preadvice", StringComparison.Ordinal))
+            return Preforecast;
+
         if (!string.Equals(pageKey, LegacyReports, StringComparison.Ordinal))
             return pageKey;
 
@@ -92,33 +98,36 @@ public static class RoleCatalogDefaults
         new(
             "Trucker",
             "Trucker",
-            "Creates pre-advice, manages returns, uploads payment proof, and receives booking QR codes.",
+            "Creates pre-forecast, manages returns, uploads payment proof, and receives booking QR codes.",
             new[]
             {
-                "Create and submit pre-advice",
+                "Create and submit pre-forecast",
                 "Upload container identity photos",
                 "View assigned return schedules",
                 "Upload payment proof",
+                "Settle demurrage and detention charges",
                 "Download and print QR codes",
                 "View operational reports",
             },
             new[]
             {
-                RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preadvice, RolePageKeys.TruckerReports,
-                RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments,
+                RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preforecast, RolePageKeys.TruckerReports,
+                RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments, RolePageKeys.TruckerDemurrageBilling,
                 RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
             }),
         new(
             "ShippingLineEvaluator",
             "Shipping Line Evaluator",
-            "Reviews pre-advice for assigned shipping line and assigns CY.",
+            "Reviews pre-forecast for assigned shipping line and assigns CY.",
             new[]
             {
-                "Approve or reject pre-advice",
+                "Approve or reject pre-forecast",
                 "Assign container yard on approval",
+                "Set demurrage validity on approval",
+                "View demurrage billing for expired returns",
                 "View evaluation history",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.EvaluatorReports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.EvaluatorReports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",

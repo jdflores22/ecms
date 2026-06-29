@@ -116,7 +116,7 @@ public class ContainerService : IContainerService
             return false;
 
         if (await _db.PreAdvices.AnyAsync(p => p.ContainerId == id, cancellationToken))
-            throw new InvalidOperationException("Cannot delete a container linked to pre-advice requests.");
+            throw new InvalidOperationException("Cannot delete a container linked to pre-forecast requests.");
 
         _db.Remove(container);
         await _db.SaveChangesAsync(cancellationToken);

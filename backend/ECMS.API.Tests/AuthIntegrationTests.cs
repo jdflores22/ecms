@@ -106,7 +106,7 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     public async Task Protected_endpoint_without_token_returns_unauthorized()
     {
         ApiTestHelper.ClearAuth(_client);
-        var response = await _client.GetAsync("/api/preadvice");
+        var response = await _client.GetAsync("/api/preforecast");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 

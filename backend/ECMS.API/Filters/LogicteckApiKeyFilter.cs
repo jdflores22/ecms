@@ -8,16 +8,27 @@ namespace ECMS.API.Filters;
 public class LogicteckApiKeyFilter : IAsyncActionFilter
 {
     private readonly LogicteckOptions _options;
+    private readonly IWebHostEnvironment _environment;
 
-    public LogicteckApiKeyFilter(IOptions<LogicteckOptions> options)
+    public LogicteckApiKeyFilter(IOptions<LogicteckOptions> options, IWebHostEnvironment environment)
     {
         _options = options.Value;
+        _environment = environment;
     }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
+            if (_environment.IsProduction())
+            {
+                context.Result = new ObjectResult(new { message = "LOGICTECK integration is not configured." })
+                {
+                    StatusCode = StatusCodes.Status503ServiceUnavailable,
+                };
+                return;
+            }
+
             await next();
             return;
         }

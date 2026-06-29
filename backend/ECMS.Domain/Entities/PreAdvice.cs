@@ -18,6 +18,8 @@ public class PreAdvice : BaseEntity
     /// </summary>
     public string? ActiveRequestKey { get; set; }
     public PreAdviceStatus Status { get; set; } = PreAdviceStatus.Draft;
+    /// <summary>Last day the empty may be returned without demurrage/detention charges.</summary>
+    public DateOnly? DemurrageValidUntil { get; set; }
     public string? Remarks { get; set; }
 
     public User Trucker { get; set; } = null!;

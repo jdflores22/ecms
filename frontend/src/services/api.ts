@@ -1,11 +1,12 @@
 import axios from 'axios'
 import { store } from '../store'
-import { logout } from '../store/slices/authSlice'
+import { logout, setCredentials } from '../store/slices/authSlice'
 import { resolveAssetUrl } from '../utils/assetUrl'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
 api.interceptors.request.use((config) => {
@@ -14,11 +15,49 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+let refreshPromise: Promise<string | null> | null = null
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      store.dispatch(logout())
+  async (error) => {
+    const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true
+      const refreshToken = store.getState().auth.refreshToken
+      if (refreshToken) {
+        try {
+          refreshPromise ??= axios
+            .post<LoginResponse>(
+              `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`,
+              { refreshToken },
+              { withCredentials: true },
+            )
+            .then(({ data }) => {
+              store.dispatch(
+                setCredentials({
+                  accessToken: data.accessToken,
+                  refreshToken: data.refreshToken,
+                  user: data.user,
+                }),
+              )
+              return data.accessToken
+            })
+            .finally(() => {
+              refreshPromise = null
+            })
+
+          const accessToken = await refreshPromise
+          if (accessToken) {
+            originalRequest.headers = originalRequest.headers ?? {}
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`
+            return api(originalRequest)
+          }
+        } catch {
+          store.dispatch(logout())
+        }
+      } else {
+        store.dispatch(logout())
+      }
     }
     return Promise.reject(error)
   },
@@ -69,6 +108,8 @@ export const authApi = {
     }),
   resetPassword: (token: string, newPassword: string) =>
     api.post<{ message: string }>('/auth/reset-password', { token, newPassword }),
+  refresh: (refreshToken: string) =>
+    api.post<LoginResponse>('/auth/refresh', { refreshToken }),
 }
 
 export interface Profile {
@@ -118,9 +159,9 @@ export const dashboardApi = {
 }
 
 export const preAdviceApi = {
-  list: () => api.get<PreAdvice[]>('/preadvice'),
-  get: (id: number) => api.get<PreAdvice>(`/preadvice/${id}`),
-  lookups: () => api.get<PreAdviceLookups>('/preadvice/lookups'),
+  list: () => api.get<PreAdvice[]>('/preforecast'),
+  get: (id: number) => api.get<PreAdvice>(`/preforecast/${id}`),
+  lookups: () => api.get<PreAdviceLookups>('/preforecast/lookups'),
   checkDuplicate: (params: {
     containerNo: string
     containerSizeId: number
@@ -132,14 +173,14 @@ export const preAdviceApi = {
       referenceNo?: string | null
       status?: string | null
       truckerName?: string | null
-    }>('/preadvice/check-duplicate', { params }),
+    }>('/preforecast/check-duplicate', { params }),
   create: (data: {
     shippingLineId: number
     containerNo: string
     containerSizeId: number
     containerTypeId: number
     remarks?: string
-  }) => api.post<PreAdvice>('/preadvice', data),
+  }) => api.post<PreAdvice>('/preforecast', data),
   update: (
     id: number,
     data: {
@@ -149,23 +190,23 @@ export const preAdviceApi = {
       containerTypeId: number
       remarks?: string
     },
-  ) => api.put<PreAdvice>(`/preadvice/${id}`, data),
-  delete: (id: number) => api.delete(`/preadvice/${id}`),
-  submit: (id: number) => api.post<PreAdvice>(`/preadvice/${id}/submit`),
+  ) => api.put<PreAdvice>(`/preforecast/${id}`, data),
+  delete: (id: number) => api.delete(`/preforecast/${id}`),
+  submit: (id: number) => api.post<PreAdvice>(`/preforecast/${id}/submit`),
   cancel: (id: number, reason?: string) =>
-    api.post<PreAdvice>(`/preadvice/${id}/cancel`, reason ? { reason } : {}),
-  documents: (id: number) => api.get<PreAdviceDocument[]>(`/preadvice/${id}/documents`),
+    api.post<PreAdvice>(`/preforecast/${id}/cancel`, reason ? { reason } : {}),
+  documents: (id: number) => api.get<PreAdviceDocument[]>(`/preforecast/${id}/documents`),
   uploadDocument: (id: number, file: File, category: string, comment?: string) => {
     const form = new FormData()
     form.append('file', file)
     form.append('category', category)
     if (comment) form.append('comment', comment)
-    return api.post<PreAdviceDocument>(`/preadvice/${id}/documents`, form, {
+    return api.post<PreAdviceDocument>(`/preforecast/${id}/documents`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
   deleteDocument: (preAdviceId: number, documentId: number) =>
-    api.delete(`/preadvice/${preAdviceId}/documents/${documentId}`),
+    api.delete(`/preforecast/${preAdviceId}/documents/${documentId}`),
 }
 
 export interface PreAdviceDocument {
@@ -200,6 +241,7 @@ export interface PreAdvice {
   containerSize: string
   containerType: string
   status: string
+  demurrageValidUntil?: string | null
   remarks?: string | null
   createdAt: string
   complianceRemarks?: string | null
@@ -234,7 +276,18 @@ export interface Depot {
 
 export const evaluationApi = {
   list: () => api.get<Evaluation[]>('/evaluations'),
-  approve: (data: { preAdviceId: number; depotId: number; remarks?: string }) =>
+  getByPreAdvice: async (preAdviceId: number): Promise<{ data: Evaluation | null }> => {
+    try {
+      const { data } = await api.get<Evaluation>(`/evaluations/by-preforecast/${preAdviceId}`)
+      return { data }
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        return { data: null }
+      }
+      throw err
+    }
+  },
+  approve: (data: { preAdviceId: number; depotId: number; demurrageValidUntil: string; remarks?: string }) =>
     api.post<Evaluation>('/evaluations/approve', data),
   reject: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/reject', data),
@@ -581,10 +634,11 @@ export interface SlotAvailability {
 
 export const scheduleApi = {
   list: () => api.get<Schedule[]>('/schedules'),
+  waitingCount: () => api.get<{ count: number }>('/schedules/waiting/count'),
   get: (id: number) => api.get<Schedule>(`/schedules/${id}`),
   getByPreAdvice: async (preAdviceId: number): Promise<{ data: Schedule | null }> => {
     try {
-      const { data } = await api.get<Schedule>(`/schedules/by-preadvice/${preAdviceId}`)
+      const { data } = await api.get<Schedule>(`/schedules/by-preforecast/${preAdviceId}`)
       return { data }
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 404) {
@@ -614,6 +668,8 @@ export interface PaymentSettings {
 export const paymentApi = {
   mine: () => api.get<Payment[]>('/payments/mine'),
   pending: () => api.get<Payment[]>('/payments/pending'),
+  pendingCount: () => api.get<{ count: number }>('/payments/pending/count'),
+  dueCount: () => api.get<{ count: number }>('/payments/due/count'),
   depot: () => api.get<Payment[]>('/payments/depot'),
   getSettings: () => api.get<PaymentSettings>('/payments/settings'),
   updateSettings: (returnFeeAmount: number) =>
@@ -640,6 +696,95 @@ export const paymentApi = {
     api.get<Blob>(`/payments/${id}/proof-file`, { responseType: 'blob' }),
   verify: (id: number, approved: boolean, metadata?: PaymentProofMetadataInput) =>
     api.post<Payment>(`/payments/${id}/verify`, {
+      approved,
+      proofReferenceNo: metadata?.proofReferenceNo ?? null,
+      proofTransactionAt: metadata?.proofTransactionAt ?? null,
+    }),
+}
+
+export interface DemurrageBillingFeeLine {
+  id: number
+  description: string
+  amount: number
+  sortOrder: number
+}
+
+export interface DemurrageBilling {
+  id: number
+  referenceNo: string
+  preAdviceId: number
+  preAdviceReferenceNo: string
+  shippingLineId: number
+  shippingLineName: string
+  truckerId: number
+  truckerName: string
+  containerNo: string
+  containerSize: string
+  containerType: string
+  demurrageValidUntil: string
+  expiredOn: string
+  daysOverdue: number
+  demurrageAmount: number
+  detentionAmount: number
+  totalAmount: number
+  feeLines: DemurrageBillingFeeLine[]
+  status: string
+  proofFile?: string | null
+  proofReferenceNo?: string | null
+  proofTransactionAt?: string | null
+  paidAt?: string | null
+  createdAt: string
+}
+
+export interface DemurrageBillingFeeInput {
+  description: string
+  amount: number
+}
+
+export interface EligibleDemurragePreAdvice {
+  preAdviceId: number
+  referenceNo: string
+  containerNo: string
+  truckerName: string
+  demurrageValidUntil: string
+  daysOverdue: number
+}
+
+export interface DemurrageBlockCheck {
+  isBlocked: boolean
+  message?: string | null
+  billing?: DemurrageBilling | null
+}
+
+export const demurrageBillingApi = {
+  list: () => api.get<DemurrageBilling[]>('/demurrage-billing'),
+  get: (id: number) => api.get<DemurrageBilling>(`/demurrage-billing/${id}`),
+  eligiblePreAdvices: () => api.get<EligibleDemurragePreAdvice[]>('/demurrage-billing/eligible-pre-forecasts'),
+  create: (payload: { preAdviceId: number; feeLines?: DemurrageBillingFeeInput[] }) =>
+    api.post<DemurrageBilling>('/demurrage-billing', payload),
+  updateFees: (id: number, feeLines: DemurrageBillingFeeInput[]) =>
+    api.put<DemurrageBilling>(`/demurrage-billing/${id}/fees`, { feeLines }),
+  checkBlock: (params: {
+    containerNo: string
+    shippingLineId: number
+    containerSizeId: number
+    containerTypeId: number
+  }) => api.get<DemurrageBlockCheck>('/demurrage-billing/check-block', { params }),
+  uploadProof: (
+    id: number,
+    proof: File,
+    metadata?: PaymentProofMetadataInput,
+  ) => {
+    const form = new FormData()
+    form.append('proof', proof)
+    if (metadata?.proofReferenceNo) form.append('proofReferenceNo', metadata.proofReferenceNo)
+    if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
+    return api.post<DemurrageBilling>(`/demurrage-billing/${id}/upload-proof`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  verify: (id: number, approved: boolean, metadata?: PaymentProofMetadataInput) =>
+    api.post<DemurrageBilling>(`/demurrage-billing/${id}/verify`, {
       approved,
       proofReferenceNo: metadata?.proofReferenceNo ?? null,
       proofTransactionAt: metadata?.proofTransactionAt ?? null,

@@ -67,7 +67,7 @@ export function buildReturnJourneySteps(
     {
       label: 'Booking QR',
       detail: qrReady
-        ? 'Provides pre-advice details to LOGICTECK'
+        ? 'Provides pre-forecast details to LOGICTECK'
         : qrLoading
           ? 'Publishing…'
           : paymentDone && (schedule.status === 'Confirmed' || schedule.status === 'Completed')

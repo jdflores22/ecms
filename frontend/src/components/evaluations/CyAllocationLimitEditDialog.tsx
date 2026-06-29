@@ -112,11 +112,11 @@ export default function CyAllocationLimitEditDialog({
     })
 
     if (mode === '20' && counts['20'] < min20) {
-      setError(`20ft limit cannot be below current pre-advised count (${min20}).`)
+      setError(`20ft limit cannot be below current pre-forecasted count (${min20}).`)
       return
     }
     if (mode === '40' && counts['40'] < min40) {
-      setError(`40ft limit cannot be below current pre-advised count (${min40}).`)
+      setError(`40ft limit cannot be below current pre-forecasted count (${min40}).`)
       return
     }
 
@@ -143,7 +143,7 @@ export default function CyAllocationLimitEditDialog({
       <DialogContent>
         {allocation && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {allocation.shippingLineName} · limits cannot be set below current pre-advised counts.
+            {allocation.shippingLineName} · limits cannot be set below current pre-forecasted counts.
           </Typography>
         )}
 
@@ -165,7 +165,7 @@ export default function CyAllocationLimitEditDialog({
               setSize20(raw === '' ? '' : Math.max(0, Number(raw)))
             }}
             slotProps={{ htmlInput: { min: min20 } }}
-            helperText={min20 > 0 ? `Minimum ${min20} (pre-advised)` : undefined}
+            helperText={min20 > 0 ? `Minimum ${min20} (pre-forecasted)` : undefined}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
         )}
@@ -182,7 +182,7 @@ export default function CyAllocationLimitEditDialog({
               setSize40(raw === '' ? '' : Math.max(0, Number(raw)))
             }}
             slotProps={{ htmlInput: { min: min40 } }}
-            helperText={min40 > 0 ? `Minimum ${min40} (pre-advised)` : undefined}
+            helperText={min40 > 0 ? `Minimum ${min40} (pre-forecasted)` : undefined}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
         )}

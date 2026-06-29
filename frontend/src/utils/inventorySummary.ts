@@ -133,6 +133,6 @@ export function formatInventorySizeLabel(size: string): string {
 }
 
 export const INVENTORY_SOURCE_LABELS = {
-  Workflow: 'Pre-advice',
+  Workflow: 'Pre-forecast',
   Manual: 'Manual',
 } as const

@@ -68,8 +68,8 @@ public class PaymentService : IPaymentService
         else
             _db.Update(payment);
 
+        _auditService.QueueLog(truckerId, "UploadProof", "Payment", $"Schedule {request.ScheduleId}");
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(truckerId, "UploadProof", "Payment", $"Schedule {request.ScheduleId}", cancellationToken);
 
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
         await _notifications.NotifyUsersAsync(
@@ -86,10 +86,31 @@ public class PaymentService : IPaymentService
         return MapToDto(payment);
     }
 
-    public async Task<PaymentStatusDto?> GetStatusAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<PaymentStatusDto?> GetStatusAsync(
+        int id,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
     {
-        var payment = await _db.Payments.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-        return payment is null ? null : new PaymentStatusDto(payment.Id, payment.Status, payment.ProofFile);
+        var payment = await _db.Payments
+            .Include(p => p.Schedule).ThenInclude(s => s.PreAdvice)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (payment is null)
+            return null;
+
+        var allowed = role switch
+        {
+            RoleNames.Administrator => true,
+            RoleNames.Trucker => payment.TruckerId == userId
+                || payment.Schedule.PreAdvice.TruckerId == userId,
+            _ => false,
+        };
+
+        if (!allowed)
+            return null;
+
+        return new PaymentStatusDto(payment.Id, payment.Status, payment.ProofFile);
     }
 
     public async Task<PaymentDto?> VerifyAsync(
@@ -114,19 +135,18 @@ public class PaymentService : IPaymentService
             payment.PaidAt = PhilippinesTime.UtcNow;
             payment.Schedule.Status = ScheduleStatus.Confirmed;
             _db.Update(payment.Schedule);
-            await _qrService.GenerateForScheduleAsync(payment.ScheduleId, cancellationToken);
+            await _qrService.GenerateForScheduleAsync(payment.ScheduleId, actorUserId, RoleNames.Administrator, cancellationToken);
         }
 
         _db.Update(payment);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var refNo = payment.Schedule.PreAdvice.ReferenceNo;
-        await _auditService.LogAsync(
+        _auditService.QueueLog(
             actorUserId,
             request.Approved ? "Approve" : "Reject",
             "Payment",
-            $"{refNo} · schedule {payment.ScheduleId}",
-            cancellationToken);
+            $"{payment.Schedule.PreAdvice.ReferenceNo} · schedule {payment.ScheduleId}");
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var refNo = payment.Schedule.PreAdvice.ReferenceNo;
 
         if (payment.TruckerId > 0)
         {
@@ -298,6 +318,27 @@ public class PaymentService : IPaymentService
         if (!allowed) return null;
 
         return MapToDto(payment);
+    }
+
+    public Task<int> GetPendingVerificationCountAsync(CancellationToken cancellationToken = default) =>
+        _db.Payments.CountAsync(p => p.Status == PaymentStatus.ForVerification, cancellationToken);
+
+    public async Task<int> GetPaymentDueCountAsync(int truckerId, CancellationToken cancellationToken = default)
+    {
+        var schedules = await _db.Schedules
+            .AsNoTracking()
+            .Include(s => s.Payment)
+            .Where(s => s.TruckerId == truckerId)
+            .Where(s => s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Confirmed)
+            .ToListAsync(cancellationToken);
+
+        return schedules.Count(s =>
+        {
+            if (s.Payment is not null)
+                return s.Payment.Status == PaymentStatus.Pending;
+
+            return s.Status == ScheduleStatus.Scheduled;
+        });
     }
 
     private static void ApplyProofMetadata(Payment payment, string? referenceNo, DateTime? transactionAt)

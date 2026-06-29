@@ -1,6 +1,6 @@
 # LOGICTECK — API handoff (transfer data via ICS reference / QR)
 
-Give this document to the **LOGICTECK team**. It explains how to pull approved pre-advice data from ICS **without ICS login** — using the **ICS QR reference** (e.g. `ICS-202600018`) or the value encoded in the transfer QR.
+Give this document to the **LOGICTECK team**. It explains how to pull approved pre-forecast data from ICS **without ICS login** — using the **ICS QR reference** (e.g. `ICS-202600018`) or the value encoded in the transfer QR.
 
 ICS does **not** hold the empty return booking. LOGICTECK creates and owns the booking on your side after you receive the data.
 
@@ -59,7 +59,7 @@ Lightweight summary only (no photos). Use dossier endpoint below for full data.
 
 ### 2. Full dossier with photos (recommended)
 
-Returns pre-advice details, schedule, QR image (base64), and **container photo URLs**.
+Returns pre-forecast details, schedule, QR image (base64), and **container photo URLs**.
 
 ```http
 GET https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018/dossier
@@ -131,7 +131,7 @@ X-Logicteck-Api-Key: {your-key}
 | Field | Meaning for LOGICTECK |
 |-------|------------------------|
 | `bookingReference` | ICS transfer ID — store as external link |
-| `preAdviceReference` | ICS pre-advice number |
+| `preAdviceReference` | ICS pre-forecast number |
 | `isBooked` | Trucker sent data to LOGICTECK from ICS (`true` after ICS transfer) |
 | `isRetrieved` | Gate validated in ICS (`true` after validate call) |
 
@@ -223,7 +223,7 @@ Respond with:
 | Data | Lookup | Dossier |
 |------|--------|---------|
 | Container no, line, trucker, schedule, depot | Yes | Yes |
-| Pre-advice details (remarks, size, type) | Partial | Yes |
+| Pre-forecast details (remarks, size, type) | Partial | Yes |
 | Container identity photos | No | **Yes** (`documents[].url`) |
 | QR image | No | **Yes** (`qrBooking.qrImageBase64`) |
 
@@ -294,7 +294,7 @@ Trucker identity is **text from ICS** (`icsTruckerName`, `icsTruckerUsername`) �
 ## Flow summary
 
 ```
-ICS (approved pre-advice) → transfer QR / reference ICS-202600018
+ICS (approved pre-forecast) → transfer QR / reference ICS-202600018
          │
          ▼
 LOGICTECK operator enters reference OR scans QR

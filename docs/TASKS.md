@@ -97,7 +97,7 @@ Priority order to complete the **happy path** demo:
 | ID | Task |
 |----|------|
 | PA-001 | Pre-Advice CRUD API |
-| PA-002 | Submit pre-advice workflow |
+| PA-002 | Submit pre-forecast workflow |
 | PA-005 | Pre-Advice list & create UI |
 
 </details>
@@ -144,7 +144,7 @@ Priority order to complete the **happy path** demo:
 
 | ID | Task | Status | Priority |
 |----|------|--------|----------|
-| PA-003 | Cancel pre-advice request | done | P1 |
+| PA-003 | Cancel pre-forecast request | done | P1 |
 | PA-004 | Supporting document upload | done | P1 |
 | PA-006 | Pre-Advice edit & detail view | done | P1 |
 | PA-007 | Request history filters | done | P2 |

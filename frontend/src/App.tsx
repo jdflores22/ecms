@@ -12,6 +12,8 @@ import PreAdviceDetailPage from './pages/preAdvice/PreAdviceDetailPage'
 import EvaluationsPage from './pages/EvaluationsPage'
 import EvaluationDetailPage from './pages/evaluations/EvaluationDetailPage'
 import ContainerInventoryPage from './pages/evaluations/ContainerInventoryPage'
+import EvaluatorDemurrageBillingPage from './pages/evaluations/DemurrageBillingPage'
+import DemurrageBillingDetailPage from './pages/demurrage/DemurrageBillingDetailPage'
 import CyAllocationPage from './pages/evaluations/CyAllocationPage'
 import DailyReturnsPage from './pages/depot/DailyReturnsPage'
 import DepotSchedulesPage from './pages/depot/SchedulesPage'
@@ -21,12 +23,14 @@ import TruckerReturnsPage from './pages/trucker/ReturnsPage'
 import TruckerReturnDetailPage from './pages/trucker/ReturnDetailPage'
 import TruckerPaymentsPage from './pages/trucker/PaymentsPage'
 import TruckerPaymentUploadPage from './pages/trucker/PaymentUploadPage'
+import TruckerDemurrageBillingPage from './pages/trucker/DemurrageBillingPage'
 import TruckerQrPage from './pages/trucker/QrPage'
 import QrPrintPage from './pages/trucker/QrPrintPage'
 import AdminUsersPage from './pages/admin/UsersPage'
 import RolesPage from './pages/admin/RolesPage'
 import MasterDataPage from './pages/admin/MasterDataPage'
 import AdminAuditLogPage from './pages/admin/AuditLogPage'
+import AdminVersionPage from './pages/admin/AdminVersionPage'
 import AdminTransactionReportsPage from './pages/admin/AdminTransactionReportsPage'
 import RoleReportsPage from './pages/reports/RoleReportsPage'
 import ReportsRedirect from './pages/reports/ReportsRedirect'
@@ -50,6 +54,16 @@ function GuestOrApp() {
   }
 
   return <AppLayout />
+}
+
+function LegacyPreAdviceRedirect() {
+  const location = useLocation()
+  return (
+    <Navigate
+      to={`${location.pathname.replace(/^\/preadvice(?=\/|$)/, '/preforecast')}${location.search}`}
+      replace
+    />
+  )
 }
 
 export default function App() {
@@ -78,8 +92,9 @@ export default function App() {
             </RoleRouteGuard>
           }
         />
+        <Route path="preadvice/*" element={<LegacyPreAdviceRedirect />} />
         <Route
-          path="preadvice"
+          path="preforecast"
           element={
             <RoleRouteGuard>
               <PreAdvicePage />
@@ -87,7 +102,7 @@ export default function App() {
           }
         />
         <Route
-          path="preadvice/new"
+          path="preforecast/new"
           element={
             <RoleRouteGuard>
               <PreAdviceNewPage />
@@ -95,7 +110,7 @@ export default function App() {
           }
         />
         <Route
-          path="preadvice/:id"
+          path="preforecast/:id"
           element={
             <RoleRouteGuard>
               <PreAdviceDetailPage />
@@ -123,6 +138,22 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <RoleReportsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/demurrage-billing/:id"
+          element={
+            <RoleRouteGuard>
+              <DemurrageBillingDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/demurrage-billing"
+          element={
+            <RoleRouteGuard>
+              <EvaluatorDemurrageBillingPage />
             </RoleRouteGuard>
           }
         />
@@ -224,6 +255,22 @@ export default function App() {
           }
         />
         <Route
+          path="trucker/demurrage-billing/:id"
+          element={
+            <RoleRouteGuard>
+              <DemurrageBillingDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/demurrage-billing"
+          element={
+            <RoleRouteGuard>
+              <TruckerDemurrageBillingPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
           path="trucker/qr"
           element={
             <RoleRouteGuard>
@@ -260,6 +307,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <AdminAuditLogPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="admin/version"
+          element={
+            <RoleRouteGuard>
+              <AdminVersionPage />
             </RoleRouteGuard>
           }
         />

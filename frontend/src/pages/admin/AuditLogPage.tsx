@@ -31,11 +31,17 @@ import { formatDate, formatTime } from '../../utils/datetime'
 const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
-const MODULES = ['', 'Auth', 'PreAdvice', 'Evaluation', 'Schedule', 'Payment', 'Profile', 'User', 'Container', 'Depot', 'ShippingLine', 'QR']
+const MODULES = ['', 'Auth', 'PreForecast', 'PreAdvice', 'Evaluation', 'Schedule', 'Payment', 'Profile', 'User', 'Container', 'Depot', 'ShippingLine', 'QR', 'DemurrageBilling']
+
+const MODULE_LABELS: Record<string, string> = {
+  PreForecast: 'Pre-forecast',
+  PreAdvice: 'Pre-forecast',
+}
 
 const moduleColor: Record<string, 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error'> = {
   Auth: 'primary',
   Evaluation: 'warning',
+  PreForecast: 'info',
   PreAdvice: 'info',
   Schedule: 'secondary',
   Payment: 'success',
@@ -238,7 +244,7 @@ export default function AuditLogPage() {
               <MenuItem value="">All</MenuItem>
               {MODULES.filter(Boolean).map((m) => (
                 <MenuItem key={m} value={m}>
-                  {m}
+                  {MODULE_LABELS[m] ?? m}
                 </MenuItem>
               ))}
             </Select>
@@ -337,7 +343,7 @@ export default function AuditLogPage() {
                       <TableCell sx={{ fontWeight: 600, color: primaryDark }}>{row.username}</TableCell>
                       <TableCell>
                         <Chip
-                          label={row.module}
+                          label={MODULE_LABELS[row.module] ?? row.module}
                           size="small"
                           color={moduleColor[row.module] ?? 'default'}
                           variant="outlined"

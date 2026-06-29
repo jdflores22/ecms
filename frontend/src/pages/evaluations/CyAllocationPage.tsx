@@ -302,7 +302,7 @@ export default function CyAllocationPage() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 800 }}>
           Manage TEU limits and per-size unit limits for each contracted yard
-          {shippingLineName ? ` under ${shippingLineName}` : ''}. Auto-hold activates when pre-advised count reaches
+          {shippingLineName ? ` under ${shippingLineName}` : ''}. Auto-hold activates when pre-forecasted count reaches
           the unit limit.
         </Typography>
       </Box>

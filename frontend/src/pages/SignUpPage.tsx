@@ -21,7 +21,7 @@ const TRUCKER_SIGNUP = {
   apiRole: 'Trucker' as const,
   title: 'Create trucker account',
   subtitle:
-    'Register to submit pre-advice, manage assigned returns, upload payments, and access booking QR codes.',
+    'Register to submit pre-forecast, manage assigned returns, upload payments, and access booking QR codes.',
 }
 
 function apiErrorMessage(err: unknown, fallback: string) {

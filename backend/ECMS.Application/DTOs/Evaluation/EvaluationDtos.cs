@@ -12,7 +12,7 @@ public record EvaluationDto(
     string Status,
     DateTime EvaluatedAt);
 
-public record ApproveEvaluationRequest(int PreAdviceId, int DepotId, string? Remarks);
+public record ApproveEvaluationRequest(int PreAdviceId, int DepotId, DateOnly DemurrageValidUntil, string? Remarks);
 
 public record RejectEvaluationRequest(int PreAdviceId, string Remarks);
 

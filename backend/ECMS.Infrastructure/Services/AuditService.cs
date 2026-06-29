@@ -13,15 +13,20 @@ public class AuditService : IAuditService
         _db = db;
     }
 
-    public async Task LogAsync(int userId, string action, string module, string? details = null, CancellationToken cancellationToken = default)
+    public void QueueLog(int userId, string action, string module, string? details = null)
     {
         _db.Add(new Domain.Entities.AuditLog
         {
             UserId = userId,
             Action = action,
             Module = module,
-            Details = details
+            Details = details,
         });
+    }
+
+    public async Task LogAsync(int userId, string action, string module, string? details = null, CancellationToken cancellationToken = default)
+    {
+        QueueLog(userId, action, module, details);
         await _db.SaveChangesAsync(cancellationToken);
     }
 

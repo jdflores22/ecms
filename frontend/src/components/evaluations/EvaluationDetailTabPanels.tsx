@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
+import PreAdviceFullDossier from '../preAdvice/PreAdviceFullDossier'
 import {
   DetailTabPanel,
   ICS_PRIMARY,
@@ -25,13 +26,13 @@ import type {
   QrBooking,
   Schedule,
 } from '../../services/api'
-import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import DamageReportChip from './DamageReportChip'
 
 const primaryDark = ICS_PRIMARY
 
-export type EvaluationDetailTab = 'details' | 'photos' | 'schedule' | 'qr'
+export type EvaluationDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr'
 
 const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   WaitingSchedule: 'warning',
@@ -43,6 +44,19 @@ const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'e
 
 const scheduleStatusLabel: Record<string, string> = {
   WaitingSchedule: 'Waiting schedule',
+}
+
+function demurrageValidUntilDisplay(validUntil: string | null | undefined) {
+  if (!validUntil) return '—'
+  const expired = validUntil < new Date().toISOString().slice(0, 10)
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+      <span>{formatDate(validUntil)}</span>
+      {expired && (
+        <Chip label="Expired" size="small" color="error" sx={{ fontWeight: 700, height: 22 }} />
+      )}
+    </Box>
+  )
 }
 
 type EvaluationDetailTabPanelsProps = {
@@ -82,6 +96,30 @@ export default function EvaluationDetailTabPanels({
 
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
+      <DetailTabPanel value="overview" activeTab={activeTab}>
+        {item.hasDamageReport && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+              <DamageReportChip />
+              <Typography variant="body2">
+                Trucker uploaded damage photos. Review the container identity photos below or on the photos tab.
+              </Typography>
+            </Box>
+          </Alert>
+        )}
+        <PreAdviceFullDossier
+          item={item}
+          documents={documents}
+          documentsLoading={documentsLoading}
+          schedule={schedule}
+          scheduleLoading={scheduleLoading}
+          qrBooking={qrBooking}
+          qrImageUrl={qrImageUrl}
+          qrLoading={qrLoading}
+          decision={decision}
+        />
+      </DetailTabPanel>
+
       <DetailTabPanel value="details" activeTab={activeTab}>
         {item.hasDamageReport && (
           <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
@@ -108,6 +146,11 @@ export default function EvaluationDetailTabPanels({
             <InfoTile label="Container size" value={formatContainerSizeLabel(item.containerSize)} />
             <InfoTile label="Container type" value={item.containerType} />
           </Box>
+          {item.demurrageValidUntil && (
+            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+              <InfoTile label="Demurrage valid until" value={item.demurrageValidUntil} />
+            </Box>
+          )}
           {item.remarks?.trim() && (
             <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
               <InfoTile label="Trucker remarks" value={item.remarks.trim()} />
@@ -158,7 +201,7 @@ export default function EvaluationDetailTabPanels({
       <DetailTabPanel value="schedule" activeTab={activeTab}>
         {!isApproved ? (
           <Typography variant="body2" color="text.secondary">
-            Return schedule details will appear here after this pre-advice is approved.
+            Return schedule details will appear here after this pre-forecast is approved.
           </Typography>
         ) : scheduleLoading ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
@@ -179,7 +222,6 @@ export default function EvaluationDetailTabPanels({
               {schedule.date && (
                 <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
               )}
-              {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
               {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
               <InfoTile
                 label="Schedule status"
@@ -193,11 +235,16 @@ export default function EvaluationDetailTabPanels({
                 }
               />
               <InfoTile label="Reference" value={schedule.referenceNo} mono />
+              <InfoTile
+                label="Demurrage valid until"
+                value={demurrageValidUntilDisplay(item.demurrageValidUntil)}
+              />
+              {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
             </Box>
           </>
         ) : (
           <Typography variant="body2" color="text.secondary">
-            No return schedule has been created for this pre-advice yet.
+            No return schedule has been created for this pre-forecast yet.
           </Typography>
         )}
       </DetailTabPanel>
@@ -245,7 +292,7 @@ export default function EvaluationDetailTabPanels({
             )}
             <Box sx={{ minWidth: 0 }}>
               <Box sx={infoGridSx}>
-                <InfoTile label="Pre-advice" value={item.referenceNo} mono />
+                <InfoTile label="Pre-forecast" value={item.referenceNo} mono />
                 <InfoTile label={LOGICTECK_QR.bookingIdLabel} value={qrBooking.qrCode} mono />
                 <InfoTile label="Generated" value={formatDateTime(qrBooking.generatedAt)} />
                 <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />

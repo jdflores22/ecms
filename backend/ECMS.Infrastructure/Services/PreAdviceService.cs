@@ -13,12 +13,18 @@ public class PreAdviceService : IPreAdviceService
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
+    private readonly IDemurrageBillingService _demurrageBilling;
 
-    public PreAdviceService(IEcmsDbContext db, IAuditService auditService, INotificationService notifications)
+    public PreAdviceService(
+        IEcmsDbContext db,
+        IAuditService auditService,
+        INotificationService notifications,
+        IDemurrageBillingService demurrageBilling)
     {
         _db = db;
         _auditService = auditService;
         _notifications = notifications;
+        _demurrageBilling = demurrageBilling;
     }
 
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
@@ -125,7 +131,15 @@ public class PreAdviceService : IPreAdviceService
             request.ContainerTypeId,
             cancellationToken);
 
-        var containerId = await ResolveContainerIdAsync(
+        await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
+            truckerId,
+            catalog.NormalizedNo,
+            request.ShippingLineId,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            cancellationToken);
+
+        var container = await ResolveOrTrackContainerAsync(
             request.ShippingLineId,
             catalog.NormalizedNo,
             catalog.SizeLabel,
@@ -138,7 +152,7 @@ public class PreAdviceService : IPreAdviceService
             ReferenceNo = referenceNo,
             TruckerId = truckerId,
             ShippingLineId = request.ShippingLineId,
-            ContainerId = containerId,
+            Container = container,
             ContainerNoNormalized = catalog.NormalizedNo,
             ContainerSizeId = request.ContainerSizeId,
             ContainerTypeId = request.ContainerTypeId,
@@ -148,11 +162,15 @@ public class PreAdviceService : IPreAdviceService
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Add(preAdvice);
+        _auditService.QueueLog(truckerId, "Create", "PreForecast", referenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(truckerId, "Create", "PreAdvice", referenceNo, cancellationToken);
 
-        return await GetByIdAsync(preAdvice.Id, truckerId, RoleNames.Trucker, cancellationToken)
-            ?? throw new InvalidOperationException("Failed to create pre-advice.");
+        var trucker = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == truckerId, cancellationToken);
+        var shippingLine = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == request.ShippingLineId, cancellationToken);
+        preAdvice.Trucker = trucker;
+        preAdvice.ShippingLine = shippingLine;
+
+        return MapToDto(preAdvice, hasDamageReport: false);
     }
 
     public async Task<PreAdviceDto?> UpdateAsync(int id, UpdatePreAdviceRequest request, int userId, string role, CancellationToken cancellationToken = default)
@@ -167,6 +185,17 @@ public class PreAdviceService : IPreAdviceService
             request.ContainerSizeId,
             request.ContainerTypeId,
             cancellationToken);
+
+        if (role == RoleNames.Trucker)
+        {
+            await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
+                userId,
+                catalog.NormalizedNo,
+                request.ShippingLineId,
+                request.ContainerSizeId,
+                request.ContainerTypeId,
+                cancellationToken);
+        }
 
         var containerId = await ResolveContainerIdAsync(
             request.ShippingLineId,
@@ -184,8 +213,8 @@ public class PreAdviceService : IPreAdviceService
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Update(preAdvice);
+        _auditService.QueueLog(userId, "Update", "PreForecast", preAdvice.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "Update", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
 
         return await MapToDtoAsync(preAdvice, cancellationToken);
     }
@@ -197,8 +226,8 @@ public class PreAdviceService : IPreAdviceService
             return false;
 
         _db.Remove(preAdvice);
+        _auditService.QueueLog(userId, "Delete", "PreForecast", preAdvice.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "Delete", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
         return true;
     }
 
@@ -225,6 +254,14 @@ public class PreAdviceService : IPreAdviceService
             throw new InvalidOperationException(
                 $"All container identity photos are required before submit. Missing: {string.Join(", ", missing)}.");
 
+        await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
+            userId,
+            preAdvice.ContainerNoNormalized,
+            preAdvice.ShippingLineId,
+            preAdvice.ContainerSizeId,
+            preAdvice.ContainerTypeId,
+            cancellationToken);
+
         await EnsureNoDuplicateAsync(
             preAdvice.ContainerNoNormalized,
             preAdvice.ContainerSizeId,
@@ -235,6 +272,11 @@ public class PreAdviceService : IPreAdviceService
         preAdvice.Status = PreAdviceStatus.Submitted;
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
+        _auditService.QueueLog(
+            userId,
+            wasCompliance ? "Resubmit" : "Submit",
+            "PreForecast",
+            preAdvice.ReferenceNo);
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -248,22 +290,16 @@ public class PreAdviceService : IPreAdviceService
                 id,
                 cancellationToken));
         }
-        await _auditService.LogAsync(
-            userId,
-            wasCompliance ? "Resubmit" : "Submit",
-            "PreAdvice",
-            preAdvice.ReferenceNo,
-            cancellationToken);
 
         var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(_db, preAdvice.ShippingLineId, cancellationToken);
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
         await _notifications.NotifyUsersAsync(
             evaluatorIds.Concat(adminIds),
-            wasCompliance ? "Pre-advice resubmitted" : "New pre-advice submitted",
+            wasCompliance ? "Pre-forecast resubmitted" : "New pre-forecast submitted",
             wasCompliance
                 ? $"{preAdvice.ReferenceNo} was resubmitted after compliance corrections."
                 : $"{preAdvice.ReferenceNo} is ready for evaluation.",
-            "PreAdvice",
+            "PreForecast",
             $"/evaluations/{preAdvice.Id}",
             userId,
             preAdvice.ReferenceNo,
@@ -292,15 +328,15 @@ public class PreAdviceService : IPreAdviceService
 
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
         _db.Update(preAdvice);
+        _auditService.QueueLog(userId, "Cancel", "PreForecast", preAdvice.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "Cancel", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
 
         var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(_db, preAdvice.ShippingLineId, cancellationToken);
         await _notifications.NotifyUsersAsync(
             evaluatorIds,
-            "Pre-advice cancelled",
+            "Pre-forecast cancelled",
             $"{preAdvice.ReferenceNo} was cancelled by the trucker.",
-            "PreAdvice",
+            "PreForecast",
             $"/evaluations/{preAdvice.Id}",
             userId,
             preAdvice.ReferenceNo,
@@ -438,7 +474,7 @@ public class PreAdviceService : IPreAdviceService
 
         _db.Add(document);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "UploadContainerPhoto", "PreAdvice", $"{preAdvice.ReferenceNo}:{category}", cancellationToken);
+        await _auditService.LogAsync(userId, "UploadContainerPhoto", "PreForecast", $"{preAdvice.ReferenceNo}:{category}", cancellationToken);
 
         var saved = await _db.PreAdviceDocuments
             .Include(d => d.UploadedBy)
@@ -472,7 +508,7 @@ public class PreAdviceService : IPreAdviceService
 
         _db.Remove(document);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "DeleteDocument", "PreAdvice", preAdvice.ReferenceNo, cancellationToken);
+        await _auditService.LogAsync(userId, "DeleteDocument", "PreForecast", preAdvice.ReferenceNo, cancellationToken);
 
         return true;
     }
@@ -515,6 +551,36 @@ public class PreAdviceService : IPreAdviceService
         var year = PhilippinesTime.Year;
         var count = await _db.PreAdvices.CountAsync(p => p.CreatedAt.Year == year, cancellationToken);
         return $"PA-{year}-{(count + 1):D5}";
+    }
+
+    private async Task<Container> ResolveOrTrackContainerAsync(
+        int shippingLineId,
+        string normalizedNo,
+        string sizeLabel,
+        string typeCode,
+        CancellationToken cancellationToken)
+    {
+        var container = await _db.Containers.FirstOrDefaultAsync(c => c.ContainerNo == normalizedNo, cancellationToken);
+        if (container is not null)
+        {
+            if (container.ShippingLineId != shippingLineId)
+                throw new InvalidOperationException($"Container {normalizedNo} is already registered under another shipping line.");
+
+            container.Size = sizeLabel;
+            container.Type = typeCode;
+            _db.Update(container);
+            return container;
+        }
+
+        container = new Container
+        {
+            ContainerNo = normalizedNo,
+            Size = sizeLabel,
+            Type = typeCode,
+            ShippingLineId = shippingLineId,
+        };
+        _db.Add(container);
+        return container;
     }
 
     private async Task<int> ResolveContainerIdAsync(
@@ -620,7 +686,7 @@ public class PreAdviceService : IPreAdviceService
     {
         if (duplicate is null)
             return new InvalidOperationException(
-                "This container already has a submitted pre-advice with the same number, size, and type.");
+                "This container already has a submitted pre-forecast with the same number, size, and type.");
 
         return new InvalidOperationException(
             $"This container is already submitted ({duplicate.ReferenceNo}, {duplicate.Status}, trucker: {duplicate.TruckerName}). Wait for that request to finish or contact support.");
@@ -634,7 +700,9 @@ public class PreAdviceService : IPreAdviceService
     private static PreAdviceDto MapToDto(PreAdvice p, bool hasDamageReport, PreAdviceQrInfo? qrInfo = null) => new(
         p.Id, p.ReferenceNo, p.TruckerId, p.Trucker.FullName ?? p.Trucker.Username,
         p.ShippingLineId, p.ShippingLine.Name, p.ContainerId, p.Container.ContainerNo,
-        p.Container.Size, p.Container.Type, p.Status, p.Remarks, p.CreatedAt,
+        p.Container.Size, p.Container.Type, p.Status,
+        p.DemurrageValidUntil?.ToString("yyyy-MM-dd"),
+        p.Remarks, p.CreatedAt,
         p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.Remarks : null,
         p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.EvaluatedAt : null,
         hasDamageReport,

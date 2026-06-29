@@ -527,7 +527,7 @@ export default function TruckerPaymentUploadPage() {
                   {paymentUploadNeeded && (
                     <>
                       <Alert severity="info" sx={{ mb: 2, borderRadius: 2, '& .MuiAlert-message': { overflowWrap: 'anywhere', wordBreak: 'break-word' } }}>
-                        Pay {formatPeso(displayAmount)} as the pre-advised fee set by the administrator. Upload your
+                        Pay {formatPeso(displayAmount)} as the pre-forecasted fee set by the administrator. Upload your
                         proof below — you cannot change the fee amount here.
                       </Alert>
 
@@ -685,7 +685,7 @@ export default function TruckerPaymentUploadPage() {
               </Paper>
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
-                Please confirm the pre-advised fee and proof file below. The depot will review your upload before
+                Please confirm the pre-forecasted fee and proof file below. The depot will review your upload before
                 confirming your return.
               </Typography>
 

@@ -22,7 +22,7 @@ import EditIcon from '@mui/icons-material/Edit'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import axios from 'axios'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import PreAdviceDetailTabPanels, {
   type PreAdviceDetailTab,
@@ -67,7 +67,6 @@ import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 
 const primaryDark = ICS_PRIMARY
-const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
 
 const statusLabel: Record<string, string> = {
   UnderEvaluation: 'Under evaluation',
@@ -153,7 +152,7 @@ function statusGuidance(
         severity: 'success',
         message:
           schedule?.status === 'Confirmed' || schedule?.status === 'Completed'
-            ? 'Return schedule is confirmed. Pre-advice stays Approved in ICS — send data to LOGICTECK to create the return booking there (LOGICTECK status: Ready to send → Booked on LOGICTECK → Retrieved).'
+            ? 'Return schedule is confirmed. Pre-forecast stays Approved in ICS — send data to LOGICTECK to create the return booking there (LOGICTECK status: Ready to send → Booked on LOGICTECK → Retrieved).'
             : schedule?.status === 'Scheduled'
               ? 'Return schedule assigned. The trucker has been notified and can upload payment proof.'
               : 'Approved. The depot will assign a return schedule and notify the assigned trucker.',
@@ -161,7 +160,7 @@ function statusGuidance(
     case 'Rejected':
       return {
         severity: 'error',
-        message: 'This request was rejected. Create a new pre-advice if you need to resubmit.',
+        message: 'This request was rejected. Create a new pre-forecast if you need to resubmit.',
       }
     case 'ForCompliance':
       return {
@@ -190,7 +189,7 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 export default function PreAdviceDetailPage() {
   const { id } = useParams()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
   const preAdviceId = Number(id)
@@ -217,6 +216,7 @@ export default function PreAdviceDetailPage() {
   const [bookLogicteckLoading, setBookLogicteckLoading] = useState(false)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [activeTab, setActiveTab] = useState<PreAdviceDetailTab>('details')
+  const tabContextRef = useRef<{ id: number; status: string } | null>(null)
 
   const handleDocumentsChange = useCallback((next: PreAdviceDocument[]) => {
     setDocuments(next)
@@ -239,7 +239,7 @@ export default function PreAdviceDetailPage() {
     preAdviceApi
       .get(preAdviceId)
       .then(({ data }) => setItem(data))
-      .catch(() => setError('Pre-advice request not found.'))
+      .catch(() => setError('Pre-forecast request not found.'))
       .finally(() => setLoading(false))
   }, [preAdviceId])
 
@@ -320,31 +320,47 @@ export default function PreAdviceDetailPage() {
 
   useEffect(() => {
     if (!item) return
-    const tab = searchParams.get('tab')
-    if (tab === 'qr' && item.status === 'Approved') {
-      setActiveTab('qr')
+
+    const tab = searchParams.get('tab') as PreAdviceDetailTab | null
+    const showScheduleTabs = item.status === 'Approved'
+    const allowed: PreAdviceDetailTab[] = ['overview', 'details', 'photos']
+    if (showScheduleTabs) allowed.push('schedule', 'qr')
+
+    const contextChanged =
+      tabContextRef.current?.id !== item.id || tabContextRef.current?.status !== item.status
+
+    if (contextChanged) {
+      tabContextRef.current = { id: item.id, status: item.status }
+      if (tab && allowed.includes(tab)) {
+        setActiveTab(tab)
+      } else if (item.status === 'Draft' || item.status === 'ForCompliance') {
+        setActiveTab('photos')
+      } else {
+        setActiveTab('overview')
+      }
       return
     }
-    if (tab === 'overview') {
-      setActiveTab('overview')
-      return
+
+    if (tab && allowed.includes(tab)) {
+      setActiveTab(tab)
     }
-    if (tab === 'details') {
-      setActiveTab('details')
-      return
+  }, [item?.id, item?.status, searchParams])
+
+  const showScheduleTabs = item?.status === 'Approved'
+
+  const handleTabChange = (_: React.SyntheticEvent, value: PreAdviceDetailTab) => {
+    setActiveTab(value)
+    if (value === 'overview') {
+      setSearchParams({}, { replace: true })
+    } else {
+      setSearchParams({ tab: value }, { replace: true })
     }
-    if (tab === 'photos') {
-      setActiveTab('photos')
-      return
-    }
-    if (tab === 'schedule' && item.status === 'Approved') {
-      setActiveTab('schedule')
-      return
-    }
-    if (item.status === 'Draft' || item.status === 'ForCompliance') setActiveTab('photos')
-    else if (PENDING_STATUSES.includes(item.status)) setActiveTab('overview')
-    else setActiveTab('overview')
-  }, [item?.id, item?.status, schedule?.status, searchParams])
+  }
+
+  const openScheduleTab = useCallback(() => {
+    setActiveTab('schedule')
+    setSearchParams({ tab: 'schedule' }, { replace: true })
+  }, [setSearchParams])
 
   const photoProgress = useMemo(() => {
     const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
@@ -365,8 +381,14 @@ export default function PreAdviceDetailPage() {
 
   const openQrPreview = useCallback(() => {
     setActiveTab('qr')
+    setSearchParams({ tab: 'qr' }, { replace: true })
     setQrPreviewOpen(true)
-  }, [])
+  }, [setSearchParams])
+
+  const openPhotosTab = useCallback(() => {
+    setActiveTab('photos')
+    setSearchParams({ tab: 'photos' }, { replace: true })
+  }, [setSearchParams])
 
   const progressSteps = useMemo(() => {
     if (!item) return []
@@ -377,9 +399,19 @@ export default function PreAdviceDetailPage() {
       qrBooking,
       qrLoading,
       openQrPreview,
-      () => setActiveTab('photos'),
+      openPhotosTab,
+      openScheduleTab,
     )
-  }, [item, schedule, scheduleLoading, qrBooking, qrLoading, openQrPreview])
+  }, [
+    item,
+    schedule,
+    scheduleLoading,
+    qrBooking,
+    qrLoading,
+    openQrPreview,
+    openPhotosTab,
+    openScheduleTab,
+  ])
 
   const guidance = useMemo(() => {
     if (!item) return null
@@ -403,7 +435,7 @@ export default function PreAdviceDetailPage() {
   }
 
   if (!preAdviceId || Number.isNaN(preAdviceId)) {
-    return <Navigate to="/preadvice" replace />
+    return <Navigate to="/preforecast" replace />
   }
 
   const isDraft = item?.status === 'Draft'
@@ -440,7 +472,7 @@ export default function PreAdviceDetailPage() {
         setActionError(result.message)
       }
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Could not send pre-advice data to LOGICTECK.'))
+      setActionError(apiErrorMessage(err, 'Could not send pre-forecast data to LOGICTECK.'))
     } finally {
       setBookLogicteckLoading(false)
     }
@@ -465,7 +497,7 @@ export default function PreAdviceDetailPage() {
       setItem(data)
       setEditing(false)
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Failed to update pre-advice.'))
+      setActionError(apiErrorMessage(err, 'Failed to update pre-forecast.'))
     } finally {
       setSubmitting(false)
     }
@@ -480,7 +512,7 @@ export default function PreAdviceDetailPage() {
       setItem(data)
       setSubmitOpen(false)
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Failed to submit pre-advice.'))
+      setActionError(apiErrorMessage(err, 'Failed to submit pre-forecast.'))
     } finally {
       setSubmitting(false)
     }
@@ -496,33 +528,34 @@ export default function PreAdviceDetailPage() {
       setCancelOpen(false)
       setCancelReason('')
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Failed to cancel pre-advice.'))
+      setActionError(apiErrorMessage(err, 'Failed to cancel pre-forecast.'))
     } finally {
       setSubmitting(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!item || !window.confirm('Delete this draft pre-advice request?')) return
+    if (!item || !window.confirm('Delete this draft pre-forecast request?')) return
     setSubmitting(true)
     setActionError('')
     try {
       await preAdviceApi.delete(item.id)
-      navigate('/preadvice')
+      navigate('/preforecast')
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Failed to delete pre-advice.'))
+      setActionError(apiErrorMessage(err, 'Failed to delete pre-forecast.'))
       setSubmitting(false)
     }
   }
 
   const startEditing = () => {
     setActiveTab('details')
+    setSearchParams({ tab: 'details' }, { replace: true })
     setEditing(true)
   }
 
   return (
     <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
-      <DetailBackButton to="/preadvice" label="Back to list" />
+      <DetailBackButton to="/preforecast" label="Back to list" />
 
       {loading ? (
         <DetailLoadingState />
@@ -711,24 +744,20 @@ export default function PreAdviceDetailPage() {
           <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
             <Tabs
               value={activeTab}
-              onChange={(_, value: PreAdviceDetailTab) => setActiveTab(value)}
+              onChange={handleTabChange}
               variant="scrollable"
               scrollButtons="auto"
               allowScrollButtonsMobile
               sx={detailTabsSx}
             >
               <Tab label="Full overview" value="overview" />
+              {showScheduleTabs ? <Tab label="Return schedule" value="schedule" /> : null}
+              {showScheduleTabs ? <Tab label={LOGICTECK_QR.tabLabel} value="qr" /> : null}
               <Tab label="Request details" value="details" />
               <Tab
                 label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
                 value="photos"
               />
-              {!isDraft && !isForCompliance && (
-                <>
-                  <Tab label="Return schedule" value="schedule" />
-                  <Tab label={LOGICTECK_QR.tabLabel} value="qr" />
-                </>
-              )}
             </Tabs>
 
             <PreAdviceDetailTabPanels
@@ -786,7 +815,7 @@ export default function PreAdviceDetailPage() {
         fullWidth
       >
         <DialogTitle sx={{ fontWeight: 700 }}>
-          {isForCompliance ? 'Resubmit pre-advice for evaluation' : 'Submit pre-advice for evaluation'}
+          {isForCompliance ? 'Resubmit pre-forecast for evaluation' : 'Submit pre-forecast for evaluation'}
         </DialogTitle>
         <DialogContent>
           {item && (
@@ -816,8 +845,8 @@ export default function PreAdviceDetailPage() {
           )}
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {isForCompliance
-              ? 'This will send your corrected pre-advice back to the shipping-line evaluator for another review.'
-              : 'This will send the pre-advice to a shipping-line evaluator. You will not be able to edit container details after submission, but you can still cancel while evaluation is in progress.'}
+              ? 'This will send your corrected pre-forecast back to the shipping-line evaluator for another review.'
+              : 'This will send the pre-forecast to a shipping-line evaluator. You will not be able to edit container details after submission, but you can still cancel while evaluation is in progress.'}
           </Typography>
           <Alert severity="success" sx={{ mb: actionError ? 2 : 0, borderRadius: 2 }}>
             All {photoProgress.total} container identity photos are uploaded and ready for review.
@@ -845,7 +874,7 @@ export default function PreAdviceDetailPage() {
       </Dialog>
 
       <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Cancel pre-advice request</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Cancel pre-forecast request</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             This will mark the request as cancelled. It cannot be resumed after cancellation.

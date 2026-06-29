@@ -28,7 +28,7 @@ async function loadQrImage(bookingId: number): Promise<string | null> {
   return URL.createObjectURL(blob)
 }
 
-/** Load full ICS pre-advice dossier for a booking QR (requires ICS login). */
+/** Load full ICS pre-forecast dossier for a booking QR (requires ICS login). */
 export async function loadPreAdviceDossierByQr(qrCode: string): Promise<PreAdviceDossierBundle | null> {
   const token = store.getState().auth.accessToken
   if (!token || !qrCode.trim()) return null

@@ -18,7 +18,7 @@ Trucker uploads payment proof          ← PAY-003
         ↓
 Depot verifies payment                 ← PAY-004
         ↓
-ICS booking QR published — supplies pre-advice details to LOGICTECK  ← QR-004
+ICS booking QR published — supplies pre-forecast details to LOGICTECK  ← QR-004
         ↓
 LOGICTECK integration (coming soon) via validate-qr API  ← QR-003
         ↓
@@ -31,7 +31,7 @@ Container return at yard (handled by LOGICTECK)
 
 | Step | Role | Route | Task IDs | Status |
 |------|------|-------|----------|--------|
-| 1 | Broker | `/preadvice` | PA-005, PA-002 | Done |
+| 1 | Broker | `/preforecast` | PA-005, PA-002 | Done |
 | 2 | Evaluator | `/evaluations` | EVAL-003–005 | Done |
 | 3 | Depot | `/depot/schedules` | SCHED-003, SCHED-005 | Done |
 | 4 | Trucker | `/trucker/returns` | TRK-001 | Done |
@@ -58,7 +58,7 @@ Container return at yard (handled by LOGICTECK)
 ### 4. Trucker (`trucker1` / `Trucker@123`)
 - My Returns → see assigned schedule
 - Payments → Upload Proof (image/PDF)
-- QR Codes → Download booking QR (supplies pre-advice details to LOGICTECK — integration coming soon)
+- QR Codes → Download booking QR (supplies pre-forecast details to LOGICTECK — integration coming soon)
 
 ---
 

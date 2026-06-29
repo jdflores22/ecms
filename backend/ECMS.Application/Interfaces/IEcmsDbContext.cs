@@ -24,6 +24,8 @@ public interface IEcmsDbContext
     IQueryable<PasswordResetToken> PasswordResetTokens { get; }
     IQueryable<ManualYardInventoryEntry> ManualYardInventoryEntries { get; }
     IQueryable<PaymentSettings> PaymentSettings { get; }
+    IQueryable<DemurrageBilling> DemurrageBillings { get; }
+    IQueryable<DemurrageBillingFeeLine> DemurrageBillingFeeLines { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Add<T>(T entity) where T : class;

@@ -1,9 +1,14 @@
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using ECMS.API.Configuration;
+using ECMS.API.Middleware;
+using ECMS.Application.Interfaces;
 using ECMS.Infrastructure;
 using ECMS.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using MySqlConnector;
@@ -43,6 +48,20 @@ builder.Services.AddPersistence(connectionString);
 builder.Services.AddInfrastructure();
 builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
+builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>
+{
+    var envKey = Environment.GetEnvironmentVariable("LOGICTECK_API_KEY");
+    if (!string.IsNullOrWhiteSpace(envKey))
+        options.ApiKey = envKey;
+});
+
+if (builder.Environment.IsProduction()
+    && string.IsNullOrWhiteSpace(
+        Environment.GetEnvironmentVariable("LOGICTECK_API_KEY") ?? builder.Configuration["Logicteck:ApiKey"]))
+{
+    throw new InvalidOperationException("Set LOGICTECK_API_KEY for production.");
+}
+
 builder.Services.AddScoped<ECMS.API.Filters.LogicteckApiKeyFilter>();
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
@@ -68,7 +87,11 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtKey = AppSecrets.Require(
+    builder.Configuration,
+    builder.Environment,
+    "Jwt:Key",
+    "JWT_KEY");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -86,6 +109,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+});
 
 var app = builder.Build();
 
@@ -117,9 +154,11 @@ else
 
 // Default policy for JWT endpoints; LogicteckController uses [EnableCors("LogicteckPublic")] per-endpoint.
 app.UseCors();
+app.UseRateLimiter();
 
 var uploadPath = Path.Combine(app.Environment.ContentRootPath, builder.Configuration["FileStorage:UploadPath"] ?? "uploads");
 Directory.CreateDirectory(uploadPath);
+app.UseMiddleware<UploadAccessMiddleware>();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadPath),
@@ -150,6 +189,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
             var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
             await seeder.SeedAsync();
             startupLogger.LogInformation("Database migrate/seed completed.");
+
+            var demurrageBilling = scope.ServiceProvider.GetRequiredService<IDemurrageBillingService>();
+            await demurrageBilling.SyncExpiredBillingsAsync();
+            startupLogger.LogInformation("Demurrage billing sync completed.");
         }
         catch (Exception ex)
         {

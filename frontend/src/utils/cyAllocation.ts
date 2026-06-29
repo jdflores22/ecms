@@ -6,9 +6,9 @@ export function normalizeSizeKey(size: string): string {
   return size.trim().replace(/['ftFT]+$/u, '')
 }
 
-/** Count split shown on CY capacity panels (pre-advised = ECMS; booking = LOGICTECK). */
+/** Count split shown on CY capacity panels (pre-forecasted = ECMS; booking = LOGICTECK). */
 export function formatCyCountSplit(preAdvisedCount: number, bookingCount: number): string {
-  return `${preAdvisedCount} pre-advised · ${bookingCount} booking`
+  return `${preAdvisedCount} pre-forecasted · ${bookingCount} booking`
 }
 
 /** Utilization percentage; may exceed 100 when over contract limit. */
@@ -61,7 +61,7 @@ export function cyUtilizationPctByCount(preAdvisedCount: number, contractCount: 
   return Math.min(100, Math.round((preAdvisedCount / contractCount) * 100))
 }
 
-/** Utilization is based on pre-advised TEU only until LOGICTECK bookings affect capacity. */
+/** Utilization is based on pre-forecasted TEU only until LOGICTECK bookings affect capacity. */
 export function cyUtilizationPct(preAdvisedTeu: number, contractTeu: number): number {
   if (contractTeu <= 0) return 0
   return Math.min(100, Math.round((preAdvisedTeu / contractTeu) * 100))

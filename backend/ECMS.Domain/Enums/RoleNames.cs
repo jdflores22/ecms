@@ -7,7 +7,7 @@ public static class RoleNames
     public const string Trucker = "Trucker";
     public const string Administrator = "Administrator";
 
-    /// <summary>Roles allowed to create and manage pre-advice (trucker only).</summary>
+    /// <summary>Roles allowed to create and manage pre-forecast (trucker only).</summary>
     public const string PreAdviceManager = Trucker;
 
     public static bool IsPreAdviceManager(string role) =>

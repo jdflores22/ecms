@@ -147,29 +147,29 @@
       "priority": "P0",
       "status": "done",
       "assignee": null,
-      "notes": "GET/POST/PUT/DELETE /api/preadvice"
+      "notes": "GET/POST/PUT/DELETE /api/preforecast"
     },
     {
       "id": "PA-002",
       "sprint": "S2",
       "module": "Pre-Advice",
-      "title": "Submit pre-advice workflow",
+      "title": "Submit pre-forecast workflow",
       "layer": "backend",
       "priority": "P0",
       "status": "done",
       "assignee": null,
-      "notes": "POST /api/preadvice/{id}/submit"
+      "notes": "POST /api/preforecast/{id}/submit"
     },
     {
       "id": "PA-003",
       "sprint": "S2",
       "module": "Pre-Advice",
-      "title": "Cancel pre-advice request",
+      "title": "Cancel pre-forecast request",
       "layer": "backend",
       "priority": "P1",
       "status": "done",
       "assignee": null,
-      "notes": "POST /api/preadvice/{id}/cancel; broker UI on detail page"
+      "notes": "POST /api/preforecast/{id}/cancel; broker UI on detail page"
     },
     {
       "id": "PA-004",
@@ -180,7 +180,7 @@
       "priority": "P1",
       "status": "done",
       "assignee": null,
-      "notes": "POST/GET/DELETE /api/preadvice/{id}/documents; broker UI on detail page"
+      "notes": "POST/GET/DELETE /api/preforecast/{id}/documents; broker UI on detail page"
     },
     {
       "id": "PA-005",
@@ -191,7 +191,7 @@
       "priority": "P0",
       "status": "done",
       "assignee": null,
-      "notes": "/preadvice"
+      "notes": "/preforecast"
     },
     {
       "id": "PA-006",
@@ -202,7 +202,7 @@
       "priority": "P1",
       "status": "done",
       "assignee": null,
-      "notes": "/preadvice/new, /preadvice/:id — form with lookups; edit/submit/delete for drafts"
+      "notes": "/preforecast/new, /preforecast/:id — form with lookups; edit/submit/delete for drafts"
     },
     {
       "id": "PA-007",
@@ -213,7 +213,7 @@
       "priority": "P2",
       "status": "done",
       "assignee": null,
-      "notes": "Filter by status, shipping line, date range on pre-advice list"
+      "notes": "Filter by status, shipping line, date range on pre-forecast list"
     },
     {
       "id": "EVAL-001",

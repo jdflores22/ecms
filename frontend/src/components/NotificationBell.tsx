@@ -22,6 +22,7 @@ import { formatDateTime } from '../utils/datetime'
 const primaryDark = '#0B3D91'
 
 const categoryColor: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'> = {
+  PreForecast: 'info',
   PreAdvice: 'info',
   Evaluation: 'primary',
   Schedule: 'secondary',

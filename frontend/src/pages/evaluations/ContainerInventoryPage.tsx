@@ -141,12 +141,12 @@ function InventoryTableRow({
     <TableRow hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
       <TableCell sx={{ width: 44, px: 1 }}>
         {row.preAdviceId ? (
-          <Tooltip title="View pre-advice">
+          <Tooltip title="View pre-forecast">
             <IconButton
               component={RouterLink}
               to={`/evaluations/${row.preAdviceId}`}
               size="small"
-              aria-label="View pre-advice"
+              aria-label="View pre-forecast"
             >
               <DescriptionOutlinedIcon fontSize="small" />
             </IconButton>
@@ -235,7 +235,7 @@ function InventoryMobileCard({
           variant="body2"
           sx={{ display: 'inline-block', mt: 1.25, fontWeight: 600, color: primaryDark }}
         >
-          View pre-advice {row.referenceNo} →
+          View pre-forecast {row.referenceNo} →
         </Typography>
       ) : row.manualEntryId ? (
         <Button
@@ -259,7 +259,7 @@ const TABLE_HEADERS = [
   'Size',
   'Type',
   'Source',
-  'Pre-advice',
+  'Pre-forecast',
   'Container yard',
   'Trucker',
   'Yard-in',
@@ -453,7 +453,7 @@ export default function ContainerInventoryPage() {
                 CY container inventory
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-                Full visibility of containers at your contracted yards — from approved pre-advice returns and manual
+                Full visibility of containers at your contracted yards — from approved pre-forecast returns and manual
                 registrations. Dwell time is calculated from the yard-in date.
               </Typography>
             </Box>
