@@ -87,9 +87,10 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
   },
   Trucker: {
     title: 'Trucker overview',
-    subtitle: 'Pre-forecast, returns, payments, and booking QR',
+    subtitle: 'Pre-forecast, withdrawals, returns, payments, and booking QR',
     workflow: [
-      'Create and submit pre-forecast',
+      'Create and submit pre-forecast for empty returns',
+      'Submit ATW withdrawal requests for repositioning',
       'Review assigned return schedules',
       'Upload payment proof',
       'Download booking QR after verification',
@@ -104,6 +105,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     actions: [
       { label: 'Pre-forecast', path: '/preforecast', icon: AssignmentIcon },
       { label: 'New pre-forecast', path: '/preforecast/new', icon: AssignmentIcon },
+      { label: 'My withdrawals', path: '/trucker/withdrawals', icon: AssignmentIcon },
       { label: 'My returns', path: '/trucker/returns', icon: LocalShippingIcon },
       { label: 'Payments', path: '/trucker/payments', icon: PaymentsIcon },
       { label: LOGICTECK_QR.menuLabel, path: '/trucker/qr', icon: QrCode2Icon },

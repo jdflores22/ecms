@@ -29,6 +29,8 @@ import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import HistoryIcon from '@mui/icons-material/History'
+import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
+import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined'
 import SystemUpdateAltOutlinedIcon from '@mui/icons-material/SystemUpdateAltOutlined'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
@@ -44,6 +46,8 @@ import { ICS_BRAND } from '../config/brandCopy'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCount'
 import { useDepotWaitingScheduleCount } from '../hooks/useDepotWaitingScheduleCount'
+import { useDepotPendingWithdrawalCount } from '../hooks/useDepotPendingWithdrawalCount'
+import { useTruckerPendingWithdrawalCount } from '../hooks/useTruckerPendingWithdrawalCount'
 import { useTruckerPaymentDueCount } from '../hooks/useTruckerPaymentDueCount'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import { resolveAssetUrl } from '../utils/assetUrl'
@@ -87,6 +91,16 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const waitingScheduleCount = useDepotWaitingScheduleCount(
+    user?.role,
+    user?.allowedPages,
+    location.pathname,
+  )
+  const pendingWithdrawalCount = useDepotPendingWithdrawalCount(
+    user?.role,
+    user?.allowedPages,
+    location.pathname,
+  )
+  const truckerPendingWithdrawalCount = useTruckerPendingWithdrawalCount(
     user?.role,
     user?.allowedPages,
     location.pathname,
@@ -146,6 +160,9 @@ export default function AppLayout() {
     truckerReturns: <LocalShippingIcon fontSize="small" />,
     truckerPayments: <PaymentsIcon fontSize="small" />,
     truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
+    evaluatorAtw: <AssignmentTurnedInOutlinedIcon fontSize="small" />,
+    depotWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
+    truckerWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
     truckerQr: <QrCode2Icon fontSize="small" />,
     truckerQrPrint: <QrCode2Icon fontSize="small" />,
     adminUsers: <PeopleIcon fontSize="small" />,
@@ -158,6 +175,8 @@ export default function AppLayout() {
 
   const navBadgeConfig: Partial<Record<AppPageKey, { count: number; ariaLabel: string }>> = {
     depotSchedules: { count: waitingScheduleCount, ariaLabel: 'waiting schedule' },
+    depotWithdrawals: { count: pendingWithdrawalCount, ariaLabel: 'pending withdrawal review' },
+    truckerWithdrawals: { count: truckerPendingWithdrawalCount, ariaLabel: 'withdrawal action required' },
     truckerPayments: { count: paymentDueCount, ariaLabel: 'payment due' },
     adminPayments: { count: pendingPaymentVerifyCount, ariaLabel: 'awaiting verification' },
   }

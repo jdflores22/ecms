@@ -9,9 +9,11 @@ import {
   Typography,
 } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import AddIcon from '@mui/icons-material/Add'
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { listHeroActionSx } from '../components/layout/ListPagePrimitives'
 import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
 import CyAllocationDashboardPanel from '../components/dashboard/CyAllocationDashboardPanel'
 import { roleLabel } from '../config/roleConfig'
@@ -122,19 +124,44 @@ export default function DashboardPage() {
             bgcolor: 'rgba(0, 163, 224, 0.12)',
           }}
         />
-        <Box sx={{ position: 'relative' }}>
-          <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.2 }}>
-            {user.role ? roleLabel(user.role) : 'Dashboard'}
-          </Typography>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-            Welcome back, {user.fullName?.split(' ')[0] ?? user.fullName}
-          </Typography>
-          <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, mb: 0.5 }}>
-            {config.title}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.78)', maxWidth: 640 }}>
-            {config.subtitle}
-          </Typography>
+        <Box
+          sx={{
+            position: 'relative',
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between',
+            alignItems: { xs: 'stretch', sm: 'flex-start' },
+            gap: 2,
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.2 }}>
+              {user.role ? roleLabel(user.role) : 'Dashboard'}
+            </Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+              Welcome back, {user.fullName?.split(' ')[0] ?? user.fullName}
+            </Typography>
+            <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, mb: 0.5 }}>
+              {config.title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.78)', maxWidth: 640 }}>
+              {config.subtitle}
+            </Typography>
+          </Box>
+          {user.role === 'Trucker' && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/preforecast/new')}
+              sx={{
+                ...listHeroActionSx,
+                px: 2.5,
+                alignSelf: { xs: 'stretch', sm: 'flex-start' },
+              }}
+            >
+              NEW PRE-FORECAST
+            </Button>
+          )}
         </Box>
       </Paper>
 

@@ -22,6 +22,9 @@ public static class RolePageKeys
     public const string TruckerReturns = "truckerReturns";
     public const string TruckerPayments = "truckerPayments";
     public const string TruckerDemurrageBilling = "truckerDemurrageBilling";
+    public const string TruckerWithdrawals = "truckerWithdrawals";
+    public const string EvaluatorAtw = "evaluatorAtw";
+    public const string DepotWithdrawals = "depotWithdrawals";
     public const string TruckerQr = "truckerQr";
     public const string TruckerQrPrint = "truckerQrPrint";
     public const string AdminUsers = "adminUsers";
@@ -39,7 +42,8 @@ public static class RolePageKeys
         AdminReports, DepotReports, EvaluatorReports, TruckerReports,
         DepotDailyReturns, DepotSchedules,
         AdminPayments,
-        TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerQr, TruckerQrPrint,
+        TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
+        EvaluatorAtw, DepotWithdrawals,
         AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue,
     };
 
@@ -98,10 +102,11 @@ public static class RoleCatalogDefaults
         new(
             "Trucker",
             "Trucker",
-            "Creates pre-forecast, manages returns, uploads payment proof, and receives booking QR codes.",
+            "Creates pre-forecast, submits ATW withdrawal requests, manages returns, uploads payment proof, and receives booking QR codes.",
             new[]
             {
                 "Create and submit pre-forecast",
+                "Submit ATW withdrawal requests for repositioning",
                 "Upload container identity photos",
                 "View assigned return schedules",
                 "Upload payment proof",
@@ -113,7 +118,7 @@ public static class RoleCatalogDefaults
             {
                 RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preforecast, RolePageKeys.TruckerReports,
                 RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments, RolePageKeys.TruckerDemurrageBilling,
-                RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
+                RolePageKeys.TruckerWithdrawals, RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
             }),
         new(
             "ShippingLineEvaluator",
@@ -127,7 +132,7 @@ public static class RoleCatalogDefaults
                 "View demurrage billing for expired returns",
                 "View evaluation history",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.EvaluatorReports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.EvaluatorAtw, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.EvaluatorReports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",
@@ -141,7 +146,7 @@ public static class RoleCatalogDefaults
             new[]
             {
                 RolePageKeys.Dashboard, RolePageKeys.Profile,
-                RolePageKeys.DepotDailyReturns, RolePageKeys.DepotSchedules,
+                RolePageKeys.DepotDailyReturns, RolePageKeys.DepotSchedules, RolePageKeys.DepotWithdrawals,
                 RolePageKeys.DepotReports,
             }),
     };
@@ -261,7 +266,8 @@ public static class RoleAllowedPagesJson
     private static bool ShouldMergeCatalogPages(string roleName) =>
         string.Equals(roleName, RoleNames.Administrator, StringComparison.Ordinal)
         || string.Equals(roleName, RoleNames.Trucker, StringComparison.Ordinal)
-        || string.Equals(roleName, RoleNames.ShippingLineEvaluator, StringComparison.Ordinal);
+        || string.Equals(roleName, RoleNames.ShippingLineEvaluator, StringComparison.Ordinal)
+        || string.Equals(roleName, RoleNames.DepotPersonnel, StringComparison.Ordinal);
 
     public static List<string> defaultsPages(string roleName) =>
         RoleCatalogDefaults.Get(roleName)?.AllowedPages.ToList() ?? RolePageKeys.Required.ToList();

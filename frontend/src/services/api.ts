@@ -209,6 +209,142 @@ export const preAdviceApi = {
     api.delete(`/preforecast/${preAdviceId}/documents/${documentId}`),
 }
 
+export interface WithdrawalLookups {
+  shippingLines: { id: number; name: string; code: string }[]
+  containerSizes: { id: number; label: string }[]
+  containerTypes: { id: number; code: string; label: string }[]
+  depots: { id: number; name: string }[]
+}
+
+export interface WithdrawalLine {
+  id: number
+  lineNo: number
+  containerId: number
+  containerNo: string
+  containerSizeId: number
+  containerSize: string
+  containerTypeId: number
+  containerType: string
+  lineStatus: string
+}
+
+export interface Withdrawal {
+  id: number
+  referenceNo: string
+  atwNumber: string
+  truckerId: number
+  truckerName: string
+  shippingLineId: number
+  shippingLineName: string
+  currentDepotId: number
+  currentDepotName: string
+  destination: string
+  issueDate: string
+  expirationDate: string
+  purpose: string
+  status: string
+  remarks?: string | null
+  createdAt: string
+  submittedAt?: string | null
+  hasAtwDocument: boolean
+  reviewRemarks?: string | null
+  containerCount: number
+  containerSummary: string
+  lines: WithdrawalLine[]
+}
+
+export interface EvaluatorAtwLookups {
+  shippingLine: { id: number; name: string; code: string }
+  nextAtwNumber: string
+  truckers: { id: number; name: string; username: string }[]
+  containerSizes: { id: number; label: string }[]
+  containerTypes: { id: number; code: string; label: string }[]
+  depots: { id: number; name: string }[]
+}
+
+export interface WithdrawalDocument {
+  id: number
+  withdrawalRequestId: number
+  documentType: string
+  fileName: string
+  filePath: string
+  contentType: string
+  fileSize: number
+  createdAt: string
+}
+
+export const withdrawalApi = {
+  list: () => api.get<Withdrawal[]>('/withdrawals'),
+  get: (id: number) => api.get<Withdrawal>(`/withdrawals/${id}`),
+  lookups: () => api.get<WithdrawalLookups>('/withdrawals/lookups'),
+  checkDuplicate: (params: {
+    currentDepotId: number
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+    excludeWithdrawalId?: number
+  }) =>
+    api.get<{
+      isDuplicate: boolean
+      referenceNo?: string | null
+      status?: string | null
+      truckerName?: string | null
+    }>('/withdrawals/check-duplicate', { params }),
+  create: (data: {
+    atwNumber: string
+    shippingLineId: number
+    lines: { containerNo: string; containerSizeId: number; containerTypeId: number }[]
+    currentDepotId: number
+    destination: string
+    issueDate: string
+    expirationDate: string
+    remarks?: string
+  }) => api.post<Withdrawal>('/withdrawals', data),
+  update: (
+    id: number,
+    data: {
+      atwNumber: string
+      shippingLineId: number
+      lines: { containerNo: string; containerSizeId: number; containerTypeId: number }[]
+      currentDepotId: number
+      destination: string
+      issueDate: string
+      expirationDate: string
+      remarks?: string
+    },
+  ) => api.put<Withdrawal>(`/withdrawals/${id}`, data),
+  submit: (id: number) => api.post<Withdrawal>(`/withdrawals/${id}/submit`),
+  documents: (id: number) => api.get<WithdrawalDocument[]>(`/withdrawals/${id}/documents`),
+  uploadDocument: (id: number, file: File, documentType = 'AtwCertificate') => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('documentType', documentType)
+    return api.post<WithdrawalDocument>(`/withdrawals/${id}/documents`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deleteDocument: (withdrawalId: number, documentId: number) =>
+    api.delete(`/withdrawals/${withdrawalId}/documents/${documentId}`),
+  pendingReviewCount: () => api.get<{ count: number }>('/withdrawals/pending-review/count'),
+  pendingActionCount: () => api.get<{ count: number }>('/withdrawals/pending-action/count'),
+  evaluatorLookups: () => api.get<EvaluatorAtwLookups>('/withdrawals/evaluator-lookups'),
+  issue: (data: {
+    atwNumber?: string | null
+    authorizedTruckerId: number
+    lines: { containerNo: string; containerSizeId: number; containerTypeId: number }[]
+    currentDepotId: number
+    destination: string
+    issueDate: string
+    expirationDate: string
+    remarks?: string
+  }) => api.post<Withdrawal>('/withdrawals/issue', data),
+  approve: (id: number, remarks?: string) =>
+    api.post<Withdrawal>(`/withdrawals/${id}/approve`, { remarks: remarks ?? null }),
+  reject: (id: number, remarks: string) =>
+    api.post<Withdrawal>(`/withdrawals/${id}/reject`, { remarks }),
+  release: (id: number) => api.post<Withdrawal>(`/withdrawals/${id}/release`),
+}
+
 export interface PreAdviceDocument {
   id: number
   preAdviceId: number

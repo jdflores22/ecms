@@ -18,6 +18,9 @@ export type AppPageKey =
   | 'truckerReturns'
   | 'truckerPayments'
   | 'truckerDemurrageBilling'
+  | 'truckerWithdrawals'
+  | 'evaluatorAtw'
+  | 'depotWithdrawals'
   | 'truckerQr'
   | 'truckerQrPrint'
   | 'adminUsers'
@@ -175,6 +178,30 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Settle demurrage and detention before new pre-forecast',
     showInNav: true,
   },
+  truckerWithdrawals: {
+    key: 'truckerWithdrawals',
+    label: 'My withdrawals',
+    path: '/trucker/withdrawals',
+    group: 'Trucker',
+    description: 'Submit ATW-backed container withdrawal requests for repositioning',
+    showInNav: true,
+  },
+  evaluatorAtw: {
+    key: 'evaluatorAtw',
+    label: 'Issue ATW',
+    path: '/evaluations/atw',
+    group: 'Evaluation',
+    description: 'Issue Authority to Withdraw for authorized truckers',
+    showInNav: true,
+  },
+  depotWithdrawals: {
+    key: 'depotWithdrawals',
+    label: 'CY withdrawals',
+    path: '/depot/withdrawals',
+    group: 'Depot',
+    description: 'Review and approve container withdrawal requests at your CY',
+    showInNav: true,
+  },
   truckerQr: {
     key: 'truckerQr',
     label: 'Pre-forecast QR',
@@ -263,6 +290,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'dashboard',
     'profile',
     'evaluations',
+    'evaluatorAtw',
     'cyAllocation',
     'containerInventory',
     'demurrageBilling',
@@ -273,6 +301,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'profile',
     'depotDailyReturns',
     'depotSchedules',
+    'depotWithdrawals',
     'depotReports',
   ],
   Trucker: [
@@ -283,6 +312,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'truckerReturns',
     'truckerPayments',
     'truckerDemurrageBilling',
+    'truckerWithdrawals',
     'truckerQr',
     'truckerQrPrint',
   ],
@@ -296,10 +326,13 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'truckerReturns',
   'truckerReports',
   'truckerQr',
+  'truckerWithdrawals',
+  'evaluatorAtw',
   'evaluatorReports',
   'depotReports',
   'depotDailyReturns',
   'depotSchedules',
+  'depotWithdrawals',
   'adminReports',
   'adminPayments',
   'adminUsers',
@@ -457,6 +490,8 @@ export const PAGE_GROUPS_ORDER: PageGroup[] = [
 export const NAV_PAGE_ORDER: AppPageKey[] = [
   'dashboard',
   'preforecast',
+  'truckerWithdrawals',
+  'evaluatorAtw',
   'evaluatorReports',
   'depotReports',
   'truckerReports',
@@ -474,6 +509,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'adminVersion',
   'depotDailyReturns',
   'depotSchedules',
+  'depotWithdrawals',
   'truckerReturns',
   'truckerPayments',
   'truckerDemurrageBilling',

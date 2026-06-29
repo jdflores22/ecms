@@ -14,16 +14,24 @@ import EvaluationDetailPage from './pages/evaluations/EvaluationDetailPage'
 import ContainerInventoryPage from './pages/evaluations/ContainerInventoryPage'
 import EvaluatorDemurrageBillingPage from './pages/evaluations/DemurrageBillingPage'
 import DemurrageBillingDetailPage from './pages/demurrage/DemurrageBillingDetailPage'
-import CyAllocationPage from './pages/evaluations/CyAllocationPage'
+import AtwPage from './pages/evaluations/AtwPage'
+import AtwNewPage from './pages/evaluations/AtwNewPage'
+import AtwDetailPage from './pages/evaluations/AtwDetailPage'
 import DailyReturnsPage from './pages/depot/DailyReturnsPage'
 import DepotSchedulesPage from './pages/depot/SchedulesPage'
 import ScheduleDetailPage from './pages/depot/ScheduleDetailPage'
+import CyAllocationPage from './pages/evaluations/CyAllocationPage'
+import DepotWithdrawalsPage from './pages/depot/WithdrawalsPage'
+import DepotWithdrawalDetailPage from './pages/depot/WithdrawalDetailPage'
 import AdminPaymentsPage from './pages/admin/PaymentsPage'
 import TruckerReturnsPage from './pages/trucker/ReturnsPage'
 import TruckerReturnDetailPage from './pages/trucker/ReturnDetailPage'
 import TruckerPaymentsPage from './pages/trucker/PaymentsPage'
 import TruckerPaymentUploadPage from './pages/trucker/PaymentUploadPage'
 import TruckerDemurrageBillingPage from './pages/trucker/DemurrageBillingPage'
+import TruckerWithdrawalsPage from './pages/trucker/WithdrawalsPage'
+import WithdrawalNewPage from './pages/trucker/WithdrawalNewPage'
+import WithdrawalDetailPage from './pages/trucker/WithdrawalDetailPage'
 import TruckerQrPage from './pages/trucker/QrPage'
 import QrPrintPage from './pages/trucker/QrPrintPage'
 import AdminUsersPage from './pages/admin/UsersPage'
@@ -158,6 +166,30 @@ export default function App() {
           }
         />
         <Route
+          path="evaluations/atw/new"
+          element={
+            <RoleRouteGuard>
+              <AtwNewPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/atw/:id"
+          element={
+            <RoleRouteGuard>
+              <AtwDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/atw"
+          element={
+            <RoleRouteGuard>
+              <AtwPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
           path="evaluations/cy-allocation"
           element={
             <RoleRouteGuard>
@@ -178,6 +210,22 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <RoleReportsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/withdrawals/:id"
+          element={
+            <RoleRouteGuard>
+              <DepotWithdrawalDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/withdrawals"
+          element={
+            <RoleRouteGuard>
+              <DepotWithdrawalsPage />
             </RoleRouteGuard>
           }
         />
@@ -267,6 +315,30 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <TruckerDemurrageBillingPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/withdrawals/new"
+          element={
+            <RoleRouteGuard>
+              <WithdrawalNewPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/withdrawals/:id"
+          element={
+            <RoleRouteGuard>
+              <WithdrawalDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/withdrawals"
+          element={
+            <RoleRouteGuard>
+              <TruckerWithdrawalsPage />
             </RoleRouteGuard>
           }
         />

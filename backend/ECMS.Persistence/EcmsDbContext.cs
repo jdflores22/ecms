@@ -30,6 +30,9 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
     public DbSet<DemurrageBilling> DemurrageBillingsSet => Set<DemurrageBilling>();
     public DbSet<DemurrageBillingFeeLine> DemurrageBillingFeeLinesSet => Set<DemurrageBillingFeeLine>();
+    public DbSet<WithdrawalRequest> WithdrawalRequestsSet => Set<WithdrawalRequest>();
+    public DbSet<WithdrawalRequestLine> WithdrawalRequestLinesSet => Set<WithdrawalRequestLine>();
+    public DbSet<WithdrawalDocument> WithdrawalDocumentsSet => Set<WithdrawalDocument>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -53,6 +56,9 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
     IQueryable<DemurrageBilling> IEcmsDbContext.DemurrageBillings => DemurrageBillingsSet;
     IQueryable<DemurrageBillingFeeLine> IEcmsDbContext.DemurrageBillingFeeLines => DemurrageBillingFeeLinesSet;
+    IQueryable<WithdrawalRequest> IEcmsDbContext.WithdrawalRequests => WithdrawalRequestsSet;
+    IQueryable<WithdrawalRequestLine> IEcmsDbContext.WithdrawalRequestLines => WithdrawalRequestLinesSet;
+    IQueryable<WithdrawalDocument> IEcmsDbContext.WithdrawalDocuments => WithdrawalDocumentsSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -232,6 +238,41 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
                 .WithMany(x => x.FeeLines)
                 .HasForeignKey(x => x.DemurrageBillingId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WithdrawalRequest>(e =>
+        {
+            e.HasIndex(x => x.ReferenceNo).IsUnique();
+            e.HasIndex(x => new { x.TruckerId, x.CreatedAt });
+            e.HasIndex(x => new { x.CurrentDepotId, x.Status });
+            e.Property(x => x.AtwNumber).HasMaxLength(128);
+            e.Property(x => x.Destination).HasMaxLength(512);
+            e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId);
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
+            e.HasOne(x => x.CurrentDepot).WithMany().HasForeignKey(x => x.CurrentDepotId);
+        });
+
+        modelBuilder.Entity<WithdrawalRequestLine>(e =>
+        {
+            e.HasIndex(x => x.ActiveRequestKey).IsUnique();
+            e.HasIndex(x => new { x.ContainerNoNormalized, x.ContainerSizeId, x.ContainerTypeId });
+            e.HasIndex(x => new { x.WithdrawalRequestId, x.LineNo }).IsUnique();
+            e.Property(x => x.ContainerNoNormalized).HasMaxLength(255);
+            e.Property(x => x.ActiveRequestKey).HasMaxLength(255);
+            e.HasOne(x => x.WithdrawalRequest).WithMany(x => x.Lines).HasForeignKey(x => x.WithdrawalRequestId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Container).WithMany().HasForeignKey(x => x.ContainerId);
+            e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
+            e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
+        });
+
+        modelBuilder.Entity<WithdrawalDocument>(e =>
+        {
+            e.HasIndex(x => new { x.WithdrawalRequestId, x.DocumentType });
+            e.Property(x => x.FileName).HasMaxLength(512);
+            e.Property(x => x.FilePath).HasMaxLength(512);
+            e.Property(x => x.ContentType).HasMaxLength(128);
+            e.HasOne(x => x.WithdrawalRequest).WithMany(x => x.Documents).HasForeignKey(x => x.WithdrawalRequestId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedById);
         });
     }
 }
