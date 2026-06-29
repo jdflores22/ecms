@@ -3,6 +3,9 @@
 # Usage:
 #   .\scripts\migrate-production-mysql.ps1
 #   .\scripts\migrate-production-mysql.ps1 -SeedFromLocal
+#
+# Requires backend/ECMS.API/.env.production (copy from .env.production.example).
+# Migrations use EcmsDbContextFactory and do NOT require the full API to start.
 
 param(
     [switch]$SeedFromLocal
@@ -33,6 +36,48 @@ function Read-EnvFile([string]$path) {
     return $vars
 }
 
+function Apply-EnvToProcess([hashtable]$vars) {
+    foreach ($entry in $vars.GetEnumerator()) {
+        if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($entry.Key))) {
+            [Environment]::SetEnvironmentVariable($entry.Key, [string]$entry.Value, "Process")
+        }
+    }
+
+    if ([string]::IsNullOrEmpty($env:LOGICTECK_API_KEY) -and $vars["Logicteck__ApiKey"]) {
+        $env:LOGICTECK_API_KEY = $vars["Logicteck__ApiKey"]
+    }
+    if ([string]::IsNullOrEmpty($env:Jwt__Key) -and $vars["JWT_KEY"]) {
+        $env:Jwt__Key = $vars["JWT_KEY"]
+    }
+}
+
+function Parse-MySqlClientConfig([string]$connectionString, [hashtable]$vars) {
+    if ($vars["MYSQL_HOST"]) {
+        return @{
+            Host     = $vars["MYSQL_HOST"]
+            Port     = if ($vars["MYSQL_PORT"]) { $vars["MYSQL_PORT"] } else { "3306" }
+            User     = $vars["MYSQL_USER"]
+            Password = $vars["MYSQL_PASSWORD"]
+            Database = $vars["MYSQL_DATABASE"]
+        }
+    }
+
+    $map = @{}
+    foreach ($part in ($connectionString -split ';')) {
+        if ($part -match '^\s*(.+?)=(.*)$') {
+            $map[$Matches[1].Trim().ToLowerInvariant()] = $Matches[2].Trim()
+        }
+    }
+
+    return @{
+        Host     = $(if ($map.ContainsKey("server")) { $map["server"] } elseif ($map.ContainsKey("host")) { $map["host"] } else { "" })
+        Port     = if ($map.ContainsKey("port")) { $map["port"] } else { "3306" }
+        User     = $(if ($map.ContainsKey("user")) { $map["user"] } elseif ($map.ContainsKey("userid")) { $map["userid"] } else { "" })
+        Password = if ($map.ContainsKey("password")) { $map["password"] } else { "" }
+        Database = if ($map.ContainsKey("database")) { $map["database"] } else { "" }
+    }
+}
+
 function New-MySqlDefaultsFile([hashtable]$cfg) {
     $path = Join-Path $env:TEMP "ecms-mysql-$(Get-Random).cnf"
     @"
@@ -48,10 +93,12 @@ database=$($cfg.Database)
 
 if (-not (Test-Path $envFile)) {
     Write-Host "Missing $envFile" -ForegroundColor Red
+    Write-Host "Copy backend/ECMS.API/.env.production.example to .env.production and fill in Hostinger MySQL + JWT_KEY + Logicteck__ApiKey." -ForegroundColor Yellow
     exit 1
 }
 
 $envVars = Read-EnvFile $envFile
+Apply-EnvToProcess $envVars
 
 if ($envVars["ConnectionStrings__DefaultConnection"]) {
     $conn = $envVars["ConnectionStrings__DefaultConnection"]
@@ -69,21 +116,9 @@ if ($envVars["ConnectionStrings__DefaultConnection"]) {
     $conn = "Server=$($envVars['MYSQL_HOST']);Port=$port;Database=$($envVars['MYSQL_DATABASE']);User=$($envVars['MYSQL_USER']);Password=$pwd;SslMode=Required;"
 }
 
-if ($envVars["JWT_KEY"]) {
-    $env:Jwt__Key = $envVars["JWT_KEY"]
-}
-
 $env:ConnectionStrings__DefaultConnection = $conn
-$env:ASPNETCORE_ENVIRONMENT = "Production"
 
-$port = if ($envVars["MYSQL_PORT"]) { $envVars["MYSQL_PORT"] } else { "3306" }
-$clientCfg = @{
-    Host     = $envVars["MYSQL_HOST"]
-    Port     = $port
-    User     = $envVars["MYSQL_USER"]
-    Password = $envVars["MYSQL_PASSWORD"]
-    Database = $envVars["MYSQL_DATABASE"]
-}
+$clientCfg = Parse-MySqlClientConfig $conn $envVars
 
 Write-Host "Testing MySQL connection to $($clientCfg.Host)..." -ForegroundColor Cyan
 if (Test-Path $mysql) {
@@ -95,11 +130,9 @@ if (Test-Path $mysql) {
             if ($mysqlOut) { Write-Host $mysqlOut -ForegroundColor Red }
             Write-Host ""
             Write-Host "If you see Access denied:" -ForegroundColor Yellow
-            Write-Host "  1. hPanel -> Databases -> your DB -> reset MySQL user password, update .env.production (quote password if it contains #)" -ForegroundColor Yellow
-            Write-Host "  2. hPanel -> Remote MySQL -> add your public IP (current connection from your PC must be allowed)" -ForegroundColor Yellow
-            Write-Host "  3. phpMyAdmin uses the same username/password: https://h5g5-db.hstgr.io/" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "Alternative: import scripts/ecms-schema.sql via phpMyAdmin -> Import tab." -ForegroundColor Cyan
+            Write-Host "  1. hPanel -> Databases -> reset MySQL password, update .env.production (quote password if it contains #)" -ForegroundColor Yellow
+            Write-Host "  2. hPanel -> Remote MySQL -> add your public IP" -ForegroundColor Yellow
+            Write-Host "  3. Or import scripts/withdrawal-migrations-idempotent.sql via phpMyAdmin: https://h5g5-db.hstgr.io/" -ForegroundColor Yellow
             exit 1
         }
         Write-Host "MySQL connection OK." -ForegroundColor Green
@@ -110,7 +143,7 @@ if (Test-Path $mysql) {
     Write-Host "XAMPP mysql.exe not found - skipping connection test." -ForegroundColor DarkYellow
 }
 
-Write-Host "Applying EF Core migrations (Production)..." -ForegroundColor Cyan
+Write-Host "Applying EF Core migrations..." -ForegroundColor Cyan
 Push-Location (Join-Path $root "backend")
 dotnet ef database update --project ECMS.Persistence --startup-project ECMS.API
 $migrateExit = $LASTEXITCODE
@@ -118,6 +151,7 @@ Pop-Location
 
 if ($migrateExit -ne 0) {
     Write-Host "Migration failed." -ForegroundColor Red
+    Write-Host "Fallback: import scripts/withdrawal-migrations-idempotent.sql in phpMyAdmin." -ForegroundColor Yellow
     exit $migrateExit
 }
 
@@ -147,8 +181,8 @@ if ($SeedFromLocal) {
     }
 } else {
     Write-Host ""
-    Write-Host "Schema only. Demo data is created when the API starts with empty tables." -ForegroundColor DarkGray
+    Write-Host "Schema only. Role/page seed sync runs when the production API starts." -ForegroundColor DarkGray
 }
 
 Write-Host ""
-Write-Host "Next: deploy the API with ASPNETCORE_ENVIRONMENT=Production." -ForegroundColor Cyan
+Write-Host "Next: redeploy Railway (git push) or restart the API so seed sync runs." -ForegroundColor Cyan

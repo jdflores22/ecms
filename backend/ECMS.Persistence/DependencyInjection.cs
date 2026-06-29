@@ -35,7 +35,17 @@ public class DbSeeder
 
     public async Task SeedAsync()
     {
-        await _context.Database.MigrateAsync();
+        try
+        {
+            await _context.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Database migration failed: {ex.Message}. " +
+                "Run .\\scripts\\migrate-production-mysql.ps1 from your PC or import scripts/withdrawal-migrations-idempotent.sql via phpMyAdmin.",
+                ex);
+        }
 
         if (!await _context.RolesSet.AnyAsync())
         {

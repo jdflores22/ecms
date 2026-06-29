@@ -15,6 +15,8 @@ using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
+EnvFileLoader.LoadProductionEnvIfPresent(builder.Environment);
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -38,6 +40,9 @@ if (!string.IsNullOrWhiteSpace(mysqlHost))
     };
     connectionString = csb.ConnectionString;
 }
+
+if (string.IsNullOrWhiteSpace(connectionString))
+    connectionString = DatabaseConnection.Resolve();
 
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Set ConnectionStrings__DefaultConnection or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER/MYSQL_PASSWORD.");
