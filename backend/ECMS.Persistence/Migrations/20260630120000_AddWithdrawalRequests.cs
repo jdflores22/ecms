@@ -142,7 +142,7 @@ public partial class AddWithdrawalRequests : Migration
             column: "ContainerId");
 
         migrationBuilder.CreateIndex(
-            name: "IX_WithdrawalRequestsSet_ContainerNoNormalized_ContainerSizeId_ContainerTypeId",
+            name: "IX_WR_ContainerNo_Size_Type",
             table: "WithdrawalRequestsSet",
             columns: new[] { "ContainerNoNormalized", "ContainerSizeId", "ContainerTypeId" });
 
