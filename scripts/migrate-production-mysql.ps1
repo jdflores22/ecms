@@ -8,7 +8,8 @@
 # Migrations use EcmsDbContextFactory and do NOT require the full API to start.
 
 param(
-    [switch]$SeedFromLocal
+    [switch]$SeedFromLocal,
+    [switch]$SkipConnectionTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -121,27 +122,41 @@ $env:ConnectionStrings__DefaultConnection = $conn
 $clientCfg = Parse-MySqlClientConfig $conn $envVars
 
 Write-Host "Testing MySQL connection to $($clientCfg.Host)..." -ForegroundColor Cyan
-if (Test-Path $mysql) {
+$connectionOk = $false
+if ($SkipConnectionTest) {
+    Write-Host "Skipping connection test (-SkipConnectionTest)." -ForegroundColor DarkYellow
+    $connectionOk = $true
+} elseif (Test-Path $mysql) {
     $cnf = New-MySqlDefaultsFile $clientCfg
     try {
         $mysqlOut = & $mysql --defaults-extra-file=$cnf -e "SELECT 1 AS ok;" 2>&1
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "Cannot connect to Hostinger MySQL." -ForegroundColor Red
+            Write-Host "Cannot connect to Hostinger MySQL from this PC." -ForegroundColor Red
             if ($mysqlOut) { Write-Host $mysqlOut -ForegroundColor Red }
             Write-Host ""
-            Write-Host "If you see Access denied:" -ForegroundColor Yellow
-            Write-Host "  1. hPanel -> Databases -> reset MySQL password, update .env.production (quote password if it contains #)" -ForegroundColor Yellow
-            Write-Host "  2. hPanel -> Remote MySQL -> add your public IP" -ForegroundColor Yellow
-            Write-Host "  3. Or import scripts/withdrawal-migrations-idempotent.sql via phpMyAdmin: https://h5g5-db.hstgr.io/" -ForegroundColor Yellow
+            Write-Host "ERROR 1045 usually means one of:" -ForegroundColor Yellow
+            Write-Host "  1. MYSQL_PASSWORD in .env.production does not match hPanel (copy from Railway ConnectionStrings__DefaultConnection)" -ForegroundColor Yellow
+            Write-Host "  2. Your public IP is not in hPanel -> Remote MySQL (current block is common on Hostinger)" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Recommended (no Remote MySQL needed):" -ForegroundColor Cyan
+            Write-Host "  `$env:HOSTINGER_SSH_PASSWORD = 'your-ssh-password'" -ForegroundColor White
+            Write-Host "  .\scripts\migrate-production-via-ssh.ps1" -ForegroundColor White
+            Write-Host ""
+            Write-Host "Or phpMyAdmin -> Import -> scripts\withdrawal-migrations-idempotent.sql" -ForegroundColor Cyan
+            Write-Host "  https://h5g5-db.hstgr.io/" -ForegroundColor DarkGray
             exit 1
         }
         Write-Host "MySQL connection OK." -ForegroundColor Green
+        $connectionOk = $true
     } finally {
         Remove-Item $cnf -Force -ErrorAction SilentlyContinue
     }
 } else {
     Write-Host "XAMPP mysql.exe not found - skipping connection test." -ForegroundColor DarkYellow
+    $connectionOk = $true
 }
+
+if (-not $connectionOk) { exit 1 }
 
 Write-Host "Applying EF Core migrations..." -ForegroundColor Cyan
 Push-Location (Join-Path $root "backend")
