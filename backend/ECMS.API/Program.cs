@@ -179,26 +179,46 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 
+if (app.Environment.IsProduction())
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+        await seeder.SeedAsync();
+        startupLogger.LogInformation("Database migrate/seed completed.");
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogCritical(
+            ex,
+            "Database migrate/seed failed. Verify ConnectionStrings__DefaultConnection in Railway Variables (password with # must be pasted exactly).");
+        throw;
+    }
+}
+
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
     {
         try
         {
-            using var scope = app.Services.CreateScope();
-            var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
-            await seeder.SeedAsync();
-            startupLogger.LogInformation("Database migrate/seed completed.");
+            if (!app.Environment.IsProduction())
+            {
+                using var scope = app.Services.CreateScope();
+                var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+                await seeder.SeedAsync();
+                startupLogger.LogInformation("Database migrate/seed completed.");
+            }
 
-            var demurrageBilling = scope.ServiceProvider.GetRequiredService<IDemurrageBillingService>();
+            using var billingScope = app.Services.CreateScope();
+            var demurrageBilling = billingScope.ServiceProvider.GetRequiredService<IDemurrageBillingService>();
             await demurrageBilling.SyncExpiredBillingsAsync();
             startupLogger.LogInformation("Demurrage billing sync completed.");
         }
         catch (Exception ex)
         {
-            startupLogger.LogCritical(
-                ex,
-                "Database migrate/seed failed. Verify ConnectionStrings__DefaultConnection in Railway Variables (password with # must be pasted exactly).");
+            startupLogger.LogCritical(ex, "Background startup task failed.");
         }
     });
 });
