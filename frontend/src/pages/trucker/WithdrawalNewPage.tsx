@@ -72,7 +72,7 @@ export default function WithdrawalNewPage() {
           color: '#fff',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: 'flex-start' }}>
           <Box
             sx={{
               width: 48,

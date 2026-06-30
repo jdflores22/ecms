@@ -23,6 +23,17 @@ import {
   Typography,
 } from '@mui/material'
 import CyContractsMasterTab from '../../components/admin/CyContractsMasterTab'
+import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+  listMobileActionsSx,
+  listPageRootSx,
+  listTablePaperSx,
+} from '../../components/layout/ListPagePrimitives'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -393,7 +404,7 @@ export default function MasterDataPage() {
     ) : null
 
   return (
-    <Box>
+    <Box sx={listPageRootSx}>
       <Paper
         elevation={0}
         sx={{
@@ -493,6 +504,9 @@ export default function MasterDataPage() {
           <Tabs
             value={tab}
             onChange={(_, v) => setTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{
               minHeight: 48,
               '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
@@ -512,291 +526,456 @@ export default function MasterDataPage() {
       </Paper>
 
       {tab === 0 && (
-        <Paper elevation={0} sx={tablePaperSx}>
+        <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
               <CircularProgress sx={{ color: primaryDark }} />
             </Box>
+          ) : lines.length === 0 ? (
+            <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+              No shipping lines.
+            </Typography>
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={tableHeadSx}>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Code</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {lines.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        No shipping lines.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    lines.map((line) => (
-                      <TableRow key={line.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{line.name}</TableCell>
-                        <TableCell>
-                          <Chip label={line.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={line.isActive ? 'Active' : 'Inactive'}
-                            color={line.isActive ? 'success' : 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<EditOutlinedIcon />}
-                            onClick={() => openEditLine(line)}
-                            sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
-                          >
-                            Edit
-                          </Button>
-                          {line.isActive && (
+            <>
+              <ListMobileOnly>
+                {lines.map((line) => (
+                  <ListMobileCard key={line.id}>
+                    <ListMobileTitle>{line.name}</ListMobileTitle>
+                    <ListMobileChipRow>
+                      <Chip label={line.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                      <Chip
+                        label={line.isActive ? 'Active' : 'Inactive'}
+                        color={line.isActive ? 'success' : 'default'}
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </ListMobileChipRow>
+                    <Box sx={listMobileActionsSx}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditOutlinedIcon />}
+                        onClick={() => openEditLine(line)}
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                      >
+                        Edit
+                      </Button>
+                      {line.isActive && (
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          onClick={() => deactivateLine(line)}
+                          sx={{ fontWeight: 600, borderRadius: 2 }}
+                        >
+                          Deactivate
+                        </Button>
+                      )}
+                    </Box>
+                  </ListMobileCard>
+                ))}
+              </ListMobileOnly>
+
+              <ListDesktopOnly>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={tableHeadSx}>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Code</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {lines.map((line) => (
+                        <TableRow key={line.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{line.name}</TableCell>
+                          <TableCell>
+                            <Chip label={line.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={line.isActive ? 'Active' : 'Inactive'}
+                              color={line.isActive ? 'success' : 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
                             <Button
                               size="small"
-                              color="error"
                               variant="outlined"
-                              onClick={() => deactivateLine(line)}
-                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                              startIcon={<EditOutlinedIcon />}
+                              onClick={() => openEditLine(line)}
+                              sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
                             >
-                              Deactivate
+                              Edit
                             </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            {line.isActive && (
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => deactivateLine(line)}
+                                sx={{ fontWeight: 600, borderRadius: 2 }}
+                              >
+                                Deactivate
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </ListDesktopOnly>
+            </>
           )}
         </Paper>
       )}
 
       {tab === 1 && (
-        <Paper elevation={0} sx={tablePaperSx}>
+        <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
               <CircularProgress sx={{ color: primaryDark }} />
             </Box>
+          ) : depots.length === 0 ? (
+            <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+              No depots.
+            </Typography>
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={tableHeadSx}>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Address</TableCell>
-                    <TableCell align="right">Capacity</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {depots.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        No depots.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    depots.map((depot) => (
-                      <TableRow key={depot.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{depot.name}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {depot.address || '—'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">{depot.capacity}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={depot.isActive ? 'Active' : 'Inactive'}
-                            color={depot.isActive ? 'success' : 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<EditOutlinedIcon />}
-                            onClick={() => openEditDepot(depot)}
-                            sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
-                          >
-                            Edit
-                          </Button>
-                          {depot.isActive && (
+            <>
+              <ListMobileOnly>
+                {depots.map((depot) => (
+                  <ListMobileCard key={depot.id}>
+                    <ListMobileTitle>{depot.name}</ListMobileTitle>
+                    <ListMobileMeta>{depot.address || '—'}</ListMobileMeta>
+                    <ListMobileChipRow>
+                      <Chip
+                        label={`Capacity: ${depot.capacity}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 600 }}
+                      />
+                      <Chip
+                        label={depot.isActive ? 'Active' : 'Inactive'}
+                        color={depot.isActive ? 'success' : 'default'}
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </ListMobileChipRow>
+                    <Box sx={listMobileActionsSx}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditOutlinedIcon />}
+                        onClick={() => openEditDepot(depot)}
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                      >
+                        Edit
+                      </Button>
+                      {depot.isActive && (
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          onClick={() => deactivateDepot(depot)}
+                          sx={{ fontWeight: 600, borderRadius: 2 }}
+                        >
+                          Deactivate
+                        </Button>
+                      )}
+                    </Box>
+                  </ListMobileCard>
+                ))}
+              </ListMobileOnly>
+
+              <ListDesktopOnly>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={tableHeadSx}>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Address</TableCell>
+                        <TableCell align="right">Capacity</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {depots.map((depot) => (
+                        <TableRow key={depot.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{depot.name}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {depot.address || '—'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">{depot.capacity}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={depot.isActive ? 'Active' : 'Inactive'}
+                              color={depot.isActive ? 'success' : 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
                             <Button
                               size="small"
-                              color="error"
                               variant="outlined"
-                              onClick={() => deactivateDepot(depot)}
-                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                              startIcon={<EditOutlinedIcon />}
+                              onClick={() => openEditDepot(depot)}
+                              sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
                             >
-                              Deactivate
+                              Edit
                             </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            {depot.isActive && (
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => deactivateDepot(depot)}
+                                sx={{ fontWeight: 600, borderRadius: 2 }}
+                              >
+                                Deactivate
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </ListDesktopOnly>
+            </>
           )}
         </Paper>
       )}
 
       {tab === 2 && (
-        <Paper elevation={0} sx={tablePaperSx}>
+        <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
               <CircularProgress sx={{ color: primaryDark }} />
             </Box>
+          ) : containerSizes.length === 0 ? (
+            <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+              No container sizes.
+            </Typography>
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={tableHeadSx}>
-                    <TableCell>Size (ft)</TableCell>
-                    <TableCell align="right">TEU</TableCell>
-                    <TableCell>Sort order</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {containerSizes.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        No container sizes.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    containerSizes.map((size) => (
-                      <TableRow key={size.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{size.label}&apos;</TableCell>
-                        <TableCell align="right">{size.teu.toFixed(1)}</TableCell>
-                        <TableCell>{size.sortOrder}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={size.isActive ? 'Active' : 'Inactive'}
-                            color={size.isActive ? 'success' : 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<EditOutlinedIcon />}
-                            onClick={() => openEditSize(size)}
-                            sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
-                          >
-                            Edit
-                          </Button>
-                          {size.isActive && (
+            <>
+              <ListMobileOnly>
+                {containerSizes.map((size) => (
+                  <ListMobileCard key={size.id}>
+                    <ListMobileTitle>{size.label}&apos;</ListMobileTitle>
+                    <ListMobileMeta>
+                      TEU: {size.teu.toFixed(1)} · Sort order: {size.sortOrder}
+                    </ListMobileMeta>
+                    <ListMobileChipRow>
+                      <Chip
+                        label={size.isActive ? 'Active' : 'Inactive'}
+                        color={size.isActive ? 'success' : 'default'}
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </ListMobileChipRow>
+                    <Box sx={listMobileActionsSx}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditOutlinedIcon />}
+                        onClick={() => openEditSize(size)}
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                      >
+                        Edit
+                      </Button>
+                      {size.isActive && (
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          onClick={() => deactivateSize(size)}
+                          sx={{ fontWeight: 600, borderRadius: 2 }}
+                        >
+                          Deactivate
+                        </Button>
+                      )}
+                    </Box>
+                  </ListMobileCard>
+                ))}
+              </ListMobileOnly>
+
+              <ListDesktopOnly>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={tableHeadSx}>
+                        <TableCell>Size (ft)</TableCell>
+                        <TableCell align="right">TEU</TableCell>
+                        <TableCell>Sort order</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {containerSizes.map((size) => (
+                        <TableRow key={size.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{size.label}&apos;</TableCell>
+                          <TableCell align="right">{size.teu.toFixed(1)}</TableCell>
+                          <TableCell>{size.sortOrder}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={size.isActive ? 'Active' : 'Inactive'}
+                              color={size.isActive ? 'success' : 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
                             <Button
                               size="small"
-                              color="error"
                               variant="outlined"
-                              onClick={() => deactivateSize(size)}
-                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                              startIcon={<EditOutlinedIcon />}
+                              onClick={() => openEditSize(size)}
+                              sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
                             >
-                              Deactivate
+                              Edit
                             </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            {size.isActive && (
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => deactivateSize(size)}
+                                sx={{ fontWeight: 600, borderRadius: 2 }}
+                              >
+                                Deactivate
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </ListDesktopOnly>
+            </>
           )}
         </Paper>
       )}
 
       {tab === 3 && (
-        <Paper elevation={0} sx={tablePaperSx}>
+        <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
               <CircularProgress sx={{ color: primaryDark }} />
             </Box>
+          ) : containerTypes.length === 0 ? (
+            <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+              No container types.
+            </Typography>
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={tableHeadSx}>
-                    <TableCell>Code</TableCell>
-                    <TableCell>Label</TableCell>
-                    <TableCell>Sort order</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {containerTypes.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        No container types.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    containerTypes.map((type) => (
-                      <TableRow key={type.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell>
-                          <Chip label={type.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{type.label}</TableCell>
-                        <TableCell>{type.sortOrder}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={type.isActive ? 'Active' : 'Inactive'}
-                            color={type.isActive ? 'success' : 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<EditOutlinedIcon />}
-                            onClick={() => openEditType(type)}
-                            sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
-                          >
-                            Edit
-                          </Button>
-                          {type.isActive && (
+            <>
+              <ListMobileOnly>
+                {containerTypes.map((type) => (
+                  <ListMobileCard key={type.id}>
+                    <ListMobileTitle>{type.label}</ListMobileTitle>
+                    <ListMobileChipRow>
+                      <Chip label={type.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                      <Chip
+                        label={type.isActive ? 'Active' : 'Inactive'}
+                        color={type.isActive ? 'success' : 'default'}
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </ListMobileChipRow>
+                    <ListMobileMeta>Sort order: {type.sortOrder}</ListMobileMeta>
+                    <Box sx={listMobileActionsSx}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditOutlinedIcon />}
+                        onClick={() => openEditType(type)}
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                      >
+                        Edit
+                      </Button>
+                      {type.isActive && (
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          onClick={() => deactivateType(type)}
+                          sx={{ fontWeight: 600, borderRadius: 2 }}
+                        >
+                          Deactivate
+                        </Button>
+                      )}
+                    </Box>
+                  </ListMobileCard>
+                ))}
+              </ListMobileOnly>
+
+              <ListDesktopOnly>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={tableHeadSx}>
+                        <TableCell>Code</TableCell>
+                        <TableCell>Label</TableCell>
+                        <TableCell>Sort order</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {containerTypes.map((type) => (
+                        <TableRow key={type.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                          <TableCell>
+                            <Chip label={type.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{type.label}</TableCell>
+                          <TableCell>{type.sortOrder}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={type.isActive ? 'Active' : 'Inactive'}
+                              color={type.isActive ? 'success' : 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
                             <Button
                               size="small"
-                              color="error"
                               variant="outlined"
-                              onClick={() => deactivateType(type)}
-                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                              startIcon={<EditOutlinedIcon />}
+                              onClick={() => openEditType(type)}
+                              sx={{ fontWeight: 600, borderRadius: 2, mr: 0.5 }}
                             >
-                              Deactivate
+                              Edit
                             </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            {type.isActive && (
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => deactivateType(type)}
+                                sx={{ fontWeight: 600, borderRadius: 2 }}
+                              >
+                                Deactivate
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </ListDesktopOnly>
+            </>
           )}
         </Paper>
       )}

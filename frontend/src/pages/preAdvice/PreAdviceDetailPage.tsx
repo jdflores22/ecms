@@ -45,6 +45,7 @@ import {
   heroMutedChipSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
+import { listMobileActionsSx } from '../../components/layout/ListPagePrimitives'
 import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel, qrLogicteckStatusFromPreAdvice } from '../../config/logicteckQr'
 import { isPreAdviceManager } from '../../config/roleConfig'
@@ -613,7 +614,7 @@ export default function PreAdviceDetailPage() {
             }
             aside={
               showHeroActions ? (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
+                <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
                   {canCancel && (
                     <Button
                       startIcon={<CancelIcon />}

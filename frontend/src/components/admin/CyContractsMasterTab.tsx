@@ -40,6 +40,15 @@ import {
   getCapacityDisplayLabel,
   isSecondaryCapacitySize,
 } from '../../utils/cyAllocation'
+import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+  listMobileActionsSx,
+} from '../layout/ListPagePrimitives'
 
 const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
@@ -188,8 +197,54 @@ export default function CyContractsMasterTab() {
       </Button>
       {loading ? (
         <CircularProgress sx={{ color: primaryDark }} />
+      ) : contracts.length === 0 ? (
+        <Typography sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
+          No CY contracts configured.
+        </Typography>
       ) : (
-        <TableContainer>
+        <>
+          <ListMobileOnly>
+            {contracts.map((c) => (
+              <ListMobileCard key={c.id}>
+                <ListMobileTitle>
+                  {c.shippingLineName} · {c.depotName}
+                </ListMobileTitle>
+                <ListMobileChipRow>
+                  <Chip
+                    label={c.isActive ? 'Active' : 'Inactive'}
+                    color={c.isActive ? 'success' : 'default'}
+                    size="small"
+                  />
+                  {c.sizes.map((size) => (
+                    <Chip
+                      key={size.containerSizeId}
+                      size="small"
+                      label={`${getCapacityDisplayLabel(size.sizeLabel)}: ${size.contractCount}`}
+                      sx={{ fontWeight: 600 }}
+                    />
+                  ))}
+                </ListMobileChipRow>
+                {c.sizes.map((size) => (
+                  <ListMobileMeta key={size.containerSizeId}>
+                    {getCapacityDisplayLabel(size.sizeLabel)}: {formatCyCountSplit(size.preAdvisedCount, 0)} ·{' '}
+                    {size.availableCount} available
+                  </ListMobileMeta>
+                ))}
+                <Box sx={listMobileActionsSx}>
+                  <Button size="small" startIcon={<EditOutlinedIcon />} onClick={() => openEdit(c)}>
+                    Edit
+                  </Button>
+                  {c.isActive && (
+                    <Button size="small" color="error" onClick={() => deactivate(c)}>
+                      Deactivate
+                    </Button>
+                  )}
+                </Box>
+              </ListMobileCard>
+            ))}
+          </ListMobileOnly>
+          <ListDesktopOnly>
+        <TableContainer sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow sx={tableHeadSx}>
@@ -202,14 +257,7 @@ export default function CyContractsMasterTab() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {contracts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                    No CY contracts configured.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                contracts.map((c) => (
+              {contracts.map((c) => (
                   <TableRow key={c.id} hover>
                     <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{c.shippingLineName}</TableCell>
                     <TableCell>{c.depotName}</TableCell>
@@ -253,11 +301,12 @@ export default function CyContractsMasterTab() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                ))}
             </TableBody>
           </Table>
         </TableContainer>
+          </ListDesktopOnly>
+        </>
       )}
 
       <Dialog open={dialog !== null} onClose={() => setDialog(null)} maxWidth="sm" fullWidth>

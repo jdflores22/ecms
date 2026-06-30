@@ -32,6 +32,18 @@ import { ROLE_CATALOG } from '../../config/roleConfig'
 import { getAccessiblePageKeys, type AppPageKey } from '../../config/routeAccess'
 import { roleApi, userApi, type RoleCatalog, type UserAdmin } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
+import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+  listHeroActionSx,
+  listMobileActionsSx,
+  listPageRootSx,
+  listTablePaperSx,
+} from '../../components/layout/ListPagePrimitives'
 
 const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
@@ -209,7 +221,7 @@ export default function RolesPage() {
   }
 
   return (
-    <Box>
+    <Box sx={listPageRootSx}>
       <Paper
         elevation={0}
         sx={{
@@ -273,13 +285,7 @@ export default function RolesPage() {
             to="/admin/users"
             variant="contained"
             startIcon={<PeopleOutlinedIcon />}
-            sx={{
-              bgcolor: '#fff',
-              color: primaryDark,
-              fontWeight: 700,
-              flexShrink: 0,
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-            }}
+            sx={listHeroActionSx}
           >
             Manage users
           </Button>
@@ -316,106 +322,154 @@ export default function RolesPage() {
         <SummaryCard label="Roles in use" value={summary.assignedRoles} color="#00A3E0" />
       </Box>
 
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
-          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-          overflow: 'hidden',
-        }}
-      >
+      <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
             <CircularProgress sx={{ color: primaryDark }} />
           </Box>
         ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{
-                    bgcolor: hexToRgba(primaryDark, 0.04),
-                    '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
-                  }}
-                >
-                  <TableCell>Role</TableCell>
-                  <TableCell>Description</TableCell>
-                  <TableCell>Page access</TableCell>
-                  <TableCell>Capabilities</TableCell>
-                  <TableCell align="center">Active users</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {roles.map((role) => (
-                  <TableRow key={role.name} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                    <TableCell sx={{ fontWeight: 700, color: primaryDark, verticalAlign: 'top' }}>
-                      {role.label}
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: 'top', maxWidth: 280 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {role.description}
-                      </Typography>
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: 'top', maxWidth: 320 }}>
-                      <RolePageAccessList roleName={role.name} allowedPages={role.allowedPages} compact />
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: 'top', maxWidth: 240 }}>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {role.capabilities.map((cap) => (
-                          <Chip
-                            key={cap}
-                            label={cap}
-                            size="small"
-                            variant="outlined"
-                            sx={{ fontWeight: 500, borderColor: hexToRgba(primaryDark, 0.2) }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                    <TableCell align="center" sx={{ verticalAlign: 'top' }}>
+          <>
+            <ListMobileOnly>
+              {roles.map((role) => (
+                <ListMobileCard key={role.name}>
+                  <ListMobileChipRow>
+                    <ListMobileTitle>{role.label}</ListMobileTitle>
+                    <Chip
+                      label={`${countsByRole[role.name] ?? 0} active`}
+                      size="small"
+                      sx={{ fontWeight: 700, bgcolor: hexToRgba(primaryDark, 0.08), color: primaryDark }}
+                    />
+                  </ListMobileChipRow>
+                  <ListMobileMeta>{role.description}</ListMobileMeta>
+                  <ListMobileChipRow>
+                    {role.capabilities.slice(0, 4).map((cap) => (
                       <Chip
-                        label={countsByRole[role.name] ?? 0}
+                        key={cap}
+                        label={cap}
                         size="small"
-                        sx={{
-                          fontWeight: 700,
-                          bgcolor: hexToRgba(primaryDark, 0.08),
-                          color: primaryDark,
-                          minWidth: 36,
-                        }}
+                        variant="outlined"
+                        sx={{ fontWeight: 500, borderColor: hexToRgba(primaryDark, 0.2) }}
                       />
-                    </TableCell>
-                    <TableCell align="right" sx={{ verticalAlign: 'top' }}>
-                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<EditOutlinedIcon />}
-                          onClick={() => openEdit(role)}
-                          sx={{ fontWeight: 600, borderRadius: 2 }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          component={RouterLink}
-                          to={`/admin/users?role=${encodeURIComponent(role.name)}`}
-                          size="small"
-                          variant="outlined"
-                          startIcon={<PeopleOutlinedIcon />}
-                          sx={{ fontWeight: 600, borderRadius: 2 }}
-                        >
-                          Users
-                        </Button>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    ))}
+                    {role.capabilities.length > 4 && (
+                      <Chip label={`+${role.capabilities.length - 4}`} size="small" variant="outlined" />
+                    )}
+                  </ListMobileChipRow>
+                  <Box sx={{ mt: 1 }}>
+                    <RolePageAccessList roleName={role.name} allowedPages={role.allowedPages} compact />
+                  </Box>
+                  <Box sx={listMobileActionsSx}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<EditOutlinedIcon />}
+                      onClick={() => openEdit(role)}
+                      sx={{ fontWeight: 600, borderRadius: 2 }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      component={RouterLink}
+                      to={`/admin/users?role=${encodeURIComponent(role.name)}`}
+                      size="small"
+                      variant="outlined"
+                      startIcon={<PeopleOutlinedIcon />}
+                      sx={{ fontWeight: 600, borderRadius: 2 }}
+                    >
+                      Users
+                    </Button>
+                  </Box>
+                </ListMobileCard>
+              ))}
+            </ListMobileOnly>
+
+            <ListDesktopOnly>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
+                      }}
+                    >
+                      <TableCell>Role</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Page access</TableCell>
+                      <TableCell>Capabilities</TableCell>
+                      <TableCell align="center">Active users</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {roles.map((role) => (
+                      <TableRow key={role.name} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell sx={{ fontWeight: 700, color: primaryDark, verticalAlign: 'top' }}>
+                          {role.label}
+                        </TableCell>
+                        <TableCell sx={{ verticalAlign: 'top', maxWidth: 280 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {role.description}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ verticalAlign: 'top', maxWidth: 320 }}>
+                          <RolePageAccessList roleName={role.name} allowedPages={role.allowedPages} compact />
+                        </TableCell>
+                        <TableCell sx={{ verticalAlign: 'top', maxWidth: 240 }}>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {role.capabilities.map((cap) => (
+                              <Chip
+                                key={cap}
+                                label={cap}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontWeight: 500, borderColor: hexToRgba(primaryDark, 0.2) }}
+                              />
+                            ))}
+                          </Box>
+                        </TableCell>
+                        <TableCell align="center" sx={{ verticalAlign: 'top' }}>
+                          <Chip
+                            label={countsByRole[role.name] ?? 0}
+                            size="small"
+                            sx={{
+                              fontWeight: 700,
+                              bgcolor: hexToRgba(primaryDark, 0.08),
+                              color: primaryDark,
+                              minWidth: 36,
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell align="right" sx={{ verticalAlign: 'top' }}>
+                          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<EditOutlinedIcon />}
+                              onClick={() => openEdit(role)}
+                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              component={RouterLink}
+                              to={`/admin/users?role=${encodeURIComponent(role.name)}`}
+                              size="small"
+                              variant="outlined"
+                              startIcon={<PeopleOutlinedIcon />}
+                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                            >
+                              Users
+                            </Button>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </ListDesktopOnly>
+          </>
         )}
       </Paper>
 

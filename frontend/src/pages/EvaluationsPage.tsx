@@ -379,7 +379,15 @@ export default function EvaluationsPage() {
             bgcolor: 'rgba(255,255,255,0.06)',
           }}
         />
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', position: 'relative' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 2,
+            alignItems: 'flex-start',
+            position: 'relative',
+          }}
+        >
           <Box
             sx={{
               width: 48,

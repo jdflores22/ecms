@@ -35,6 +35,17 @@ import {
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+  listHeroActionSx,
+  listPageRootSx,
+  listTablePaperSx,
+} from '../../components/layout/ListPagePrimitives'
+import {
   formatDisplayDate,
   shiftIsoDate,
   todayIsoDate,
@@ -53,15 +64,6 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
 
 const statusLabel: Record<string, string> = {
   WaitingSchedule: 'Waiting schedule',
-}
-
-const tablePaperSx = {
-  borderRadius: 3,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: '#fff',
-  boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-  overflow: 'hidden',
 }
 
 function hexToRgba(hex: string, alpha: number) {
@@ -184,7 +186,7 @@ export default function DailyReturnsPage() {
     capacityPct >= 90 ? '#D32F2F' : capacityPct >= 70 ? '#ED6C02' : '#2E7D32'
 
   return (
-    <Box>
+    <Box sx={listPageRootSx}>
       <Paper
         elevation={0}
         sx={{
@@ -247,13 +249,7 @@ export default function DailyReturnsPage() {
             to="/depot/schedules"
             variant="contained"
             startIcon={<EventNoteOutlinedIcon />}
-            sx={{
-              bgcolor: '#fff',
-              color: primaryDark,
-              fontWeight: 700,
-              flexShrink: 0,
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-            }}
+            sx={listHeroActionSx}
           >
             Manage schedules
           </Button>
@@ -284,8 +280,16 @@ export default function DailyReturnsPage() {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {selectedDate === today ? 'Viewing today' : selectedDate < today ? 'Past date' : 'Upcoming date'}
         </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, auto)', md: 'repeat(5, auto)' },
+            gap: 1.5,
+            alignItems: 'center',
+          }}
+        >
           <Button
+            fullWidth
             startIcon={<ChevronLeftIcon />}
             onClick={() => setSelectedDate(shiftIsoDate(selectedDate, -1))}
             sx={{ fontWeight: 600, borderRadius: 2 }}
@@ -293,6 +297,7 @@ export default function DailyReturnsPage() {
             Previous
           </Button>
           <Button
+            fullWidth
             startIcon={<TodayIcon />}
             variant={selectedDate === today ? 'contained' : 'outlined'}
             onClick={() => setSelectedDate(today)}
@@ -301,23 +306,25 @@ export default function DailyReturnsPage() {
             Today
           </Button>
           <Button
+            fullWidth
             endIcon={<ChevronRightIcon />}
             onClick={() => setSelectedDate(shiftIsoDate(selectedDate, 1))}
-            sx={{ fontWeight: 600, borderRadius: 2 }}
+            sx={{ fontWeight: 600, borderRadius: 2, gridColumn: { xs: '1 / -1', sm: 'auto' } }}
           >
             Next
           </Button>
           <TextField
+            fullWidth
             label="Date"
             type="date"
             size="small"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            sx={{ ...fieldSx, minWidth: 160 }}
+            sx={{ ...fieldSx, gridColumn: { xs: '1 / -1', sm: 'auto' } }}
             slotProps={{ inputLabel: { shrink: true } }}
           />
           {user?.role === 'Administrator' && (
-            <FormControl size="small" sx={{ minWidth: 180, ...fieldSx }}>
+            <FormControl fullWidth size="small" sx={{ ...fieldSx, gridColumn: { xs: '1 / -1', sm: 'auto' } }}>
               <InputLabel>Depot</InputLabel>
               <Select
                 label="Depot"
@@ -411,52 +418,69 @@ export default function DailyReturnsPage() {
       <Typography variant="h6" sx={{ fontWeight: 700, color: primaryDark, mb: 1.5 }}>
         Return schedule
       </Typography>
-      <Paper elevation={0} sx={tablePaperSx}>
+      <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
             <CircularProgress sx={{ color: primaryDark }} />
           </Box>
+        ) : dayReturns.length === 0 ? (
+          <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+            No returns scheduled for this day.
+          </Typography>
         ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{
-                    bgcolor: hexToRgba(primaryDark, 0.04),
-                    '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
-                  }}
-                >
-                  <TableCell>Reference</TableCell>
-                  <TableCell>Trucker</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {dayReturns.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                      No returns scheduled for this day.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  dayReturns.map((item) => (
-                    <TableRow key={item.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                      <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-                      <TableCell>{item.truckerName ?? '—'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={statusLabel[item.status] ?? item.status}
-                          color={statusColor[item.status] ?? 'default'}
-                          size="small"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </TableCell>
+          <>
+            <ListMobileOnly>
+              {dayReturns.map((item) => (
+                <ListMobileCard key={item.id}>
+                  <ListMobileChipRow>
+                    <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+                    <Chip
+                      label={statusLabel[item.status] ?? item.status}
+                      color={statusColor[item.status] ?? 'default'}
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </ListMobileChipRow>
+                  <ListMobileMeta>{item.truckerName ?? '—'}</ListMobileMeta>
+                </ListMobileCard>
+              ))}
+            </ListMobileOnly>
+
+            <ListDesktopOnly>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
+                      }}
+                    >
+                      <TableCell>Reference</TableCell>
+                      <TableCell>Trucker</TableCell>
+                      <TableCell>Status</TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {dayReturns.map((item) => (
+                      <TableRow key={item.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
+                        <TableCell>{item.truckerName ?? '—'}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={statusLabel[item.status] ?? item.status}
+                            color={statusColor[item.status] ?? 'default'}
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </ListDesktopOnly>
+          </>
         )}
       </Paper>
     </Box>

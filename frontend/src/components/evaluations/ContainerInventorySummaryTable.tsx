@@ -1,5 +1,6 @@
 import {
   Box,
+  Chip,
   Table,
   TableBody,
   TableCell,
@@ -10,6 +11,14 @@ import {
   Typography,
 } from '@mui/material'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
+import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+} from '../layout/ListPagePrimitives'
 import type { InventorySummaryRow } from '../../utils/inventorySummary'
 import {
   ECMS_INVENTORY_TYPE_CODES,
@@ -67,60 +76,92 @@ function SummaryDataRow({ row, isTotal }: { row: InventorySummaryRow; isTotal?: 
   )
 }
 
+function SummaryMobileCard({ row, isTotal }: { row: InventorySummaryRow; isTotal?: boolean }) {
+  return (
+    <ListMobileCard>
+      <ListMobileTitle>{isTotal ? 'All yards (total)' : row.depotName}</ListMobileTitle>
+      <ListMobileChipRow>
+        <Chip size="small" label={`${getAllocationSizeLabel('20')}: ${formatSummaryCount(row.size20Count)}`} />
+        <Chip size="small" label={`${getAllocationSizeLabel('40')}: ${formatSummaryCount(row.size40Count)}`} />
+        <Chip size="small" label={`Units: ${formatSummaryCount(row.units)}`} sx={{ fontWeight: 700 }} />
+      </ListMobileChipRow>
+      <ListMobileMeta>
+        TEUs {formatSummaryCount(row.teus)} · Pre-advised {formatSummaryCount(row.preAdvisedCount)} · Manual{' '}
+        {formatSummaryCount(row.manualCount)}
+      </ListMobileMeta>
+      <ListMobileMeta>
+        Booking {formatSummaryCount(row.bookingCount)} · Overstay {formatSummaryCount(row.overstayCount)} · Yard-in
+        today {formatSummaryCount(row.yardInToday)}
+      </ListMobileMeta>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+        {ECMS_INVENTORY_TYPE_CODES.map((code) => (
+          <Chip key={code} size="small" variant="outlined" label={`${code}: ${formatSummaryCount(row.typeCounts[code])}`} />
+        ))}
+      </Box>
+    </ListMobileCard>
+  )
+}
+
 export default function ContainerInventorySummaryTable({ rows }: { rows: InventorySummaryRow[] }) {
   const totals = sumInventorySummaryRows(rows)
-  const colSpan = 1 + 2 + ECMS_INVENTORY_TYPE_CODES.length + SUMMARY_TAIL_HEADERS.length
+
+  if (rows.length === 0) {
+    return (
+      <Box sx={{ py: 6, textAlign: 'center' }}>
+        <Typography color="text.secondary">No inventory data to summarize yet.</Typography>
+      </Box>
+    )
+  }
 
   return (
-    <TableContainer sx={{ px: { xs: 0, sm: 1 }, pb: 1 }}>
-      <Table size="small" sx={{ minWidth: 900 }}>
-        <TableHead>
-          <TableRow
-            sx={{
-              bgcolor: hexToRgba(primaryDark, 0.04),
-              '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
-            }}
-          >
-            <TableCell>Container yard</TableCell>
-            <TableCell align="center">{getAllocationSizeLabel('20')}</TableCell>
-            <TableCell align="center">{getAllocationSizeLabel('40')}</TableCell>
-            {ECMS_INVENTORY_TYPE_CODES.map((code) => (
-              <TableCell key={code} align="center">
-                {code}
-              </TableCell>
-            ))}
-            {SUMMARY_TAIL_HEADERS.map((header) => (
-              <TableCell key={header} align="center" sx={{ whiteSpace: 'nowrap' }}>
-                {header === 'Booking' ? (
-                  <Tooltip title="LOGICTECK booking counts will appear here when integrated">
-                    <span>{header}</span>
-                  </Tooltip>
-                ) : (
-                  header
-                )}
-              </TableCell>
-            ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={colSpan}>
-                <Box sx={{ py: 6, textAlign: 'center' }}>
-                  <Typography color="text.secondary">No inventory data to summarize yet.</Typography>
-                </Box>
-              </TableCell>
-            </TableRow>
-          ) : (
-            <>
+    <>
+      <ListMobileOnly>
+        {rows.map((row) => (
+          <SummaryMobileCard key={row.depotId} row={row} />
+        ))}
+        {rows.length > 1 && <SummaryMobileCard row={totals} isTotal />}
+      </ListMobileOnly>
+
+      <ListDesktopOnly>
+        <TableContainer sx={{ px: { xs: 0, sm: 1 }, pb: 1, overflowX: 'auto' }}>
+          <Table size="small" sx={{ minWidth: 900 }}>
+            <TableHead>
+              <TableRow
+                sx={{
+                  bgcolor: hexToRgba(primaryDark, 0.04),
+                  '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
+                }}
+              >
+                <TableCell>Container yard</TableCell>
+                <TableCell align="center">{getAllocationSizeLabel('20')}</TableCell>
+                <TableCell align="center">{getAllocationSizeLabel('40')}</TableCell>
+                {ECMS_INVENTORY_TYPE_CODES.map((code) => (
+                  <TableCell key={code} align="center">
+                    {code}
+                  </TableCell>
+                ))}
+                {SUMMARY_TAIL_HEADERS.map((header) => (
+                  <TableCell key={header} align="center" sx={{ whiteSpace: 'nowrap' }}>
+                    {header === 'Booking' ? (
+                      <Tooltip title="LOGICTECK booking counts will appear here when integrated">
+                        <span>{header}</span>
+                      </Tooltip>
+                    ) : (
+                      header
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {rows.map((row) => (
                 <SummaryDataRow key={row.depotId} row={row} />
               ))}
               {rows.length > 1 && <SummaryDataRow row={totals} isTotal />}
-            </>
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </ListDesktopOnly>
+    </>
   )
 }

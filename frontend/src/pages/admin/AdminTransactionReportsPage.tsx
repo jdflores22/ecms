@@ -716,7 +716,32 @@ export default function AdminTransactionReportsPage() {
                 <CircularProgress sx={{ color: primaryDark }} />
               </Box>
             ) : shippingOverview && shippingOverview.rows.length > 0 ? (
-              <TableContainer>
+              <>
+                <ListMobileOnly>
+                  {shippingOverview.rows.map((row) => (
+                    <ListMobileCard key={row.shippingLineId}>
+                      <ListMobileTitle>
+                        {row.code} · {row.name}
+                      </ListMobileTitle>
+                      <ListMobileMeta>Total {row.totalCount} payments</ListMobileMeta>
+                      <ListMobileChipRow>
+                        <Chip size="small" label={`Verified ${row.paidCount}`} color="success" sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={`Pending ${row.pendingCount}`} color="warning" sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={`Rejected ${row.rejectedCount}`} color="error" sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={formatPeso(row.paidAmount)} sx={{ fontWeight: 700 }} />
+                      </ListMobileChipRow>
+                    </ListMobileCard>
+                  ))}
+                  <ListMobileCard>
+                    <ListMobileTitle>Total</ListMobileTitle>
+                    <ListMobileChipRow>
+                      <Chip size="small" label={`Count ${shippingOverview.totalCount}`} sx={{ fontWeight: 700 }} />
+                      <Chip size="small" label={formatPeso(shippingOverview.paidAmount)} sx={{ fontWeight: 700 }} />
+                    </ListMobileChipRow>
+                  </ListMobileCard>
+                </ListMobileOnly>
+                <ListDesktopOnly>
+              <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: hexToRgba(primaryDark, 0.04) }}>
@@ -782,6 +807,8 @@ export default function AdminTransactionReportsPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
+                </ListDesktopOnly>
+              </>
             ) : (
               <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
                 <Typography color="text.secondary">No payment activity by shipping line in this date range.</Typography>
@@ -854,7 +881,30 @@ export default function AdminTransactionReportsPage() {
                 <CircularProgress sx={{ color: primaryDark }} />
               </Box>
             ) : depotOverview && depotOverview.rows.length > 0 ? (
-              <TableContainer>
+              <>
+                <ListMobileOnly>
+                  {depotOverview.rows.map((row) => (
+                    <ListMobileCard key={row.depotId}>
+                      <ListMobileTitle>{row.name}</ListMobileTitle>
+                      <ListMobileMeta>Total {row.totalCount} payments</ListMobileMeta>
+                      <ListMobileChipRow>
+                        <Chip size="small" label={`Verified ${row.paidCount}`} color="success" sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={`Pending ${row.pendingCount}`} color="warning" sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={`Rejected ${row.rejectedCount}`} color="error" sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={formatPeso(row.paidAmount)} sx={{ fontWeight: 700 }} />
+                      </ListMobileChipRow>
+                    </ListMobileCard>
+                  ))}
+                  <ListMobileCard>
+                    <ListMobileTitle>Total</ListMobileTitle>
+                    <ListMobileChipRow>
+                      <Chip size="small" label={`Count ${depotOverview.totalCount}`} sx={{ fontWeight: 700 }} />
+                      <Chip size="small" label={formatPeso(depotOverview.paidAmount)} sx={{ fontWeight: 700 }} />
+                    </ListMobileChipRow>
+                  </ListMobileCard>
+                </ListMobileOnly>
+                <ListDesktopOnly>
+              <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: hexToRgba(primaryDark, 0.04) }}>
@@ -916,6 +966,8 @@ export default function AdminTransactionReportsPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
+                </ListDesktopOnly>
+              </>
             ) : (
               <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
                 <Typography color="text.secondary">No payment activity by container yard in this date range.</Typography>
@@ -1035,7 +1087,27 @@ export default function AdminTransactionReportsPage() {
                 <CircularProgress sx={{ color: primaryDark }} />
               </Box>
             ) : revenueReport && revenueReport.rows.length > 0 ? (
-              <TableContainer>
+              <>
+                <ListMobileOnly>
+                  {revenueReport.rows.map((row) => (
+                    <ListMobileCard key={`${row.periodStart}-${row.periodEnd}`}>
+                      <ListMobileTitle>{row.label}</ListMobileTitle>
+                      <ListMobileChipRow>
+                        <Chip size="small" label={`${row.paymentCount} payments`} sx={{ fontWeight: 600 }} />
+                        <Chip size="small" label={formatPeso(row.totalAmount)} sx={{ fontWeight: 700 }} />
+                      </ListMobileChipRow>
+                    </ListMobileCard>
+                  ))}
+                  <ListMobileCard>
+                    <ListMobileTitle>Total</ListMobileTitle>
+                    <ListMobileChipRow>
+                      <Chip size="small" label={`${revenueReport.totalPayments} payments`} sx={{ fontWeight: 700 }} />
+                      <Chip size="small" label={formatPeso(revenueReport.totalRevenue)} sx={{ fontWeight: 700 }} />
+                    </ListMobileChipRow>
+                  </ListMobileCard>
+                </ListMobileOnly>
+                <ListDesktopOnly>
+              <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: hexToRgba(primaryDark, 0.04) }}>
@@ -1070,6 +1142,8 @@ export default function AdminTransactionReportsPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
+                </ListDesktopOnly>
+              </>
             ) : (
               <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
                 <Typography color="text.secondary">

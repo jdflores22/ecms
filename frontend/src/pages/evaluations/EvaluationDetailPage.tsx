@@ -47,6 +47,7 @@ import {
   heroMutedChipSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
+import { listMobileActionsSx } from '../../components/layout/ListPagePrimitives'
 import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import {
@@ -517,7 +518,7 @@ export default function EvaluationDetailPage() {
             }
             aside={
               canDecide ? (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
+                <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
                   <Button
                     startIcon={<CancelIcon />}
                     variant="outlined"

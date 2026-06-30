@@ -37,6 +37,18 @@ import {
   type UserAdmin,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
+import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+  listHeroActionSx,
+  listMobileActionsSx,
+  listPageRootSx,
+  listTablePaperSx,
+} from '../../components/layout/ListPagePrimitives'
 
 const primaryDark = '#0B3D91'
 const ROLES = ROLE_CATALOG.map((r) => r.name)
@@ -259,7 +271,7 @@ export default function UsersPage() {
   }
 
   return (
-    <Box>
+    <Box sx={listPageRootSx}>
       <Paper
         elevation={0}
         sx={{
@@ -319,7 +331,7 @@ export default function UsersPage() {
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
+          <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
             {roleFilter && (
               <Button
                 variant="outlined"
@@ -351,12 +363,7 @@ export default function UsersPage() {
               variant="contained"
               startIcon={<PersonAddIcon />}
               onClick={() => setCreateOpen(true)}
-              sx={{
-                bgcolor: '#fff',
-                color: primaryDark,
-                fontWeight: 700,
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-              }}
+              sx={listHeroActionSx}
             >
               New user
             </Button>
@@ -396,86 +403,115 @@ export default function UsersPage() {
         />
       </Box>
 
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
-          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-          overflow: 'hidden',
-        }}
-      >
+      <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
             <CircularProgress sx={{ color: primaryDark }} />
           </Box>
+        ) : displayedUsers.length === 0 ? (
+          <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+            No users found.
+          </Typography>
         ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{
-                    bgcolor: hexToRgba(primaryDark, 0.04),
-                    '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
-                  }}
-                >
-                  <TableCell>Username</TableCell>
-                  <TableCell>Full name</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Role</TableCell>
-                  <TableCell>Assignment</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {displayedUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                      No users found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  displayedUsers.map((user) => (
-                    <TableRow key={user.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                      <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{user.username}</TableCell>
-                      <TableCell>{user.fullName}</TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {user.email}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={roleLabel(user.role)} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
-                      </TableCell>
-                      <TableCell>{user.shippingLineName ?? user.depotName ?? '—'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.status}
-                          color={statusColor[user.status] ?? 'default'}
-                          size="small"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<EditOutlinedIcon />}
-                          onClick={() => openEdit(user)}
-                          sx={{ fontWeight: 600, borderRadius: 2 }}
-                        >
-                          Edit
-                        </Button>
-                      </TableCell>
+          <>
+            <ListMobileOnly>
+              {displayedUsers.map((user) => (
+                <ListMobileCard key={user.id}>
+                  <ListMobileChipRow>
+                    <ListMobileTitle>{user.username}</ListMobileTitle>
+                    <Chip
+                      label={user.status}
+                      color={statusColor[user.status] ?? 'default'}
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </ListMobileChipRow>
+                  <ListMobileMeta>{user.fullName}</ListMobileMeta>
+                  <ListMobileMeta>{user.email}</ListMobileMeta>
+                  <ListMobileChipRow>
+                    <Chip label={roleLabel(user.role)} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                    {(user.shippingLineName ?? user.depotName) && (
+                      <Chip
+                        label={user.shippingLineName ?? user.depotName ?? ''}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
+                  </ListMobileChipRow>
+                  <Box sx={listMobileActionsSx}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<EditOutlinedIcon />}
+                      onClick={() => openEdit(user)}
+                      sx={{ fontWeight: 600, borderRadius: 2 }}
+                    >
+                      Edit
+                    </Button>
+                  </Box>
+                </ListMobileCard>
+              ))}
+            </ListMobileOnly>
+
+            <ListDesktopOnly>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
+                      }}
+                    >
+                      <TableCell>Username</TableCell>
+                      <TableCell>Full name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Role</TableCell>
+                      <TableCell>Assignment</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Actions</TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {displayedUsers.map((user) => (
+                      <TableRow key={user.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{user.username}</TableCell>
+                        <TableCell>{user.fullName}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {user.email}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={roleLabel(user.role)} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+                        </TableCell>
+                        <TableCell>{user.shippingLineName ?? user.depotName ?? '—'}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={user.status}
+                            color={statusColor[user.status] ?? 'default'}
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<EditOutlinedIcon />}
+                            onClick={() => openEdit(user)}
+                            sx={{ fontWeight: 600, borderRadius: 2 }}
+                          >
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </ListDesktopOnly>
+          </>
         )}
       </Paper>
 

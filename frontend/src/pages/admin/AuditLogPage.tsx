@@ -27,6 +27,16 @@ import { Navigate } from 'react-router-dom'
 import { auditApi, type AuditLog, type AuditLogPage } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatDate, formatTime } from '../../utils/datetime'
+import {
+  ListDesktopOnly,
+  ListMobileCard,
+  ListMobileChipRow,
+  ListMobileMeta,
+  ListMobileOnly,
+  ListMobileTitle,
+  listPageRootSx,
+  listTablePaperSx,
+} from '../../components/layout/ListPagePrimitives'
 
 const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
@@ -149,7 +159,7 @@ export default function AuditLogPage() {
   }
 
   return (
-    <Box>
+    <Box sx={listPageRootSx}>
       <Paper
         elevation={0}
         sx={{
@@ -237,8 +247,15 @@ export default function AuditLogPage() {
             Filters
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-end' }}>
-          <FormControl sx={{ minWidth: 160, ...fieldSx }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, auto)' },
+            gap: 2,
+            alignItems: 'flex-end',
+          }}
+        >
+          <FormControl fullWidth sx={fieldSx}>
             <InputLabel>Module</InputLabel>
             <Select label="Module" value={module} onChange={(e) => setModule(e.target.value)}>
               <MenuItem value="">All</MenuItem>
@@ -250,13 +267,15 @@ export default function AuditLogPage() {
             </Select>
           </FormControl>
           <TextField
+            fullWidth
             label="Action contains"
             value={action}
             onChange={(e) => setAction(e.target.value)}
             size="small"
-            sx={{ minWidth: 180, ...fieldSx }}
+            sx={fieldSx}
           />
           <TextField
+            fullWidth
             label="From"
             type="date"
             value={from}
@@ -266,6 +285,7 @@ export default function AuditLogPage() {
             slotProps={{ inputLabel: { shrink: true } }}
           />
           <TextField
+            fullWidth
             label="To"
             type="date"
             value={to}
@@ -275,97 +295,117 @@ export default function AuditLogPage() {
             slotProps={{ inputLabel: { shrink: true } }}
           />
           <Button
+            fullWidth
             variant="contained"
             startIcon={<SearchIcon />}
             onClick={handleSearch}
-            sx={{ fontWeight: 700, borderRadius: 2 }}
+            sx={{ fontWeight: 700, borderRadius: 2, gridColumn: { xs: '1', sm: '1 / -1', md: 'auto' } }}
           >
             Apply filters
           </Button>
           {hasFilters && (
-            <Button variant="outlined" onClick={clearFilters} sx={{ fontWeight: 600, borderRadius: 2 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={clearFilters}
+              sx={{ fontWeight: 600, borderRadius: 2, gridColumn: { xs: '1', sm: '1 / -1', md: 'auto' } }}
+            >
               Clear
             </Button>
           )}
         </Box>
       </Paper>
 
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
-          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-          overflow: 'hidden',
-        }}
-      >
+      <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
             <CircularProgress sx={{ color: primaryDark }} />
           </Box>
+        ) : !data?.items.length ? (
+          <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+            No audit entries found.
+          </Typography>
         ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{
-                    bgcolor: hexToRgba(primaryDark, 0.04),
-                    '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
-                  }}
-                >
-                  <TableCell>Timestamp</TableCell>
-                  <TableCell>User</TableCell>
-                  <TableCell>Module</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>Details</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {!data?.items.length ? (
-                  <TableRow>
-                    <TableCell colSpan={5} sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                      No audit entries found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.items.map((row: AuditLog) => (
-                    <TableRow key={row.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {formatDate(row.timestamp)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatTime(row.timestamp)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: primaryDark }}>{row.username}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={MODULE_LABELS[row.module] ?? row.module}
-                          size="small"
-                          color={moduleColor[row.module] ?? 'default'}
-                          variant="outlined"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {row.action}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 360 }}>
-                          {row.details ?? '—'}
-                        </Typography>
-                      </TableCell>
+          <>
+            <ListMobileOnly>
+              {data.items.map((row: AuditLog) => (
+                <ListMobileCard key={row.id}>
+                  <ListMobileChipRow>
+                    <ListMobileTitle>{row.username}</ListMobileTitle>
+                    <Chip
+                      label={MODULE_LABELS[row.module] ?? row.module}
+                      size="small"
+                      color={moduleColor[row.module] ?? 'default'}
+                      variant="outlined"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </ListMobileChipRow>
+                  <ListMobileMeta>
+                    {formatDate(row.timestamp)} · {formatTime(row.timestamp)}
+                  </ListMobileMeta>
+                  <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+                    {row.action}
+                  </Typography>
+                  <ListMobileMeta>{row.details ?? '—'}</ListMobileMeta>
+                </ListMobileCard>
+              ))}
+            </ListMobileOnly>
+
+            <ListDesktopOnly>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
+                      }}
+                    >
+                      <TableCell>Timestamp</TableCell>
+                      <TableCell>User</TableCell>
+                      <TableCell>Module</TableCell>
+                      <TableCell>Action</TableCell>
+                      <TableCell>Details</TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {data.items.map((row: AuditLog) => (
+                      <TableRow key={row.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {formatDate(row.timestamp)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatTime(row.timestamp)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: primaryDark }}>{row.username}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={MODULE_LABELS[row.module] ?? row.module}
+                            size="small"
+                            color={moduleColor[row.module] ?? 'default'}
+                            variant="outlined"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {row.action}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 360 }}>
+                            {row.details ?? '—'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </ListDesktopOnly>
+          </>
         )}
         <TablePagination
           component="div"
