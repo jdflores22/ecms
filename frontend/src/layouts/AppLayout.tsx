@@ -3,6 +3,7 @@ import {
   Avatar,
   Box,
   Chip,
+  CircularProgress,
   Divider,
   Drawer,
   IconButton,
@@ -117,6 +118,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const user = useAppSelector((s) => s.auth.user)
   const refreshToken = useAppSelector((s) => s.auth.refreshToken)
   const dispatch = useAppDispatch()
@@ -145,12 +147,18 @@ export default function AppLayout() {
   }, [user?.role, dispatch])
 
   const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
     setMobileOpen(false)
     ;(document.activeElement as HTMLElement | null)?.blur?.()
 
-    await logoutSession(refreshToken)
-    dispatch(logout())
-    navigate('/login', { replace: true })
+    try {
+      await logoutSession(refreshToken)
+      dispatch(logout())
+      navigate('/login', { replace: true })
+    } catch {
+      setLoggingOut(false)
+    }
   }
 
   const goTo = (path: string) => {
@@ -375,6 +383,7 @@ export default function AppLayout() {
         </ListItemButton>
         <ListItemButton
           onClick={handleLogout}
+          disabled={loggingOut}
           sx={{
             mx: 1.5,
             borderRadius: 2,
@@ -385,10 +394,14 @@ export default function AppLayout() {
           }}
         >
           <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>
-            <LogoutIcon fontSize="small" />
+            {loggingOut ? (
+              <CircularProgress size={18} color="inherit" aria-label="Logging out" />
+            ) : (
+              <LogoutIcon fontSize="small" />
+            )}
           </ListItemIcon>
           <ListItemText
-            primary="Logout"
+            primary={loggingOut ? 'Logging out…' : 'Logout'}
             slotProps={{ primary: { sx: { fontSize: '0.9rem', fontWeight: 500 } } }}
           />
         </ListItemButton>
