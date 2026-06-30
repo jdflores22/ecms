@@ -147,6 +147,16 @@ api.interceptors.response.use(
 
 export default api
 
+export async function logoutSession(refreshToken: string | null): Promise<void> {
+  resetAuthRefreshState()
+  if (!refreshToken) return
+  try {
+    await api.post('/auth/logout', { refreshToken })
+  } catch {
+    /* client session clears even if revoke fails (expired token, offline) */
+  }
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     api.post<LoginResponse>('/auth/login', { username, password }),

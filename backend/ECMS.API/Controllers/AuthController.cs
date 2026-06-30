@@ -93,7 +93,8 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    [Authorize]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth-refresh")]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
     {
         await _authService.LogoutAsync(request, cancellationToken);

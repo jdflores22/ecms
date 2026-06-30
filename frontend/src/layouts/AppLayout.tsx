@@ -39,7 +39,7 @@ import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { roleLabel } from '../config/roleConfig'
-import { authApi, roleApi } from '../services/api'
+import { logoutSession, roleApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout, updateUser } from '../store/slices/authSlice'
 import { useAssetUrl } from '../hooks/useAssetUrl'
@@ -145,12 +145,12 @@ export default function AppLayout() {
   }, [user?.role, dispatch])
 
   const handleLogout = async () => {
-    try {
-      if (refreshToken) await authApi.logout(refreshToken)
-    } finally {
-      dispatch(logout())
-      navigate('/login')
-    }
+    setMobileOpen(false)
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
+
+    await logoutSession(refreshToken)
+    dispatch(logout())
+    navigate('/login', { replace: true })
   }
 
   const goTo = (path: string) => {
@@ -479,7 +479,7 @@ export default function AppLayout() {
           variant="temporary"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
-          ModalProps={{ keepMounted: true }}
+          ModalProps={{ keepMounted: true, disableRestoreFocus: true }}
           sx={{
             display: { xs: 'block', sm: 'none' },
             '& .MuiDrawer-paper': {
