@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.3.0'
+export const APP_VERSION = '1.4.0'
 
 export interface ReleaseNote {
   version: string
@@ -9,6 +9,18 @@ export interface ReleaseNote {
 
 /** Newest first. First entry should match APP_VERSION. */
 export const RELEASE_HISTORY: ReleaseNote[] = [
+  {
+    version: '1.4.0',
+    releasedOn: '2026-06-30',
+    title: 'Production auth, signed uploads, and performance',
+    highlights: [
+      'Signed asset URLs for all cross-origin upload images (photos, payment proofs, ATW documents)',
+      'Auth reliability: JWT key sync, split login/refresh rate limits, proactive token refresh',
+      'Frontend code-splitting and deferred polling to reduce navigation jank in production',
+      'One-command deploy script: Hostinger frontend upload plus git push for Railway API redeploy',
+      'Batch asset signing API for evaluation photos and dossier views on Hostinger + Railway split',
+    ],
+  },
   {
     version: '1.3.0',
     releasedOn: '2026-06-29',
