@@ -97,6 +97,9 @@ var jwtKey = AppSecrets.Require(
     builder.Environment,
     "Jwt:Key",
     "JWT_KEY");
+// JWT_KEY (e.g. from .env.production) must match token signing — AppSecrets reads env first,
+// but JwtTokenService reads IConfiguration["Jwt:Key"] which may still be the dev appsettings value.
+builder.Configuration["Jwt:Key"] = jwtKey;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -118,12 +121,26 @@ builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("auth", httpContext =>
+    var isDev = builder.Environment.IsDevelopment();
+
+    // Login/signup/password reset — keep stricter in production (brute-force protection).
+    options.AddPolicy("auth-login", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 20,
+                PermitLimit = isDev ? 100 : 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // Token refresh — separate bucket so refresh retries cannot block login.
+    options.AddPolicy("auth-refresh", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = isDev ? 120 : 30,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));

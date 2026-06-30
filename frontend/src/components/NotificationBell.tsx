@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type Notification } from '../services/api'
 import { formatDateTime } from '../utils/datetime'
+import { scheduleNonCritical } from '../utils/deferWork'
 
 const primaryDark = '#0B3D91'
 
@@ -57,9 +58,12 @@ export default function NotificationBell() {
   }, [])
 
   useEffect(() => {
-    load()
+    const cancelDeferred = scheduleNonCritical(load)
     const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
+    return () => {
+      cancelDeferred()
+      clearInterval(interval)
+    }
   }, [load])
 
   const open = Boolean(anchorEl)

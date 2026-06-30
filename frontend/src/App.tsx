@@ -1,50 +1,63 @@
+import { CircularProgress, Box } from '@mui/material'
+import { Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { ensureValidAccessToken } from './services/api'
 import { useAppSelector } from './store/hooks'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import LandingPage from './pages/LandingPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
-import DashboardPage from './pages/DashboardPage'
-import PreAdvicePage from './pages/PreAdvicePage'
-import PreAdviceNewPage from './pages/preAdvice/PreAdviceNewPage'
-import PreAdviceDetailPage from './pages/preAdvice/PreAdviceDetailPage'
-import EvaluationsPage from './pages/EvaluationsPage'
-import EvaluationDetailPage from './pages/evaluations/EvaluationDetailPage'
-import ContainerInventoryPage from './pages/evaluations/ContainerInventoryPage'
-import EvaluatorDemurrageBillingPage from './pages/evaluations/DemurrageBillingPage'
-import DemurrageBillingDetailPage from './pages/demurrage/DemurrageBillingDetailPage'
-import AtwPage from './pages/evaluations/AtwPage'
-import AtwNewPage from './pages/evaluations/AtwNewPage'
-import AtwDetailPage from './pages/evaluations/AtwDetailPage'
-import DailyReturnsPage from './pages/depot/DailyReturnsPage'
-import DepotSchedulesPage from './pages/depot/SchedulesPage'
-import ScheduleDetailPage from './pages/depot/ScheduleDetailPage'
-import CyAllocationPage from './pages/evaluations/CyAllocationPage'
-import DepotWithdrawalsPage from './pages/depot/WithdrawalsPage'
-import DepotWithdrawalDetailPage from './pages/depot/WithdrawalDetailPage'
-import AdminPaymentsPage from './pages/admin/PaymentsPage'
-import TruckerReturnsPage from './pages/trucker/ReturnsPage'
-import TruckerReturnDetailPage from './pages/trucker/ReturnDetailPage'
-import TruckerPaymentsPage from './pages/trucker/PaymentsPage'
-import TruckerPaymentUploadPage from './pages/trucker/PaymentUploadPage'
-import TruckerDemurrageBillingPage from './pages/trucker/DemurrageBillingPage'
-import TruckerWithdrawalsPage from './pages/trucker/WithdrawalsPage'
-import WithdrawalNewPage from './pages/trucker/WithdrawalNewPage'
-import WithdrawalDetailPage from './pages/trucker/WithdrawalDetailPage'
-import TruckerQrPage from './pages/trucker/QrPage'
-import QrPrintPage from './pages/trucker/QrPrintPage'
-import AdminUsersPage from './pages/admin/UsersPage'
-import RolesPage from './pages/admin/RolesPage'
-import MasterDataPage from './pages/admin/MasterDataPage'
-import AdminAuditLogPage from './pages/admin/AuditLogPage'
-import AdminVersionPage from './pages/admin/AdminVersionPage'
-import AdminTransactionReportsPage from './pages/admin/AdminTransactionReportsPage'
-import RoleReportsPage from './pages/reports/RoleReportsPage'
-import ReportsRedirect from './pages/reports/ReportsRedirect'
-import ProfilePage from './pages/ProfilePage'
 import AppLayout from './layouts/AppLayout'
 import RoleRouteGuard from './components/auth/RoleRouteGuard'
+import {
+  AdminAuditLogPage,
+  AdminPaymentsPage,
+  AdminTransactionReportsPage,
+  AdminUsersPage,
+  AdminVersionPage,
+  AtwDetailPage,
+  AtwNewPage,
+  AtwPage,
+  ContainerInventoryPage,
+  CyAllocationPage,
+  DailyReturnsPage,
+  DashboardPage,
+  DemurrageBillingDetailPage,
+  DepotSchedulesPage,
+  DepotWithdrawalDetailPage,
+  DepotWithdrawalsPage,
+  EvaluationDetailPage,
+  EvaluationsPage,
+  EvaluatorDemurrageBillingPage,
+  MasterDataPage,
+  PreAdviceDetailPage,
+  PreAdviceNewPage,
+  PreAdvicePage,
+  ProfilePage,
+  QrPrintPage,
+  ReportsRedirect,
+  RoleReportsPage,
+  RolesPage,
+  ScheduleDetailPage,
+  TruckerDemurrageBillingPage,
+  TruckerPaymentUploadPage,
+  TruckerPaymentsPage,
+  TruckerQrPage,
+  TruckerReturnDetailPage,
+  TruckerReturnsPage,
+  TruckerWithdrawalsPage,
+  WithdrawalDetailPage,
+  WithdrawalNewPage,
+} from './routes/lazyPages'
+
+function RouteFallback() {
+  return (
+    <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '40vh' }}>
+      <CircularProgress />
+    </Box>
+  )
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAppSelector((s) => s.auth.accessToken)
@@ -54,14 +67,39 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function GuestOrApp() {
   const token = useAppSelector((s) => s.auth.accessToken)
+  const userId = useAppSelector((s) => s.auth.user?.id)
   const location = useLocation()
+  const [authReady, setAuthReady] = useState(() => !token)
+
+  useEffect(() => {
+    if (!token) {
+      setAuthReady(true)
+      return
+    }
+
+    let cancelled = false
+    ensureValidAccessToken().finally(() => {
+      if (!cancelled) setAuthReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  if (!authReady) {
+    return (
+      <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
 
   if (!token) {
     if (location.pathname === '/') return <LandingPage />
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  return <AppLayout />
+  return <AppLayout key={userId ?? 'session'} />
 }
 
 function LegacyPreAdviceRedirect() {
@@ -76,7 +114,8 @@ function LegacyPreAdviceRedirect() {
 
 export default function App() {
   return (
-    <Routes>
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup/:role" element={<SignUpPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -417,6 +456,7 @@ export default function App() {
         />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }

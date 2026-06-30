@@ -10,7 +10,8 @@ import {
 import { useState } from 'react'
 import { Navigate, Link as RouterLink } from 'react-router-dom'
 import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
-import { authApi } from '../services/api'
+import axios from 'axios'
+import { authApi, resetAuthRefreshState } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
 
@@ -39,6 +40,7 @@ export default function LoginPage() {
     setError('')
     try {
       const { data } = await authApi.login(username, password)
+      resetAuthRefreshState()
       dispatch(
         setCredentials({
           accessToken: data.accessToken,
@@ -46,8 +48,12 @@ export default function LoginPage() {
           user: data.user,
         }),
       )
-    } catch {
-      setError('Invalid username or password.')
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 429) {
+        setError('Too many login attempts. Please wait about a minute and try again.')
+      } else {
+        setError('Invalid username or password.')
+      }
     } finally {
       setLoading(false)
     }

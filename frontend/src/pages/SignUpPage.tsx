@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useParams } from 'react-router-dom'
 import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
 import { ICS_BRAND } from '../config/brandCopy'
-import { authApi } from '../services/api'
+import { authApi, resetAuthRefreshState } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
 
@@ -76,6 +76,7 @@ export default function SignUpPage() {
         password,
         role: config.apiRole,
       })
+      resetAuthRefreshState()
       dispatch(
         setCredentials({
           accessToken: data.accessToken,

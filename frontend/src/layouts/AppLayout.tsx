@@ -36,7 +36,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { roleLabel } from '../config/roleConfig'
 import { authApi, roleApi } from '../services/api'
@@ -51,6 +51,7 @@ import { useTruckerPendingWithdrawalCount } from '../hooks/useTruckerPendingWith
 import { useTruckerPaymentDueCount } from '../hooks/useTruckerPaymentDueCount'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import { resolveAssetUrl } from '../utils/assetUrl'
+import { scheduleNonCritical } from '../utils/deferWork'
 import NotificationBell from '../components/NotificationBell'
 import IcsLogo from '../components/brand/IcsLogo'
 
@@ -83,6 +84,37 @@ function isNavActive(path: string, current: string, allNavPaths: string[]) {
   return !hasMoreSpecificNavMatch
 }
 
+const navIcons: Record<AppPageKey, React.ReactNode> = {
+  dashboard: <DashboardIcon fontSize="small" />,
+  profile: <PersonOutlinedIcon fontSize="small" />,
+  preforecast: <DescriptionIcon fontSize="small" />,
+  evaluations: <FactCheckIcon fontSize="small" />,
+  cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
+  containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
+  demurrageBilling: <PaymentsIcon fontSize="small" />,
+  adminReports: <AssessmentIcon fontSize="small" />,
+  depotReports: <AssessmentIcon fontSize="small" />,
+  evaluatorReports: <AssessmentIcon fontSize="small" />,
+  truckerReports: <AssessmentIcon fontSize="small" />,
+  depotDailyReturns: <CalendarViewDayIcon fontSize="small" />,
+  depotSchedules: <CalendarMonthIcon fontSize="small" />,
+  adminPayments: <PaymentsIcon fontSize="small" />,
+  truckerReturns: <LocalShippingIcon fontSize="small" />,
+  truckerPayments: <PaymentsIcon fontSize="small" />,
+  truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
+  evaluatorAtw: <AssignmentTurnedInOutlinedIcon fontSize="small" />,
+  depotWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
+  truckerWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
+  truckerQr: <QrCode2Icon fontSize="small" />,
+  truckerQrPrint: <QrCode2Icon fontSize="small" />,
+  adminUsers: <PeopleIcon fontSize="small" />,
+  adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
+  adminMasterData: <WarehouseIcon fontSize="small" />,
+  adminAudit: <HistoryIcon fontSize="small" />,
+  adminVersion: <SystemUpdateAltOutlinedIcon fontSize="small" />,
+  adminRevenue: <TrendingUpIcon fontSize="small" />,
+}
+
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const user = useAppSelector((s) => s.auth.user)
@@ -90,42 +122,25 @@ export default function AppLayout() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
-  const waitingScheduleCount = useDepotWaitingScheduleCount(
-    user?.role,
-    user?.allowedPages,
-    location.pathname,
-  )
-  const pendingWithdrawalCount = useDepotPendingWithdrawalCount(
-    user?.role,
-    user?.allowedPages,
-    location.pathname,
-  )
-  const truckerPendingWithdrawalCount = useTruckerPendingWithdrawalCount(
-    user?.role,
-    user?.allowedPages,
-    location.pathname,
-  )
-  const paymentDueCount = useTruckerPaymentDueCount(
-    user?.role,
-    user?.allowedPages,
-    location.pathname,
-  )
-  const pendingPaymentVerifyCount = useAdminPendingPaymentCount(
-    user?.role,
-    user?.allowedPages,
-    location.pathname,
-  )
+  const waitingScheduleCount = useDepotWaitingScheduleCount(user?.role, user?.allowedPages)
+  const pendingWithdrawalCount = useDepotPendingWithdrawalCount(user?.role, user?.allowedPages)
+  const truckerPendingWithdrawalCount = useTruckerPendingWithdrawalCount(user?.role, user?.allowedPages)
+  const paymentDueCount = useTruckerPaymentDueCount(user?.role, user?.allowedPages)
+  const pendingPaymentVerifyCount = useAdminPendingPaymentCount(user?.role, user?.allowedPages)
 
   useEffect(() => {
-    if (!user?.role) return
-    roleApi
-      .access()
-      .then(({ data }) => {
-        dispatch(updateUser({ allowedPages: data.allowedPages }))
-      })
-      .catch(() => {
-        /* keep login-time pages */
-      })
+    if (!user?.role) return undefined
+    const cancel = scheduleNonCritical(() => {
+      roleApi
+        .access()
+        .then(({ data }) => {
+          dispatch(updateUser({ allowedPages: data.allowedPages }))
+        })
+        .catch(() => {
+          /* keep login-time pages */
+        })
+    })
+    return cancel
   }, [user?.role, dispatch])
 
   const handleLogout = async () => {
@@ -142,56 +157,49 @@ export default function AppLayout() {
     setMobileOpen(false)
   }
 
-  const navIcons: Record<AppPageKey, React.ReactNode> = {
-    dashboard: <DashboardIcon fontSize="small" />,
-    profile: <PersonOutlinedIcon fontSize="small" />,
-    preforecast: <DescriptionIcon fontSize="small" />,
-    evaluations: <FactCheckIcon fontSize="small" />,
-    cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
-    containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
-    demurrageBilling: <PaymentsIcon fontSize="small" />,
-    adminReports: <AssessmentIcon fontSize="small" />,
-    depotReports: <AssessmentIcon fontSize="small" />,
-    evaluatorReports: <AssessmentIcon fontSize="small" />,
-    truckerReports: <AssessmentIcon fontSize="small" />,
-    depotDailyReturns: <CalendarViewDayIcon fontSize="small" />,
-    depotSchedules: <CalendarMonthIcon fontSize="small" />,
-    adminPayments: <PaymentsIcon fontSize="small" />,
-    truckerReturns: <LocalShippingIcon fontSize="small" />,
-    truckerPayments: <PaymentsIcon fontSize="small" />,
-    truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
-    evaluatorAtw: <AssignmentTurnedInOutlinedIcon fontSize="small" />,
-    depotWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
-    truckerWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
-    truckerQr: <QrCode2Icon fontSize="small" />,
-    truckerQrPrint: <QrCode2Icon fontSize="small" />,
-    adminUsers: <PeopleIcon fontSize="small" />,
-    adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
-    adminMasterData: <WarehouseIcon fontSize="small" />,
-    adminAudit: <HistoryIcon fontSize="small" />,
-    adminVersion: <SystemUpdateAltOutlinedIcon fontSize="small" />,
-    adminRevenue: <TrendingUpIcon fontSize="small" />,
-  }
+  const navBadgeConfig = useMemo<Partial<Record<AppPageKey, { count: number; ariaLabel: string }>>>(
+    () => ({
+      depotSchedules: { count: waitingScheduleCount, ariaLabel: 'waiting schedule' },
+      depotWithdrawals: { count: pendingWithdrawalCount, ariaLabel: 'pending withdrawal review' },
+      truckerWithdrawals: {
+        count: truckerPendingWithdrawalCount,
+        ariaLabel: 'withdrawal action required',
+      },
+      truckerPayments: { count: paymentDueCount, ariaLabel: 'payment due' },
+      adminPayments: { count: pendingPaymentVerifyCount, ariaLabel: 'awaiting verification' },
+    }),
+    [
+      waitingScheduleCount,
+      pendingWithdrawalCount,
+      truckerPendingWithdrawalCount,
+      paymentDueCount,
+      pendingPaymentVerifyCount,
+    ],
+  )
 
-  const navBadgeConfig: Partial<Record<AppPageKey, { count: number; ariaLabel: string }>> = {
-    depotSchedules: { count: waitingScheduleCount, ariaLabel: 'waiting schedule' },
-    depotWithdrawals: { count: pendingWithdrawalCount, ariaLabel: 'pending withdrawal review' },
-    truckerWithdrawals: { count: truckerPendingWithdrawalCount, ariaLabel: 'withdrawal action required' },
-    truckerPayments: { count: paymentDueCount, ariaLabel: 'payment due' },
-    adminPayments: { count: pendingPaymentVerifyCount, ariaLabel: 'awaiting verification' },
-  }
+  const menuItems = useMemo(
+    () =>
+      user?.role
+        ? getNavPagesForRole(user.role, user.allowedPages).map((page) => ({
+            text: page.label,
+            icon: navIcons[page.key],
+            path: page.path,
+            badge: navBadgeConfig[page.key]?.count ?? 0,
+            badgeAriaLabel: navBadgeConfig[page.key]?.ariaLabel,
+          }))
+        : [
+            {
+              text: 'Dashboard',
+              icon: <DashboardIcon fontSize="small" />,
+              path: '/',
+              badge: 0,
+              badgeAriaLabel: undefined,
+            },
+          ],
+    [navBadgeConfig, user?.allowedPages, user?.role],
+  )
 
-  const menuItems = user?.role
-    ? getNavPagesForRole(user.role, user.allowedPages).map((page) => ({
-        text: page.label,
-        icon: navIcons[page.key],
-        path: page.path,
-        badge: navBadgeConfig[page.key]?.count ?? 0,
-        badgeAriaLabel: navBadgeConfig[page.key]?.ariaLabel,
-      }))
-    : [{ text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/', badge: 0, badgeAriaLabel: undefined }]
-
-  const navPaths = menuItems.map((item) => item.path)
+  const navPaths = useMemo(() => menuItems.map((item) => item.path), [menuItems])
 
   const drawerPaperSx = {
     width: drawerWidth,

@@ -9,61 +9,22 @@ const api = axios.create({
   withCredentials: true,
 })
 
-api.interceptors.request.use((config) => {
-  const token = store.getState().auth.accessToken
-  if (token) config.headers.Authorization = `Bearer ${token}`
+api.interceptors.request.use(async (config) => {
+  const url = config.url ?? ''
+  if (url.includes('/auth/')) return config
+
+  let token = store.getState().auth.accessToken
+  if (!token) return config
+
+  if (isAccessTokenExpired(token)) {
+    token = (await requestRefreshAccessToken()) ?? null
+  }
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
   return config
 })
-
-let refreshPromise: Promise<string | null> | null = null
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true
-      const refreshToken = store.getState().auth.refreshToken
-      if (refreshToken) {
-        try {
-          refreshPromise ??= axios
-            .post<LoginResponse>(
-              `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`,
-              { refreshToken },
-              { withCredentials: true },
-            )
-            .then(({ data }) => {
-              store.dispatch(
-                setCredentials({
-                  accessToken: data.accessToken,
-                  refreshToken: data.refreshToken,
-                  user: data.user,
-                }),
-              )
-              return data.accessToken
-            })
-            .finally(() => {
-              refreshPromise = null
-            })
-
-          const accessToken = await refreshPromise
-          if (accessToken) {
-            originalRequest.headers = originalRequest.headers ?? {}
-            originalRequest.headers.Authorization = `Bearer ${accessToken}`
-            return api(originalRequest)
-          }
-        } catch {
-          store.dispatch(logout())
-        }
-      } else {
-        store.dispatch(logout())
-      }
-    }
-    return Promise.reject(error)
-  },
-)
-
-export default api
 
 export interface LoginResponse {
   accessToken: string
@@ -81,6 +42,110 @@ export interface LoginResponse {
     allowedPages?: string[]
   }
 }
+
+const TOKEN_EXPIRY_SKEW_MS = 30_000
+
+function getAccessTokenExpiryMs(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] ?? '')) as { exp?: number }
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+export function isAccessTokenExpired(token: string, skewMs = TOKEN_EXPIRY_SKEW_MS): boolean {
+  const expiryMs = getAccessTokenExpiryMs(token)
+  if (expiryMs === null) return true
+  return Date.now() >= expiryMs - skewMs
+}
+
+let refreshPromise: Promise<string | null> | null = null
+let refreshBlocked = false
+
+export function resetAuthRefreshState() {
+  refreshBlocked = false
+  refreshPromise = null
+}
+
+function requestRefreshAccessToken(): Promise<string | null> {
+  if (refreshBlocked) return Promise.resolve(null)
+  if (refreshPromise) return refreshPromise
+
+  const refreshToken = store.getState().auth.refreshToken
+  if (!refreshToken) {
+    refreshBlocked = true
+    store.dispatch(logout())
+    return Promise.resolve(null)
+  }
+
+  refreshPromise = axios
+    .post<LoginResponse>(
+      `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`,
+      { refreshToken },
+      { withCredentials: true },
+    )
+    .then(({ data }) => {
+      store.dispatch(
+        setCredentials({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          user: data.user,
+        }),
+      )
+      return data.accessToken
+    })
+    .catch(() => {
+      refreshBlocked = true
+      store.dispatch(logout())
+      return null
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
+
+  return refreshPromise
+}
+
+/** Refresh once before protected routes mount when the stored access token is missing or expired. */
+export async function ensureValidAccessToken(): Promise<boolean> {
+  const { accessToken, refreshToken } = store.getState().auth
+  if (!accessToken) return false
+  if (refreshBlocked) return false
+  if (!isAccessTokenExpired(accessToken)) return true
+  if (!refreshToken) {
+    store.dispatch(logout())
+    return false
+  }
+  const token = await requestRefreshAccessToken()
+  return Boolean(token)
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined
+    const requestUrl = originalRequest?.url ?? ''
+
+    if (requestUrl.includes('/auth/')) {
+      return Promise.reject(error)
+    }
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !refreshBlocked) {
+      originalRequest._retry = true
+      const accessToken = await requestRefreshAccessToken()
+      if (accessToken) {
+        originalRequest.headers = originalRequest.headers ?? {}
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`
+        return api(originalRequest)
+      }
+    }
+
+    return Promise.reject(error)
+  },
+)
+
+export default api
 
 export const authApi = {
   login: (username: string, password: string) =>

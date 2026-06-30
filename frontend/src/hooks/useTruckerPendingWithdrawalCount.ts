@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
 import { withdrawalApi } from '../services/api'
+import { scheduleNonCritical } from '../utils/deferWork'
 
 export function useTruckerPendingWithdrawalCount(
   role: string | undefined,
   allowedPages: string[] | null | undefined,
-  refreshKey?: string,
 ) {
   const [count, setCount] = useState(0)
 
@@ -27,11 +27,17 @@ export function useTruckerPendingWithdrawalCount(
   }, [enabled])
 
   useEffect(() => {
-    load()
-    if (!enabled) return undefined
+    if (!enabled) {
+      setCount(0)
+      return undefined
+    }
+    const cancelDeferred = scheduleNonCritical(load)
     const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
-  }, [load, enabled, refreshKey])
+    return () => {
+      cancelDeferred()
+      clearInterval(interval)
+    }
+  }, [load, enabled])
 
   return count
 }
