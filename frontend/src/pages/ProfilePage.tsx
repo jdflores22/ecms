@@ -46,8 +46,8 @@ import {
 import { profileApi, type Profile } from '../services/api'
 import { useAppDispatch } from '../store/hooks'
 import { updateUser } from '../store/slices/authSlice'
+import { useAssetUrl } from '../hooks/useAssetUrl'
 import { formatDate } from '../utils/datetime'
-import { resolveAssetUrl } from '../utils/assetUrl'
 
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
@@ -116,6 +116,7 @@ export default function ProfilePage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [profileSuccess, setProfileSuccess] = useState('')
   const [profileError, setProfileError] = useState('')
+  const profilePhotoUrl = useAssetUrl(profile?.profilePhoto)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -299,7 +300,7 @@ export default function ProfilePage() {
           >
             <Box sx={{ position: 'relative', display: 'inline-block' }}>
               <Avatar
-                src={profile.profilePhoto ? resolveAssetUrl(profile.profilePhoto) : undefined}
+                src={profilePhotoUrl || undefined}
                 sx={{
                   width: 96,
                   height: 96,

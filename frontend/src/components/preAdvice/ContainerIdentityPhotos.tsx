@@ -24,7 +24,7 @@ import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import axios from 'axios'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useToast } from '../feedback/ToastProvider'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrls } from '../../hooks/useAssetUrl'
 import {
   CONTAINER_PHOTO_CATEGORIES,
   DAMAGE_PHOTO_CATEGORY,
@@ -161,6 +161,9 @@ export default function ContainerIdentityPhotos({
       ),
     [documents],
   )
+
+  const assetUrls = useAssetUrls(documents.map((d) => d.filePath))
+  const assetUrl = (path: string | null | undefined) => (path ? assetUrls[path] ?? '' : '')
 
   const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) => identityByCategory.has(c.value)).length
   const progress = Math.round((standardUploaded / CONTAINER_PHOTO_CATEGORIES.length) * 100)
@@ -344,7 +347,7 @@ export default function ContainerIdentityPhotos({
               ) : (
                 <Box
                   component="img"
-                  src={resolveAssetUrl(identityDoc.filePath)}
+                  src={assetUrl(identityDoc.filePath)}
                   alt={category.label}
                   onError={() => markImageBroken(identityDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -367,7 +370,7 @@ export default function ContainerIdentityPhotos({
                     <IconButton
                       size="small"
                       onClick={() =>
-                        setPreview({ url: resolveAssetUrl(identityDoc.filePath), title: category.label })
+                        setPreview({ url: assetUrl(identityDoc.filePath), title: category.label })
                       }
                       sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
                       aria-label={`View ${category.label}`}
@@ -548,7 +551,7 @@ export default function ContainerIdentityPhotos({
               <>
                 <Box
                   component="img"
-                  src={resolveAssetUrl(damageDoc.filePath)}
+                  src={assetUrl(damageDoc.filePath)}
                   alt={`${category.label} damage`}
                   onError={() => markImageBroken(damageDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -615,7 +618,7 @@ export default function ContainerIdentityPhotos({
                         size="small"
                         onClick={() =>
                           setPreview({
-                            url: resolveAssetUrl(damageDoc.filePath),
+                            url: assetUrl(damageDoc.filePath),
                             title: `${category.label} — damage`,
                             description: parseDamageDescription(damageDoc.comment),
                           })

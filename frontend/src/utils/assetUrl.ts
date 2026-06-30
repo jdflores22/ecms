@@ -12,7 +12,8 @@ export function resolveAssetUrl(path: string | null | undefined): string {
   if (apiBase.startsWith('http')) {
     const origin = apiBase.replace(/\/api\/?$/, '')
     const normalized = path.startsWith('/') ? path : `/${path}`
-    return `${origin}${normalized}`
+    const [pathname, query = ''] = normalized.split('?')
+    return query ? `${origin}${pathname}?${query}` : `${origin}${pathname}`
   }
 
   return path
@@ -27,4 +28,62 @@ export function isCrossOriginAssetUrl(path: string | null | undefined): boolean 
   } catch {
     return true
   }
+}
+
+function normalizeUploadPath(path: string): string {
+  const trimmed = path.trim()
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
+const signedCache = new Map<string, string>()
+let batchTimer: ReturnType<typeof setTimeout> | null = null
+let batchPromise: Promise<void> | null = null
+const pendingPaths = new Set<string>()
+
+async function flushSignBatch(): Promise<void> {
+  const paths = [...pendingPaths]
+  pendingPaths.clear()
+  if (paths.length === 0) return
+
+  const { default: api } = await import('../services/api')
+  const { data } = await api.post<{ paths: Record<string, string> }>('/assets/sign-batch', { paths })
+  for (const [path, signed] of Object.entries(data.paths ?? {})) {
+    signedCache.set(normalizeUploadPath(path), signed)
+  }
+}
+
+function scheduleSignBatch(): Promise<void> {
+  if (batchPromise) return batchPromise
+
+  batchPromise = new Promise((resolve, reject) => {
+    if (batchTimer) clearTimeout(batchTimer)
+    batchTimer = setTimeout(async () => {
+      batchTimer = null
+      batchPromise = null
+      try {
+        await flushSignBatch()
+        resolve()
+      } catch (err) {
+        reject(err)
+      }
+    }, 0)
+  })
+
+  return batchPromise
+}
+
+/** Returns a URL that works for cross-origin <img> tags (adds HMAC sig query params when needed). */
+export async function ensureSignedAssetUrl(path: string | null | undefined): Promise<string> {
+  if (!path) return ''
+  if (!isCrossOriginAssetUrl(path)) return resolveAssetUrl(path)
+
+  const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
+  const cached = signedCache.get(normalized)
+  if (cached) return resolveAssetUrl(cached)
+
+  pendingPaths.add(normalized)
+  await scheduleSignBatch()
+
+  const signed = signedCache.get(normalized)
+  return signed ? resolveAssetUrl(signed) : resolveAssetUrl(path)
 }

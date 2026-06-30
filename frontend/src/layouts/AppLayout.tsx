@@ -42,6 +42,7 @@ import { roleLabel } from '../config/roleConfig'
 import { authApi, roleApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout, updateUser } from '../store/slices/authSlice'
+import { useAssetUrl } from '../hooks/useAssetUrl'
 import { ICS_BRAND } from '../config/brandCopy'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCount'
@@ -50,7 +51,6 @@ import { useDepotPendingWithdrawalCount } from '../hooks/useDepotPendingWithdraw
 import { useTruckerPendingWithdrawalCount } from '../hooks/useTruckerPendingWithdrawalCount'
 import { useTruckerPaymentDueCount } from '../hooks/useTruckerPaymentDueCount'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
-import { resolveAssetUrl } from '../utils/assetUrl'
 import { scheduleNonCritical } from '../utils/deferWork'
 import NotificationBell from '../components/NotificationBell'
 import IcsLogo from '../components/brand/IcsLogo'
@@ -127,6 +127,7 @@ export default function AppLayout() {
   const truckerPendingWithdrawalCount = useTruckerPendingWithdrawalCount(user?.role, user?.allowedPages)
   const paymentDueCount = useTruckerPaymentDueCount(user?.role, user?.allowedPages)
   const pendingPaymentVerifyCount = useAdminPendingPaymentCount(user?.role, user?.allowedPages)
+  const profilePhotoUrl = useAssetUrl(user?.profilePhoto)
 
   useEffect(() => {
     if (!user?.role) return undefined
@@ -277,7 +278,7 @@ export default function AppLayout() {
           }}
         >
           <Avatar
-            src={user?.profilePhoto ? resolveAssetUrl(user.profilePhoto) : undefined}
+            src={profilePhotoUrl || undefined}
             sx={{
               width: 40,
               height: 40,
@@ -449,7 +450,7 @@ export default function AppLayout() {
             <Chip
               avatar={
                 <Avatar
-                  src={user?.profilePhoto ? resolveAssetUrl(user.profilePhoto) : undefined}
+                  src={profilePhotoUrl || undefined}
                   sx={{ bgcolor: primaryLight, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}
                 >
                   {user?.profilePhoto ? null : userInitials(user?.fullName)}
