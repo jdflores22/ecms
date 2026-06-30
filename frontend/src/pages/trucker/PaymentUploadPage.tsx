@@ -39,7 +39,7 @@ import {
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, preAdviceApi, scheduleApi, type Payment, type PreAdvice, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import {
@@ -191,6 +191,7 @@ export default function TruckerPaymentUploadPage() {
   const [submitting, setSubmitting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   const load = useCallback(() => {
     if (!scheduleId || user?.role !== 'Trucker') return
@@ -476,7 +477,7 @@ export default function TruckerPaymentUploadPage() {
                         >
                           <Box
                             component="img"
-                            src={resolveAssetUrl(payment.proofFile)}
+                            src={proofFileUrl}
                             alt="Payment proof"
                             sx={{
                               width: '100%',
@@ -779,7 +780,7 @@ export default function TruckerPaymentUploadPage() {
               {isImageProof(payment.proofFile) ? (
                 <Box
                   component="img"
-                  src={resolveAssetUrl(payment.proofFile)}
+                  src={proofFileUrl}
                   alt="Payment proof"
                   sx={{
                     width: '100%',
@@ -794,7 +795,7 @@ export default function TruckerPaymentUploadPage() {
               ) : (
                 <Button
                   variant="outlined"
-                  href={resolveAssetUrl(payment.proofFile)}
+                  href={proofFileUrl}
                   target="_blank"
                   rel="noreferrer"
                   endIcon={<OpenInNewIcon />}
@@ -811,7 +812,7 @@ export default function TruckerPaymentUploadPage() {
           {payment?.proofFile && (
             <Button
               variant="contained"
-              href={resolveAssetUrl(payment.proofFile)}
+              href={proofFileUrl}
               target="_blank"
               rel="noreferrer"
               endIcon={<OpenInNewIcon />}

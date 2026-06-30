@@ -15,7 +15,7 @@ import {
 } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 import { qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
@@ -156,6 +156,7 @@ export default function DepotScheduleTabPanels({
   onOpenConfirm,
 }: DepotScheduleTabPanelsProps) {
   const truckerName = requestingTruckerName(schedule, preAdvice)
+  const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
@@ -324,7 +325,7 @@ export default function DepotScheduleTabPanels({
                 {isImageProof(payment.proofFile) ? (
                   <Box
                     component="img"
-                    src={resolveAssetUrl(payment.proofFile)}
+                    src={proofFileUrl}
                     alt="Payment proof"
                     onClick={onProofPreview}
                     sx={{
@@ -340,7 +341,7 @@ export default function DepotScheduleTabPanels({
                   <Button
                     variant="outlined"
                     startIcon={<PictureAsPdfOutlinedIcon />}
-                    href={resolveAssetUrl(payment.proofFile)}
+                    href={proofFileUrl}
                     target="_blank"
                     rel="noreferrer"
                     sx={{ fontWeight: 600, borderRadius: 2 }}
@@ -351,7 +352,7 @@ export default function DepotScheduleTabPanels({
                   <Button
                     variant="outlined"
                     startIcon={<VisibilityOutlinedIcon />}
-                    href={resolveAssetUrl(payment.proofFile)}
+                    href={proofFileUrl}
                     target="_blank"
                     rel="noreferrer"
                     sx={{ fontWeight: 600, borderRadius: 2 }}

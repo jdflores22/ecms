@@ -48,7 +48,8 @@ import {
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
 import { demurrageBillingApi, type DemurrageBilling } from '../../services/api'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
+import { openSignedAsset } from '../../utils/openSignedAsset'
 import { formatDate, formatDateTime, formatPeso } from '../../utils/datetime'
 import { paymentStatusLabel } from '../../utils/truckerPayment'
 
@@ -117,6 +118,7 @@ export default function DemurrageBillingDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [proofPreviewOpen, setProofPreviewOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const proofFileUrl = useAssetUrl(item?.proofFile)
 
   const [feeDialogOpen, setFeeDialogOpen] = useState(false)
   const [feeRows, setFeeRows] = useState<FeeRow[]>([])
@@ -411,7 +413,7 @@ export default function DemurrageBillingDetailPage() {
               >
                 <Box
                   component="img"
-                  src={resolveAssetUrl(item.proofFile)}
+                  src={proofFileUrl}
                   alt="Payment proof"
                   sx={{ width: '100%', maxHeight: 360, objectFit: 'contain', display: 'block' }}
                 />
@@ -438,7 +440,7 @@ export default function DemurrageBillingDetailPage() {
                   </Typography>
                   <Button
                     size="small"
-                    href={resolveAssetUrl(item.proofFile)}
+                    href={proofFileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     startIcon={<OpenInNewIcon />}
@@ -453,7 +455,7 @@ export default function DemurrageBillingDetailPage() {
               <Button
                 size="small"
                 startIcon={<VisibilityOutlinedIcon />}
-                onClick={() => (isImageProof(item.proofFile!) ? setProofPreviewOpen(true) : window.open(resolveAssetUrl(item.proofFile!), '_blank'))}
+                onClick={() => (isImageProof(item.proofFile!) ? setProofPreviewOpen(true) : void openSignedAsset(item.proofFile))}
                 sx={{ mt: 1.5, fontWeight: 600 }}
               >
                 View proof
@@ -481,7 +483,7 @@ export default function DemurrageBillingDetailPage() {
           {item.proofFile && isImageProof(item.proofFile) && (
             <Box
               component="img"
-              src={resolveAssetUrl(item.proofFile)}
+              src={proofFileUrl}
               alt="Payment proof"
               sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }}
             />

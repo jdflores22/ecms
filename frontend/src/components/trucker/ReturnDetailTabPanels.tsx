@@ -16,7 +16,7 @@ import {
 } from '../layout/DetailPagePrimitives'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type { Payment, PreAdvice, PreAdviceDocument, QrBooking, Schedule } from '../../services/api'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import {
   paymentStatusColor,
@@ -89,6 +89,8 @@ export default function ReturnDetailTabPanels({
   onPrintQr,
   onReloadDocuments,
 }: ReturnDetailTabPanelsProps) {
+  const proofFileUrl = useAssetUrl(payment?.proofFile)
+
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
@@ -163,7 +165,7 @@ export default function ReturnDetailTabPanels({
                 {isImageProof(payment.proofFile) ? (
                   <Box
                     component="img"
-                    src={resolveAssetUrl(payment.proofFile)}
+                    src={proofFileUrl}
                     alt="Payment proof"
                     onClick={onProofPreview}
                     sx={{

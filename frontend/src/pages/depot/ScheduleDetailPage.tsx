@@ -36,7 +36,7 @@ import {
   type Schedule,
 } from '../../services/api'
 import { store } from '../../store'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import {
   clampMinScheduleDate,
   DEPOT_RETURN_DATE_ONLY_TIME,
@@ -124,6 +124,7 @@ export default function ScheduleDetailPage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [editing, setEditing] = useState(false)
   const [activeTab, setActiveTab] = useState<DepotScheduleTab>('details')
+  const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   const allowedRole = user?.role === 'DepotPersonnel' || user?.role === 'Administrator'
 
@@ -632,7 +633,7 @@ export default function ScheduleDetailPage() {
               {isImageProof(payment.proofFile) ? (
                 <Box
                   component="img"
-                  src={resolveAssetUrl(payment.proofFile)}
+                  src={proofFileUrl}
                   alt="Payment proof"
                   sx={{
                     width: '100%',
@@ -647,7 +648,7 @@ export default function ScheduleDetailPage() {
               ) : (
                 <Button
                   variant="outlined"
-                  href={resolveAssetUrl(payment.proofFile)}
+                  href={proofFileUrl}
                   target="_blank"
                   rel="noreferrer"
                   endIcon={<OpenInNewIcon />}
@@ -664,7 +665,7 @@ export default function ScheduleDetailPage() {
           {payment?.proofFile && (
             <Button
               variant="contained"
-              href={resolveAssetUrl(payment.proofFile)}
+              href={proofFileUrl}
               target="_blank"
               rel="noreferrer"
               endIcon={<OpenInNewIcon />}

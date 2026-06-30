@@ -108,7 +108,7 @@ import { store } from '../../store'
 
 import { useAppSelector } from '../../store/hooks'
 
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 
@@ -301,6 +301,7 @@ export default function TruckerReturnDetailPage() {
   const [loading, setLoading] = useState(true)
 
   const [documentsLoading, setDocumentsLoading] = useState(true)
+  const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   const [error, setError] = useState('')
 
@@ -835,7 +836,7 @@ export default function TruckerReturnDetailPage() {
 
                   component="img"
 
-                  src={resolveAssetUrl(payment.proofFile)}
+                  src={proofFileUrl}
 
                   alt="Payment proof"
 
@@ -865,7 +866,7 @@ export default function TruckerReturnDetailPage() {
 
                   variant="outlined"
 
-                  href={resolveAssetUrl(payment.proofFile)}
+                  href={proofFileUrl}
 
                   target="_blank"
 
@@ -899,7 +900,7 @@ export default function TruckerReturnDetailPage() {
 
               variant="contained"
 
-              href={resolveAssetUrl(payment.proofFile)}
+              href={proofFileUrl}
 
               target="_blank"
 

@@ -4,6 +4,7 @@
 **/node_modules/
 **/dist/
 **/publish/
+frontend/ecms-dist.tgz
 
 # IDE
 .vs/

@@ -23,7 +23,7 @@ import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-rout
 import WithdrawalLinesTable from '../../components/withdrawals/WithdrawalLinesTable'
 import { withdrawalApi, type Withdrawal, type WithdrawalDocument } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime } from '../../utils/datetime'
 
 const primaryDark = '#0B3D91'
@@ -82,6 +82,9 @@ export default function DepotWithdrawalDetailPage() {
     load()
   }, [load])
 
+  const atwDoc = documents.find((d) => d.documentType === 'AtwCertificate')
+  const atwDocUrl = useAssetUrl(atwDoc?.filePath)
+
   if (user?.role !== 'DepotPersonnel') {
     return <Navigate to="/" replace />
   }
@@ -90,7 +93,6 @@ export default function DepotWithdrawalDetailPage() {
     return <Navigate to="/depot/withdrawals" replace />
   }
 
-  const atwDoc = documents.find((d) => d.documentType === 'AtwCertificate')
   const canReview = item?.status === 'Submitted' || item?.status === 'UnderReview'
   const canRelease = item?.status === 'Approved'
 
@@ -239,7 +241,7 @@ export default function DepotWithdrawalDetailPage() {
                   <Box sx={{ mt: 1.5 }}>
                     <Button
                       component="a"
-                      href={resolveAssetUrl(atwDoc.filePath)}
+                      href={atwDocUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       size="small"

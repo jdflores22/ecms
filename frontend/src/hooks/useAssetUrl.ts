@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ensureSignedAssetUrl, resolveAssetUrl } from '../utils/assetUrl'
+import { ensureSignedAssetUrl, isCrossOriginAssetUrl, resolveAssetUrl } from '../utils/assetUrl'
+
+function initialAssetUrl(path: string | null | undefined): string {
+  if (!path) return ''
+  if (isCrossOriginAssetUrl(path)) return ''
+  return resolveAssetUrl(path)
+}
 
 export function useAssetUrl(path: string | null | undefined): string {
-  const [url, setUrl] = useState(() => {
-    if (!path) return ''
-    return resolveAssetUrl(path)
-  })
+  const [url, setUrl] = useState(() => initialAssetUrl(path))
 
   useEffect(() => {
     if (!path) {
       setUrl('')
+      return undefined
+    }
+
+    if (!isCrossOriginAssetUrl(path)) {
+      setUrl(resolveAssetUrl(path))
       return undefined
     }
 
@@ -19,7 +27,7 @@ export function useAssetUrl(path: string | null | undefined): string {
         if (!cancelled) setUrl(signed)
       })
       .catch(() => {
-        if (!cancelled) setUrl(resolveAssetUrl(path))
+        if (!cancelled) setUrl('')
       })
 
     return () => {
@@ -45,17 +53,30 @@ export function useAssetUrls(paths: (string | null | undefined)[]): Record<strin
       return undefined
     }
 
+    const sameOrigin: Record<string, string> = {}
+    const crossOrigin: string[] = []
+    for (const path of unique) {
+      if (isCrossOriginAssetUrl(path)) crossOrigin.push(path)
+      else sameOrigin[path] = resolveAssetUrl(path)
+    }
+    setUrls(sameOrigin)
+
+    if (crossOrigin.length === 0) return undefined
+
     let cancelled = false
     Promise.all(
-      unique.map(async (path) => [path, await ensureSignedAssetUrl(path)] as const),
+      crossOrigin.map(async (path) => [path, await ensureSignedAssetUrl(path)] as const),
     )
       .then((entries) => {
-        if (!cancelled) setUrls(Object.fromEntries(entries))
+        if (!cancelled) {
+          setUrls((prev) => ({
+            ...prev,
+            ...Object.fromEntries(entries.filter(([, signed]) => Boolean(signed))),
+          }))
+        }
       })
       .catch(() => {
-        if (!cancelled) {
-          setUrls(Object.fromEntries(unique.map((path) => [path, resolveAssetUrl(path)])))
-        }
+        /* keep same-origin URLs only */
       })
 
     return () => {

@@ -20,7 +20,7 @@ import WithdrawalLinesTable from '../../components/withdrawals/WithdrawalLinesTa
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type Withdrawal, type WithdrawalDocument, type WithdrawalLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { resolveAssetUrl } from '../../utils/assetUrl'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime } from '../../utils/datetime'
 
 const primaryDark = '#0B3D91'
@@ -96,6 +96,9 @@ export default function WithdrawalDetailPage() {
     load()
   }, [load])
 
+  const atwDoc = documents.find((d) => d.documentType === 'AtwCertificate')
+  const atwDocUrl = useAssetUrl(atwDoc?.filePath)
+
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
   }
@@ -107,7 +110,6 @@ export default function WithdrawalDetailPage() {
   const detailsEditable = item?.status === 'Draft'
   const shippingLineIssued = item?.status === 'Issued'
   const canUploadAndSubmit = detailsEditable || shippingLineIssued
-  const atwDoc = documents.find((d) => d.documentType === 'AtwCertificate')
 
   const handleSave = async (values: WithdrawalFormSubmitValues) => {
     if (!item) return
@@ -289,7 +291,7 @@ export default function WithdrawalDetailPage() {
                   <Box sx={{ mt: 1.5 }}>
                     <Button
                       component="a"
-                      href={resolveAssetUrl(atwDoc.filePath)}
+                      href={atwDocUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       size="small"

@@ -85,5 +85,5 @@ export async function ensureSignedAssetUrl(path: string | null | undefined): Pro
   await scheduleSignBatch()
 
   const signed = signedCache.get(normalized)
-  return signed ? resolveAssetUrl(signed) : resolveAssetUrl(path)
+  return signed ? resolveAssetUrl(signed) : ''
 }

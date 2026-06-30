@@ -46,6 +46,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, demurrageBillingApi, type Payment, type DemurrageBilling } from '../../services/api'
+import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { isCrossOriginAssetUrl, resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
@@ -319,6 +320,7 @@ export default function AdminPaymentsPage() {
   const [verifyTransactionLocal, setVerifyTransactionLocal] = useState('')
   const [demurrageItems, setDemurrageItems] = useState<DemurrageBilling[]>([])
   const [demurrageSubmittingId, setDemurrageSubmittingId] = useState<number | null>(null)
+  const proofPreviewFileUrl = useAssetUrl(proofPreview?.proofFile)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -723,7 +725,7 @@ export default function AdminPaymentsPage() {
                   {isImageProof(proofPreview.proofFile) ? (
                     <Box
                       component="img"
-                      src={resolveAssetUrl(proofPreview.proofFile)}
+                      src={proofPreviewFileUrl}
                       alt="Payment proof"
                       sx={{
                         width: '100%',
@@ -753,7 +755,7 @@ export default function AdminPaymentsPage() {
                       </Typography>
                       <Button
                         variant="outlined"
-                        href={resolveAssetUrl(proofPreview.proofFile)}
+                        href={proofPreviewFileUrl}
                         target="_blank"
                         rel="noreferrer"
                         endIcon={<OpenInNewIcon />}
@@ -765,7 +767,7 @@ export default function AdminPaymentsPage() {
                   ) : (
                     <Button
                       variant="outlined"
-                      href={resolveAssetUrl(proofPreview.proofFile)}
+                      href={proofPreviewFileUrl}
                       target="_blank"
                       rel="noreferrer"
                       endIcon={<OpenInNewIcon />}
@@ -803,7 +805,7 @@ export default function AdminPaymentsPage() {
           {proofPreview?.proofFile && (
             <Button
               variant="contained"
-              href={resolveAssetUrl(proofPreview.proofFile)}
+              href={proofPreviewFileUrl}
               target="_blank"
               rel="noreferrer"
               endIcon={<OpenInNewIcon />}
