@@ -12,8 +12,20 @@ public static class CyCapacityGroups
 
     public static string GetGroupKey(string? sizeLabel)
     {
-        var key = TeuCalculator.NormalizeLabel(sizeLabel ?? string.Empty);
-        return SecondaryToPrimary.GetValueOrDefault(key, key);
+        var raw = (sizeLabel ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(raw))
+            return string.Empty;
+
+        // Reverse GetDisplayLabel — e.g. "40 / 45" must map to the same pool as "40" and "45".
+        if (raw.Contains('/'))
+        {
+            var primarySegment = raw.Split('/')[0].Trim();
+            var segmentKey = TeuCalculator.NormalizeLabel(primarySegment);
+            return SecondaryToPrimary.GetValueOrDefault(segmentKey, segmentKey);
+        }
+
+        var normalized = TeuCalculator.NormalizeLabel(raw);
+        return SecondaryToPrimary.GetValueOrDefault(normalized, normalized);
     }
 
     public static bool IsSecondarySizeKey(string sizeKey)

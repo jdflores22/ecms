@@ -226,7 +226,7 @@ export default function CyContractsMasterTab() {
                 </ListMobileChipRow>
                 {c.sizes.map((size) => (
                   <ListMobileMeta key={size.containerSizeId}>
-                    {getCapacityDisplayLabel(size.sizeLabel)}: {formatCyCountSplit(size.preAdvisedCount, 0)} ·{' '}
+                    {getCapacityDisplayLabel(size.sizeLabel)}: {formatCyCountSplit(size.preAdvisedCount, size.bookingCount ?? 0)} ·{' '}
                     {size.availableCount} available
                   </ListMobileMeta>
                 ))}
@@ -278,7 +278,7 @@ export default function CyContractsMasterTab() {
                         {c.sizes.map((size) => (
                           <Typography key={size.containerSizeId} variant="body2">
                             {getCapacityDisplayLabel(size.sizeLabel)}:{' '}
-                            {formatCyCountSplit(size.preAdvisedCount, 0)} · {size.availableCount} available
+                            {formatCyCountSplit(size.preAdvisedCount, size.bookingCount ?? 0)} · {size.availableCount} available
                           </Typography>
                         ))}
                       </Box>

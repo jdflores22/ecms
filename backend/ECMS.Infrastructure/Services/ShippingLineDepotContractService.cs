@@ -156,6 +156,7 @@ public class ShippingLineDepotContractService : IShippingLineDepotContractServic
                 var groupKey = CyCapacityGroups.GetGroupKey(allocation.ContainerSize.Label);
                 usageByGroup.TryGetValue(groupKey, out var usageRow);
                 var preAdvisedCount = usageRow?.PreAdvisedCount ?? 0;
+                var bookingCount = usageRow?.BookingCount ?? 0;
                 var contractCount = allocation.ContractCount;
                 return new ShippingLineDepotContractSizeDto(
                     allocation.ContainerSizeId,
@@ -163,6 +164,7 @@ public class ShippingLineDepotContractService : IShippingLineDepotContractServic
                     allocation.ContainerSize.Teu,
                     contractCount,
                     preAdvisedCount,
+                    bookingCount,
                     Math.Max(0, contractCount - preAdvisedCount));
             })
             .ToList();

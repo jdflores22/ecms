@@ -692,6 +692,7 @@ export interface ShippingLineDepotContractSize {
   teuPerContainer: number
   contractCount: number
   preAdvisedCount: number
+  bookingCount: number
   availableCount: number
 }
 

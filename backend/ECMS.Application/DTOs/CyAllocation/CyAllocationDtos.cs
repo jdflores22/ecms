@@ -50,6 +50,7 @@ public record ShippingLineDepotContractSizeDto(
     decimal TeuPerContainer,
     int ContractCount,
     int PreAdvisedCount,
+    int BookingCount,
     int AvailableCount);
 
 public record ShippingLineDepotContractDto(
