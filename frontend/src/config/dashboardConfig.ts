@@ -1,4 +1,5 @@
 import type { SvgIconComponent } from '@mui/icons-material'
+import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import AssignmentIcon from '@mui/icons-material/Assignment'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import CalendarViewDayIcon from '@mui/icons-material/CalendarViewDay'
@@ -97,10 +98,13 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
     stats: [
       { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'issuedWithdrawalsAwaitingUpload', label: 'Issued ATW — upload', description: 'Shipping line issued ATW awaiting certificate', icon: UnarchiveOutlinedIcon, color: '#6a1b9a', highlightWhenPositive: true },
+      { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: '#1565c0', highlightWhenPositive: true },
       { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
       { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'totalRequests', label: 'Total pre-forecast', description: 'All requests you submitted', icon: AssignmentIcon, color: '#1565c0' },
+      { key: 'approvedWithdrawals', label: 'Approved withdrawals', description: 'Released or completed repositioning', icon: CheckCircleIcon, color: '#2e7d32' },
     ],
     actions: [
       { label: 'Pre-forecast', path: '/preforecast', icon: AssignmentIcon },

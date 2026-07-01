@@ -6,6 +6,7 @@ import {
   IconButton,
   InputLabel,
   MenuItem,
+  Paper,
   Select,
   Table,
   TableBody,
@@ -19,8 +20,9 @@ import {
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import { useEffect, useState } from 'react'
-import { withdrawalApi } from '../../services/api'
+import { withdrawalApi, demurrageBillingApi } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { containerNumberError } from '../../utils/containerNumber'
 
 export interface WithdrawalLineFormValue {
   containerNo: string
@@ -50,6 +52,7 @@ interface WithdrawalLineGridProps {
   containerSizes: SizeOption[]
   containerTypes: TypeOption[]
   currentDepotId?: number | ''
+  shippingLineId?: number | ''
   excludeWithdrawalId?: number
   disabled?: boolean
   compact?: boolean
@@ -82,11 +85,14 @@ export default function WithdrawalLineGrid({
   containerSizes,
   containerTypes,
   currentDepotId,
+  shippingLineId,
   excludeWithdrawalId,
   disabled = false,
   compact = false,
 }: WithdrawalLineGridProps) {
   const [duplicateWarnings, setDuplicateWarnings] = useState<Record<number, string>>({})
+  const [demurrageWarnings, setDemurrageWarnings] = useState<Record<number, string>>({})
+  const [yardWarnings, setYardWarnings] = useState<Record<number, string>>({})
 
   useEffect(() => {
     if (currentDepotId === '' || currentDepotId === undefined) {
@@ -134,6 +140,78 @@ export default function WithdrawalLineGrid({
 
     return () => window.clearTimeout(timer)
   }, [lines, currentDepotId, excludeWithdrawalId])
+
+  useEffect(() => {
+    if (shippingLineId === '' || shippingLineId === undefined) {
+      setDemurrageWarnings({})
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      const checks = lines.map(async (line, index) => {
+        if (!line.containerNo.trim() || line.containerSizeId === '' || line.containerTypeId === '') {
+          return { index, warning: null as string | null }
+        }
+        try {
+          const { data } = await demurrageBillingApi.checkBlock({
+            containerNo: line.containerNo.trim().toUpperCase(),
+            shippingLineId: shippingLineId as number,
+            containerSizeId: line.containerSizeId as number,
+            containerTypeId: line.containerTypeId as number,
+          })
+          return { index, warning: data.isBlocked ? data.message ?? 'Outstanding demurrage must be settled first.' : null }
+        } catch {
+          return { index, warning: null }
+        }
+      })
+
+      void Promise.all(checks).then((results) => {
+        const next: Record<number, string> = {}
+        for (const result of results) {
+          if (result.warning) next[result.index] = result.warning
+        }
+        setDemurrageWarnings(next)
+      })
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [lines, shippingLineId])
+
+  useEffect(() => {
+    if (currentDepotId === '' || currentDepotId === undefined) {
+      setYardWarnings({})
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      const checks = lines.map(async (line, index) => {
+        if (!line.containerNo.trim() || line.containerSizeId === '' || line.containerTypeId === '') {
+          return { index, warning: null as string | null }
+        }
+        try {
+          const { data } = await withdrawalApi.checkYard({
+            depotId: currentDepotId as number,
+            containerNo: line.containerNo.trim().toUpperCase(),
+            containerSizeId: line.containerSizeId as number,
+            containerTypeId: line.containerTypeId as number,
+          })
+          return { index, warning: !data.isInYard ? data.message ?? 'Not found in yard inventory.' : null }
+        } catch {
+          return { index, warning: null }
+        }
+      })
+
+      void Promise.all(checks).then((results) => {
+        const next: Record<number, string> = {}
+        for (const result of results) {
+          if (result.warning) next[result.index] = result.warning
+        }
+        setYardWarnings(next)
+      })
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [lines, currentDepotId])
 
   const updateLine = (index: number, patch: Partial<WithdrawalLineFormValue>) => {
     onChange(lines.map((line, i) => (i === index ? { ...line, ...patch } : line)))
@@ -196,8 +274,104 @@ export default function WithdrawalLineGrid({
         </Alert>
       )}
 
+      <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 1.5, mb: 1 }}>
+        {lines.map((line, index) => (
+          <Paper
+            key={index}
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: duplicateWarnings[index] ? 'warning.light' : 'divider',
+              bgcolor: '#fff',
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                Container {index + 1}
+              </Typography>
+              {!disabled && (
+                <IconButton
+                  size="small"
+                  aria-label="Remove container"
+                  disabled={lines.length <= 1}
+                  onClick={() => removeLine(index)}
+                >
+                  <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <TextField
+                label="Container no."
+                value={line.containerNo}
+                onChange={(e) => updateLine(index, { containerNo: e.target.value.toUpperCase() })}
+                size="small"
+                fullWidth
+                disabled={disabled}
+                placeholder="MSCU1234567"
+                slotProps={{ input: { style: { fontFamily: 'monospace' } } }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              />
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                <FormControl size="small" fullWidth disabled={disabled} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
+                  <InputLabel>Size</InputLabel>
+                  <Select
+                    label="Size"
+                    value={line.containerSizeId}
+                    onChange={(e) => updateLine(index, { containerSizeId: e.target.value as number | '' })}
+                  >
+                    {containerSizes.map((size) => (
+                      <MenuItem key={size.id} value={size.id}>
+                        {formatContainerSizeLabel(size.label)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" fullWidth disabled={disabled} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
+                  <InputLabel>Type</InputLabel>
+                  <Select
+                    label="Type"
+                    value={line.containerTypeId}
+                    onChange={(e) => updateLine(index, { containerTypeId: e.target.value as number | '' })}
+                  >
+                    {containerTypes.map((type) => (
+                      <MenuItem key={type.id} value={type.id}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              {duplicateWarnings[index] && (
+                <Typography variant="caption" color="warning.main">
+                  {duplicateWarnings[index]}
+                </Typography>
+              )}
+              {containerNumberError(line.containerNo) && (
+                <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                  {containerNumberError(line.containerNo)}
+                </Typography>
+              )}
+              {demurrageWarnings[index] && (
+                <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                  {demurrageWarnings[index]}
+                </Typography>
+              )}
+              {yardWarnings[index] && (
+                <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
+                  {yardWarnings[index]}
+                </Typography>
+              )}
+            </Box>
+          </Paper>
+        ))}
+      </Box>
+
       <TableContainer
         sx={{
+          display: { xs: 'none', md: 'block' },
           border: '1px solid',
           borderColor: 'divider',
           borderRadius: 2,
@@ -232,6 +406,21 @@ export default function WithdrawalLineGrid({
                   {duplicateWarnings[index] && (
                     <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
                       {duplicateWarnings[index]}
+                    </Typography>
+                  )}
+                  {containerNumberError(line.containerNo) && (
+                    <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
+                      {containerNumberError(line.containerNo)}
+                    </Typography>
+                  )}
+                  {demurrageWarnings[index] && (
+                    <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
+                      {demurrageWarnings[index]}
+                    </Typography>
+                  )}
+                  {yardWarnings[index] && (
+                    <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
+                      {yardWarnings[index]}
                     </Typography>
                   )}
                 </TableCell>

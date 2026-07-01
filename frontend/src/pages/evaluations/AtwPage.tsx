@@ -17,7 +17,7 @@ import AddIcon from '@mui/icons-material/Add'
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ListDesktopOnly,
   ListMobileCard,
@@ -53,10 +53,30 @@ function statusLabel(status: string) {
 
 export default function EvaluatorAtwPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useAppSelector((s) => s.auth.user)
   const [items, setItems] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const widget = searchParams.get('widget')
+  const filteredItems = useMemo(() => {
+    const now = new Date()
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+    if (widget === 'expiring48') {
+      return items.filter((w) => {
+        if (!['Issued', 'Submitted', 'UnderReview', 'Approved'].includes(w.status)) return false
+        const exp = new Date(`${w.expirationDate}T23:59:59`)
+        return exp >= now && exp <= in48h
+      })
+    }
+    if (widget === 'stuck24') {
+      const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      return items.filter((w) => ['Submitted', 'UnderReview'].includes(w.status) && !!w.submittedAt && new Date(w.submittedAt) <= cutoff)
+    }
+    if (widget === 'rejectedReasons') return items.filter((w) => w.status === 'Rejected')
+    if (widget === 'turnaround') return items.filter((w) => ['Approved', 'Rejected', 'Released', 'Completed'].includes(w.status))
+    return items
+  }, [items, widget])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -162,12 +182,24 @@ export default function EvaluatorAtwPage() {
           {error}
         </Alert>
       )}
+      {widget && (
+        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            <Box>
+              Filter active: <strong>{widget}</strong>. Showing {filteredItems.length} ATW record(s).
+            </Box>
+            <Button size="small" variant="outlined" onClick={() => setSearchParams({})}>
+              Clear filter
+            </Button>
+          </Box>
+        </Alert>
+      )}
 
       {loading ? (
         <Paper elevation={0} sx={{ py: 8, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           <CircularProgress sx={{ color: primaryDark }} />
         </Paper>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
             No ATW records yet. Issue one for an authorized trucker.
@@ -193,7 +225,7 @@ export default function EvaluatorAtwPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {items.map((row) => (
+                  {filteredItems.map((row) => (
                     <TableRow key={row.id} hover>
                       <TableCell sx={{ fontWeight: 600 }}>{row.referenceNo}</TableCell>
                       <TableCell>{row.atwNumber}</TableCell>
@@ -225,7 +257,7 @@ export default function EvaluatorAtwPage() {
           </ListDesktopOnly>
 
           <ListMobileOnly>
-            {items.map((row) => (
+            {filteredItems.map((row) => (
               <ListMobileCard key={row.id} onClick={() => navigate(`/evaluations/atw/${row.id}`)}>
                 <ListMobileTitle>{row.referenceNo}</ListMobileTitle>
                 <ListMobileMeta>ATW {row.atwNumber} · {row.truckerName}</ListMobileMeta>

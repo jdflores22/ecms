@@ -105,6 +105,42 @@ public record WithdrawalLookupsDto(
     IReadOnlyList<ContainerTypeLookupDto> ContainerTypes,
     IReadOnlyList<DepotLookupDto> Depots);
 
+public record DestinationLookupDto(string Label, string Category);
+
+public record ShippingLineWithdrawalRulesDto(
+    int ShippingLineId,
+    int DefaultValidityDays,
+    int MaxContainersPerBatch,
+    IReadOnlyList<int> ContractDepotIds);
+
+public record WithdrawalFormConfigDto(
+    IReadOnlyList<ShippingLineLookupDto> ShippingLines,
+    IReadOnlyList<ContainerSizeLookupDto> ContainerSizes,
+    IReadOnlyList<ContainerTypeLookupDto> ContainerTypes,
+    IReadOnlyList<DepotLookupDto> Depots,
+    IReadOnlyList<DestinationLookupDto> Destinations,
+    IReadOnlyList<ShippingLineWithdrawalRulesDto> ShippingLineRules);
+
+public record WithdrawalAtwNumberCheckDto(
+    bool IsTaken,
+    string? ReferenceNo,
+    WithdrawalStatus? Status);
+
+public record WithdrawalYardCheckDto(
+    bool IsInYard,
+    string? Source,
+    string? Message);
+
+public record WithdrawalGatePassDto(
+    string GateCode,
+    string QrPayload,
+    string ReferenceNo,
+    string AtwNumber,
+    string ContainerSummary,
+    string ExpiresOn,
+    string CurrentDepotName,
+    string Destination);
+
 public record WithdrawalDocumentDto(
     int Id,
     int WithdrawalRequestId,

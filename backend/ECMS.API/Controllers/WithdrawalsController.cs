@@ -132,6 +132,52 @@ public class WithdrawalsController : ControllerBase
     public async Task<ActionResult<WithdrawalLookupsDto>> Lookups(CancellationToken cancellationToken)
         => Ok(await _service.GetLookupsAsync(cancellationToken));
 
+    [HttpGet("form-config")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<ActionResult<WithdrawalFormConfigDto>> FormConfig(CancellationToken cancellationToken)
+        => Ok(await _service.GetFormConfigAsync(cancellationToken));
+
+    [HttpGet("check-atw-number")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<ActionResult<WithdrawalAtwNumberCheckDto>> CheckAtwNumber(
+        [FromQuery] string atwNumber,
+        [FromQuery] int? excludeWithdrawalId,
+        CancellationToken cancellationToken)
+        => Ok(await _service.CheckAtwNumberAsync(atwNumber, excludeWithdrawalId, cancellationToken));
+
+    [HttpGet("check-yard")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<ActionResult<WithdrawalYardCheckDto>> CheckYard(
+        [FromQuery] int depotId,
+        [FromQuery] string containerNo,
+        [FromQuery] int containerSizeId,
+        [FromQuery] int containerTypeId,
+        CancellationToken cancellationToken)
+        => Ok(await _service.CheckContainerInYardAsync(
+            depotId, containerNo, containerSizeId, containerTypeId, cancellationToken));
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<IActionResult> DeleteDraft(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var deleted = await _service.DeleteDraftAsync(id, UserId, cancellationToken);
+            return deleted ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:int}/gate-pass")]
+    public async Task<ActionResult<WithdrawalGatePassDto>> GatePass(int id, CancellationToken cancellationToken)
+    {
+        var pass = await _service.GetGatePassAsync(id, UserId, Role, cancellationToken);
+        return pass is null ? NotFound() : Ok(pass);
+    }
+
     [HttpGet("check-duplicate")]
     [Authorize(Roles = RoleNames.PreAdviceManager)]
     public async Task<ActionResult<WithdrawalDuplicateCheckDto>> CheckDuplicate(

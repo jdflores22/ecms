@@ -18,7 +18,7 @@ import {
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ListDesktopOnly,
   ListMobileCard,
@@ -80,12 +80,14 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
 export default function DepotWithdrawalsPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useAppSelector((s) => s.auth.user)
   const [activeStatus, setActiveStatus] = useState<WithdrawalStatusTab>('Submitted')
   const [items, setItems] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const widget = searchParams.get('widget')
 
   useEffect(() => {
     const message = (location.state as { message?: string } | null)?.message
@@ -109,10 +111,23 @@ export default function DepotWithdrawalsPage() {
     load()
   }, [load])
 
-  const filtered = useMemo(
-    () => items.filter((item) => item.status === activeStatus),
-    [items, activeStatus],
-  )
+  useEffect(() => {
+    if (widget === 'stuck24') setActiveStatus('UnderReview')
+    else if (widget === 'rejectedReasons') setActiveStatus('Rejected')
+    else if (widget === 'turnaround') setActiveStatus('Released')
+    else if (widget === 'expiring48') setActiveStatus('Submitted')
+  }, [widget])
+
+  const filtered = useMemo(() => {
+    const base = items.filter((item) => item.status === activeStatus)
+    if (widget !== 'expiring48') return base
+    const now = new Date()
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+    return base.filter((w) => {
+      const exp = new Date(`${w.expirationDate}T23:59:59`)
+      return exp >= now && exp <= in48h
+    })
+  }, [items, activeStatus, widget])
 
   const counts = useMemo(
     () =>
@@ -194,6 +209,19 @@ export default function DepotWithdrawalsPage() {
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {error}
+        </Alert>
+      )}
+
+      {widget && (
+        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            <Box>
+              Filter active: <strong>{widget}</strong>. Showing {filtered.length} request(s).
+            </Box>
+            <Button size="small" variant="outlined" onClick={() => setSearchParams({})}>
+              Clear filter
+            </Button>
+          </Box>
         </Alert>
       )}
 

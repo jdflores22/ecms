@@ -17,6 +17,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, Navigate, useParams } from 'react-router-dom'
 import WithdrawalForm, { type WithdrawalFormSubmitValues } from '../../components/withdrawals/WithdrawalForm'
 import WithdrawalLinesTable from '../../components/withdrawals/WithdrawalLinesTable'
+import WithdrawalStatusTimeline from '../../components/withdrawals/WithdrawalStatusTimeline'
+import WithdrawalGatePassCard from '../../components/withdrawals/WithdrawalGatePassCard'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type Withdrawal, type WithdrawalDocument, type WithdrawalLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
@@ -214,6 +216,8 @@ export default function WithdrawalDetailPage() {
             </Box>
           </Paper>
 
+          <WithdrawalStatusTimeline status={item.status} issuedByShippingLine={item.status === 'Issued'} />
+
           {actionError && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
               {actionError}
@@ -273,7 +277,9 @@ export default function WithdrawalDetailPage() {
             </Paper>
 
             <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+              <WithdrawalGatePassCard withdrawalId={item.id} status={item.status} />
+
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, mt: 2 }}>
                 ATW certificate
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

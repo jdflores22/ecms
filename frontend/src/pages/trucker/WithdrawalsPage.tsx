@@ -15,9 +15,10 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ListDesktopOnly,
   ListMobileCard,
@@ -78,10 +79,30 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
 
 export default function TruckerWithdrawalsPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useAppSelector((s) => s.auth.user)
   const [items, setItems] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const widget = searchParams.get('widget')
+  const filteredItems = useMemo(() => {
+    const now = new Date()
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+    if (widget === 'expiring48') {
+      return items.filter((w) => {
+        if (!['Draft', 'Issued', 'Submitted', 'UnderReview', 'Approved'].includes(w.status)) return false
+        const exp = new Date(`${w.expirationDate}T23:59:59`)
+        return exp >= now && exp <= in48h
+      })
+    }
+    if (widget === 'stuck24') {
+      const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      return items.filter((w) => ['Submitted', 'UnderReview'].includes(w.status) && !!w.submittedAt && new Date(w.submittedAt) <= cutoff)
+    }
+    if (widget === 'rejectedReasons') return items.filter((w) => w.status === 'Rejected')
+    if (widget === 'turnaround') return items.filter((w) => ['Approved', 'Rejected', 'Released', 'Completed'].includes(w.status))
+    return items
+  }, [items, widget])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -106,6 +127,22 @@ export default function TruckerWithdrawalsPage() {
     }),
     [items],
   )
+
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  const handleDeleteDraft = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm('Delete this draft withdrawal request?')) return
+    setDeletingId(id)
+    try {
+      await withdrawalApi.deleteDraft(id)
+      setItems((prev) => prev.filter((w) => w.id !== id))
+    } catch {
+      setError('Failed to delete draft.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
@@ -191,11 +228,24 @@ export default function TruckerWithdrawalsPage() {
         </Alert>
       )}
 
+      {widget && (
+        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            <Box>
+              Filter active: <strong>{widget}</strong>. Showing {filteredItems.length} request(s).
+            </Box>
+            <Button size="small" variant="outlined" onClick={() => setSearchParams({})}>
+              Clear filter
+            </Button>
+          </Box>
+        </Alert>
+      )}
+
       {loading ? (
         <Paper elevation={0} sx={{ py: 8, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           <CircularProgress sx={{ color: primaryDark }} />
         </Paper>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
             No withdrawal requests yet. Create one and attach your ATW certificate.
@@ -221,7 +271,7 @@ export default function TruckerWithdrawalsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {items.map((row) => (
+                  {filteredItems.map((row) => (
                     <TableRow key={row.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/trucker/withdrawals/${row.id}`)}>
                       <TableCell sx={{ fontWeight: 700 }}>{row.referenceNo}</TableCell>
                       <TableCell>{row.atwNumber}</TableCell>
@@ -241,6 +291,18 @@ export default function TruckerWithdrawalsPage() {
                       </TableCell>
                       <TableCell>{row.hasAtwDocument ? 'Attached' : 'Missing'}</TableCell>
                       <TableCell align="right">
+                        {row.status === 'Draft' && (
+                          <Button
+                            size="small"
+                            color="error"
+                            startIcon={<DeleteOutlinedIcon />}
+                            disabled={deletingId === row.id}
+                            onClick={(e) => void handleDeleteDraft(row.id, e)}
+                            sx={{ mr: 1 }}
+                          >
+                            Delete
+                          </Button>
+                        )}
                         <Button size="small" endIcon={<OpenInNewIcon />} onClick={(e) => { e.stopPropagation(); navigate(`/trucker/withdrawals/${row.id}`) }}>
                           Open
                         </Button>
@@ -253,7 +315,7 @@ export default function TruckerWithdrawalsPage() {
           </ListDesktopOnly>
 
           <ListMobileOnly>
-            {items.map((row) => (
+            {filteredItems.map((row) => (
               <ListMobileCard key={row.id} onClick={() => navigate(`/trucker/withdrawals/${row.id}`)}>
                 <ListMobileTitle>{row.referenceNo}</ListMobileTitle>
                 <ListMobileMeta>ATW {row.atwNumber}</ListMobileMeta>

@@ -94,6 +94,162 @@ public class WithdrawalService : IWithdrawalService
         return new WithdrawalLookupsDto(lines, sizes, types, depots);
     }
 
+    public async Task<WithdrawalFormConfigDto> GetFormConfigAsync(CancellationToken cancellationToken = default)
+    {
+        var lookups = await GetLookupsAsync(cancellationToken);
+
+        var contracts = await _db.ShippingLineDepotContracts
+            .AsNoTracking()
+            .Select(c => new { c.ShippingLineId, c.DepotId })
+            .ToListAsync(cancellationToken);
+
+        var contractDepots = contracts
+            .GroupBy(c => c.ShippingLineId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)g.Select(x => x.DepotId).Distinct().ToList());
+
+        var rules = lookups.ShippingLines
+            .Select(line => new ShippingLineWithdrawalRulesDto(
+                line.Id,
+                DefaultValidityDays: 14,
+                MaxContainersPerBatch: 50,
+                contractDepots.TryGetValue(line.Id, out var depotIds) ? depotIds : Array.Empty<int>()))
+            .ToList();
+
+        var destinations = lookups.Depots
+            .Select(d => new DestinationLookupDto(d.Name, "CY"))
+            .Concat(new[]
+            {
+                new DestinationLookupDto("Manila International Container Terminal (MICT)", "Port"),
+                new DestinationLookupDto("Manila South Harbor", "Port"),
+                new DestinationLookupDto("Subic Bay Freeport", "Port"),
+                new DestinationLookupDto("Batangas Port", "Port"),
+            })
+            .DistinctBy(d => d.Label, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d.Category)
+            .ThenBy(d => d.Label)
+            .ToList();
+
+        return new WithdrawalFormConfigDto(
+            lookups.ShippingLines,
+            lookups.ContainerSizes,
+            lookups.ContainerTypes,
+            lookups.Depots,
+            destinations,
+            rules);
+    }
+
+    public async Task<WithdrawalAtwNumberCheckDto> CheckAtwNumberAsync(
+        string atwNumber,
+        int? excludeWithdrawalId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = atwNumber.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return new WithdrawalAtwNumberCheckDto(false, null, null);
+
+        var query = _db.WithdrawalRequests.AsNoTracking()
+            .Where(w => w.AtwNumber.ToUpper() == normalized);
+
+        if (excludeWithdrawalId.HasValue)
+            query = query.Where(w => w.Id != excludeWithdrawalId.Value);
+
+        var existing = await query
+            .Select(w => new { w.ReferenceNo, w.Status })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return existing is null
+            ? new WithdrawalAtwNumberCheckDto(false, null, null)
+            : new WithdrawalAtwNumberCheckDto(true, existing.ReferenceNo, existing.Status);
+    }
+
+    public async Task<WithdrawalYardCheckDto> CheckContainerInYardAsync(
+        int depotId,
+        string containerNo,
+        int containerSizeId,
+        int containerTypeId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = WithdrawalDuplicateGuard.NormalizeContainerNo(containerNo);
+        if (depotId <= 0 || string.IsNullOrWhiteSpace(normalized))
+            return new WithdrawalYardCheckDto(false, null, "Select a container yard and enter a container number.");
+
+        var manual = await _db.ManualYardInventoryEntries.AsNoTracking()
+            .AnyAsync(
+                e => e.DepotId == depotId
+                    && e.ContainerNo == normalized
+                    && e.ContainerSizeId == containerSizeId
+                    && e.ContainerTypeId == containerTypeId,
+                cancellationToken);
+        if (manual)
+            return new WithdrawalYardCheckDto(true, "Manual yard inventory", null);
+
+        var scheduled = await _db.Schedules.AsNoTracking()
+            .AnyAsync(
+                s => s.DepotId == depotId
+                    && s.Status == ScheduleStatus.Confirmed
+                    && s.PreAdvice.ContainerNoNormalized == normalized
+                    && s.PreAdvice.ContainerSizeId == containerSizeId
+                    && s.PreAdvice.ContainerTypeId == containerTypeId,
+                cancellationToken);
+        if (scheduled)
+            return new WithdrawalYardCheckDto(true, "Confirmed return schedule", null);
+
+        return new WithdrawalYardCheckDto(
+            false,
+            null,
+            "Container not found in yard inventory at the selected CY. Verify the number, size, and type.");
+    }
+
+    public async Task<bool> DeleteDraftAsync(int id, int userId, CancellationToken cancellationToken = default)
+    {
+        var entity = await _db.WithdrawalRequests
+            .Include(w => w.Lines)
+            .Include(w => w.Documents)
+            .FirstOrDefaultAsync(w => w.Id == id && w.TruckerId == userId, cancellationToken);
+
+        if (entity is null) return false;
+        if (entity.Status != WithdrawalStatus.Draft)
+            throw new InvalidOperationException("Only draft withdrawal requests can be deleted.");
+
+        foreach (var document in entity.Documents.ToList())
+            _db.Remove(document);
+        foreach (var line in entity.Lines.ToList())
+            _db.Remove(line);
+        _db.Remove(entity);
+        _auditService.QueueLog(userId, "Delete", "Withdrawal", entity.ReferenceNo);
+        await _db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<WithdrawalGatePassDto?> GetGatePassAsync(
+        int id,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await FindScopedAsync(id, userId, role, cancellationToken);
+        if (entity is null) return null;
+
+        if (entity.Status is not (WithdrawalStatus.Approved or WithdrawalStatus.Released or WithdrawalStatus.Completed))
+            return null;
+
+        if (entity.ExpirationDate < PhilippinesTime.Today)
+            return null;
+
+        var gateCode = $"WDL-{entity.ReferenceNo}";
+        var qrPayload = $"ECMS:WDL:{entity.Id}:{entity.ReferenceNo}:{entity.AtwNumber}";
+
+        return new WithdrawalGatePassDto(
+            gateCode,
+            qrPayload,
+            entity.ReferenceNo,
+            entity.AtwNumber,
+            BuildContainerSummary(entity.Lines.ToList()),
+            entity.ExpirationDate.ToString("yyyy-MM-dd"),
+            entity.CurrentDepot.Name,
+            entity.Destination);
+    }
+
     public async Task<EvaluatorAtwLookupsDto> GetEvaluatorLookupsAsync(int evaluatorId, CancellationToken cancellationToken = default)
     {
         var evaluator = await _db.Users

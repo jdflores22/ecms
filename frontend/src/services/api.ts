@@ -291,6 +291,27 @@ export interface WithdrawalLookups {
   depots: { id: number; name: string }[]
 }
 
+export interface WithdrawalFormConfig extends WithdrawalLookups {
+  destinations: { label: string; category: string }[]
+  shippingLineRules: {
+    shippingLineId: number
+    defaultValidityDays: number
+    maxContainersPerBatch: number
+    contractDepotIds: number[]
+  }[]
+}
+
+export interface WithdrawalGatePass {
+  gateCode: string
+  qrPayload: string
+  referenceNo: string
+  atwNumber: string
+  containerSummary: string
+  expiresOn: string
+  currentDepotName: string
+  destination: string
+}
+
 export interface WithdrawalLine {
   id: number
   lineNo: number
@@ -352,6 +373,24 @@ export const withdrawalApi = {
   list: () => api.get<Withdrawal[]>('/withdrawals'),
   get: (id: number) => api.get<Withdrawal>(`/withdrawals/${id}`),
   lookups: () => api.get<WithdrawalLookups>('/withdrawals/lookups'),
+  formConfig: () => api.get<WithdrawalFormConfig>('/withdrawals/form-config'),
+  checkAtwNumber: (params: { atwNumber: string; excludeWithdrawalId?: number }) =>
+    api.get<{ isTaken: boolean; referenceNo?: string | null; status?: string | null }>(
+      '/withdrawals/check-atw-number',
+      { params },
+    ),
+  checkYard: (params: {
+    depotId: number
+    containerNo: string
+    containerSizeId: number
+    containerTypeId: number
+  }) =>
+    api.get<{ isInYard: boolean; source?: string | null; message?: string | null }>(
+      '/withdrawals/check-yard',
+      { params },
+    ),
+  deleteDraft: (id: number) => api.delete(`/withdrawals/${id}`),
+  gatePass: (id: number) => api.get<WithdrawalGatePass>(`/withdrawals/${id}/gate-pass`),
   checkDuplicate: (params: {
     currentDepotId: number
     containerNo: string

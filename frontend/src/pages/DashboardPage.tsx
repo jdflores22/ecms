@@ -10,6 +10,7 @@ import {
 } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import AddIcon from '@mui/icons-material/Add'
+import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -24,6 +25,24 @@ import { useAppSelector } from '../store/hooks'
 const primaryDark = '#0B3D91'
 const primaryLight = '#00A3E0'
 
+interface DashboardRejectedReason {
+  reason: string
+  count: number
+}
+
+interface DashboardWidgets {
+  expiringWithin48Hours: number
+  stuckOver24HoursInReview: number
+  depotTurnaroundHours: number
+  topRejectedReasons: DashboardRejectedReason[]
+}
+
+type DashboardWidgetKey = 'expiring48' | 'stuck24' | 'rejectedReasons' | 'turnaround'
+
+type DashboardPayload = Record<string, unknown> & {
+  widgets?: DashboardWidgets
+}
+
 function hexToRgba(hex: string, alpha: number) {
   const normalized = hex.replace('#', '')
   const r = parseInt(normalized.slice(0, 2), 16)
@@ -35,7 +54,7 @@ function hexToRgba(hex: string, alpha: number) {
 export default function DashboardPage() {
   const user = useAppSelector((s) => s.auth.user)
   const navigate = useNavigate()
-  const [data, setData] = useState<Record<string, number>>({})
+  const [data, setData] = useState<DashboardPayload>({})
   const [cyAllocations, setCyAllocations] = useState<CyAllocation[]>([])
   const [loading, setLoading] = useState(true)
   const [cyLoading, setCyLoading] = useState(false)
@@ -52,7 +71,7 @@ export default function DashboardPage() {
     setError('')
     dashboardApi
       .get(user.role)
-      .then(({ data: payload }) => setData(payload as Record<string, number>))
+      .then(({ data: payload }) => setData(payload as DashboardPayload))
       .catch((err) => {
         const msg = err instanceof Error ? err.message : 'Failed to load dashboard data.'
         setError(msg)
@@ -84,8 +103,28 @@ export default function DashboardPage() {
   }
 
   const actionable = config.stats.filter(
-    (s) => s.highlightWhenPositive && (data[s.key] ?? 0) > 0,
+    (s) => s.highlightWhenPositive && (typeof data[s.key] === 'number' ? (data[s.key] as number) : 0) > 0,
   )
+  const widgets = data.widgets
+
+  const statValue = (key: string) => (typeof data[key] === 'number' ? (data[key] as number) : 0)
+  const widgetTargetPath = useMemo(() => {
+    switch (user.role) {
+      case 'Trucker':
+        return '/trucker/withdrawals'
+      case 'DepotPersonnel':
+        return '/depot/withdrawals'
+      case 'ShippingLineEvaluator':
+        return '/evaluations/atw'
+      default:
+        return null
+    }
+  }, [user.role])
+
+  const openWidget = (key: DashboardWidgetKey) => {
+    if (!widgetTargetPath) return
+    navigate(`${widgetTargetPath}?widget=${key}`)
+  }
 
   return (
     <Box>
@@ -149,18 +188,38 @@ export default function DashboardPage() {
             </Typography>
           </Box>
           {user.role === 'Trucker' && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/preforecast/new')}
+            <Box
               sx={{
-                ...listHeroActionSx,
-                px: 2.5,
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 1,
                 alignSelf: { xs: 'stretch', sm: 'flex-start' },
+                flexShrink: 0,
               }}
             >
-              NEW PRE-FORECAST
-            </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/preforecast/new')}
+                sx={{
+                  ...listHeroActionSx,
+                  px: 2.5,
+                }}
+              >
+                NEW PRE-FORECAST
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<UnarchiveOutlinedIcon />}
+                onClick={() => navigate('/trucker/withdrawals/new')}
+                sx={{
+                  ...listHeroActionSx,
+                  px: 2.5,
+                }}
+              >
+                WITHDRAWALS
+              </Button>
+            </Box>
           )}
         </Box>
       </Paper>
@@ -184,7 +243,7 @@ export default function DashboardPage() {
         >
           {actionable.map((s) => (
             <Box key={s.key} component="span" sx={{ display: 'block' }}>
-              <strong>{data[s.key]}</strong> {s.label.toLowerCase()} need attention.
+              <strong>{statValue(s.key)}</strong> {s.label.toLowerCase()} need attention.
             </Box>
           ))}
         </Alert>
@@ -223,7 +282,7 @@ export default function DashboardPage() {
       >
             {config.stats.map((stat) => {
               const Icon = stat.icon
-              const value = data[stat.key] ?? 0
+              const value = statValue(stat.key)
               const highlighted = stat.highlightWhenPositive && value > 0
               return (
                 <Card
@@ -309,6 +368,92 @@ export default function DashboardPage() {
               )
             })}
           </Box>
+
+          {widgets && user.role !== 'Trucker' && (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                mb: 3,
+                borderRadius: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: '#fff',
+                boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+              }}
+            >
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
+                Actionable widgets
+              </Typography>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' },
+                  gap: 1.5,
+                }}
+              >
+                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <CardActionArea onClick={() => openWidget('expiring48')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Expiring within 48h
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#ed6c02' }}>
+                      {widgets.expiringWithin48Hours}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Active withdrawals that need immediate action
+                    </Typography>
+                  </CardActionArea>
+                </Card>
+                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <CardActionArea onClick={() => openWidget('stuck24')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Stuck &gt; 24h in review
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#d32f2f' }}>
+                      {widgets.stuckOver24HoursInReview}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Submitted/under-review withdrawals beyond 24 hours
+                    </Typography>
+                  </CardActionArea>
+                </Card>
+                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <CardActionArea onClick={() => openWidget('turnaround')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Depot turnaround time
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark }}>
+                      {widgets.depotTurnaroundHours.toFixed(1)}h
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Average review/release turnaround based on audit logs
+                    </Typography>
+                  </CardActionArea>
+                </Card>
+                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <CardActionArea onClick={() => openWidget('rejectedReasons')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Top rejected reasons
+                    </Typography>
+                    {widgets.topRejectedReasons.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        No rejection reasons recorded yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {widgets.topRejectedReasons.map((reason) => (
+                          <Typography key={reason.reason} variant="caption" sx={{ display: 'block', lineHeight: 1.4 }}>
+                            <strong>{reason.count}x</strong> {reason.reason}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </CardActionArea>
+                </Card>
+              </Box>
+            </Paper>
+          )}
 
           {user.role === 'ShippingLineEvaluator' &&
             (cyLoading ? (
