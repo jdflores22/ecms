@@ -1,0 +1,8 @@
+# Copy to local.properties and set your API URL.
+sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
+
+# Production (Railway)
+API_BASE_URL=https://ecms-production-42be.up.railway.app/api
+
+# Web frontend (Hostinger) — reference only
+# FRONTEND_URL=https://deepskyblue-marten-415020.hostingersite.com/
