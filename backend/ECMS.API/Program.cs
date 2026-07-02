@@ -201,16 +201,34 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 
-// Run migrations before accepting traffic so schema mismatches cannot cause silent 500s.
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
-    await seeder.SeedAsync();
-    startupLogger.LogInformation("Database migrate/seed completed.");
+    var db = scope.ServiceProvider.GetRequiredService<EcmsDbContext>();
+    await ProductionSchemaRepair.ApplyAsync(db, startupLogger);
 
-    var demurrageBilling = scope.ServiceProvider.GetRequiredService<IDemurrageBillingService>();
-    await demurrageBilling.SyncExpiredBillingsAsync();
-    startupLogger.LogInformation("Demurrage billing sync completed.");
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+        await seeder.SeedAsync();
+        startupLogger.LogInformation("Database migrate/seed completed.");
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(
+            ex,
+            "Database migrate/seed failed after schema repair. Import scripts/payment-schedule-migrations-idempotent.sql if endpoints still return 500.");
+    }
+
+    try
+    {
+        var demurrageBilling = scope.ServiceProvider.GetRequiredService<IDemurrageBillingService>();
+        await demurrageBilling.SyncExpiredBillingsAsync();
+        startupLogger.LogInformation("Demurrage billing sync completed.");
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogWarning(ex, "Demurrage billing sync skipped.");
+    }
 }
 
 app.Run();
