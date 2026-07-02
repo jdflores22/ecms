@@ -27,15 +27,12 @@ export default function WithdrawalGatePassCard({ withdrawalId, status }: Withdra
       .then(({ data }) => setPass(data))
       .catch(() => setError('Gate pass is not available yet.'))
       .finally(() => setLoading(false))
-  }, [withdrawalId, eligible])
+  }, [withdrawalId, eligible, status])
 
   if (!eligible) return null
 
   return (
-    <Paper
-      elevation={0}
-      sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(11, 61, 145, 0.03)' }}
-    >
+    <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
         <QrCode2Icon sx={{ color: '#0B3D91' }} />
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -84,6 +81,6 @@ export default function WithdrawalGatePassCard({ withdrawalId, status }: Withdra
           </Button>
         </Box>
       ) : null}
-    </Paper>
+    </Box>
   )
 }

@@ -45,6 +45,7 @@ import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor } fro
 import { preAdviceApi, type PreAdvice, type PreAdviceLookups } from '../services/api'
 import { useAppSelector } from '../store/hooks'
 import { formatDateTime, parsePhEndOfDay, parsePhStartOfDay } from '../utils/datetime'
+import { PreAdviceStatusChip } from '../components/preAdvice/PreAdviceStatusChip'
 
 const primaryDark = LIST_PRIMARY
 const primaryLight = '#00A3E0'
@@ -60,17 +61,7 @@ const STATUS_OPTIONS = [
   'Cancelled',
 ] as const
 
-const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
-  Draft: 'default',
-  Submitted: 'info',
-  UnderEvaluation: 'warning',
-  Approved: 'success',
-  Rejected: 'error',
-  ForCompliance: 'warning',
-  Cancelled: 'default',
-}
-
-const statusLabel: Record<string, string> = {
+const filterStatusLabel: Record<string, string> = {
   UnderEvaluation: 'Under evaluation',
   ForCompliance: 'For compliance',
 }
@@ -317,7 +308,7 @@ export default function PreAdvicePage() {
             >
               {STATUS_OPTIONS.map((s) => (
                 <MenuItem key={s} value={s}>
-                  {s === 'All' ? 'All statuses' : statusLabel[s] ?? s}
+                  {s === 'All' ? 'All statuses' : filterStatusLabel[s] ?? s}
                 </MenuItem>
               ))}
             </Select>
@@ -411,12 +402,7 @@ export default function PreAdvicePage() {
                   </Typography>
                   <ListMobileMeta>{formatDateTime(item.createdAt)}</ListMobileMeta>
                   <ListMobileChipRow>
-                    <Chip
-                      label={statusLabel[item.status] ?? item.status}
-                      color={statusColor[item.status] ?? 'default'}
-                      size="small"
-                      sx={{ fontWeight: 600 }}
-                    />
+                    <PreAdviceStatusChip status={item.status} scheduleStatus={item.scheduleStatus} />
                     {item.hasQrBooking && (
                       <>
                         <Chip
@@ -523,12 +509,7 @@ export default function PreAdvicePage() {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            label={statusLabel[item.status] ?? item.status}
-                            color={statusColor[item.status] ?? 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
+                          <PreAdviceStatusChip status={item.status} scheduleStatus={item.scheduleStatus} />
                         </TableCell>
                         <TableCell>
                           {item.hasQrBooking ? (

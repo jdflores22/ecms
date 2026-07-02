@@ -1,3 +1,4 @@
+using ECMS.Application;
 using ECMS.Application.DTOs.Schedule;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
@@ -97,8 +98,11 @@ public class ScheduleService : IScheduleService
 
     public async Task<ScheduleDto> CreateAsync(CreateScheduleRequest request, int actorUserId, CancellationToken cancellationToken = default)
     {
-        if (request.Date < PhilippinesTime.Today)
-            throw new InvalidOperationException("Return date cannot be in the past.");
+        var preAdvice = await _db.PreAdvices
+            .Include(p => p.Evaluation)
+            .FirstAsync(p => p.Id == request.PreAdviceId, cancellationToken);
+
+        await ValidateScheduleAssignmentDateAsync(preAdvice, request.Date, cancellationToken);
 
         await _slotCapacity.ValidateAssignmentAsync(
             request.DepotId, request.Date, request.SlotNo, null, cancellationToken);
@@ -144,15 +148,17 @@ public class ScheduleService : IScheduleService
     public async Task<ScheduleDto?> UpdateAsync(int id, UpdateScheduleRequest request, int actorUserId, CancellationToken cancellationToken = default)
     {
         var schedule = await _db.Schedules
-            .Include(s => s.PreAdvice)
+            .Include(s => s.PreAdvice).ThenInclude(p => p.Evaluation)
             .Include(s => s.Depot)
             .Include(s => s.Trucker)
             .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
         if (schedule is null) return null;
 
-        if (request.Date < PhilippinesTime.Today)
-            throw new InvalidOperationException("Return date cannot be in the past.");
+        var preAdvice = schedule.PreAdvice
+            ?? await _db.PreAdvices.Include(p => p.Evaluation).FirstAsync(p => p.Id == schedule.PreAdviceId, cancellationToken);
+
+        await ValidateScheduleAssignmentDateAsync(preAdvice, request.Date, cancellationToken);
 
         await _slotCapacity.ValidateAssignmentAsync(
             schedule.DepotId, request.Date, request.SlotNo, schedule.Id, cancellationToken);
@@ -161,16 +167,19 @@ public class ScheduleService : IScheduleService
         schedule.Time = request.Time;
         schedule.SlotNo = 0;
         schedule.Status = request.Status;
+        schedule.DepotRemarks = string.IsNullOrWhiteSpace(request.DepotRemarks)
+            ? null
+            : request.DepotRemarks.Trim();
 
         if (!schedule.TruckerId.HasValue)
-            schedule.TruckerId = schedule.PreAdvice.TruckerId;
+            schedule.TruckerId = preAdvice.TruckerId;
 
         _db.Update(schedule);
         _auditService.QueueLog(
             actorUserId,
             "Update",
             "Schedule",
-            $"{schedule.PreAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}");
+            $"{preAdvice.ReferenceNo} · {schedule.Date} {schedule.Time:HH:mm}");
         await _db.SaveChangesAsync(cancellationToken);
 
         await NotifyScheduleAssignedAsync(schedule, actorUserId, false, cancellationToken);
@@ -195,7 +204,10 @@ public class ScheduleService : IScheduleService
         var dateStr = schedule.Date.ToString("yyyy-MM-dd");
         var timeStr = schedule.Time.ToString("HH:mm");
         var title = isNew ? "Return schedule assigned" : "Return schedule updated";
-        var message = $"{refNo} scheduled on {dateStr} at {timeStr}.";
+        var remarksSuffix = string.IsNullOrWhiteSpace(schedule.DepotRemarks)
+            ? string.Empty
+            : $" Depot note: {schedule.DepotRemarks.Trim()}";
+        var message = $"{refNo} scheduled on {dateStr} at {timeStr}.{remarksSuffix}";
 
         var recipients = new List<int> { schedule.PreAdvice.TruckerId };
         await _notifications.NotifyUsersAsync(
@@ -213,7 +225,7 @@ public class ScheduleService : IScheduleService
             await _notifications.NotifyUsersAsync(
                 new[] { schedule.TruckerId.Value },
                 title,
-                $"{refNo} scheduled on {dateStr} at {timeStr}. Upload payment proof to confirm your return.",
+                $"{refNo} scheduled on {dateStr} at {timeStr}. Upload payment proof to confirm your return.{remarksSuffix}",
                 "Schedule",
                 $"/trucker/payments/{schedule.Id}",
                 actorUserId,
@@ -241,8 +253,27 @@ public class ScheduleService : IScheduleService
         return await query.CountAsync(cancellationToken);
     }
 
+    private static Task ValidateScheduleAssignmentDateAsync(
+        PreAdvice preAdvice,
+        DateOnly date,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var validityStartsOn = preAdvice.Evaluation?.EvaluatedAt is { } evaluatedAt
+            ? PhilippinesTime.ToDateOnly(evaluatedAt)
+            : (DateOnly?)null;
+
+        DepotScheduleDateRules.ValidateAssignmentDate(
+            date,
+            preAdvice.DemurrageValidUntil,
+            validityStartsOn);
+
+        return Task.CompletedTask;
+    }
+
     private static ScheduleDto MapToDto(Schedule s) => new(
         s.Id, s.PreAdviceId, s.PreAdvice.ReferenceNo, s.DepotId, s.Depot.Name,
         s.Date, s.Time, s.SlotNo, s.Status, s.TruckerId,
-        s.Trucker?.FullName ?? s.Trucker?.Username);
+        s.Trucker?.FullName ?? s.Trucker?.Username,
+        s.DepotRemarks);
 }

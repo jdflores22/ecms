@@ -158,9 +158,9 @@ function heroScheduleChipStyle(status: string): { bgcolor: string; color: string
 
       return { bgcolor: 'rgba(237, 108, 2, 0.92)', color: '#fff' }
 
-    case 'Cancelled':
+    case 'NoShow':
 
-      return { bgcolor: 'rgba(158, 158, 158, 0.92)', color: '#fff' }
+      return { bgcolor: 'rgba(198, 40, 40, 0.92)', color: '#fff' }
 
     default:
 
@@ -687,6 +687,12 @@ export default function TruckerReturnDetailPage() {
           )}
 
 
+
+          {schedule.depotRemarks && (
+            <Alert severity="info" sx={{ mb: 3, borderRadius: 2, whiteSpace: 'pre-wrap' }}>
+              <strong>Depot note:</strong> {schedule.depotRemarks}
+            </Alert>
+          )}
 
           {paymentStatus === 'Rejected' && schedule.status === 'Scheduled' && (
 

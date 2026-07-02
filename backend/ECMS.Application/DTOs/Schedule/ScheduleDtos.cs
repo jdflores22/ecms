@@ -13,7 +13,8 @@ public record ScheduleDto(
     int SlotNo,
     ScheduleStatus Status,
     int? TruckerId,
-    string? TruckerName);
+    string? TruckerName,
+    string? DepotRemarks);
 
 public record CreateScheduleRequest(
     int PreAdviceId,
@@ -28,4 +29,5 @@ public record UpdateScheduleRequest(
     TimeOnly Time,
     int SlotNo,
     ScheduleStatus Status,
-    int? TruckerId);
+    int? TruckerId,
+    string? DepotRemarks);

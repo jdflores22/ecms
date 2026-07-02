@@ -10,4 +10,5 @@ public enum ContainerPhotoCategory
     LeftSideOut,
     RightSideOut,
     Damage,
+    Others,
 }

@@ -18,19 +18,19 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
         _logger = logger;
     }
 
-    public Task<(string? ReferenceNo, DateTime? TransactionAt)> ExtractFromImageAsync(
+    public Task<(string? ReferenceNo, string? QrphInvoiceNo, DateTime? TransactionAt, string? Provider)> ExtractFromImageAsync(
         string absoluteFilePath,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(absoluteFilePath))
         {
             _logger.LogWarning("Payment proof file not found: {FilePath}", absoluteFilePath);
-            return Task.FromResult<(string?, DateTime?)>((null, null));
+            return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
         }
 
         var extension = Path.GetExtension(absoluteFilePath);
         if (!ImageExtensions.Contains(extension))
-            return Task.FromResult<(string?, DateTime?)>((null, null));
+            return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
 
         try
         {
@@ -38,19 +38,19 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
             if (string.IsNullOrWhiteSpace(text))
             {
                 _logger.LogWarning("Payment proof OCR returned no text for {FilePath}", absoluteFilePath);
-                return Task.FromResult<(string?, DateTime?)>((null, null));
+                return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
             }
 
             var parsed = PaymentProofTextParser.Parse(text);
-            if (parsed.ReferenceNo is null && parsed.TransactionAt is null)
+            if (parsed.ReferenceNo is null && parsed.QrphInvoiceNo is null && parsed.TransactionAt is null && parsed.Provider is null)
                 _logger.LogInformation("Payment proof OCR text had no parseable metadata for {FilePath}", absoluteFilePath);
 
-            return Task.FromResult((parsed.ReferenceNo, parsed.TransactionAt));
+            return Task.FromResult((parsed.ReferenceNo, parsed.QrphInvoiceNo, parsed.TransactionAt, parsed.Provider));
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Payment proof OCR failed for {FilePath}", absoluteFilePath);
-            return Task.FromResult<(string?, DateTime?)>((null, null));
+            return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
         }
     }
 

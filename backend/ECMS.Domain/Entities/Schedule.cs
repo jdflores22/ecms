@@ -12,6 +12,7 @@ public class Schedule : BaseEntity
     public int SlotNo { get; set; }
     public ScheduleStatus Status { get; set; } = ScheduleStatus.WaitingSchedule;
     public int? TruckerId { get; set; }
+    public string? DepotRemarks { get; set; }
 
     public PreAdvice PreAdvice { get; set; } = null!;
     public Depot Depot { get; set; } = null!;

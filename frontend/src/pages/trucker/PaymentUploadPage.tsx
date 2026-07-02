@@ -262,7 +262,9 @@ export default function TruckerPaymentUploadPage() {
           const extracted = await extractPaymentProofMetadata(file)
           metadata = {
             proofReferenceNo: extracted.referenceNo,
+            proofQrphInvoiceNo: extracted.qrphInvoiceNo,
             proofTransactionAt: extracted.transactionAt,
+            proofProvider: extracted.provider && extracted.provider !== 'unknown' ? extracted.provider : undefined,
           }
         } catch {
           /* upload without OCR metadata */
@@ -348,6 +350,12 @@ export default function TruckerPaymentUploadPage() {
                 </Alert>
               )}
 
+              {schedule.depotRemarks && (
+                <Alert severity="info" sx={{ ...mobileAlertSx, whiteSpace: 'pre-wrap' }}>
+                  <strong>Depot note:</strong> {schedule.depotRemarks}
+                </Alert>
+              )}
+
               {actionError && !confirmOpen && (
                 <Alert severity="error" sx={{ ...mobileAlertSx, mb: 3 }} onClose={() => setActionError('')}>
                   {actionError}
@@ -430,6 +438,11 @@ export default function TruckerPaymentUploadPage() {
                     <InfoTile label="Depot (CY)" value={schedule.depotName} />
                     {schedule.date && (
                       <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                    )}
+                    {schedule.depotRemarks && (
+                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                        <InfoTile label="Depot remarks" value={schedule.depotRemarks} />
+                      </Box>
                     )}
                     {payment?.paidAt && (
                       <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>

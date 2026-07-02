@@ -7,8 +7,6 @@ import {
   MenuItem,
   Paper,
   Select,
-  Tab,
-  Tabs,
   TextField,
   Typography,
 } from '@mui/material'
@@ -20,7 +18,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import type { ReactElement } from 'react'
 import type { ReportTabId } from '../../config/reportConfig'
-import type { Depot } from '../../services/api'
+import type { Depot, ReportShippingLineOption } from '../../services/api'
 import { shiftIsoDate, todayIsoDate } from '../../utils/datetime'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 
@@ -33,8 +31,8 @@ const TAB_ICONS: Record<ReportTabId, ReactElement> = {
 
 interface ReportFiltersBarProps {
   tabs: { id: ReportTabId; label: string }[]
-  tabIndex: number
-  onTabChange: (index: number) => void
+  selectedTabId: ReportTabId
+  onTabIdChange: (id: ReportTabId) => void
   usesDateRange: boolean
   from: string
   to: string
@@ -46,6 +44,10 @@ interface ReportFiltersBarProps {
   depotId: number | ''
   depots: Depot[]
   onDepotChange: (value: number | '') => void
+  showShippingLineFilter: boolean
+  shippingLineId: number | ''
+  shippingLines: ReportShippingLineOption[]
+  onShippingLineChange: (value: number | '') => void
   loading: boolean
   onRefresh: () => void
 }
@@ -57,8 +59,8 @@ function startOfCurrentMonth(): string {
 
 export default function ReportFiltersBar({
   tabs,
-  tabIndex,
-  onTabChange,
+  selectedTabId,
+  onTabIdChange,
   usesDateRange,
   from,
   to,
@@ -70,6 +72,10 @@ export default function ReportFiltersBar({
   depotId,
   depots,
   onDepotChange,
+  showShippingLineFilter,
+  shippingLineId,
+  shippingLines,
+  onShippingLineChange,
   loading,
   onRefresh,
 }: ReportFiltersBarProps) {
@@ -91,31 +97,6 @@ export default function ReportFiltersBar({
         overflow: 'hidden',
       }}
     >
-      <Tabs
-        value={tabIndex}
-        onChange={(_, v) => onTabChange(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        sx={{
-          px: 1,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          bgcolor: hexToRgba(ICS_PRIMARY, 0.02),
-          '& .MuiTab-root': {
-            fontWeight: 600,
-            textTransform: 'none',
-            minHeight: 48,
-            gap: 0.75,
-          },
-          '& .Mui-selected': { color: ICS_PRIMARY },
-          '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
-        }}
-      >
-        {tabs.map((t) => (
-          <Tab key={t.id} icon={TAB_ICONS[t.id]} iconPosition="start" label={t.label} />
-        ))}
-      </Tabs>
-
       <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
           <Box
@@ -160,6 +141,28 @@ export default function ReportFiltersBar({
         )}
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-end' }}>
+          {tabs.length > 1 && (
+            <FormControl
+              size="small"
+              sx={{ minWidth: { xs: '100%', sm: 220 }, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            >
+              <InputLabel>Report type</InputLabel>
+              <Select
+                label="Report type"
+                value={selectedTabId}
+                onChange={(e) => onTabIdChange(e.target.value as ReportTabId)}
+              >
+                {tabs.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {TAB_ICONS[t.id]}
+                      {t.label}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           {usesDateRange ? (
             <>
               <TextField
@@ -190,6 +193,26 @@ export default function ReportFiltersBar({
               onChange={(e) => onYearChange(Number(e.target.value))}
               sx={{ width: 120, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
+          )}
+          {showShippingLineFilter && (
+            <FormControl
+              size="small"
+              sx={{ minWidth: { xs: '100%', sm: 240 }, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            >
+              <InputLabel>Shipping line</InputLabel>
+              <Select
+                label="Shipping line"
+                value={shippingLineId}
+                onChange={(e) => onShippingLineChange(e.target.value as number | '')}
+              >
+                <MenuItem value="">All shipping lines</MenuItem>
+                {shippingLines.map((line) => (
+                  <MenuItem key={line.id} value={line.id}>
+                    {line.code} — {line.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           )}
           {showDepotFilter && (
             <FormControl

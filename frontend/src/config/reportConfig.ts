@@ -18,26 +18,26 @@ export interface RoleReportConfig {
   subtitle: string
   tabs: { id: ReportTabId; label: string }[]
   showDepotFilter: boolean
+  showShippingLineFilter: boolean
 }
 
 export const REPORT_PAGE_CONFIG: Record<ReportPageKey, RoleReportConfig> = {
   adminReports: {
     role: 'Administrator',
     title: 'Transaction reports',
-    subtitle: 'Payment activity, verification status, and verified revenue across all truckers.',
+    subtitle: 'Payment activity, verification status, and collections by shipping line and yard.',
     tabs: [],
     showDepotFilter: false,
+    showShippingLineFilter: false,
   },
   depotReports: {
     role: 'DepotPersonnel',
     title: 'Depot returns reports',
-    subtitle: 'Return activity for your assigned depot — scheduled, confirmed, and completed.',
-    tabs: [
-      { id: 'daily', label: 'Daily' },
-      { id: 'monthly', label: 'Monthly' },
-      { id: 'depots', label: 'By depot' },
-    ],
+    subtitle:
+      'Return activity at your container yard, broken down by each shipping line contract.',
+    tabs: [{ id: 'shippingLines', label: 'By shipping line' }],
     showDepotFilter: false,
+    showShippingLineFilter: true,
   },
   evaluatorReports: {
     role: 'ShippingLineEvaluator',
@@ -49,6 +49,7 @@ export const REPORT_PAGE_CONFIG: Record<ReportPageKey, RoleReportConfig> = {
       { id: 'depots', label: 'By container yard' },
     ],
     showDepotFilter: false,
+    showShippingLineFilter: false,
   },
   truckerReports: {
     role: 'Trucker',
@@ -59,6 +60,7 @@ export const REPORT_PAGE_CONFIG: Record<ReportPageKey, RoleReportConfig> = {
       { id: 'monthly', label: 'Monthly' },
     ],
     showDepotFilter: false,
+    showShippingLineFilter: false,
   },
 }
 

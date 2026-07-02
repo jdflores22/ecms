@@ -78,6 +78,41 @@ public class PreAdviceDocumentIntegrationTests : IClassFixture<EcmsWebApplicatio
     }
 
     [Fact]
+    public async Task Trucker_can_upload_optional_others_photo_without_blocking_submit()
+    {
+        var truckerToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
+        ApiTestHelper.UseBearer(_client, truckerToken);
+
+        var lookups = await _client.GetFromJsonAsync<ApiTestHelper.PreAdviceLookupResponse>("/api/preforecast/lookups");
+        Assert.NotNull(lookups);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/preforecast",
+            ApiTestHelper.BuildCreatePreAdvicePayload(lookups, $"Others photo test {Guid.NewGuid():N}"));
+        var preAdvice = await createResponse.Content.ReadFromJsonAsync<ApiTestHelper.PreAdviceResponse>();
+        Assert.NotNull(preAdvice);
+
+        await ApiTestHelper.UploadAllStandardPhotosAsync(_client, preAdvice.Id);
+
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes("fake-png-content"));
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        form.Add(fileContent, "file", "others.png");
+        form.Add(new StringContent("Others"), "category");
+
+        var uploadResponse = await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/documents", form);
+        Assert.Equal(HttpStatusCode.OK, uploadResponse.StatusCode);
+
+        var uploaded = await uploadResponse.Content.ReadFromJsonAsync<DocumentResponse>();
+        Assert.NotNull(uploaded);
+        Assert.Equal("Others", uploaded.Category);
+        Assert.Equal("Others (optional)", uploaded.CategoryLabel);
+
+        var submitResponse = await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
+        Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Evaluator_can_list_container_photos_for_review()
     {
         var truckerToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");

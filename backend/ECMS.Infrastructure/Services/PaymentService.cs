@@ -53,14 +53,26 @@ public class PaymentService : IPaymentService
         payment.ProofFile = proofFilePath;
         payment.Status = PaymentStatus.ForVerification;
         payment.PaidAt = PhilippinesTime.UtcNow;
-        ApplyProofMetadata(payment, request.ProofReferenceNo, request.ProofTransactionAt);
+        ApplyProofMetadata(
+            payment,
+            request.ProofReferenceNo,
+            request.ProofTransactionAt,
+            request.ProofProvider,
+            request.ProofQrphInvoiceNo);
 
         if (payment.ProofReferenceNo is null
             && payment.ProofTransactionAt is null
+            && payment.ProofProvider is null
+            && payment.ProofQrphInvoiceNo is null
             && !string.IsNullOrWhiteSpace(absoluteProofPath))
         {
             var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
-            ApplyProofMetadata(payment, extracted.ReferenceNo, extracted.TransactionAt);
+            ApplyProofMetadata(
+                payment,
+                extracted.ReferenceNo,
+                extracted.TransactionAt,
+                extracted.Provider,
+                extracted.QrphInvoiceNo);
         }
 
         if (payment.Id == 0)
@@ -128,6 +140,9 @@ public class PaymentService : IPaymentService
 
         payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
         payment.ProofTransactionAt = request.ProofTransactionAt;
+        payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(request.ProofQrphInvoiceNo);
+        if (request.ProofProvider is not null)
+            payment.ProofProvider = PaymentProofTextParser.NormalizeProvider(request.ProofProvider);
 
         payment.Status = request.Approved ? PaymentStatus.Paid : PaymentStatus.Rejected;
         if (request.Approved)
@@ -155,7 +170,7 @@ public class PaymentService : IPaymentService
                 new[] { payment.TruckerId },
                 request.Approved ? "Payment approved — return confirmed" : "Payment rejected",
                 request.Approved
-                    ? $"{refNo} payment verified. Your return is confirmed — view payment details and download your LOGICTECK booking QR."
+                    ? $"{refNo} payment verified. Your return is confirmed — view your pre-forecast QR and send to LOGICTECK when ready."
                     : $"{refNo} payment was rejected. Upload a new proof on the payment page.",
                 "Payment",
                 paymentLink,
@@ -181,6 +196,9 @@ public class PaymentService : IPaymentService
 
         payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
         payment.ProofTransactionAt = request.ProofTransactionAt;
+        payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(request.ProofQrphInvoiceNo);
+        if (request.ProofProvider is not null)
+            payment.ProofProvider = PaymentProofTextParser.NormalizeProvider(request.ProofProvider);
         _db.Update(payment);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -212,7 +230,12 @@ public class PaymentService : IPaymentService
             return null;
 
         var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
-        ApplyProofMetadata(payment, extracted.ReferenceNo, extracted.TransactionAt);
+        ApplyProofMetadata(
+            payment,
+            extracted.ReferenceNo,
+            extracted.TransactionAt,
+            extracted.Provider,
+            extracted.QrphInvoiceNo);
         _db.Update(payment);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -341,15 +364,26 @@ public class PaymentService : IPaymentService
         });
     }
 
-    private static void ApplyProofMetadata(Payment payment, string? referenceNo, DateTime? transactionAt)
+    private static void ApplyProofMetadata(
+        Payment payment,
+        string? referenceNo,
+        DateTime? transactionAt,
+        string? provider = null,
+        string? qrphInvoiceNo = null)
     {
         if (referenceNo is not null)
             payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(referenceNo);
+
+        if (qrphInvoiceNo is not null)
+            payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(qrphInvoiceNo);
 
         if (transactionAt.HasValue)
             payment.ProofTransactionAt = transactionAt.Value.Kind == DateTimeKind.Utc
                 ? transactionAt
                 : PhilippinesTime.ToUtcFromPhilippines(transactionAt.Value);
+
+        if (provider is not null)
+            payment.ProofProvider = PaymentProofTextParser.NormalizeProvider(provider);
     }
 
     private static string? ResolveProofAbsolutePath(string contentRoot, string proofFile)
@@ -381,7 +415,9 @@ public class PaymentService : IPaymentService
         p.Amount,
         p.ProofFile,
         p.ProofReferenceNo,
+        p.ProofQrphInvoiceNo,
         p.ProofTransactionAt,
+        p.ProofProvider,
         p.Status,
         p.PaidAt);
 }

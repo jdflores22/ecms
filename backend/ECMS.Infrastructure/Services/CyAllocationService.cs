@@ -413,7 +413,7 @@ public class CyAllocationService : ICyAllocationService
                 (p.Evaluation != null && p.Evaluation.DepotId != null && depotIds.Contains(p.Evaluation.DepotId.Value))
                 || (p.Schedule != null && depotIds.Contains(p.Schedule.DepotId)))
             .Where(p => p.Schedule == null
-                || (p.Schedule.Status != ScheduleStatus.Completed && p.Schedule.Status != ScheduleStatus.Cancelled))
+                || (p.Schedule.Status != ScheduleStatus.Completed && p.Schedule.Status != ScheduleStatus.NoShow))
             .ToListAsync(cancellationToken);
 
         var result = new Dictionary<int, DepotUsage>();

@@ -50,10 +50,12 @@ import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { isCrossOriginAssetUrl, resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
+import PaymentProofProviderChip from '../../components/payments/PaymentProofProviderChip'
 import {
   formatProofReferenceNo,
   fromDatetimeLocalValue,
   normalizeProofReferenceNo,
+  normalizeProofQrphInvoiceNo,
   toDatetimeLocalValue,
 } from '../../utils/paymentProofTextParser'
 
@@ -142,14 +144,20 @@ function PaymentSummaryPaper({ payment, variant }: { payment: Payment; variant: 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
         {payment.truckerName} · {formatPeso(payment.amount)}
       </Typography>
+      {payment.proofProvider && (
+        <Box sx={{ mt: 0.75 }}>
+          <PaymentProofProviderChip provider={payment.proofProvider} />
+        </Box>
+      )}
       {payment.paidAt && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
           Uploaded {formatDateTime(payment.paidAt)}
         </Typography>
       )}
-      {(payment.proofReferenceNo || payment.proofTransactionAt) && (
+      {(payment.proofReferenceNo || payment.proofQrphInvoiceNo || payment.proofTransactionAt) && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
           Ref {formatProofReferenceNo(payment.proofReferenceNo)}
+          {payment.proofQrphInvoiceNo ? ` · QRPH ${payment.proofQrphInvoiceNo}` : ''}
           {payment.proofTransactionAt ? ` · ${formatDateTime(payment.proofTransactionAt)}` : ''}
         </Typography>
       )}
@@ -246,7 +254,9 @@ function PaymentTable({
           >
             <TableCell>Schedule</TableCell>
             <TableCell>Trucker</TableCell>
+            <TableCell>Paid via</TableCell>
             <TableCell>Ref. no.</TableCell>
+            <TableCell>QRPH invoice</TableCell>
             <TableCell>Transaction</TableCell>
             <TableCell>Amount</TableCell>
             <TableCell>Uploaded</TableCell>
@@ -268,8 +278,18 @@ function PaymentTable({
                 </Button>
               </TableCell>
               <TableCell>{p.truckerName}</TableCell>
+              <TableCell>
+                {p.proofProvider ? (
+                  <PaymentProofProviderChip provider={p.proofProvider} />
+                ) : (
+                  '—'
+                )}
+              </TableCell>
               <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
                 {formatProofReferenceNo(p.proofReferenceNo)}
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                {p.proofQrphInvoiceNo ?? '—'}
               </TableCell>
               <TableCell>
                 {p.proofTransactionAt ? formatDateTime(p.proofTransactionAt) : '—'}
@@ -317,6 +337,7 @@ export default function AdminPaymentsPage() {
   const [actionError, setActionError] = useState('')
   const [detectingProofId, setDetectingProofId] = useState<number | null>(null)
   const [verifyReferenceNo, setVerifyReferenceNo] = useState('')
+  const [verifyQrphInvoiceNo, setVerifyQrphInvoiceNo] = useState('')
   const [verifyTransactionLocal, setVerifyTransactionLocal] = useState('')
   const [demurrageItems, setDemurrageItems] = useState<DemurrageBilling[]>([])
   const [demurrageSubmittingId, setDemurrageSubmittingId] = useState<number | null>(null)
@@ -388,6 +409,7 @@ export default function AdminPaymentsPage() {
     setSelectedPayment(payment)
     setVerifyAction(action)
     setVerifyReferenceNo(payment.proofReferenceNo ?? '')
+    setVerifyQrphInvoiceNo(payment.proofQrphInvoiceNo ?? '')
     setVerifyTransactionLocal(toDatetimeLocalValue(payment.proofTransactionAt))
   }
 
@@ -397,6 +419,7 @@ export default function AdminPaymentsPage() {
     setSelectedPayment(null)
     setActionError('')
     setVerifyReferenceNo('')
+    setVerifyQrphInvoiceNo('')
     setVerifyTransactionLocal('')
   }
 
@@ -413,38 +436,47 @@ export default function AdminPaymentsPage() {
     setError('')
     try {
       let referenceNo: string | null = null
+      let qrphInvoiceNo: string | null = null
       let transactionAt: string | null = null
+      let provider: string | null = null
 
       if (isCrossOriginAssetUrl(payment.proofFile)) {
         try {
           const { data } = await paymentApi.extractProofMetadata(payment.id)
           referenceNo = data.proofReferenceNo ?? null
+          qrphInvoiceNo = data.proofQrphInvoiceNo ?? null
           transactionAt = data.proofTransactionAt ?? null
+          provider = data.proofProvider ?? null
         } catch {
-          /* server OCR unavailable — try client via authenticated download */
+          /* server OCR unavailable — fall back to client OCR */
         }
+      }
 
-        if (!referenceNo && !transactionAt) {
-          const { data: blob } = await paymentApi.downloadProofFile(payment.id)
-          const extracted = await extractPaymentProofMetadata(blob)
-          referenceNo = extracted.referenceNo
-          transactionAt = extracted.transactionAt
-        }
-      } else {
-        const extracted = await extractPaymentProofMetadata(resolveAssetUrl(payment.proofFile))
-        referenceNo = extracted.referenceNo
-        transactionAt = extracted.transactionAt
+      try {
+        const ocrSource = isCrossOriginAssetUrl(payment.proofFile)
+          ? (await paymentApi.downloadProofFile(payment.id)).data
+          : resolveAssetUrl(payment.proofFile)
+        const extracted = await extractPaymentProofMetadata(ocrSource)
+        referenceNo = referenceNo ?? extracted.referenceNo
+        qrphInvoiceNo = qrphInvoiceNo ?? extracted.qrphInvoiceNo
+        transactionAt = transactionAt ?? extracted.transactionAt
+        provider = provider ?? (extracted.provider && extracted.provider !== 'unknown' ? extracted.provider : null)
+      } catch {
+        /* client OCR failed — keep any server values */
       }
 
       const { data } = await paymentApi.updateProofMetadata(payment.id, {
         proofReferenceNo: referenceNo,
+        proofQrphInvoiceNo: qrphInvoiceNo,
         proofTransactionAt: transactionAt,
+        proofProvider: provider && provider !== 'unknown' ? provider : null,
       })
       mergePaymentInLists(data)
       setVerifyReferenceNo(data.proofReferenceNo ?? '')
+      setVerifyQrphInvoiceNo(data.proofQrphInvoiceNo ?? '')
       setVerifyTransactionLocal(toDatetimeLocalValue(data.proofTransactionAt))
-      if (!data.proofReferenceNo && !data.proofTransactionAt) {
-        setError('Could not read reference number or transaction time from this proof.')
+      if (!data.proofReferenceNo && !data.proofTransactionAt && !data.proofProvider && !data.proofQrphInvoiceNo) {
+        setError('Could not read payment provider, reference, QRPH invoice, or transaction time from this proof.')
       }
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 404) {
@@ -467,7 +499,9 @@ export default function AdminPaymentsPage() {
     try {
       const metadata = {
         proofReferenceNo: normalizeProofReferenceNo(verifyReferenceNo),
+        proofQrphInvoiceNo: normalizeProofQrphInvoiceNo(verifyQrphInvoiceNo),
         proofTransactionAt: fromDatetimeLocalValue(verifyTransactionLocal),
+        proofProvider: selectedPayment.proofProvider ?? null,
       }
       await paymentApi.verify(selectedPayment.id, approved, metadata)
       setSaveSuccess(true)
@@ -603,8 +637,14 @@ export default function AdminPaymentsPage() {
                     />
                   </ListMobileChipRow>
                   <ListMobileMeta>{p.truckerName}</ListMobileMeta>
+                  {p.proofProvider && (
+                    <ListMobileMeta>
+                      <PaymentProofProviderChip provider={p.proofProvider} />
+                    </ListMobileMeta>
+                  )}
                   <ListMobileMeta>
                     Ref {formatProofReferenceNo(p.proofReferenceNo)}
+                    {p.proofQrphInvoiceNo ? ` · QRPH ${p.proofQrphInvoiceNo}` : ''}
                     {p.proofTransactionAt ? ` · ${formatDateTime(p.proofTransactionAt)}` : ''}
                   </ListMobileMeta>
                   <ListMobileMeta>
@@ -712,12 +752,29 @@ export default function AdminPaymentsPage() {
           {proofPreview && (
             <>
               <PaymentSummaryPaper payment={proofPreview} variant="neutral" />
-              {(proofPreview.proofReferenceNo || proofPreview.proofTransactionAt) && (
+              {(proofPreview.proofReferenceNo ||
+                proofPreview.proofQrphInvoiceNo ||
+                proofPreview.proofTransactionAt ||
+                proofPreview.proofProvider) && (
                 <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                  Detected ref {formatProofReferenceNo(proofPreview.proofReferenceNo)}
-                  {proofPreview.proofTransactionAt
-                    ? ` · ${formatDateTime(proofPreview.proofTransactionAt)}`
-                    : ''}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                    {proofPreview.proofProvider && (
+                      <PaymentProofProviderChip provider={proofPreview.proofProvider} />
+                    )}
+                    {(proofPreview.proofReferenceNo ||
+                      proofPreview.proofQrphInvoiceNo ||
+                      proofPreview.proofTransactionAt) && (
+                      <Typography variant="body2" component="span">
+                        Ref {formatProofReferenceNo(proofPreview.proofReferenceNo)}
+                        {proofPreview.proofQrphInvoiceNo
+                          ? ` · QRPH ${proofPreview.proofQrphInvoiceNo}`
+                          : ''}
+                        {proofPreview.proofTransactionAt
+                          ? ` · ${formatDateTime(proofPreview.proofTransactionAt)}`
+                          : ''}
+                      </Typography>
+                    )}
+                  </Box>
                 </Alert>
               )}
               {proofPreview.proofFile ? (
@@ -891,9 +948,19 @@ export default function AdminPaymentsPage() {
                     label="Proof reference no."
                     value={verifyReferenceNo}
                     onChange={(e) => setVerifyReferenceNo(e.target.value)}
-                    placeholder="e.g. 5014349566710"
+                    placeholder="e.g. 5014349566710 or UB983940"
                     size="small"
                     fullWidth
+                    slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
+                  />
+                  <TextField
+                    label="QRPH invoice no."
+                    value={verifyQrphInvoiceNo}
+                    onChange={(e) => setVerifyQrphInvoiceNo(e.target.value)}
+                    placeholder="Maya / GCash only — leave blank if none"
+                    size="small"
+                    fullWidth
+                    helperText="UnionBank and other bank transfers usually have no QRPH invoice."
                     slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
                   />
                   <TextField
@@ -906,22 +973,27 @@ export default function AdminPaymentsPage() {
                     slotProps={{ inputLabel: { shrink: true } }}
                   />
                   {selectedPayment.proofFile && isImageProof(selectedPayment.proofFile) && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={
-                        detectingProofId === selectedPayment.id ? (
-                          <CircularProgress size={16} />
-                        ) : (
-                          <AutoFixHighOutlinedIcon />
-                        )
-                      }
-                      disabled={detectingProofId === selectedPayment.id}
-                      onClick={() => void detectProofMetadata(selectedPayment)}
-                      sx={{ justifySelf: 'flex-start', fontWeight: 600, borderRadius: 2 }}
-                    >
-                      Detect from proof
-                    </Button>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                      {selectedPayment.proofProvider && (
+                        <PaymentProofProviderChip provider={selectedPayment.proofProvider} />
+                      )}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={
+                          detectingProofId === selectedPayment.id ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <AutoFixHighOutlinedIcon />
+                          )
+                        }
+                        disabled={detectingProofId === selectedPayment.id}
+                        onClick={() => void detectProofMetadata(selectedPayment)}
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                      >
+                        Detect from proof
+                      </Button>
+                    </Box>
                   )}
                 </Box>
 

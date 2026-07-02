@@ -492,6 +492,7 @@ export interface PreAdvice {
   containerType: string
   status: string
   demurrageValidUntil?: string | null
+  evaluatedAt?: string | null
   remarks?: string | null
   createdAt: string
   complianceRemarks?: string | null
@@ -501,6 +502,7 @@ export interface PreAdvice {
   qrCode?: string | null
   qrBookingId?: number | null
   logicteckStatus?: string | null
+  scheduleStatus?: string | null
 }
 
 export interface Evaluation {
@@ -527,15 +529,11 @@ export interface Depot {
 export const evaluationApi = {
   list: () => api.get<Evaluation[]>('/evaluations'),
   getByPreAdvice: async (preAdviceId: number): Promise<{ data: Evaluation | null }> => {
-    try {
-      const { data } = await api.get<Evaluation>(`/evaluations/by-preforecast/${preAdviceId}`)
-      return { data }
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 404) {
-        return { data: null }
-      }
-      throw err
-    }
+    const { data, status } = await api.get<Evaluation>(`/evaluations/by-preforecast/${preAdviceId}`, {
+      validateStatus: (s) => s === 200 || s === 204 || s === 404,
+    })
+    if (status === 204 || status === 404) return { data: null }
+    return { data: data ?? null }
   },
   approve: (data: { preAdviceId: number; depotId: number; demurrageValidUntil: string; remarks?: string }) =>
     api.post<Evaluation>('/evaluations/approve', data),
@@ -811,6 +809,7 @@ export interface Schedule {
   status: string
   truckerId?: number | null
   truckerName?: string | null
+  depotRemarks?: string | null
 }
 
 export interface Payment {
@@ -821,14 +820,18 @@ export interface Payment {
   amount: number
   proofFile?: string | null
   proofReferenceNo?: string | null
+  proofQrphInvoiceNo?: string | null
   proofTransactionAt?: string | null
+  proofProvider?: string | null
   status: string
   paidAt?: string | null
 }
 
 export interface PaymentProofMetadataInput {
   proofReferenceNo?: string | null
+  proofQrphInvoiceNo?: string | null
   proofTransactionAt?: string | null
+  proofProvider?: string | null
 }
 
 export interface QrBooking {
@@ -908,6 +911,7 @@ export const scheduleApi = {
     slotNo: number
     status: string
     truckerId?: number | null
+    depotRemarks?: string | null
   }) => api.put<Schedule>(`/schedules/${id}`, data),
 }
 
@@ -935,7 +939,9 @@ export const paymentApi = {
     form.append('scheduleId', String(scheduleId))
     form.append('proof', proof)
     if (metadata?.proofReferenceNo) form.append('proofReferenceNo', metadata.proofReferenceNo)
+    if (metadata?.proofQrphInvoiceNo) form.append('proofQrphInvoiceNo', metadata.proofQrphInvoiceNo)
     if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
+    if (metadata?.proofProvider) form.append('proofProvider', metadata.proofProvider)
     return api.post<Payment>('/payments/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -949,7 +955,9 @@ export const paymentApi = {
     api.post<Payment>(`/payments/${id}/verify`, {
       approved,
       proofReferenceNo: metadata?.proofReferenceNo ?? null,
+      proofQrphInvoiceNo: metadata?.proofQrphInvoiceNo ?? null,
       proofTransactionAt: metadata?.proofTransactionAt ?? null,
+      proofProvider: metadata?.proofProvider ?? null,
     }),
 }
 
@@ -1029,7 +1037,9 @@ export const demurrageBillingApi = {
     const form = new FormData()
     form.append('proof', proof)
     if (metadata?.proofReferenceNo) form.append('proofReferenceNo', metadata.proofReferenceNo)
+    if (metadata?.proofQrphInvoiceNo) form.append('proofQrphInvoiceNo', metadata.proofQrphInvoiceNo)
     if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
+    if (metadata?.proofProvider) form.append('proofProvider', metadata.proofProvider)
     return api.post<DemurrageBilling>(`/demurrage-billing/${id}/upload-proof`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -1227,6 +1237,7 @@ export interface RevenueReport {
 export interface TransactionReportRow {
   paymentId: number
   scheduleId: number
+  containerNo: string
   referenceNo: string
   truckerName: string
   shippingLineId: number
@@ -1296,13 +1307,20 @@ export interface TransactionDepotOverview {
   rejectedCount: number
 }
 
+export interface ReportShippingLineOption {
+  id: number
+  code: string
+  name: string
+}
+
 export const reportApi = {
   dailyReturns: (params: { from?: string; to?: string; depotId?: number }) =>
     api.get<DailyReturnReport>('/reports/returns/daily', { params }),
   monthlyReturns: (params: { year?: number; depotId?: number }) =>
     api.get<MonthlyReturnReport>('/reports/returns/monthly', { params }),
-  shippingLines: (params: { from?: string; to?: string; depotId?: number }) =>
+  shippingLines: (params: { from?: string; to?: string; depotId?: number; shippingLineId?: number }) =>
     api.get<ShippingLineReport>('/reports/shipping-lines', { params }),
+  shippingLineOptions: () => api.get<ReportShippingLineOption[]>('/reports/shipping-line-options'),
   depots: (params: { from?: string; to?: string; depotId?: number }) =>
     api.get<DepotReport>('/reports/depots', { params }),
   revenue: (params: { period: 'weekly' | 'monthly' | 'yearly'; year?: number }) =>

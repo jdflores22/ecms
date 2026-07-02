@@ -35,26 +35,31 @@ import {
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
 import { scheduleApi, type Schedule } from '../../services/api'
+import { useAppSelector } from '../../store/hooks'
 import { formatScheduleDate } from '../../utils/datetime'
+import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 
 const primaryDark = LIST_PRIMARY
 
 const STATUS_TABS = [
   { key: 'WaitingSchedule', label: 'Waiting schedule', summaryColor: '#ED6C02' },
-  { key: 'Scheduled', label: 'Scheduled', summaryColor: '#0288D1' },
+  { key: 'Scheduled', label: 'For Payment', summaryColor: '#0288D1' },
   { key: 'Confirmed', label: 'Confirmed', summaryColor: '#2E7D32' },
   { key: 'Completed', label: 'Completed', summaryColor: '#1565C0' },
-  { key: 'Cancelled', label: 'Cancelled', summaryColor: '#757575' },
+  { key: 'NoShow', label: 'No show', summaryColor: '#C62828' },
 ] as const
 
 type ScheduleStatusTab = (typeof STATUS_TABS)[number]['key']
+
+/** Payment verification is admin-only — depot staff do not manage this queue. */
+const DEPOT_HIDDEN_STATUS_TABS = new Set<ScheduleStatusTab>(['Scheduled'])
 
 const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   WaitingSchedule: 'warning',
   Scheduled: 'info',
   Confirmed: 'success',
   Completed: 'success',
-  Cancelled: 'default',
+  NoShow: 'error',
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -104,6 +109,8 @@ function ScheduleRowActions({ item }: { item: Schedule }) {
 export default function DepotSchedulesPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const user = useAppSelector((s) => s.auth.user)
+  const isDepotView = user?.role === 'DepotPersonnel'
   const [activeStatus, setActiveStatus] = useState<ScheduleStatusTab>('WaitingSchedule')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
@@ -131,6 +138,17 @@ export default function DepotSchedulesPage() {
     load()
   }, [load])
 
+  const visibleStatusTabs = useMemo(
+    () => STATUS_TABS.filter((tab) => !isDepotView || !DEPOT_HIDDEN_STATUS_TABS.has(tab.key)),
+    [isDepotView],
+  )
+
+  useEffect(() => {
+    if (isDepotView && DEPOT_HIDDEN_STATUS_TABS.has(activeStatus)) {
+      setActiveStatus('WaitingSchedule')
+    }
+  }, [isDepotView, activeStatus])
+
   const countByStatus = useMemo(() => {
     const counts = Object.fromEntries(STATUS_TABS.map((t) => [t.key, 0])) as Record<ScheduleStatusTab, number>
     for (const s of schedules) {
@@ -139,12 +157,17 @@ export default function DepotSchedulesPage() {
     return counts
   }, [schedules])
 
-  const filtered = useMemo(
-    () => schedules.filter((s) => s.status === activeStatus),
-    [schedules, activeStatus],
-  )
+  const filtered = useMemo(() => {
+    return schedules
+      .filter((s) => s.status === activeStatus)
+      .sort((a, b) => {
+        const byDate = b.date.localeCompare(a.date)
+        if (byDate !== 0) return byDate
+        return b.id - a.id
+      })
+  }, [schedules, activeStatus])
 
-  const activeTabMeta = STATUS_TABS.find((t) => t.key === activeStatus)!
+  const activeTabMeta = visibleStatusTabs.find((t) => t.key === activeStatus) ?? visibleStatusTabs[0]
 
   return (
     <Box sx={listPageRootSx}>
@@ -234,13 +257,13 @@ export default function DepotSchedulesPage() {
           gridTemplateColumns: {
             xs: 'repeat(2, minmax(0, 1fr))',
             sm: 'repeat(3, 1fr)',
-            lg: 'repeat(5, 1fr)',
+            lg: `repeat(${visibleStatusTabs.length}, 1fr)`,
           },
           gap: { xs: 1.5, sm: 2 },
           mb: 3,
         }}
       >
-        {STATUS_TABS.map((tab) => (
+        {visibleStatusTabs.map((tab) => (
           <SummaryCard
             key={tab.key}
             label={tab.label}
@@ -278,7 +301,7 @@ export default function DepotSchedulesPage() {
             '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
           }}
         >
-          {STATUS_TABS.map((tab) => (
+          {visibleStatusTabs.map((tab) => (
             <Tab
               key={tab.key}
               value={tab.key}
@@ -308,9 +331,12 @@ export default function DepotSchedulesPage() {
                     {item.date ? formatScheduleDate(item.date) : 'Date not set'}
                   </ListMobileMeta>
                   {item.truckerName && <ListMobileMeta>Trucker: {item.truckerName}</ListMobileMeta>}
+                  {item.depotRemarks && (
+                    <ListMobileMeta>Depot remarks: {item.depotRemarks}</ListMobileMeta>
+                  )}
                   <ListMobileChipRow>
                     <Chip
-                      label={activeTabMeta.label}
+                      label={scheduleStatusLabel(item.status)}
                       color={statusColor[item.status] ?? 'default'}
                       size="small"
                       sx={{ fontWeight: 600 }}
@@ -337,6 +363,7 @@ export default function DepotSchedulesPage() {
                       <TableCell>Depot</TableCell>
                       <TableCell>Return date</TableCell>
                       <TableCell>Trucker</TableCell>
+                      <TableCell>Depot remarks</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -352,6 +379,17 @@ export default function DepotSchedulesPage() {
                         <TableCell>{item.depotName}</TableCell>
                         <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
                         <TableCell>{item.truckerName ?? '—'}</TableCell>
+                        <TableCell
+                          sx={{
+                            maxWidth: 220,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            color: item.depotRemarks ? 'text.primary' : 'text.secondary',
+                          }}
+                          title={item.depotRemarks ?? undefined}
+                        >
+                          {item.depotRemarks || '—'}
+                        </TableCell>
                         <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                           <ScheduleRowActions item={item} />
                         </TableCell>

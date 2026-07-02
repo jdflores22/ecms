@@ -23,13 +23,14 @@ import {
   type Depot,
   type DepotReport,
   type MonthlyReturnReport,
+  type ReportShippingLineOption,
   type ShippingLineReport,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { currentPhYear, defaultReportFromDate, formatScheduleDate, todayIsoDate } from '../../utils/datetime'
 import { REPORT_STATUS_META, type ReportStatusRow } from '../../utils/reportStats'
 
-const STATUS_HEADERS = ['Scheduled', 'Confirmed', 'Completed', 'Cancelled'] as const
+const STATUS_HEADERS = ['Scheduled', 'Confirmed', 'Completed', 'No show'] as const
 
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const escape = (v: string | number) => {
@@ -97,12 +98,14 @@ export default function RoleReportsPage() {
   const pageKey = resolvePageKey(location.pathname)
   const reportConfig = pageKey && isReportPageKey(pageKey) ? REPORT_PAGE_CONFIG[pageKey] : null
 
-  const [tab, setTab] = useState(0)
+  const [reportType, setReportType] = useState<ReportTabId>('daily')
   const [from, setFrom] = useState(defaultReportFromDate())
   const [to, setTo] = useState(todayIsoDate())
   const [year, setYear] = useState(currentPhYear())
   const [depotId, setDepotId] = useState<number | ''>('')
   const [depots, setDepots] = useState<Depot[]>([])
+  const [shippingLineId, setShippingLineId] = useState<number | ''>('')
+  const [shippingLines, setShippingLines] = useState<ReportShippingLineOption[]>([])
   const [daily, setDaily] = useState<DailyReturnReport | null>(null)
   const [monthly, setMonthly] = useState<MonthlyReturnReport | null>(null)
   const [byLine, setByLine] = useState<ShippingLineReport | null>(null)
@@ -110,7 +113,8 @@ export default function RoleReportsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const activeTabId: ReportTabId | null = reportConfig?.tabs[tab]?.id ?? null
+  const activeTabId: ReportTabId | null =
+    reportConfig?.tabs.find((t) => t.id === reportType)?.id ?? reportConfig?.tabs[0]?.id ?? null
   const usesDateRange = activeTabId ? usesDateRangeForTab(activeTabId) : false
 
   useEffect(() => {
@@ -120,14 +124,24 @@ export default function RoleReportsPage() {
   }, [reportConfig?.showDepotFilter])
 
   useEffect(() => {
-    setTab(0)
-  }, [pageKey])
+    if (reportConfig?.showShippingLineFilter) {
+      reportApi
+        .shippingLineOptions()
+        .then(({ data }) => setShippingLines(data))
+        .catch(() => {})
+    }
+  }, [reportConfig?.showShippingLineFilter])
+
+  useEffect(() => {
+    if (reportConfig?.tabs[0]) setReportType(reportConfig.tabs[0].id)
+  }, [pageKey, reportConfig])
 
   const load = useCallback(() => {
     if (!user || !reportConfig || user.role !== reportConfig.role || !activeTabId) return
     setLoading(true)
     setError('')
     const depot = depotId === '' ? undefined : Number(depotId)
+    const shippingLine = shippingLineId === '' ? undefined : Number(shippingLineId)
 
     const request =
       activeTabId === 'daily'
@@ -135,7 +149,7 @@ export default function RoleReportsPage() {
         : activeTabId === 'monthly'
           ? reportApi.monthlyReturns({ year, depotId: depot })
           : activeTabId === 'shippingLines'
-            ? reportApi.shippingLines({ from, to, depotId: depot })
+            ? reportApi.shippingLines({ from, to, depotId: depot, shippingLineId: shippingLine })
             : reportApi.depots({ from, to, depotId: depot })
 
     request
@@ -151,7 +165,7 @@ export default function RoleReportsPage() {
       })
       .catch(() => setError('Failed to load report.'))
       .finally(() => setLoading(false))
-  }, [user, reportConfig, activeTabId, from, to, year, depotId])
+  }, [user, reportConfig, activeTabId, from, to, year, depotId, shippingLineId])
 
   useEffect(() => {
     load()
@@ -312,8 +326,8 @@ export default function RoleReportsPage() {
 
       <ReportFiltersBar
         tabs={reportConfig.tabs}
-        tabIndex={tab}
-        onTabChange={setTab}
+        selectedTabId={activeTabId ?? 'daily'}
+        onTabIdChange={setReportType}
         usesDateRange={usesDateRange}
         from={from}
         to={to}
@@ -325,6 +339,10 @@ export default function RoleReportsPage() {
         depotId={depotId}
         depots={depots}
         onDepotChange={setDepotId}
+        showShippingLineFilter={reportConfig.showShippingLineFilter}
+        shippingLineId={shippingLineId}
+        shippingLines={shippingLines}
+        onShippingLineChange={setShippingLineId}
         loading={loading}
         onRefresh={load}
       />

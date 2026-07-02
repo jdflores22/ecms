@@ -30,8 +30,14 @@ public class EvaluationsController : ControllerBase
     [HttpGet("by-preadvice/{preAdviceId:int}")]
     public async Task<ActionResult<EvaluationDto>> GetByPreAdvice(int preAdviceId, CancellationToken cancellationToken)
     {
+        if (!await _service.CanAccessPreAdviceAsync(preAdviceId, UserId, Role, cancellationToken))
+            return NotFound();
+
         var item = await _service.GetByPreAdviceIdAsync(preAdviceId, UserId, Role, cancellationToken);
-        return item is null ? NotFound() : Ok(item);
+        if (item is null)
+            return NoContent();
+
+        return Ok(item);
     }
 
     [HttpPost("approve")]

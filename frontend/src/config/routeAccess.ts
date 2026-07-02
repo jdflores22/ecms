@@ -103,7 +103,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     label: 'Reports',
     path: '/admin/reports',
     group: 'Admin',
-    description: 'Payment transactions and verified revenue summaries',
+    description: 'Payment transactions by shipping line and container yard',
     showInNav: true,
   },
   depotReports: {
@@ -261,10 +261,10 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
   adminRevenue: {
     key: 'adminRevenue',
     label: 'Revenue',
-    path: '/admin/reports',
+    path: '/admin/revenue',
     group: 'Admin',
-    description: 'Verified pre-forecasted fee collections (Reports → Revenue tab)',
-    showInNav: false,
+    description: 'Verified pre-forecast fee collections from approved trucker payments',
+    showInNav: true,
   },
 }
 
@@ -334,6 +334,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'depotSchedules',
   'depotWithdrawals',
   'adminReports',
+  'adminRevenue',
   'adminPayments',
   'adminUsers',
   'adminRoles',

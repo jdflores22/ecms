@@ -224,6 +224,84 @@ export function isBeforeToday(dateStr: string): boolean {
   return Boolean(dateStr) && dateStr < todayIsoDate()
 }
 
+/** Minimum lead time before a depot-assigned return date (hours). */
+export const DEPOT_SCHEDULE_MIN_LEAD_HOURS = 12
+
+/** Earliest calendar date (YYYY-MM-DD) allowed for depot assignment — now + lead time in PHT. */
+export function earliestDepotScheduleDate(now = new Date()): string {
+  const earliest = new Date(now.getTime() + DEPOT_SCHEDULE_MIN_LEAD_HOURS * 60 * 60 * 1000)
+  return isoDateInTimezone(earliest)
+}
+
+export interface DepotScheduleDateBounds {
+  minDate: string
+  maxDate: string | null
+  demurrageValidUntil: string | null
+  hasValidWindow: boolean
+}
+
+export function getDepotScheduleDateBounds(
+  demurrageValidUntil?: string | null,
+  evaluatedAt?: string | null,
+): DepotScheduleDateBounds {
+  let minDate = earliestDepotScheduleDate()
+  if (evaluatedAt) {
+    const approvalDate = isoDateInTimezone(new Date(evaluatedAt))
+    if (approvalDate > minDate) minDate = approvalDate
+  }
+  const maxDate = demurrageValidUntil ?? null
+  const hasValidWindow = Boolean(maxDate) && maxDate! >= minDate
+  return { minDate, maxDate, demurrageValidUntil: demurrageValidUntil ?? null, hasValidWindow }
+}
+
+export function clampScheduleDateToBounds(
+  dateStr: string,
+  minDate: string,
+  maxDate: string | null,
+): string {
+  let result = dateStr
+  if (!result || result < minDate) result = minDate
+  if (maxDate && result > maxDate) result = maxDate
+  return result
+}
+
+export function validateDepotScheduleDate(
+  dateStr: string,
+  bounds: DepotScheduleDateBounds,
+): string | null {
+  if (!dateStr) return 'Return date is required.'
+  if (!bounds.hasValidWindow) {
+    return bounds.demurrageValidUntil
+      ? 'Demurrage validity has expired — contact the shipping line evaluator.'
+      : 'Demurrage validity is not set — contact the shipping line evaluator.'
+  }
+  if (dateStr < bounds.minDate) {
+    return `Return date must be at least ${DEPOT_SCHEDULE_MIN_LEAD_HOURS} hours from now (earliest: ${formatScheduleDate(bounds.minDate)}).`
+  }
+  if (bounds.maxDate && dateStr > bounds.maxDate) {
+    return `Return date cannot be after demurrage validity (${formatScheduleDate(bounds.maxDate)}).`
+  }
+  return null
+}
+
+export function formatDepotScheduleDateHelper(bounds: DepotScheduleDateBounds): string {
+  if (!bounds.hasValidWindow) {
+    return bounds.demurrageValidUntil
+      ? 'Demurrage validity has expired — contact the shipping line evaluator.'
+      : 'Demurrage validity is not set — contact the shipping line evaluator.'
+  }
+  const lead = `${DEPOT_SCHEDULE_MIN_LEAD_HOURS}-hour lead time applies (${SYSTEM_TIMEZONE.label}).`
+  if (bounds.maxDate) {
+    return `Select ${formatScheduleDate(bounds.minDate)} – ${formatScheduleDate(bounds.maxDate)} (within demurrage validity). ${lead}`
+  }
+  return `Earliest return date: ${formatScheduleDate(bounds.minDate)}. ${lead}`
+}
+
+export function formatDepotScheduleAllowedRange(bounds: DepotScheduleDateBounds): string {
+  if (!bounds.hasValidWindow || !bounds.maxDate) return '—'
+  return `${formatScheduleDate(bounds.minDate)} – ${formatScheduleDate(bounds.maxDate)}`
+}
+
 /** Clamp calendar date to today or later (for schedule assignment). */
 export function clampMinScheduleDate(dateStr: string, minDate = todayIsoDate()): string {
   if (!dateStr || dateStr < minDate) return minDate

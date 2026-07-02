@@ -77,9 +77,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
     stats: [
       { key: 'todaysReturns', label: "Today's returns", description: 'Scheduled for today', icon: CalendarMonthIcon, color: '#1565c0' },
-      { key: 'availableSlots', label: 'Available slots', description: 'Open slots remaining today', icon: CheckCircleIcon, color: '#2e7d32' },
       { key: 'occupiedSlots', label: 'Occupied slots', description: 'Slots already booked', icon: HourglassEmptyIcon, color: '#ed6c02' },
-      { key: 'remainingCapacity', label: 'Depot capacity', description: 'Remaining depot capacity', icon: WarehouseIcon, color: '#6a1b9a' },
     ],
     actions: [
       { label: 'Daily returns', path: '/depot/daily-returns', icon: CalendarViewDayIcon },
@@ -134,6 +132,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       { label: 'Roles', path: '/admin/roles', icon: AdminPanelSettingsIcon },
       { label: 'Master data', path: '/admin/master-data', icon: WarehouseIcon },
       { label: 'Reports', path: '/admin/reports', icon: TrendingUpIcon },
+      { label: 'Revenue', path: '/admin/revenue', icon: PaymentsIcon },
       { label: 'Audit log', path: '/admin/audit', icon: HistoryIcon },
       { label: 'Verify payments', path: '/admin/payments', icon: PaymentsIcon },
     ],

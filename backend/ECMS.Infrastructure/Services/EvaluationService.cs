@@ -42,6 +42,27 @@ public class EvaluationService : IEvaluationService
         return items.Select(MapToDto).ToList();
     }
 
+    public async Task<bool> CanAccessPreAdviceAsync(
+        int preAdviceId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var preAdvice = await _db.PreAdvices.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == preAdviceId, cancellationToken);
+        if (preAdvice is null)
+            return false;
+
+        if (role == RoleNames.ShippingLineEvaluator)
+        {
+            var user = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, cancellationToken);
+            return user.ShippingLineId.HasValue
+                && user.ShippingLineId.Value == preAdvice.ShippingLineId;
+        }
+
+        return role == RoleNames.Administrator;
+    }
+
     public async Task<EvaluationDto?> GetByPreAdviceIdAsync(
         int preAdviceId,
         int userId,

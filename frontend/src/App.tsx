@@ -13,6 +13,7 @@ import RoleRouteGuard from './components/auth/RoleRouteGuard'
 import {
   AdminAuditLogPage,
   AdminPaymentsPage,
+  AdminRevenuePage,
   AdminTransactionReportsPage,
   AdminUsersPage,
   AdminVersionPage,
@@ -430,6 +431,14 @@ export default function App() {
           }
         />
         <Route
+          path="admin/revenue"
+          element={
+            <RoleRouteGuard>
+              <AdminRevenuePage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
           path="admin/reports"
           element={
             <RoleRouteGuard>
@@ -437,7 +446,7 @@ export default function App() {
             </RoleRouteGuard>
           }
         />
-        <Route path="admin/revenue" element={<Navigate to="/admin/reports?tab=revenue" replace />} />
+        <Route path="admin/reports/revenue" element={<Navigate to="/admin/revenue" replace />} />
         <Route
           path="reports"
           element={

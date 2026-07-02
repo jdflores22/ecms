@@ -103,7 +103,8 @@ public record LogicteckDossierScheduleDto(
     string ScheduledTime,
     int SlotNo,
     string Status,
-    string? TruckerName);
+    string? TruckerName,
+    string? DepotRemarks);
 
 public record LogicteckDossierQrDto(
     int BookingId,

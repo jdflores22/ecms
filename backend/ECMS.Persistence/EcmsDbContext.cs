@@ -161,6 +161,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasIndex(x => new { x.Status, x.PaidAt });
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
+            e.Property(x => x.ProofQrphInvoiceNo).HasMaxLength(32);
+            e.Property(x => x.ProofProvider).HasMaxLength(32);
             e.HasOne(x => x.Schedule).WithOne(x => x.Payment).HasForeignKey<Payment>(x => x.ScheduleId);
             e.HasOne(x => x.Trucker).WithMany(x => x.Payments).HasForeignKey(x => x.TruckerId);
         });

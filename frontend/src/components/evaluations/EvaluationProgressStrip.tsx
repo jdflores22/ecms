@@ -117,7 +117,7 @@ export function buildEvaluationProgressSteps(
       : schedule.depotName
     return {
       label: 'Return scheduling',
-      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : 'Scheduled'} · ${slotDetail}`,
+      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : schedule.status === 'Scheduled' ? 'For Payment' : 'Scheduled'} · ${slotDetail}`,
       state: 'complete',
       action: onOpenSchedule
         ? { label: 'View return schedule', onClick: onOpenSchedule }
@@ -130,7 +130,7 @@ export function buildEvaluationProgressSteps(
     if (!isApproved || !scheduleReady) {
       return {
         label: 'Booking QR',
-        detail: 'Published after depot confirms the return',
+        detail: 'Published after payment is verified in ICS',
         state: 'upcoming',
       }
     }
@@ -303,7 +303,7 @@ export function buildPreAdviceProgressSteps(
       : schedule.depotName
     return {
       label: 'Return scheduling',
-      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : 'Scheduled'} · ${slotDetail}`,
+      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : schedule.status === 'Scheduled' ? 'For Payment' : 'Scheduled'} · ${slotDetail}`,
       state: 'complete',
       action: onOpenSchedule
         ? { label: 'View return schedule', onClick: onOpenSchedule }
@@ -316,7 +316,7 @@ export function buildPreAdviceProgressSteps(
     if (!isApproved || !scheduleReady) {
       return {
         label: 'Booking QR',
-        detail: 'Published after depot confirms the return',
+        detail: 'Published after payment is verified in ICS',
         state: 'upcoming',
       }
     }

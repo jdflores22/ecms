@@ -34,6 +34,7 @@ public class PreAdviceService : IPreAdviceService
             .Include(p => p.ShippingLine)
             .Include(p => p.Container)
             .Include(p => p.Evaluation)
+            .Include(p => p.Schedule)
             .AsQueryable();
 
         if (RoleNames.IsPreAdviceManager(role))
@@ -411,11 +412,13 @@ public class PreAdviceService : IPreAdviceService
         var documents = await _db.PreAdviceDocuments
             .Include(d => d.UploadedBy)
             .Where(d => d.PreAdviceId == preAdviceId)
-            .OrderBy(d => d.Category)
-            .ThenByDescending(d => d.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return documents.Select(MapDocumentToDto).ToList();
+        return documents
+            .OrderBy(d => ContainerPhotoCatalog.GetDisplaySortOrder(d.Category))
+            .ThenByDescending(d => d.CreatedAt)
+            .Select(MapDocumentToDto)
+            .ToList();
     }
 
     public async Task<PreAdviceDocumentDto?> UploadDocumentAsync(
@@ -445,7 +448,7 @@ public class PreAdviceService : IPreAdviceService
             if (string.IsNullOrWhiteSpace(comment))
                 throw new InvalidOperationException("A damage description is required for damage photos.");
         }
-        else if (!ContainerPhotoCatalog.IsStandardView(category))
+        else if (!ContainerPhotoCatalog.IsIdentityGridSlot(category))
         {
             throw new InvalidOperationException("Invalid photo category.");
         }
@@ -709,7 +712,9 @@ public class PreAdviceService : IPreAdviceService
         qrInfo is not null,
         qrInfo?.QrCode,
         qrInfo?.QrBookingId,
-        qrInfo?.LogicteckStatus);
+        qrInfo?.LogicteckStatus,
+        p.Evaluation?.EvaluatedAt,
+        p.Schedule?.Status.ToString());
 
     private static PreAdviceDocumentDto MapDocumentToDto(PreAdviceDocument d) => new(
         d.Id,

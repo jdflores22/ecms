@@ -18,9 +18,9 @@ export function buildReturnJourneySteps(
   qrBooking: QrBooking | null,
   qrLoading: boolean,
 ): ReturnJourneyStep[] {
-  if (schedule.status === 'Cancelled') {
+  if (schedule.status === 'NoShow') {
     return [
-      { label: 'Return assigned', detail: 'Cancelled by depot', state: 'upcoming' },
+      { label: 'Return assigned', detail: 'Marked as no show at depot', state: 'upcoming' },
       { label: 'Payment', detail: 'Not required', state: 'upcoming' },
       { label: 'Booking QR', detail: 'Not published', state: 'upcoming' },
       { label: 'LOGICTECK integration', detail: 'Not applicable', state: 'upcoming' },

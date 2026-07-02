@@ -12,7 +12,7 @@ export const LOGICTECK_QR = {
   printTitle: 'PRE-FORECAST QR',
   printSubtitle: 'Approved container details from ICS',
   heroDescription:
-    'After depot verifies payment, ICS publishes a QR with approved pre-forecast details. Send to LOGICTECK when ready to create the return booking on their system.',
+    'After payment is verified in ICS, a QR with approved pre-forecast details is published. Send to LOGICTECK when ready to create the return booking on their system.',
   scheduleSectionHint:
     'This QR encodes approved pre-forecast container details. The return booking is created on the LOGICTECK side after you send the data.',
   integrationNote:
@@ -36,7 +36,7 @@ export const LOGICTECK_QR = {
   statusUsed: 'Retrieved',
   bookingIdLabel: 'ICS QR reference',
   emptyState:
-    'Pre-forecast QR not yet published. It will be available after depot confirms payment.',
+    'Pre-forecast QR not yet published. It will be available after payment is verified in ICS.',
   integrationComingSoon:
     'Pre-forecast QR is ready — send to LOGICTECK to create the return booking there.',
 } as const

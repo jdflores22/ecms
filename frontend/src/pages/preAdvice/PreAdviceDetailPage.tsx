@@ -14,6 +14,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import PaymentOutlinedIcon from '@mui/icons-material/PaymentOutlined'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 import CancelIcon from '@mui/icons-material/Cancel'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -23,7 +24,7 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import SendIcon from '@mui/icons-material/Send'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import PreAdviceDetailTabPanels, {
   type PreAdviceDetailTab,
 } from '../../components/preAdvice/PreAdviceDetailTabPanels'
@@ -66,16 +67,14 @@ import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { getPreAdviceListStatus, isScheduleForPayment } from '../../utils/scheduleStatus'
+import { truckerPaymentPath } from '../../utils/truckerPayment'
 
 const primaryDark = ICS_PRIMARY
 
 const statusLabel: Record<string, string> = {
   UnderEvaluation: 'Under evaluation',
   ForCompliance: 'For compliance',
-}
-
-const scheduleStatusLabel: Record<string, string> = {
-  WaitingSchedule: 'Waiting schedule',
 }
 
 function heroStatusChipStyle(status: string): { bgcolor: string; color: string; border?: string } {
@@ -94,22 +93,6 @@ function heroStatusChipStyle(status: string): { bgcolor: string; color: string; 
       return { bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)' }
     case 'Draft':
       return { bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)' }
-    default:
-      return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
-  }
-}
-
-function heroScheduleChipStyle(status: string): { bgcolor: string; color: string } {
-  switch (status) {
-    case 'Confirmed':
-    case 'Completed':
-      return { bgcolor: 'rgba(46, 125, 50, 0.92)', color: '#fff' }
-    case 'Scheduled':
-      return { bgcolor: 'rgba(2, 136, 209, 0.92)', color: '#fff' }
-    case 'WaitingSchedule':
-      return { bgcolor: 'rgba(237, 108, 2, 0.92)', color: '#fff' }
-    case 'Cancelled':
-      return { bgcolor: 'rgba(158, 158, 158, 0.92)', color: '#fff' }
     default:
       return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
   }
@@ -155,7 +138,7 @@ function statusGuidance(
           schedule?.status === 'Confirmed' || schedule?.status === 'Completed'
             ? 'Return schedule is confirmed. Pre-forecast stays Approved in ICS — send data to LOGICTECK to create the return booking there (LOGICTECK status: Ready to send → Booked on LOGICTECK → Retrieved).'
             : schedule?.status === 'Scheduled'
-              ? 'Return schedule assigned. The trucker has been notified and can upload payment proof.'
+              ? 'Return date assigned. Upload payment proof to confirm your return slot.'
               : 'Approved. The depot will assign a return schedule and notify the assigned trucker.',
       }
     case 'Rejected':
@@ -445,6 +428,19 @@ export default function PreAdviceDetailPage() {
   const canManageDocuments =
     item?.status === 'Draft' || item?.status === 'Submitted' || isForCompliance
   const showHeroActions = !editing && (canCancel || isDraft || isForCompliance)
+  const effectiveScheduleStatus = schedule?.status ?? item?.scheduleStatus ?? null
+  const showsFlowStatus = item?.status === 'Approved' && !!effectiveScheduleStatus
+  const flowStatusBadge = item
+    ? getPreAdviceListStatus({ status: item.status, scheduleStatus: effectiveScheduleStatus })
+    : null
+  const showPaymentAction = schedule != null && isScheduleForPayment(schedule.status)
+
+  const paymentHeroButtonSx = {
+    bgcolor: '#fff',
+    color: primaryDark,
+    fontWeight: 700,
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
+  } as const
 
   const downloadQr = async () => {
     if (!qrBooking) return
@@ -571,17 +567,23 @@ export default function PreAdviceDetailPage() {
             chips={
               <>
                 <Chip
-                  label={statusLabel[item.status] ?? item.status}
+                  label={
+                    showsFlowStatus && flowStatusBadge
+                      ? flowStatusBadge.label
+                      : (statusLabel[item.status] ?? item.status)
+                  }
                   size="small"
-                  sx={{ fontWeight: 700, ...heroStatusChipStyle(item.status) }}
+                  sx={
+                    showsFlowStatus && flowStatusBadge
+                      ? {
+                          fontWeight: 700,
+                          bgcolor: 'rgba(255,255,255,0.95)',
+                          color: flowStatusBadge.color,
+                          border: `1px solid ${flowStatusBadge.border}`,
+                        }
+                      : { fontWeight: 700, ...heroStatusChipStyle(item.status) }
+                  }
                 />
-                {schedule && (
-                  <Chip
-                    label={scheduleStatusLabel[schedule.status] ?? schedule.status}
-                    size="small"
-                    sx={{ fontWeight: 700, ...heroScheduleChipStyle(schedule.status) }}
-                  />
-                )}
                 {(item.hasQrBooking || qrBooking) && logicteckHeroStatus && (
                   <Chip
                     icon={
@@ -662,12 +664,7 @@ export default function PreAdviceDetailPage() {
                               setSubmitOpen(true)
                             }}
                             disabled={submitting || !photosComplete}
-                            sx={{
-                              bgcolor: '#fff',
-                              color: primaryDark,
-                              fontWeight: 700,
-                              '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-                            }}
+                            sx={paymentHeroButtonSx}
                           >
                             Submit
                           </Button>
@@ -716,12 +713,7 @@ export default function PreAdviceDetailPage() {
                               setSubmitOpen(true)
                             }}
                             disabled={submitting || !photosComplete}
-                            sx={{
-                              bgcolor: '#fff',
-                              color: primaryDark,
-                              fontWeight: 700,
-                              '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-                            }}
+                            sx={paymentHeroButtonSx}
                           >
                             Resubmit
                           </Button>
@@ -730,12 +722,35 @@ export default function PreAdviceDetailPage() {
                     </>
                   )}
                 </Box>
-              ) : schedule?.date ? (
-                <DetailHeroAside
-                  label="Return slot"
-                  primary={formatScheduleSlot(schedule.date, schedule.time)}
-                  secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
-                />
+              ) : showPaymentAction || schedule?.date ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: { xs: 'stretch', sm: 'flex-end' },
+                    gap: 1.5,
+                    flexShrink: 0,
+                  }}
+                >
+                  {schedule?.date && (
+                    <DetailHeroAside
+                      label="Return slot"
+                      primary={formatScheduleSlot(schedule.date, schedule.time)}
+                      secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
+                    />
+                  )}
+                  {showPaymentAction && schedule && (
+                    <Button
+                      component={RouterLink}
+                      to={truckerPaymentPath(schedule.id)}
+                      startIcon={<PaymentOutlinedIcon />}
+                      variant="contained"
+                      sx={paymentHeroButtonSx}
+                    >
+                      Go to payment
+                    </Button>
+                  )}
+                </Box>
               ) : undefined
             }
           />

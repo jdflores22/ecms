@@ -22,9 +22,8 @@ import DownloadIcon from '@mui/icons-material/Download'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import {
   ListDesktopOnly,
@@ -40,14 +39,12 @@ import {
 import { heroMutedChipSx, heroPaperSx } from '../../components/layout/DetailPagePrimitives'
 import {
   reportApi,
-  type RevenueReport,
   type TransactionDepotOverview,
   type TransactionReport,
   type TransactionShippingLineOverview,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import {
-  currentPhYear,
   defaultReportFromDate,
   formatDateTime,
   formatPeso,
@@ -57,20 +54,12 @@ import {
 
 const primaryDark = LIST_PRIMARY
 
-type PageTab = 'transactions' | 'shippingLines' | 'containerYards' | 'revenue'
-type RevenuePeriod = 'weekly' | 'monthly' | 'yearly'
+type PageTab = 'transactions' | 'shippingLines' | 'containerYards'
 
 const PAGE_TABS: { key: PageTab; label: string }[] = [
   { key: 'transactions', label: 'Transactions' },
   { key: 'shippingLines', label: 'Shipping lines' },
   { key: 'containerYards', label: 'Container yards' },
-  { key: 'revenue', label: 'Revenue' },
-]
-
-const REVENUE_TABS: { key: RevenuePeriod; label: string }[] = [
-  { key: 'weekly', label: 'Weekly' },
-  { key: 'monthly', label: 'Monthly' },
-  { key: 'yearly', label: 'Yearly' },
 ]
 
 const paymentStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
@@ -88,14 +77,12 @@ const paymentStatusLabel: Record<string, string> = {
 }
 
 function parsePageTab(tab: string | null): PageTab {
-  if (tab === 'revenue') return 'revenue'
   if (tab === 'shipping-lines') return 'shippingLines'
   if (tab === 'container-yards') return 'containerYards'
   return 'transactions'
 }
 
 function pageTabSearchParam(tab: PageTab): Record<string, string> {
-  if (tab === 'revenue') return { tab: 'revenue' }
   if (tab === 'shippingLines') return { tab: 'shipping-lines' }
   if (tab === 'containerYards') return { tab: 'container-yards' }
   return {}
@@ -198,12 +185,6 @@ export default function AdminTransactionReportsPage() {
   const [depotLoading, setDepotLoading] = useState(false)
   const [depotError, setDepotError] = useState('')
 
-  const [period, setPeriod] = useState<RevenuePeriod>('monthly')
-  const [year, setYear] = useState(currentPhYear())
-  const [revenueReport, setRevenueReport] = useState<RevenueReport | null>(null)
-  const [revenueLoading, setRevenueLoading] = useState(false)
-  const [revenueError, setRevenueError] = useState('')
-
   const loadTransactions = useCallback(
     (requestedPage?: number) => {
       if (user?.role !== 'Administrator') return
@@ -248,17 +229,6 @@ export default function AdminTransactionReportsPage() {
     else if (pageTab === 'containerYards') loadContainerYards()
   }
 
-  const loadRevenue = useCallback(() => {
-    if (user?.role !== 'Administrator') return
-    setRevenueLoading(true)
-    setRevenueError('')
-    reportApi
-      .revenue({ period, year: period === 'monthly' ? year : undefined })
-      .then(({ data }) => setRevenueReport(data))
-      .catch(() => setRevenueError('Failed to load revenue report.'))
-      .finally(() => setRevenueLoading(false))
-  }, [user?.role, period, year])
-
   useEffect(() => {
     if (pageTab === 'transactions') loadTransactions()
   }, [pageTab, loadTransactions])
@@ -271,17 +241,6 @@ export default function AdminTransactionReportsPage() {
     if (pageTab === 'containerYards') loadContainerYards()
   }, [pageTab, loadContainerYards])
 
-  useEffect(() => {
-    if (pageTab === 'revenue') loadRevenue()
-  }, [pageTab, loadRevenue])
-
-  const periodLabel = useMemo(() => {
-    if (!revenueReport) return ''
-    if (revenueReport.period === 'weekly') return `Last 12 weeks · ${revenueReport.from} to ${revenueReport.to}`
-    if (revenueReport.period === 'monthly') return `Year ${year}`
-    return `${revenueReport.from.slice(0, 4)} – ${revenueReport.to.slice(0, 4)}`
-  }, [revenueReport, year])
-
   const handlePageTabChange = (_: unknown, value: PageTab) => {
     setPageTab(value)
     setSearchParams(pageTabSearchParam(value), { replace: true })
@@ -291,14 +250,12 @@ export default function AdminTransactionReportsPage() {
     if (pageTab === 'transactions') loadTransactions()
     else if (pageTab === 'shippingLines') loadShippingLines()
     else if (pageTab === 'containerYards') loadContainerYards()
-    else loadRevenue()
   }
 
   const isRefreshing =
     (pageTab === 'transactions' && txLoading) ||
     (pageTab === 'shippingLines' && shippingLoading) ||
-    (pageTab === 'containerYards' && depotLoading) ||
-    (pageTab === 'revenue' && revenueLoading)
+    (pageTab === 'containerYards' && depotLoading)
 
   const exportTransactions = async () => {
     if (!txReport?.total) return
@@ -312,9 +269,10 @@ export default function AdminTransactionReportsPage() {
       })
       downloadCsv(
         `transactions-${data.from}-${data.to}.csv`,
-        ['Date', 'Reference', 'Trucker', 'Shipping line', 'Container yard', 'Status', 'Amount'],
+        ['Date', 'Container', 'Reference', 'Trucker', 'Shipping line', 'Container yard', 'Status', 'Amount'],
         data.rows.map((row) => [
           row.transactionDate,
+          row.containerNo,
           row.referenceNo,
           row.truckerName,
           `${row.shippingLineCode} — ${row.shippingLineName}`,
@@ -420,6 +378,10 @@ export default function AdminTransactionReportsPage() {
     </Paper>
   )
 
+  if (searchParams.get('tab') === 'revenue') {
+    return <Navigate to="/admin/revenue" replace />
+  }
+
   if (user?.role !== 'Administrator') {
     return <Navigate to="/" replace />
   }
@@ -436,7 +398,7 @@ export default function AdminTransactionReportsPage() {
               </Typography>
             </Box>
             <Typography sx={{ color: 'rgba(255,255,255,0.88)', maxWidth: 640 }}>
-              Payment ledger with shipping line and container yard breakdown — separate from operational return
+              Payment ledger by container number with shipping line and container yard breakdown.
               reports used by truckers and evaluators.
             </Typography>
             <Chip label="Administrator" size="small" sx={{ ...heroMutedChipSx, mt: 1.5 }} />
@@ -547,6 +509,7 @@ export default function AdminTransactionReportsPage() {
                       <TableHead>
                         <TableRow sx={{ bgcolor: hexToRgba(primaryDark, 0.04) }}>
                           <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Container</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Reference</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Trucker</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Shipping line</TableCell>
@@ -569,6 +532,15 @@ export default function AdminTransactionReportsPage() {
                                   {formatDateTime(row.transactionAt)}
                                 </Typography>
                               )}
+                            </TableCell>
+                            <TableCell
+                              sx={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                letterSpacing: '0.02em',
+                              }}
+                            >
+                              {row.containerNo || '—'}
                             </TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{row.referenceNo}</TableCell>
                             <TableCell>{row.truckerName}</TableCell>
@@ -603,7 +575,8 @@ export default function AdminTransactionReportsPage() {
                   <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {txReport.rows.map((row) => (
                     <ListMobileCard key={row.paymentId}>
-                      <ListMobileTitle>{row.referenceNo}</ListMobileTitle>
+                      <ListMobileTitle>{row.containerNo || row.referenceNo}</ListMobileTitle>
+                      {row.containerNo && <ListMobileMeta>Ref {row.referenceNo}</ListMobileMeta>}
                       <ListMobileMeta>{row.truckerName}</ListMobileMeta>
                       <ListMobileMeta>
                         {row.shippingLineCode} · {row.depotName}
@@ -971,184 +944,6 @@ export default function AdminTransactionReportsPage() {
             ) : (
               <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
                 <Typography color="text.secondary">No payment activity by container yard in this date range.</Typography>
-              </Box>
-            )}
-          </Paper>
-        </>
-      )}
-
-      {pageTab === 'revenue' && (
-        <>
-          <Paper
-            elevation={0}
-            sx={{
-              mb: 3,
-              borderRadius: 3,
-              border: '1px solid',
-              borderColor: 'divider',
-              bgcolor: '#fff',
-              overflow: 'hidden',
-            }}
-          >
-            <Tabs
-              value={period}
-              onChange={(_, value: RevenuePeriod) => setPeriod(value)}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{
-                borderBottom: 1,
-                borderColor: 'divider',
-                px: { xs: 1, sm: 2 },
-                '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
-                '& .MuiTabs-indicator': { height: 3, bgcolor: primaryDark },
-              }}
-            >
-              {REVENUE_TABS.map((tab) => (
-                <Tab key={tab.key} value={tab.key} label={tab.label} />
-              ))}
-            </Tabs>
-
-            {period === 'monthly' && (
-              <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <TextField
-                  label="Year"
-                  type="number"
-                  size="small"
-                  value={year}
-                  onChange={(e) => setYear(Number(e.target.value) || currentPhYear())}
-                  slotProps={{ htmlInput: { min: 2000, max: 2100 } }}
-                  sx={{ width: 140, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Box>
-            )}
-          </Paper>
-
-          {revenueError && (
-            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setRevenueError('')}>
-              {revenueError}
-            </Alert>
-          )}
-
-          {revenueReport && !revenueLoading && (
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
-                gap: 2,
-                mb: 3,
-              }}
-            >
-              <SummaryCard label="Total revenue" value={formatPeso(revenueReport.totalRevenue)} color={primaryDark} />
-              <SummaryCard label="Verified payments" value={String(revenueReport.totalPayments)} color="#2E7D32" />
-              <SummaryCard
-                label="Average per payment"
-                value={formatPeso(revenueReport.averagePayment)}
-                color="#6A1B9A"
-              />
-            </Box>
-          )}
-
-          <Paper
-            elevation={0}
-            sx={{
-              borderRadius: 3,
-              border: '1px solid',
-              borderColor: 'divider',
-              bgcolor: '#fff',
-              boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                px: 2.5,
-                py: 2,
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                flexWrap: 'wrap',
-              }}
-            >
-              <TrendingUpIcon sx={{ color: primaryDark }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
-                {REVENUE_TABS.find((t) => t.key === period)?.label} breakdown
-              </Typography>
-              {periodLabel && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  {periodLabel}
-                </Typography>
-              )}
-            </Box>
-
-            {revenueLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress sx={{ color: primaryDark }} />
-              </Box>
-            ) : revenueReport && revenueReport.rows.length > 0 ? (
-              <>
-                <ListMobileOnly>
-                  {revenueReport.rows.map((row) => (
-                    <ListMobileCard key={`${row.periodStart}-${row.periodEnd}`}>
-                      <ListMobileTitle>{row.label}</ListMobileTitle>
-                      <ListMobileChipRow>
-                        <Chip size="small" label={`${row.paymentCount} payments`} sx={{ fontWeight: 600 }} />
-                        <Chip size="small" label={formatPeso(row.totalAmount)} sx={{ fontWeight: 700 }} />
-                      </ListMobileChipRow>
-                    </ListMobileCard>
-                  ))}
-                  <ListMobileCard>
-                    <ListMobileTitle>Total</ListMobileTitle>
-                    <ListMobileChipRow>
-                      <Chip size="small" label={`${revenueReport.totalPayments} payments`} sx={{ fontWeight: 700 }} />
-                      <Chip size="small" label={formatPeso(revenueReport.totalRevenue)} sx={{ fontWeight: 700 }} />
-                    </ListMobileChipRow>
-                  </ListMobileCard>
-                </ListMobileOnly>
-                <ListDesktopOnly>
-              <TableContainer sx={{ overflowX: 'auto' }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: hexToRgba(primaryDark, 0.04) }}>
-                      <TableCell sx={{ fontWeight: 700 }}>Period</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>
-                        Payments
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>
-                        Revenue
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {revenueReport.rows.map((row) => (
-                      <TableRow key={`${row.periodStart}-${row.periodEnd}`} hover>
-                        <TableCell sx={{ fontWeight: 600 }}>{row.label}</TableCell>
-                        <TableCell align="right">{row.paymentCount}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: primaryDark }}>
-                          {formatPeso(row.totalAmount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow sx={{ bgcolor: hexToRgba(primaryDark, 0.03) }}>
-                      <TableCell sx={{ fontWeight: 800 }}>Total</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>
-                        {revenueReport.totalPayments}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, color: primaryDark }}>
-                        {formatPeso(revenueReport.totalRevenue)}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-                </ListDesktopOnly>
-              </>
-            ) : (
-              <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
-                <Typography color="text.secondary">
-                  No verified payments in this period yet. Revenue appears after depot approves trucker payment proofs.
-                </Typography>
               </Box>
             )}
           </Paper>

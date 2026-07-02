@@ -65,7 +65,7 @@ public class DashboardService : IDashboardService
             .CountAsync(s =>
                 s.DepotId == depotId &&
                 s.Date == today &&
-                s.Status != ScheduleStatus.Cancelled &&
+                s.Status != ScheduleStatus.NoShow &&
                 s.Status != ScheduleStatus.WaitingSchedule,
                 cancellationToken);
 

@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.4.0'
+export const APP_VERSION = '1.6.0'
 
 export interface ReleaseNote {
   version: string
@@ -9,6 +9,36 @@ export interface ReleaseNote {
 
 /** Newest first. First entry should match APP_VERSION. */
 export const RELEASE_HISTORY: ReleaseNote[] = [
+  {
+    version: '1.6.0',
+    releasedOn: '2026-07-01',
+    title: 'Depot operations, withdrawal UX, and schedule workflow refinements',
+    highlights: [
+      'Trucker withdrawal detail: two-column layout (summary + ATW certificate) with compact status timeline',
+      'Gate pass shown only after CY approval; fixed empty placeholder card on submitted withdrawals',
+      'Depot withdrawals: Needs review default tab, search, richer table, and clickable summary filters',
+      'Depot daily returns: status filters, search, depot remarks column, and schedule detail links',
+      'Depot schedules and daily returns hide For Payment tab for depot personnel (admin still sees all)',
+      'Schedule status renamed Cancelled to No show across API and UI (enum value unchanged)',
+      'Depot remarks on schedules saved via API and shown to truckers on return and payment pages',
+      'Optional Others container photo slot; seven standard views still required for submit',
+      'LOGICTECK dossier includes Others photos with consistent display ordering',
+    ],
+  },
+  {
+    version: '1.5.0',
+    releasedOn: '2026-07-01',
+    title: 'Payment proof QRPH invoice, provider detection, and withdrawal workflow',
+    highlights: [
+      'QRPH invoice number stored separately from payment reference (Maya, GCash); blank when absent (e.g. UnionBank)',
+      'Payment proof OCR detects provider (GCash, Maya, UnionBank, GrabPay, BancNet) with colored admin chips',
+      'Improved reference extraction for garbled UnionBank OCR and spaced GCash/Maya reference IDs',
+      'Pre-forecast detail: unified status badge, Go to payment link, and shared schedule status helpers',
+      'Withdrawal wizard with progress checklist, gate pass card, bulk container paste, and draft persistence',
+      'ATW document OCR and parser for faster evaluation data entry',
+      'Admin payments table and verify dialog show QRPH invoice alongside reference number',
+    ],
+  },
   {
     version: '1.4.0',
     releasedOn: '2026-06-30',

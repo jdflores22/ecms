@@ -25,6 +25,12 @@ public interface IReportService
         DateOnly from,
         DateOnly to,
         int? depotId = null,
+        int? shippingLineId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ReportShippingLineOptionDto>> GetShippingLineOptionsAsync(
+        int userId,
+        string role,
         CancellationToken cancellationToken = default);
 
     Task<DepotReportDto> GetDepotReportAsync(

@@ -2,7 +2,7 @@ namespace ECMS.Application.Interfaces;
 
 public interface IPaymentProofExtractionService
 {
-    Task<(string? ReferenceNo, DateTime? TransactionAt)> ExtractFromImageAsync(
+    Task<(string? ReferenceNo, string? QrphInvoiceNo, DateTime? TransactionAt, string? Provider)> ExtractFromImageAsync(
         string absoluteFilePath,
         CancellationToken cancellationToken = default);
 }

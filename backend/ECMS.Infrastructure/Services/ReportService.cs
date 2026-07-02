@@ -30,7 +30,8 @@ public class ReportService : IReportService
         if (spanDays > 366)
             throw new InvalidOperationException("Date range cannot exceed 366 days.");
 
-        var schedules = await LoadSchedulesInRangeAsync(userId, role, from, to, depotId, cancellationToken);
+        var schedules = await LoadSchedulesInRangeAsync(
+            userId, role, from, to, depotId, cancellationToken: cancellationToken);
 
         var rows = Enumerable.Range(0, spanDays + 1)
             .Select(offset => from.AddDays(offset))
@@ -42,7 +43,7 @@ public class ReportService : IReportService
                     day.Count(s => s.Status == ScheduleStatus.Scheduled),
                     day.Count(s => s.Status == ScheduleStatus.Confirmed),
                     day.Count(s => s.Status == ScheduleStatus.Completed),
-                    day.Count(s => s.Status == ScheduleStatus.Cancelled));
+                    day.Count(s => s.Status == ScheduleStatus.NoShow));
             })
             .ToList();
 
@@ -67,7 +68,8 @@ public class ReportService : IReportService
         var from = new DateOnly(year, 1, 1);
         var to = new DateOnly(year, 12, 31);
 
-        var schedules = await LoadSchedulesInRangeAsync(userId, role, from, to, depotId, cancellationToken);
+        var schedules = await LoadSchedulesInRangeAsync(
+            userId, role, from, to, depotId, cancellationToken: cancellationToken);
 
         var rows = Enumerable.Range(1, 12)
             .Select(month =>
@@ -80,7 +82,7 @@ public class ReportService : IReportService
                     monthSchedules.Count(s => s.Status == ScheduleStatus.Scheduled),
                     monthSchedules.Count(s => s.Status == ScheduleStatus.Confirmed),
                     monthSchedules.Count(s => s.Status == ScheduleStatus.Completed),
-                    monthSchedules.Count(s => s.Status == ScheduleStatus.Cancelled));
+                    monthSchedules.Count(s => s.Status == ScheduleStatus.NoShow));
             })
             .ToList();
 
@@ -97,10 +99,12 @@ public class ReportService : IReportService
         DateOnly from,
         DateOnly to,
         int? depotId = null,
+        int? shippingLineId = null,
         CancellationToken cancellationToken = default)
     {
         ValidateDateRange(from, to);
-        var schedules = await LoadSchedulesInRangeAsync(userId, role, from, to, depotId, cancellationToken);
+        var schedules = await LoadSchedulesInRangeAsync(
+            userId, role, from, to, depotId, shippingLineId, cancellationToken);
 
         var rows = schedules
             .GroupBy(s => s.PreAdvice.ShippingLineId)
@@ -128,6 +132,47 @@ public class ReportService : IReportService
             rows.Sum(r => r.Completed));
     }
 
+    public async Task<IReadOnlyList<ReportShippingLineOptionDto>> GetShippingLineOptionsAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        if (role == RoleNames.Administrator)
+        {
+            return await _db.ShippingLines
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.Name)
+                .Select(s => new ReportShippingLineOptionDto(s.Id, s.Code, s.Name))
+                .ToListAsync(cancellationToken);
+        }
+
+        var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+
+        if (role == RoleNames.DepotPersonnel && user.DepotId.HasValue)
+        {
+            var depotId = user.DepotId.Value;
+            return await _db.ShippingLines
+                .Where(s => s.IsActive
+                    && _db.ShippingLineDepotContracts.Any(c =>
+                        c.ShippingLineId == s.Id
+                        && c.DepotId == depotId
+                        && c.IsActive))
+                .OrderBy(s => s.Name)
+                .Select(s => new ReportShippingLineOptionDto(s.Id, s.Code, s.Name))
+                .ToListAsync(cancellationToken);
+        }
+
+        if (role == RoleNames.ShippingLineEvaluator && user.ShippingLineId.HasValue)
+        {
+            return await _db.ShippingLines
+                .Where(s => s.Id == user.ShippingLineId.Value && s.IsActive)
+                .Select(s => new ReportShippingLineOptionDto(s.Id, s.Code, s.Name))
+                .ToListAsync(cancellationToken);
+        }
+
+        return Array.Empty<ReportShippingLineOptionDto>();
+    }
+
     public async Task<DepotReportDto> GetDepotReportAsync(
         int userId,
         string role,
@@ -137,7 +182,8 @@ public class ReportService : IReportService
         CancellationToken cancellationToken = default)
     {
         ValidateDateRange(from, to);
-        var schedules = await LoadSchedulesInRangeAsync(userId, role, from, to, depotId, cancellationToken);
+        var schedules = await LoadSchedulesInRangeAsync(
+            userId, role, from, to, depotId, cancellationToken: cancellationToken);
 
         var rows = schedules
             .GroupBy(s => s.DepotId)
@@ -325,6 +371,7 @@ public class ReportService : IReportService
         return new TransactionReportRowDto(
             x.Payment.Id,
             x.Payment.ScheduleId,
+            preAdvice.ContainerNoNormalized,
             preAdvice.ReferenceNo,
             x.Payment.Trucker.FullName ?? x.Payment.Trucker.Username,
             shippingLine.Id,
@@ -485,9 +532,13 @@ public class ReportService : IReportService
         DateOnly from,
         DateOnly to,
         int? depotId,
-        CancellationToken cancellationToken)
+        int? shippingLineId = null,
+        CancellationToken cancellationToken = default)
     {
         var filtered = await ApplyRoleFilterAsync(_db.Schedules.AsQueryable(), userId, role, depotId);
+        if (shippingLineId.HasValue)
+            filtered = filtered.Where(s => s.PreAdvice.ShippingLineId == shippingLineId.Value);
+
         return await filtered
             .Where(s => s.Date >= from && s.Date <= to)
             .Include(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
@@ -501,7 +552,7 @@ public class ReportService : IReportService
             schedules.Count(s => s.Status == ScheduleStatus.Scheduled),
             schedules.Count(s => s.Status == ScheduleStatus.Confirmed),
             schedules.Count(s => s.Status == ScheduleStatus.Completed),
-            schedules.Count(s => s.Status == ScheduleStatus.Cancelled)
+            schedules.Count(s => s.Status == ScheduleStatus.NoShow)
         );
 
     private async Task<IQueryable<Domain.Entities.Schedule>> ApplyRoleFilterAsync(

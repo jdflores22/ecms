@@ -1,11 +1,15 @@
 import {
   Box,
+  Button,
   Chip,
   CircularProgress,
   Paper,
   Typography,
 } from '@mui/material'
+import PaymentOutlinedIcon from '@mui/icons-material/PaymentOutlined'
+import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from './ContainerIdentityPhotos'
+import { PreAdviceStatusChip } from './PreAdviceStatusChip'
 import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
@@ -18,35 +22,10 @@ import type {
 } from '../../services/api'
 import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
+import { truckerPaymentPath } from '../../utils/truckerPayment'
 
 const primaryDark = ICS_PRIMARY
-
-const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
-  Draft: 'default',
-  Submitted: 'info',
-  UnderEvaluation: 'warning',
-  Approved: 'success',
-  Rejected: 'error',
-  ForCompliance: 'warning',
-  Cancelled: 'default',
-}
-
-const statusLabel: Record<string, string> = {
-  UnderEvaluation: 'Under evaluation',
-  ForCompliance: 'For compliance',
-}
-
-const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
-  WaitingSchedule: 'warning',
-  Scheduled: 'info',
-  Confirmed: 'success',
-  Completed: 'success',
-  Cancelled: 'default',
-}
-
-const scheduleStatusLabel: Record<string, string> = {
-  WaitingSchedule: 'Waiting schedule',
-}
 
 type PreAdviceFullDossierProps = {
   item: PreAdvice
@@ -104,12 +83,7 @@ export default function PreAdviceFullDossier({
       >
         <SectionTitle>Pre-forecast summary</SectionTitle>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-          <Chip
-            label={statusLabel[item.status] ?? item.status}
-            size="small"
-            color={statusColor[item.status] ?? 'default'}
-            sx={{ fontWeight: 700 }}
-          />
+          <PreAdviceStatusChip status={item.status} scheduleStatus={schedule?.status ?? item.scheduleStatus} />
           {item.hasQrBooking && qrLogicteckStatusFromPreAdvice(item) && (
             <Chip
               label={qrLogicteckStatusFromPreAdvice(item)!}
@@ -205,26 +179,51 @@ export default function PreAdviceFullDossier({
               </Typography>
             </Box>
           ) : schedule ? (
-            <Box sx={infoGridSx}>
-              <InfoTile label="Depot (CY)" value={schedule.depotName} />
-              {schedule.date && (
-                <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+            <>
+              {isScheduleForPayment(schedule.status) && (
+                <Box sx={{ mb: 2 }}>
+                  <Button
+                    component={RouterLink}
+                    to={truckerPaymentPath(schedule.id)}
+                    variant="contained"
+                    startIcon={<PaymentOutlinedIcon />}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    Go to payment
+                  </Button>
+                </Box>
               )}
-              {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
-              {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
-              <InfoTile
-                label="Schedule status"
-                value={
-                  <Chip
-                    label={scheduleStatusLabel[schedule.status] ?? schedule.status}
-                    size="small"
-                    color={scheduleStatusColor[schedule.status] ?? 'default'}
-                    sx={{ fontWeight: 600 }}
-                  />
-                }
-              />
-              <InfoTile label="Schedule reference" value={schedule.referenceNo} mono />
-            </Box>
+              <Box sx={infoGridSx}>
+                <InfoTile label="Depot (CY)" value={schedule.depotName} />
+                {schedule.date && (
+                  <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                )}
+                {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
+                {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
+                <InfoTile
+                  label="Schedule status"
+                  value={
+                    <Chip
+                      label={
+                        getPreAdviceListStatus({
+                          status: 'Approved',
+                          scheduleStatus: schedule.status,
+                        }).label
+                      }
+                      size="small"
+                      variant="outlined"
+                      sx={lightStatusChipSx(
+                        getPreAdviceListStatus({
+                          status: 'Approved',
+                          scheduleStatus: schedule.status,
+                        }),
+                      )}
+                    />
+                  }
+                />
+                <InfoTile label="Schedule reference" value={schedule.referenceNo} mono />
+              </Box>
+            </>
           ) : (
             <Typography variant="body2" color="text.secondary">
               No return schedule assigned yet.
@@ -308,7 +307,7 @@ export default function PreAdviceFullDossier({
         <SectionTitle>Container identity photos</SectionTitle>
         {!compact && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            All container views submitted with this pre-forecast — used for evaluation and LOGICTECK integration.
+            Seven required container views plus optional Others — shared with evaluators, depot, and LOGICTECK dossier.
           </Typography>
         )}
         <ContainerIdentityPhotos

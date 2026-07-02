@@ -19,11 +19,12 @@ import WithdrawalForm, { type WithdrawalFormSubmitValues } from '../../component
 import WithdrawalLinesTable from '../../components/withdrawals/WithdrawalLinesTable'
 import WithdrawalStatusTimeline from '../../components/withdrawals/WithdrawalStatusTimeline'
 import WithdrawalGatePassCard from '../../components/withdrawals/WithdrawalGatePassCard'
+import { InfoTile, infoGridSx } from '../../components/layout/DetailPagePrimitives'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type Withdrawal, type WithdrawalDocument, type WithdrawalLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
-import { formatDateTime } from '../../utils/datetime'
+import { formatDateTime, formatScheduleDate } from '../../utils/datetime'
 
 const primaryDark = '#0B3D91'
 
@@ -47,16 +48,43 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function WithdrawalSummaryGrid({ item }: { item: Withdrawal }) {
   return (
-    <Box sx={{ py: 1 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-        {label}
-      </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.25 }}>
-        {value}
-      </Typography>
-    </Box>
+    <>
+      <Box
+        sx={{
+          ...infoGridSx,
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' },
+          mb: 2,
+        }}
+      >
+        <InfoTile label="Shipping line" value={item.shippingLineName} />
+        <InfoTile label="Current CY" value={item.currentDepotName} />
+        <InfoTile label="Destination" value={item.destination} />
+        <InfoTile label="Purpose" value="Repositioning" />
+        <InfoTile label="Issue date" value={formatScheduleDate(item.issueDate)} />
+        <InfoTile label="Expiration date" value={formatScheduleDate(item.expirationDate)} />
+        {item.submittedAt && (
+          <InfoTile label="Submitted" value={formatDateTime(item.submittedAt)} />
+        )}
+      </Box>
+
+      {item.remarks && (
+        <Box sx={{ mb: 2 }}>
+          <InfoTile label="Remarks" value={item.remarks} />
+        </Box>
+      )}
+
+      {item.reviewRemarks && (
+        <Box sx={{ mb: 2 }}>
+          <InfoTile label="CY review remarks" value={item.reviewRemarks} />
+        </Box>
+      )}
+
+      <Divider sx={{ mb: 2 }} />
+
+      <WithdrawalLinesTable lines={item.lines} summary={item.containerSummary} showLineStatus />
+    </>
   )
 }
 
@@ -112,6 +140,7 @@ export default function WithdrawalDetailPage() {
   const detailsEditable = item?.status === 'Draft'
   const shippingLineIssued = item?.status === 'Issued'
   const canUploadAndSubmit = detailsEditable || shippingLineIssued
+  const showGatePass = Boolean(item && ['Approved', 'Released', 'Completed'].includes(item.status))
 
   const handleSave = async (values: WithdrawalFormSubmitValues) => {
     if (!item) return
@@ -224,7 +253,14 @@ export default function WithdrawalDetailPage() {
             </Alert>
           )}
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.2fr 1fr' }, gap: 2 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', lg: '1.2fr 1fr' },
+              alignItems: 'start',
+              gap: 2,
+            }}
+          >
             <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
                 {detailsEditable ? 'Request details' : 'Withdrawal summary'}
@@ -259,27 +295,12 @@ export default function WithdrawalDetailPage() {
                   submitting={saving}
                 />
               ) : (
-                <>
-                  <InfoRow label="Shipping line" value={item.shippingLineName} />
-                  <InfoRow label="Current CY" value={item.currentDepotName} />
-                  <InfoRow label="Destination" value={item.destination} />
-                  <InfoRow label="Purpose" value="Repositioning" />
-                  <InfoRow label="Issue date" value={item.issueDate} />
-                  <InfoRow label="Expiration date" value={item.expirationDate} />
-                  {item.remarks && <InfoRow label="Remarks" value={item.remarks} />}
-                  {item.submittedAt && <InfoRow label="Submitted" value={formatDateTime(item.submittedAt)} />}
-                  {item.reviewRemarks && <InfoRow label="CY review remarks" value={item.reviewRemarks} />}
-                  <Box sx={{ pt: 2 }}>
-                    <WithdrawalLinesTable lines={item.lines} summary={item.containerSummary} showLineStatus />
-                  </Box>
-                </>
+                <WithdrawalSummaryGrid item={item} />
               )}
             </Paper>
 
             <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-              <WithdrawalGatePassCard withdrawalId={item.id} status={item.status} />
-
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, mt: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                 ATW certificate
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -340,7 +361,7 @@ export default function WithdrawalDetailPage() {
 
               <Divider sx={{ my: 2 }} />
 
-              {canUploadAndSubmit && (
+              {canUploadAndSubmit ? (
                 <Button
                   variant="contained"
                   fullWidth
@@ -351,17 +372,31 @@ export default function WithdrawalDetailPage() {
                 >
                   {submitting ? 'Submitting…' : 'Submit to container yard'}
                 </Button>
-              )}
-
-              {!canUploadAndSubmit && (
+              ) : !detailsEditable ? (
                 <Chip
                   label={item.status === 'UnderReview' ? 'Under review' : item.status}
                   color={statusColor[item.status] ?? 'default'}
                   sx={{ fontWeight: 700 }}
                 />
-              )}
+              ) : null}
             </Paper>
           </Box>
+
+          {showGatePass && (
+            <Paper
+              elevation={0}
+              sx={{
+                mt: 2,
+                p: { xs: 2, sm: 2.5 },
+                borderRadius: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'rgba(11, 61, 145, 0.03)',
+              }}
+            >
+              <WithdrawalGatePassCard withdrawalId={item.id} status={item.status} />
+            </Paper>
+          )}
         </>
       )}
     </Box>

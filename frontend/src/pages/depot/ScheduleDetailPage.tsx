@@ -38,20 +38,19 @@ import {
 import { store } from '../../store'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import {
-  clampMinScheduleDate,
+  clampScheduleDateToBounds,
   DEPOT_RETURN_DATE_ONLY_TIME,
+  formatDepotScheduleDateHelper,
   formatScheduleDate,
-  isBeforeToday,
+  getDepotScheduleDateBounds,
   SYSTEM_TIMEZONE,
-  todayIsoDate,
+  validateDepotScheduleDate,
 } from '../../utils/datetime'
+import { formatContainerSummary } from '../../utils/containerSize'
+import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 import { useAppSelector } from '../../store/hooks'
 
 const primaryDark = '#0B3D91'
-
-const statusLabel: Record<string, string> = {
-  WaitingSchedule: 'Waiting schedule',
-}
 
 function isImageProof(path: string) {
   return /\.(jpe?g|png|gif|webp|bmp)$/i.test(path)
@@ -84,8 +83,8 @@ function heroStatusChipStyle(status: string): { bgcolor: string; color: string }
       return { bgcolor: 'rgba(2, 136, 209, 0.92)', color: '#fff' }
     case 'WaitingSchedule':
       return { bgcolor: 'rgba(237, 108, 2, 0.92)', color: '#fff' }
-    case 'Cancelled':
-      return { bgcolor: 'rgba(158, 158, 158, 0.92)', color: '#fff' }
+    case 'NoShow':
+      return { bgcolor: 'rgba(198, 40, 40, 0.92)', color: '#fff' }
     default:
       return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
   }
@@ -118,6 +117,7 @@ export default function ScheduleDetailPage() {
   const [error, setError] = useState('')
 
   const [date, setDate] = useState('')
+  const [depotRemarks, setDepotRemarks] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -127,8 +127,16 @@ export default function ScheduleDetailPage() {
   const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   const allowedRole = user?.role === 'DepotPersonnel' || user?.role === 'Administrator'
+  const isDepotView = user?.role === 'DepotPersonnel'
 
-  const minScheduleDate = todayIsoDate()
+  const scheduleDateBounds = useMemo(
+    () =>
+      getDepotScheduleDateBounds(
+        preAdvice?.demurrageValidUntil,
+        preAdvice?.evaluatedAt,
+      ),
+    [preAdvice?.demurrageValidUntil, preAdvice?.evaluatedAt],
+  )
 
   const loadDocuments = useCallback((preAdviceId: number) => {
     setDocumentsLoading(true)
@@ -149,7 +157,6 @@ export default function ScheduleDetailPage() {
       .then(async ([scheduleRes]) => {
         const item = scheduleRes.data
         setSchedule(item)
-        setDate(clampMinScheduleDate(item.date, minScheduleDate))
 
         const [paymentResult, preAdviceRes] = await Promise.all([
           paymentApi.getBySchedule(scheduleId).catch(() => null),
@@ -157,6 +164,12 @@ export default function ScheduleDetailPage() {
         ])
         setPayment(paymentResult?.data ?? null)
         setPreAdvice(preAdviceRes.data)
+        const bounds = getDepotScheduleDateBounds(
+          preAdviceRes.data.demurrageValidUntil,
+          preAdviceRes.data.evaluatedAt,
+        )
+        setDate(clampScheduleDateToBounds(item.date, bounds.minDate, bounds.maxDate))
+        setDepotRemarks(item.depotRemarks ?? '')
         loadDocuments(preAdviceRes.data.id)
 
         if (item.status === 'Confirmed' || item.status === 'Completed') {
@@ -176,7 +189,14 @@ export default function ScheduleDetailPage() {
       })
       .catch(() => setError('Schedule not found or not accessible.'))
       .finally(() => setLoading(false))
-  }, [scheduleId, loadDocuments, minScheduleDate])
+  }, [scheduleId, loadDocuments])
+
+  useEffect(() => {
+    if (!preAdvice) return
+    setDate((current) =>
+      clampScheduleDateToBounds(current, scheduleDateBounds.minDate, scheduleDateBounds.maxDate),
+    )
+  }, [preAdvice?.id, scheduleDateBounds.minDate, scheduleDateBounds.maxDate])
 
   useEffect(() => {
     load()
@@ -196,8 +216,15 @@ export default function ScheduleDetailPage() {
   useEffect(() => {
     if (!schedule) return
     if (schedule.status === 'WaitingSchedule') setActiveTab('schedule')
-    else if (payment?.status === 'ForVerification') setActiveTab('payment')
-  }, [schedule?.id, schedule?.status, payment?.status])
+    else if (!isDepotView && payment?.status === 'ForVerification') setActiveTab('payment')
+  }, [schedule?.id, schedule?.status, payment?.status, isDepotView])
+
+  useEffect(() => {
+    if (!isDepotView) return
+    if (activeTab === 'photos' || activeTab === 'payment' || activeTab === 'qr') {
+      setActiveTab('schedule')
+    }
+  }, [isDepotView, activeTab])
 
   const photoProgress = useMemo(() => {
     const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
@@ -221,8 +248,9 @@ export default function ScheduleDetailPage() {
 
   const handleSave = async () => {
     if (!schedule) return
-    if (!date || isBeforeToday(date)) {
-      setActionError('Return date cannot be in the past.')
+    const validationError = validateDepotScheduleDate(date, scheduleDateBounds)
+    if (validationError) {
+      setActionError(validationError)
       return
     }
     setSubmitting(true)
@@ -233,6 +261,7 @@ export default function ScheduleDetailPage() {
         time: DEPOT_RETURN_DATE_ONLY_TIME,
         slotNo: 0,
         status: 'Scheduled',
+        depotRemarks: depotRemarks.trim() || null,
       })
       setSaveSuccess(true)
       window.setTimeout(() => {
@@ -253,8 +282,9 @@ export default function ScheduleDetailPage() {
     setActionError('')
     setSaveSuccess(false)
     if (!schedule) return
-    if (!date || isBeforeToday(date)) {
-      setActionError('Return date cannot be in the past.')
+    const validationError = validateDepotScheduleDate(date, scheduleDateBounds)
+    if (validationError) {
+      setActionError(validationError)
       return
     }
     setConfirmOpen(true)
@@ -262,7 +292,8 @@ export default function ScheduleDetailPage() {
 
   const cancelEdit = () => {
     if (!schedule) return
-    setDate(clampMinScheduleDate(schedule.date, minScheduleDate))
+    setDate(clampScheduleDateToBounds(schedule.date, scheduleDateBounds.minDate, scheduleDateBounds.maxDate))
+    setDepotRemarks(schedule.depotRemarks ?? '')
     setActionError('')
     setEditing(false)
   }
@@ -384,11 +415,16 @@ export default function ScheduleDetailPage() {
                     {schedule.referenceNo}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.88 }}>
-                    {schedule.depotName} · {preAdvice.containerNo} ({preAdvice.containerSize}&apos; {preAdvice.containerType})
+                    {schedule.depotName} ·{' '}
+                    {formatContainerSummary(
+                      preAdvice.containerNo,
+                      preAdvice.containerSize,
+                      preAdvice.containerType,
+                    )}
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.25 }}>
                     <Chip
-                      label={statusLabel[schedule.status] ?? schedule.status}
+                      label={scheduleStatusLabel(schedule.status)}
                       size="small"
                       sx={{ fontWeight: 700, ...heroStatusChipStyle(schedule.status) }}
                     />
@@ -406,16 +442,18 @@ export default function ScheduleDetailPage() {
                         }}
                       />
                     )}
-                    <Chip
-                      label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
-                      size="small"
-                      sx={{
-                        bgcolor: 'rgba(255,255,255,0.12)',
-                        color: '#fff',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        fontWeight: 600,
-                      }}
-                    />
+                    {!isDepotView && (
+                      <Chip
+                        label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
+                        size="small"
+                        sx={{
+                          bgcolor: 'rgba(255,255,255,0.12)',
+                          color: '#fff',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          fontWeight: 600,
+                        }}
+                      />
+                    )}
                     <Chip
                       label={SYSTEM_TIMEZONE.labelLong}
                       size="small"
@@ -462,7 +500,7 @@ export default function ScheduleDetailPage() {
             </Alert>
           )}
 
-          {payment?.status === 'ForVerification' && (
+          {payment?.status === 'ForVerification' && !isDepotView && (
             <Alert
               severity="warning"
               sx={{ mb: 3, borderRadius: 2 }}
@@ -491,17 +529,20 @@ export default function ScheduleDetailPage() {
               sx={detailTabsSx}
             >
               <Tab label="Request details" value="details" />
-              <Tab
-                label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
-                value="photos"
-              />
+              {!isDepotView && (
+                <Tab
+                  label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
+                  value="photos"
+                />
+              )}
               <Tab label="Schedule assignment" value="schedule" />
-              <Tab label="Payment" value="payment" />
-              <Tab label={LOGICTECK_QR.tabLabel} value="qr" />
+              {!isDepotView && <Tab label="Payment" value="payment" />}
+              {!isDepotView && <Tab label={LOGICTECK_QR.tabLabel} value="qr" />}
             </Tabs>
 
             <DepotScheduleTabPanels
               activeTab={activeTab}
+              depotView={isDepotView}
               schedule={schedule}
               preAdvice={preAdvice}
               documents={documents}
@@ -517,7 +558,8 @@ export default function ScheduleDetailPage() {
               showScheduledSummary={Boolean(showScheduledSummary)}
               editing={editing}
               date={date}
-              minScheduleDate={minScheduleDate}
+              depotRemarks={depotRemarks}
+              scheduleDateBounds={scheduleDateBounds}
               actionError={actionError}
               submitting={submitting}
               onReloadDocuments={() => loadDocuments(preAdvice.id)}
@@ -525,6 +567,7 @@ export default function ScheduleDetailPage() {
               onDownloadQr={downloadQr}
               onEditSchedule={() => setEditing(true)}
               onDateChange={setDate}
+              onDepotRemarksChange={setDepotRemarks}
               onCancelEdit={cancelEdit}
               onOpenConfirm={openConfirm}
             />
@@ -604,6 +647,12 @@ export default function ScheduleDetailPage() {
                 <Typography sx={{ fontWeight: 600 }}>{formatScheduleDate(date)}</Typography>
                 <Typography color="text.secondary">Requesting trucker</Typography>
                 <Typography sx={{ fontWeight: 600 }}>{requestingTrucker ?? '—'}</Typography>
+                {depotRemarks.trim() && (
+                  <>
+                    <Typography color="text.secondary">Depot remarks</Typography>
+                    <Typography sx={{ fontWeight: 600, whiteSpace: 'pre-wrap' }}>{depotRemarks.trim()}</Typography>
+                  </>
+                )}
               </Box>
             </>
           )}

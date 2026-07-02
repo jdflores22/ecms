@@ -41,7 +41,7 @@ const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'e
   Scheduled: 'info',
   Confirmed: 'success',
   Completed: 'success',
-  Cancelled: 'default',
+  NoShow: 'error',
 }
 
 const paymentStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {

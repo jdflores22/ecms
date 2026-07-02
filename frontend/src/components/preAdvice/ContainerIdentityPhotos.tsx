@@ -27,12 +27,15 @@ import { useToast } from '../feedback/ToastProvider'
 import { useAssetUrls } from '../../hooks/useAssetUrl'
 import {
   CONTAINER_PHOTO_CATEGORIES,
+  CONTAINER_PHOTO_GRID_CATEGORIES,
   DAMAGE_PHOTO_CATEGORY,
   formatDamageComment,
   isDamageForView,
+  isRequiredContainerPhotoCategory,
   parseDamageDescription,
   parseDamageView,
   type ContainerPhotoCategoryValue,
+  type ContainerPhotoGridCategory,
 } from '../../config/containerPhotoCategories'
 import { preAdviceApi, type PreAdviceDocument } from '../../services/api'
 
@@ -63,6 +66,45 @@ function apiErrorMessage(err: unknown, fallback: string) {
     if (typeof msg === 'string') return msg
   }
   return fallback
+}
+
+function ResolvedDocumentImage({
+  url,
+  alt,
+  onError,
+  sx,
+}: {
+  url: string
+  alt: string
+  onError?: () => void
+  sx?: object
+}) {
+  if (!url) {
+    return (
+      <Box
+        sx={{
+          width: '100%',
+          height: '100%',
+          display: 'grid',
+          placeItems: 'center',
+          bgcolor: '#f8fafc',
+          ...sx,
+        }}
+      >
+        <CircularProgress size={24} sx={{ color: primaryDark }} />
+      </Box>
+    )
+  }
+
+  return (
+    <Box
+      component="img"
+      src={url}
+      alt={alt}
+      onError={onError}
+      sx={sx}
+    />
+  )
 }
 
 function mergeUploadedDocument(
@@ -101,7 +143,7 @@ type Props = {
 }
 
 type DamageDialogState = {
-  view: (typeof CONTAINER_PHOTO_CATEGORIES)[number]['value']
+  view: ContainerPhotoGridCategory['value']
   label: string
 }
 
@@ -162,16 +204,17 @@ export default function ContainerIdentityPhotos({
     [documents],
   )
 
+  const damageCategories = useMemo(
+    () => CONTAINER_PHOTO_GRID_CATEGORIES.filter((c) => damageByView.has(c.value)),
+    [damageByView],
+  )
+  const hasDamageSection = damageCategories.length > 0 || legacyDamagePhotos.length > 0
+
   const assetUrls = useAssetUrls(documents.map((d) => d.filePath))
   const assetUrl = (path: string | null | undefined) => (path ? assetUrls[path] ?? '' : '')
 
   const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) => identityByCategory.has(c.value)).length
   const progress = Math.round((standardUploaded / CONTAINER_PHOTO_CATEGORIES.length) * 100)
-  const damageCategories = useMemo(
-    () => CONTAINER_PHOTO_CATEGORIES.filter((c) => damageByView.has(c.value)),
-    [damageByView],
-  )
-  const hasDamageSection = damageCategories.length > 0 || legacyDamagePhotos.length > 0
 
   const applyDocuments = useCallback(
     (next: PreAdviceDocument[]) => {
@@ -245,7 +288,7 @@ export default function ContainerIdentityPhotos({
     await deletePhoto(documentId, label)
   }, [deleteConfirm, deletePhoto])
 
-  const openDamageDialog = (category: (typeof CONTAINER_PHOTO_CATEGORIES)[number]) => {
+  const openDamageDialog = (category: ContainerPhotoGridCategory) => {
     const existing = damageByView.get(category.value)
     setDamageComment(existing ? parseDamageDescription(existing.comment) : '')
     setDamageFile(null)
@@ -270,10 +313,11 @@ export default function ContainerIdentityPhotos({
     if (uploaded) closeDamageDialog()
   }
 
-  const renderIdentitySlot = (category: (typeof CONTAINER_PHOTO_CATEGORIES)[number]) => {
+  const renderIdentitySlot = (category: ContainerPhotoGridCategory) => {
     const identityDoc = identityByCategory.get(category.value)
     const hasDamage = damageByView.has(category.value)
     const busy = uploading === category.value
+    const isOptional = !isRequiredContainerPhotoCategory(category.value)
 
     return (
       <Paper
@@ -281,12 +325,15 @@ export default function ContainerIdentityPhotos({
         elevation={0}
         sx={{
           borderRadius: 2.5,
-          border: '1px solid',
+          border: '1px',
+          borderStyle: isOptional && !identityDoc ? 'dashed' : 'solid',
           borderColor: hasDamage
             ? hexToRgba(damageRed, 0.45)
             : identityDoc
               ? hexToRgba(primaryDark, 0.25)
-              : 'divider',
+              : isOptional
+                ? 'divider'
+                : 'divider',
           bgcolor: identityDoc ? hexToRgba(primaryDark, 0.02) : '#fff',
           overflow: 'hidden',
           display: 'flex',
@@ -309,7 +356,16 @@ export default function ContainerIdentityPhotos({
           <Typography variant="caption" sx={{ fontWeight: 700, color: primaryDark }}>
             {category.label}
           </Typography>
-          {hasDamage && <Chip label="Damage" size="small" sx={damageBadgeSx} />}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {isOptional && !identityDoc && (
+              <Chip
+                label="Optional"
+                size="small"
+                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: 'action.hover' }}
+              />
+            )}
+            {hasDamage && <Chip label="Damage" size="small" sx={damageBadgeSx} />}
+          </Box>
         </Box>
 
         <Box sx={{ position: 'relative', aspectRatio: '4/3', bgcolor: '#f8fafc' }}>
@@ -345,9 +401,8 @@ export default function ContainerIdentityPhotos({
                   )}
                 </Box>
               ) : (
-                <Box
-                  component="img"
-                  src={assetUrl(identityDoc.filePath)}
+                <ResolvedDocumentImage
+                  url={assetUrl(identityDoc.filePath)}
                   alt={category.label}
                   onError={() => markImageBroken(identityDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -369,9 +424,10 @@ export default function ContainerIdentityPhotos({
                   <Tooltip title="View full size">
                     <IconButton
                       size="small"
-                      onClick={() =>
-                        setPreview({ url: assetUrl(identityDoc.filePath), title: category.label })
-                      }
+                        onClick={() => {
+                          const url = assetUrl(identityDoc.filePath)
+                          if (url) setPreview({ url, title: category.label })
+                        }}
                       sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
                       aria-label={`View ${category.label}`}
                     >
@@ -444,7 +500,7 @@ export default function ContainerIdentityPhotos({
           )}
         </Box>
 
-        {canManage && !hasDamage && (
+        {canManage && !hasDamage && !isOptional && (
           <Box
             sx={{
               px: 1.5,
@@ -488,7 +544,7 @@ export default function ContainerIdentityPhotos({
     )
   }
 
-  const renderDamageSlot = (category: (typeof CONTAINER_PHOTO_CATEGORIES)[number]) => {
+  const renderDamageSlot = (category: ContainerPhotoGridCategory) => {
     const damageDoc = damageByView.get(category.value)
     if (!damageDoc) return null
     const damageBusy = uploading === `damage-${category.value}` || uploading === `delete-${damageDoc.id}`
@@ -549,9 +605,8 @@ export default function ContainerIdentityPhotos({
               </Box>
             ) : (
               <>
-                <Box
-                  component="img"
-                  src={assetUrl(damageDoc.filePath)}
+                <ResolvedDocumentImage
+                  url={assetUrl(damageDoc.filePath)}
                   alt={`${category.label} damage`}
                   onError={() => markImageBroken(damageDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -616,13 +671,15 @@ export default function ContainerIdentityPhotos({
                     <Tooltip title="View damage photo">
                       <IconButton
                         size="small"
-                        onClick={() =>
+                        onClick={() => {
+                          const url = assetUrl(damageDoc.filePath)
+                          if (!url) return
                           setPreview({
-                            url: assetUrl(damageDoc.filePath),
+                            url,
                             title: `${category.label} — damage`,
                             description: parseDamageDescription(damageDoc.comment),
                           })
-                        }
+                        }}
                         sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
                         aria-label={`View ${category.label} damage`}
                       >
@@ -694,7 +751,7 @@ export default function ContainerIdentityPhotos({
             Container identity photos
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Upload each container view for evaluator review (JPG, PNG, WEBP — max 10 MB)
+            Upload each container view for evaluator review — Others is optional (JPG, PNG, WEBP — max 10 MB)
             {!canManage && ' · read-only'}
           </Typography>
         </Box>
@@ -743,7 +800,7 @@ export default function ContainerIdentityPhotos({
               gap: 2,
             }}
           >
-            {CONTAINER_PHOTO_CATEGORIES.map(renderIdentitySlot)}
+            {CONTAINER_PHOTO_GRID_CATEGORIES.map(renderIdentitySlot)}
           </Box>
 
           {hasDamageSection && (
@@ -931,14 +988,18 @@ export default function ContainerIdentityPhotos({
               {preview.description}
             </Typography>
           )}
-          {preview && (
+          {preview?.url ? (
             <Box
               component="img"
               src={preview.url}
               alt={preview.title}
               sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 2 }}
             />
-          )}
+          ) : preview ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress size={28} sx={{ color: primaryDark }} />
+            </Box>
+          ) : null}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreview(null)}>Close</Button>

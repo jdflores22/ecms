@@ -1,4 +1,5 @@
 import { Box, Chip, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 
 const steps = [
   { key: 'Draft', label: 'Draft' },
@@ -7,7 +8,7 @@ const steps = [
   { key: 'UnderReview', label: 'Under review' },
   { key: 'Approved', label: 'Approved' },
   { key: 'Released', label: 'Released' },
-]
+] as const
 
 function stepIndex(status: string): number {
   if (status === 'Completed') return steps.length
@@ -27,26 +28,23 @@ export default function WithdrawalStatusTimeline({ status, issuedByShippingLine 
 
   return (
     <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.75 }}>
         Status timeline
+        {issuedByShippingLine ? ' · Pre-filled by shipping line' : ''}
       </Typography>
-      {issuedByShippingLine && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-          ATW fields were pre-filled by the shipping line evaluator.
-        </Typography>
-      )}
+
       {terminal ? (
         <Chip
           label={status === 'Rejected' ? 'Rejected' : 'Cancelled'}
-          color={status === 'Rejected' ? 'error' : 'default'}
           size="small"
-          sx={{ fontWeight: 700 }}
+          color={status === 'Rejected' ? 'error' : 'default'}
+          sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
         />
       ) : (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
           {steps.map((step, i) => {
-            const active = i === current
             const done = i < current
+            const active = i === current
             return (
               <Chip
                 key={step.key}
@@ -54,12 +52,26 @@ export default function WithdrawalStatusTimeline({ status, issuedByShippingLine 
                 size="small"
                 variant={active ? 'filled' : 'outlined'}
                 color={done ? 'success' : active ? 'primary' : 'default'}
-                sx={{ fontWeight: active || done ? 700 : 500 }}
+                sx={{
+                  height: 22,
+                  fontSize: '0.7rem',
+                  fontWeight: active || done ? 600 : 500,
+                  ...(active && {
+                    bgcolor: ICS_PRIMARY,
+                    color: '#fff',
+                    '& .MuiChip-label': { px: 1 },
+                  }),
+                }}
               />
             )
           })}
           {status === 'Completed' && (
-            <Chip label="Completed" size="small" color="success" sx={{ fontWeight: 700 }} />
+            <Chip
+              label="Completed"
+              size="small"
+              color="success"
+              sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
+            />
           )}
         </Box>
       )}

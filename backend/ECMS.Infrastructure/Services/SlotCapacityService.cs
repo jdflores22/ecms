@@ -89,7 +89,7 @@ public class SlotCapacityService : ISlotCapacityService
             .Where(s =>
                 s.DepotId == depotId &&
                 s.Date == date &&
-                s.Status != ScheduleStatus.Cancelled &&
+                s.Status != ScheduleStatus.NoShow &&
                 s.Status != ScheduleStatus.WaitingSchedule);
 
         if (excludeScheduleId.HasValue)

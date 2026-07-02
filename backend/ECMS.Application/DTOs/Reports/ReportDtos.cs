@@ -45,6 +45,11 @@ public record ShippingLineReportDto(
     int TotalScheduled,
     int TotalCompleted);
 
+public record ReportShippingLineOptionDto(
+    int Id,
+    string Code,
+    string Name);
+
 public record DepotReportRowDto(
     int DepotId,
     string Name,
@@ -79,6 +84,7 @@ public record RevenueReportDto(
 public record TransactionReportRowDto(
     int PaymentId,
     int ScheduleId,
+    string ContainerNo,
     string ReferenceNo,
     string TruckerName,
     int ShippingLineId,

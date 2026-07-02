@@ -369,6 +369,14 @@ namespace ECMS.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
 
+                    b.Property<string>("ProofQrphInvoiceNo")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("ProofProvider")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
                     b.Property<DateTime?>("ProofTransactionAt")
                         .HasColumnType("datetime(6)");
 
@@ -647,6 +655,9 @@ namespace ECMS.Persistence.Migrations
 
                     b.Property<int>("DepotId")
                         .HasColumnType("int");
+
+                    b.Property<string>("DepotRemarks")
+                        .HasColumnType("longtext");
 
                     b.Property<int>("PreAdviceId")
                         .HasColumnType("int");

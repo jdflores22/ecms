@@ -80,6 +80,7 @@ public class ReportsController : ControllerBase
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
         [FromQuery] int? depotId,
+        [FromQuery] int? shippingLineId,
         CancellationToken cancellationToken)
     {
         try
@@ -87,13 +88,23 @@ public class ReportsController : ControllerBase
             var today = PhilippinesTime.Today;
             var rangeFrom = from ?? today.AddDays(-30);
             var rangeTo = to ?? today;
-            return Ok(await _service.GetShippingLineReportAsync(UserId, Role, rangeFrom, rangeTo, depotId, cancellationToken));
+            return Ok(await _service.GetShippingLineReportAsync(
+                UserId, Role, rangeFrom, rangeTo, depotId, shippingLineId, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpGet("shipping-line-options")]
+    [Authorize(Roles =
+        RoleNames.Administrator + "," +
+        RoleNames.DepotPersonnel + "," +
+        RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<IReadOnlyList<ReportShippingLineOptionDto>>> ShippingLineOptions(
+        CancellationToken cancellationToken)
+        => Ok(await _service.GetShippingLineOptionsAsync(UserId, Role, cancellationToken));
 
     [HttpGet("depots")]
     [Authorize(Roles =

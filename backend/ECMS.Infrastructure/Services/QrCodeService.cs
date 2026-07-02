@@ -114,7 +114,10 @@ public class QrCodeService : IQrService
         booking.PayloadJson = JsonSerializer.Serialize(payload);
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (_logicteckOptions.AutoTransferOnQrPublish)
+        // Optional: push to LOGICTECK on publish (off by default — trucker/admin sends manually).
+        if (_logicteckOptions.AutoTransferOnQrPublish
+            && (!string.IsNullOrWhiteSpace(_logicteckOptions.BookUrl)
+                || !string.IsNullOrWhiteSpace(_logicteckOptions.EmptyReturnUrl)))
         {
             await ExecuteTransferToLogicteckAsync(
                 booking,
@@ -256,7 +259,7 @@ public class QrCodeService : IQrService
             : $"data:image/png;base64,{Convert.ToBase64String(qrBytes)}";
 
         var documents = preAdvice.Documents
-            .OrderBy(d => d.Category)
+            .OrderBy(d => ContainerPhotoCatalog.GetDisplaySortOrder(d.Category))
             .ThenBy(d => d.CreatedAt)
             .Select(d => new LogicteckDossierDocumentDto(
                 d.Category?.ToString(),
@@ -304,7 +307,8 @@ public class QrCodeService : IQrService
                 booking.Schedule.Time.ToString("HH:mm"),
                 booking.Schedule.SlotNo,
                 booking.Schedule.Status.ToString(),
-                booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username),
+                booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
+                booking.Schedule.DepotRemarks),
             new LogicteckDossierQrDto(
                 booking.Id,
                 booking.QRCode,

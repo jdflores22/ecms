@@ -26,8 +26,16 @@ public class AuthService : IAuthService
     {
         var user = await _db.Users
             .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Username == request.Username, cancellationToken)
-            ?? throw new UnauthorizedAccessException("Invalid username or password.");
+            .FirstOrDefaultAsync(u => u.Username == request.Username, cancellationToken);
+
+        if (user is null && request.Username.Contains('@'))
+        {
+            user = await _db.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.Email == request.Username, cancellationToken);
+        }
+
+        user ??= throw new UnauthorizedAccessException("Invalid username or password.");
 
         if (user.Status != UserStatus.Active || !_passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid username or password.");

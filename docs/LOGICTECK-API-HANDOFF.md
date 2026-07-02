@@ -73,6 +73,7 @@ X-Logicteck-Api-Key: {your-key}
 - `schedule` — depot, slot, status
 - `qrBooking` — ICS reference, status, `qrImageBase64` (PNG data URL)
 - `documents[]` — each photo with `categoryLabel`, `url` (full URL on ICS API), `comment` for damage
+- **7 required views** (Flooring, sides, front/back) plus **optional `Others`** when the trucker uploads extra photos — `Others` is never required for submit
 
 **Example document entry:**
 

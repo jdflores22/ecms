@@ -1,6 +1,8 @@
 import DownloadIcon from '@mui/icons-material/Download'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import PaymentOutlinedIcon from '@mui/icons-material/PaymentOutlined'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
+import SendIcon from '@mui/icons-material/Send'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import {
   Alert,
   Box,
@@ -10,6 +12,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from './ContainerIdentityPhotos'
 import PreAdviceFullDossier from './PreAdviceFullDossier'
 import PreAdviceForm, { type PreAdviceFormSubmitValues } from './PreAdviceForm'
@@ -31,22 +34,12 @@ import type {
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
+import { truckerPaymentPath } from '../../utils/truckerPayment'
 
 const primaryDark = ICS_PRIMARY
 
 export type PreAdviceDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr'
-
-const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
-  WaitingSchedule: 'warning',
-  Scheduled: 'info',
-  Confirmed: 'success',
-  Completed: 'success',
-  Cancelled: 'default',
-}
-
-const scheduleStatusLabel: Record<string, string> = {
-  WaitingSchedule: 'Waiting schedule',
-}
 
 type StatusGuidance = {
   severity: 'info' | 'success' | 'warning' | 'error'
@@ -228,6 +221,26 @@ export default function PreAdviceDetailTabPanels({
                 the schedule is set.
               </Alert>
             )}
+            {isScheduleForPayment(schedule.status) && (
+              <Alert
+                severity="warning"
+                sx={{ mb: 2, borderRadius: 2 }}
+                action={
+                  <Button
+                    component={RouterLink}
+                    to={truckerPaymentPath(schedule.id)}
+                    color="inherit"
+                    size="small"
+                    startIcon={<PaymentOutlinedIcon />}
+                    sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                  >
+                    Go to payment
+                  </Button>
+                }
+              >
+                Return date assigned. Upload payment proof to confirm your return slot.
+              </Alert>
+            )}
             <Box sx={infoGridSx}>
               <InfoTile label="Depot (CY)" value={schedule.depotName} />
               {schedule.date && (
@@ -239,10 +252,20 @@ export default function PreAdviceDetailTabPanels({
                 label="Schedule status"
                 value={
                   <Chip
-                    label={scheduleStatusLabel[schedule.status] ?? schedule.status}
+                    label={
+                      getPreAdviceListStatus({
+                        status: 'Approved',
+                        scheduleStatus: schedule.status,
+                      }).label
+                    }
                     size="small"
-                    color={scheduleStatusColor[schedule.status] ?? 'default'}
-                    sx={{ fontWeight: 600 }}
+                    variant="outlined"
+                    sx={lightStatusChipSx(
+                      getPreAdviceListStatus({
+                        status: 'Approved',
+                        scheduleStatus: schedule.status,
+                      }),
+                    )}
                   />
                 }
               />
@@ -257,141 +280,184 @@ export default function PreAdviceDetailTabPanels({
       </DetailTabPanel>
 
       <DetailTabPanel value="qr" activeTab={activeTab}>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          {LOGICTECK_QR.scheduleSectionHint}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2, lineHeight: 1.5 }}>
-          {LOGICTECK_QR.integrationNote}
-        </Typography>
-
-        {(schedule?.status === 'Confirmed' || schedule?.status === 'Completed') && (
-          <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
-            {LOGICTECK_QR.readyAlert}
-          </Alert>
-        )}
-
         {qrLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 3 }}>
             <CircularProgress size={24} sx={{ color: primaryDark }} />
             <Typography variant="body2" color="text.secondary">
-              Loading booking QR…
+              Loading pre-forecast QR…
             </Typography>
           </Box>
         ) : qrBooking && schedule ? (
-          <Box>
-            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              {LOGICTECK_QR.integrationModel}
-            </Alert>
-            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Pre-forecast QR is ready. Scan or download the QR, or click{' '}
-              <strong>{LOGICTECK_QR.bookLogicteck}</strong> when you are ready to send data to LOGICTECK.
-            </Alert>
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 2, sm: 2.5 },
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: '#fff',
+              boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 1.5,
+                mb: 2,
+              }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: primaryDark }}>
+                  {LOGICTECK_QR.sectionTitle}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                  {qrBooking.qrCode}
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                    · {formatDateTime(qrBooking.generatedAt)}
+                  </Typography>
+                </Typography>
+              </Box>
+              <Chip
+                label={qrLookupStatusLabel(qrBooking)}
+                size="small"
+                color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
+                sx={{ fontWeight: 700 }}
+              />
+            </Box>
+
             <Box
               sx={{
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' },
-                gap: 2,
+                gap: { xs: 2, sm: 2.5 },
                 alignItems: 'start',
               }}
             >
-            {qrImageUrl && (
-              <Box
-                component="img"
-                src={qrImageUrl}
-                alt={`QR code ${qrBooking.qrCode}`}
-                sx={{
-                  width: { xs: '100%', sm: 200 },
-                  maxWidth: 200,
-                  height: 'auto',
-                  borderRadius: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: '#fff',
-                  p: 1,
-                }}
-              />
-            )}
-            <Box sx={{ minWidth: 0 }}>
-              <Box sx={infoGridSx}>
-                <InfoTile label="Pre-forecast" value={item.referenceNo} mono />
-                <InfoTile label={LOGICTECK_QR.bookingIdLabel} value={qrBooking.qrCode} mono />
-                <InfoTile label="Generated" value={formatDateTime(qrBooking.generatedAt)} />
-                <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />
-                <InfoTile
-                  label="Return slot"
-                  value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
-                />
-                <InfoTile label="Trucker" value={qrBooking.payload.trucker} />
-                <InfoTile
-                  label={LOGICTECK_QR.validationStatusLabel}
-                  value={
-                    <Chip
-                      label={qrLookupStatusLabel(qrBooking)}
-                      size="small"
-                      color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
-                      sx={{ fontWeight: 600 }}
-                    />
-                  }
-                />
-              </Box>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-                {onQrPreview && (
-                  <Button
-                    variant="contained"
-                    startIcon={<QrCode2OutlinedIcon />}
-                    onClick={onQrPreview}
-                    sx={{ fontWeight: 700, borderRadius: 2 }}
-                  >
-                    {LOGICTECK_QR.viewQr}
-                  </Button>
+              {qrImageUrl && (
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={onQrPreview}
+                  disabled={!onQrPreview}
+                  sx={{
+                    width: { xs: '100%', sm: 168 },
+                    maxWidth: 168,
+                    p: 0,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    bgcolor: '#fff',
+                    cursor: onQrPreview ? 'pointer' : 'default',
+                    transition: 'box-shadow 0.15s ease',
+                    '&:hover': onQrPreview
+                      ? { boxShadow: '0 4px 16px rgba(11, 61, 145, 0.12)' }
+                      : undefined,
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={qrImageUrl}
+                    alt={`QR code ${qrBooking.qrCode}`}
+                    sx={{ width: '100%', height: 'auto', display: 'block', p: 1 }}
+                  />
+                </Box>
+              )}
+
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  {qrBooking.payload.containerNo}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {qrBooking.payload.depot} ·{' '}
+                  {formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
+                </Typography>
+
+                {canBookLogicteck(qrBooking) && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.5 }}>
+                    {LOGICTECK_QR.integrationNote}
+                  </Typography>
                 )}
-                {onBookLogicteck && qrBooking && canBookLogicteck(qrBooking) && (
+
+                {qrBooking.logicteckBookedAt && (
+                  <Alert severity="info" sx={{ mb: 2, borderRadius: 2, py: 0.5 }}>
+                    {LOGICTECK_QR.bookAlreadySubmitted}
+                  </Alert>
+                )}
+                {qrBooking.isUsed && (
+                  <Alert severity="success" sx={{ mb: 2, borderRadius: 2, py: 0.5 }}>
+                    {LOGICTECK_QR.bookRetrieved}
+                  </Alert>
+                )}
+
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {onBookLogicteck && canBookLogicteck(qrBooking) && (
+                    <Button
+                      variant="contained"
+                      startIcon={<SendIcon />}
+                      onClick={onBookLogicteck}
+                      disabled={bookLogicteckLoading}
+                      sx={{ fontWeight: 700, borderRadius: 2 }}
+                    >
+                      {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
+                    </Button>
+                  )}
+                  {onQrPreview && (
+                    <Button
+                      variant={canBookLogicteck(qrBooking) ? 'outlined' : 'contained'}
+                      startIcon={
+                        canBookLogicteck(qrBooking) ? (
+                          <VisibilityOutlinedIcon />
+                        ) : (
+                          <QrCode2OutlinedIcon />
+                        )
+                      }
+                      onClick={onQrPreview}
+                      sx={{ fontWeight: 700, borderRadius: 2 }}
+                    >
+                      {LOGICTECK_QR.viewQr}
+                    </Button>
+                  )}
                   <Button
                     variant="outlined"
-                    onClick={onBookLogicteck}
-                    disabled={bookLogicteckLoading}
-                    sx={{ fontWeight: 700, borderRadius: 2 }}
+                    startIcon={<DownloadIcon />}
+                    onClick={onDownloadQr}
+                    sx={{ fontWeight: 600, borderRadius: 2 }}
                   >
-                    {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
+                    Download
                   </Button>
-                )}
-                <Button
-                  variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={onDownloadQr}
-                  sx={{ fontWeight: 600, borderRadius: 2 }}
-                >
-                  Download QR
-                </Button>
-                <Button
-                  component="a"
-                  href={`/logicteck-test.html?qr=${encodeURIComponent(qrBooking.qrCode)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="outlined"
-                  startIcon={<OpenInNewIcon />}
-                  sx={{ fontWeight: 600, borderRadius: 2 }}
-                >
-                  Open LOGICTECK test page
-                </Button>
+                </Box>
               </Box>
             </Box>
-          </Box>
-          </Box>
+          </Paper>
         ) : (
           <Paper
             elevation={0}
             sx={{
-              p: 2,
-              borderRadius: 2,
-              bgcolor: hexToRgba(primaryDark, 0.03),
+              p: 2.5,
+              borderRadius: 3,
               border: '1px solid',
-              borderColor: hexToRgba(primaryDark, 0.1),
+              borderColor: hexToRgba(primaryDark, 0.12),
+              bgcolor: hexToRgba(primaryDark, 0.02),
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ mb: schedule && isScheduleForPayment(schedule.status) ? 2 : 0 }}>
               {LOGICTECK_QR.emptyState}
             </Typography>
+            {schedule && isScheduleForPayment(schedule.status) && (
+              <Button
+                component={RouterLink}
+                to={truckerPaymentPath(schedule.id)}
+                variant="contained"
+                size="small"
+                startIcon={<PaymentOutlinedIcon />}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                Go to payment
+              </Button>
+            )}
           </Paper>
         )}
       </DetailTabPanel>

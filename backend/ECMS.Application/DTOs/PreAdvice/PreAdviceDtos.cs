@@ -23,7 +23,9 @@ public record PreAdviceDto(
     bool HasQrBooking,
     string? QrCode,
     int? QrBookingId,
-    string? LogicteckStatus);
+    string? LogicteckStatus,
+    DateTime? EvaluatedAt,
+    string? ScheduleStatus);
 
 public record CreatePreAdviceRequest(
     int ShippingLineId,
