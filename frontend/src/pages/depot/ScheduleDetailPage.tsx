@@ -40,7 +40,6 @@ import { useAssetUrl } from '../../hooks/useAssetUrl'
 import {
   clampScheduleDateToBounds,
   DEPOT_RETURN_DATE_ONLY_TIME,
-  formatDepotScheduleDateHelper,
   formatScheduleDate,
   getDepotScheduleDateBounds,
   SYSTEM_TIMEZONE,
