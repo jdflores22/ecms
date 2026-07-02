@@ -35,7 +35,8 @@ public class AuthService : IAuthService
                 .FirstOrDefaultAsync(u => u.Email == request.Username, cancellationToken);
         }
 
-        user ??= throw new UnauthorizedAccessException("Invalid username or password.");
+        if (user is null)
+            throw new UnauthorizedAccessException("Invalid username or password.");
 
         if (user.Status != UserStatus.Active || !_passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid username or password.");
@@ -48,8 +49,9 @@ public class AuthService : IAuthService
         if (await _db.Users.AnyAsync(u => u.Username == request.Username || u.Email == request.Email, cancellationToken))
             throw new InvalidOperationException("Username or email already exists.");
 
-        var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == request.Role, cancellationToken)
-            ?? throw new InvalidOperationException("Invalid role.");
+        var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == request.Role, cancellationToken);
+        if (role is null)
+            throw new InvalidOperationException("Invalid role.");
 
         var user = new User
         {
@@ -95,8 +97,9 @@ public class AuthService : IAuthService
     {
         var stored = await _db.RefreshTokens
             .Include(r => r.User).ThenInclude(u => u.Role)
-            .FirstOrDefaultAsync(r => r.Token == request.RefreshToken, cancellationToken)
-            ?? throw new UnauthorizedAccessException("Invalid refresh token.");
+            .FirstOrDefaultAsync(r => r.Token == request.RefreshToken, cancellationToken);
+        if (stored is null)
+            throw new UnauthorizedAccessException("Invalid refresh token.");
 
         if (!stored.IsActive)
             throw new UnauthorizedAccessException("Refresh token expired or revoked.");
@@ -174,8 +177,9 @@ public class AuthService : IAuthService
 
         var resetToken = await _db.PasswordResetTokens
             .Include(t => t.User)
-            .FirstOrDefaultAsync(t => t.Token == request.Token, cancellationToken)
-            ?? throw new InvalidOperationException("Invalid or expired reset token.");
+            .FirstOrDefaultAsync(t => t.Token == request.Token, cancellationToken);
+        if (resetToken is null)
+            throw new InvalidOperationException("Invalid or expired reset token.");
 
         if (!resetToken.IsActive)
             throw new InvalidOperationException("Invalid or expired reset token.");
