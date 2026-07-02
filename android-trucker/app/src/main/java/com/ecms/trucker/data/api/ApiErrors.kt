@@ -19,6 +19,7 @@ fun Throwable.userMessage(fallback: String): String {
             401 -> return "Invalid username or password."
             403 -> return "This account cannot use the trucker app."
             429 -> return "Too many attempts. Please wait a minute and try again."
+            500 -> return "Server error. The API database may need an update — try again after a few minutes."
         }
         return "Request failed (HTTP ${code()})."
     }

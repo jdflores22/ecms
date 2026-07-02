@@ -84,11 +84,7 @@ class TruckerRepository(
     private val api: EcmsApiService,
     private val context: Context,
 ) {
-    suspend fun getDashboard(): TruckerDashboardDto = try {
-        api.getTruckerDashboard()
-    } catch (_: Exception) {
-        TruckerDashboardDto()
-    }
+    suspend fun getDashboard(): TruckerDashboardDto = api.getTruckerDashboard()
 
     suspend fun listPreAdvices() = api.listPreAdvices()
     suspend fun getPreAdvice(id: Int) = api.getPreAdvice(id)
@@ -118,7 +114,7 @@ class TruckerRepository(
     }.getOrNull()
 
     suspend fun getMyPayments() = api.getMyPayments()
-    suspend fun getPaymentDueCount() = api.getPaymentDueCount().count
+
     suspend fun getPaymentSettings() = api.getPaymentSettings()
     suspend fun getPaymentBySchedule(scheduleId: Int) = api.getPaymentBySchedule(scheduleId)
 
@@ -148,7 +144,7 @@ class TruckerRepository(
     suspend fun submitWithdrawal(id: Int) = api.submitWithdrawal(id)
     suspend fun getWithdrawalDocuments(id: Int) = api.getWithdrawalDocuments(id)
     suspend fun getWithdrawalGatePass(id: Int) = api.getWithdrawalGatePass(id)
-    suspend fun getWithdrawalPendingActionCount() = api.getWithdrawalPendingActionCount().count
+
 
     suspend fun uploadWithdrawalDocument(id: Int, uri: Uri) {
         val part = uriToMultipart(uri, "file")
