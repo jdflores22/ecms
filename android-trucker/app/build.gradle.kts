@@ -12,6 +12,11 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+val firebaseEnabled = file("google-services.json").exists()
+if (firebaseEnabled) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.ecms.trucker"
     compileSdk = 35
@@ -20,12 +25,13 @@ android {
         applicationId = "com.ecms.trucker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
 
         val apiBaseUrl = localProperties.getProperty("API_BASE_URL")
             ?: "https://your-ecms-domain.com/api"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("boolean", "FIREBASE_ENABLED", firebaseEnabled.toString())
     }
 
     buildFeatures {
@@ -75,6 +81,10 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.google.zxing:core:3.5.3")
+
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

@@ -12,6 +12,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -75,12 +76,7 @@ class AuthInterceptor(
         val body = """{"refreshToken":"$refresh"}"""
         val refreshRequest = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/auth/refresh")
-            .post(
-                okhttp3.RequestBody.create(
-                    "application/json".toMediaType(),
-                    body,
-                ),
-            )
+            .post(body.toRequestBody("application/json".toMediaType()))
             .build()
 
         return try {

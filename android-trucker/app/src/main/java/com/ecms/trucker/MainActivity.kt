@@ -1,13 +1,17 @@
 package com.ecms.trucker
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,6 +19,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ecms.trucker.data.local.AuthState
+import com.ecms.trucker.push.PushNotificationManager
+import com.ecms.trucker.push.PushTokenRegistrar
 import com.ecms.trucker.ui.navigation.MainBottomBar
 import com.ecms.trucker.ui.navigation.MainTab
 import com.ecms.trucker.ui.navigation.Routes
@@ -23,39 +29,58 @@ import com.ecms.trucker.ui.screens.auth.ForgotPasswordScreen
 import com.ecms.trucker.ui.screens.auth.LoginScreen
 import com.ecms.trucker.ui.screens.auth.SignUpScreen
 import com.ecms.trucker.ui.theme.EcmsTruckerTheme
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as EcmsTruckerApp).container
+        val openNotificationsFromPush =
+            intent?.getBooleanExtra(PushNotificationManager.EXTRA_OPEN_NOTIFICATIONS, false) == true
 
         setContent {
             EcmsTruckerTheme {
+                val context = LocalContext.current
                 val authState by container.authRepository.authState.collectAsState(initial = AuthState())
                 val scope = rememberCoroutineScope()
                 var paymentBadge by remember { mutableIntStateOf(0) }
                 var withdrawalBadge by remember { mutableIntStateOf(0) }
+                var pendingOpenNotifications by remember { mutableStateOf(openNotificationsFromPush) }
+
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission(),
+                ) { granted ->
+                    if (granted && authState.isLoggedIn) {
+                        scope.launch { PushTokenRegistrar.sync(context, container.api) }
+                    }
+                }
+
+                suspend fun logout() {
+                    PushTokenRegistrar.unregister(context, container.api)
+                    container.authRepository.logout()
+                }
 
                 LaunchedEffect(Unit) {
                     container.tokenStore.repairCorruptSession()
+                    PushNotificationManager.ensureChannel(context)
                 }
 
                 LaunchedEffect(authState.isLoggedIn) {
                     if (authState.isLoggedIn) {
-                        val paymentDeferred = async {
-                            runCatching { container.truckerRepository.getPaymentDueCount() }
-                                .onFailure { Log.w("MainActivity", "Payment badge load failed", it) }
-                                .getOrNull()
+                        if (BuildConfig.FIREBASE_ENABLED) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                                && !PushNotificationManager.hasPermission(context)
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                PushTokenRegistrar.sync(context, container.api)
+                            }
                         }
-                        val withdrawalDeferred = async {
-                            runCatching { container.truckerRepository.getWithdrawalPendingActionCount() }
-                                .onFailure { Log.w("MainActivity", "Withdrawal badge load failed", it) }
-                                .getOrNull()
+                        runCatching {
+                            val d = container.truckerRepository.getDashboard()
+                            paymentBadge = d.pendingPayments
+                            withdrawalBadge = d.issuedWithdrawalsAwaitingUpload
                         }
-                        paymentBadge = paymentDeferred.await() ?: paymentBadge
-                        withdrawalBadge = withdrawalDeferred.await() ?: withdrawalBadge
                     } else {
                         paymentBadge = 0
                         withdrawalBadge = 0
@@ -64,6 +89,13 @@ class MainActivity : ComponentActivity() {
 
                 key(authState.isLoggedIn) {
                     val navController = rememberNavController()
+
+                    LaunchedEffect(authState.isLoggedIn, pendingOpenNotifications) {
+                        if (authState.isLoggedIn && pendingOpenNotifications) {
+                            navController.navigate(Routes.NOTIFICATIONS)
+                            pendingOpenNotifications = false
+                        }
+                    }
 
                     if (!authState.isLoggedIn) {
                         NavHost(navController = navController, startDestination = Routes.LOGIN) {
@@ -171,9 +203,7 @@ class MainActivity : ComponentActivity() {
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                                                 onNavigate = { navController.navigate(it) },
-                                                onLogout = {
-                                                    scope.launch { container.authRepository.logout() }
-                                                },
+                                                onLogout = { scope.launch { logout() } },
                                             )
                                         }
                                     }
@@ -298,9 +328,7 @@ class MainActivity : ComponentActivity() {
                                     repository = container.truckerRepository,
                                     authRepository = container.authRepository,
                                     onBack = { navController.popBackStack() },
-                                    onLogout = {
-                                        scope.launch { container.authRepository.logout() }
-                                    },
+                                    onLogout = { scope.launch { logout() } },
                                 )
                             }
                             composable(Routes.NOTIFICATIONS) {

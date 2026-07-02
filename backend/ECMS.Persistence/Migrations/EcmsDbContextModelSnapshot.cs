@@ -312,6 +312,45 @@ namespace ECMS.Persistence.Migrations
                     b.ToTable("NotificationsSet");
                 });
 
+            modelBuilder.Entity("ECMS.Domain.Entities.DevicePushToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DeviceName")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.ToTable("DevicePushTokensSet");
+                });
+
             modelBuilder.Entity("ECMS.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.Property<int>("Id")
@@ -934,6 +973,17 @@ namespace ECMS.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Actor");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.DevicePushToken", b =>
+                {
+                    b.HasOne("ECMS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });

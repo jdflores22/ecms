@@ -20,6 +20,7 @@ public interface IEcmsDbContext
     IQueryable<QRBooking> QRBookings { get; }
     IQueryable<AuditLog> AuditLogs { get; }
     IQueryable<Notification> Notifications { get; }
+    IQueryable<DevicePushToken> DevicePushTokens { get; }
     IQueryable<RefreshToken> RefreshTokens { get; }
     IQueryable<PasswordResetToken> PasswordResetTokens { get; }
     IQueryable<ManualYardInventoryEntry> ManualYardInventoryEntries { get; }

@@ -468,4 +468,14 @@ data class NotificationDto(
 )
 
 @Serializable
+data class RegisterPushTokenRequest(
+    val token: String,
+    val platform: String = "android",
+    val deviceName: String? = null,
+)
+
+@Serializable
+data class UnregisterPushTokenRequest(val token: String)
+
+@Serializable
 data class AllowedPagesResponse(val allowedPages: List<String>)

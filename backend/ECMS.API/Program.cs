@@ -60,6 +60,15 @@ builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(
         options.ApiKey = envKey;
 });
 
+builder.Services.Configure<ECMS.Application.Configuration.FirebasePushOptions>(options =>
+{
+    var envJson = Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_JSON");
+    if (!string.IsNullOrWhiteSpace(envJson))
+        options.CredentialsJson = envJson;
+    else
+        options.CredentialsJson = builder.Configuration["Firebase:CredentialsJson"];
+});
+
 if (builder.Environment.IsProduction()
     && string.IsNullOrWhiteSpace(
         Environment.GetEnvironmentVariable("LOGICTECK_API_KEY") ?? builder.Configuration["Logicteck:ApiKey"]))

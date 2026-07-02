@@ -16,7 +16,7 @@ Native Android app for **Trucker** role users. Connects to the same ECMS REST AP
 | **Demurrage** | Outstanding billings, upload payment proof |
 | **Reports** | Daily & monthly return reports |
 | **Profile** | Update profile, change password |
-| **Notifications** | In-app notification list |
+| **Notifications** | In-app notification list + push alerts (FCM) when configured |
 
 ## Requirements
 
@@ -58,6 +58,33 @@ API_BASE_URL=http://192.168.1.100/ecms/backend/ECMS.API/api
 ```
 
 3. **Sync Gradle** and run on device/emulator (min SDK 26).
+
+## Push notifications (FCM)
+
+Push alerts work when the app is closed or in the background. Setup:
+
+### 1. Firebase project (Android)
+
+1. Open [Firebase Console](https://console.firebase.google.com/) → create or select a project.
+2. Add an **Android app** with package name `com.ecms.trucker`.
+3. Download `google-services.json` and place it at:
+   `android-trucker/app/google-services.json`
+4. Rebuild the app. `BuildConfig.FIREBASE_ENABLED` becomes `true` automatically.
+
+### 2. Backend (Railway / production API)
+
+1. Firebase Console → Project settings → **Service accounts** → Generate new private key.
+2. In Railway (or your API host), set environment variable:
+   `FIREBASE_CREDENTIALS_JSON` = entire JSON file contents (single line is fine).
+3. Redeploy the API. On startup it registers FCM and sends push when ECMS creates notifications.
+
+### 3. On device
+
+1. Install the rebuilt app and log in as a trucker.
+2. Allow **Notifications** when Android prompts (Android 13+).
+3. Trigger an event (e.g. schedule assigned, payment update) — you should see a system notification even if the app is closed.
+
+Without `google-services.json` or `FIREBASE_CREDENTIALS_JSON`, in-app notifications still work; push is skipped.
 
 ## Demo account
 

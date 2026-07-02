@@ -24,6 +24,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<QRBooking> QRBookingsSet => Set<QRBooking>();
     public DbSet<AuditLog> AuditLogsSet => Set<AuditLog>();
     public DbSet<Notification> NotificationsSet => Set<Notification>();
+    public DbSet<DevicePushToken> DevicePushTokensSet => Set<DevicePushToken>();
     public DbSet<RefreshToken> RefreshTokensSet => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokensSet => Set<PasswordResetToken>();
     public DbSet<ManualYardInventoryEntry> ManualYardInventoryEntriesSet => Set<ManualYardInventoryEntry>();
@@ -50,6 +51,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<QRBooking> IEcmsDbContext.QRBookings => QRBookingsSet;
     IQueryable<AuditLog> IEcmsDbContext.AuditLogs => AuditLogsSet;
     IQueryable<Notification> IEcmsDbContext.Notifications => NotificationsSet;
+    IQueryable<DevicePushToken> IEcmsDbContext.DevicePushTokens => DevicePushTokensSet;
     IQueryable<RefreshToken> IEcmsDbContext.RefreshTokens => RefreshTokensSet;
     IQueryable<PasswordResetToken> IEcmsDbContext.PasswordResetTokens => PasswordResetTokensSet;
     IQueryable<ManualYardInventoryEntry> IEcmsDbContext.ManualYardInventoryEntries => ManualYardInventoryEntriesSet;
@@ -185,6 +187,16 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAt });
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Actor).WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<DevicePushToken>(e =>
+        {
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => new { x.UserId, x.UpdatedAt });
+            e.Property(x => x.Token).HasMaxLength(512);
+            e.Property(x => x.Platform).HasMaxLength(32);
+            e.Property(x => x.DeviceName).HasMaxLength(128);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RefreshToken>(e =>

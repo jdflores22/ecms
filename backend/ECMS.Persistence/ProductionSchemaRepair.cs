@@ -36,6 +36,87 @@ public static class ProductionSchemaRepair
             definition: "longtext CHARACTER SET utf8mb4 NULL",
             migrationId: "20260701160000_AddScheduleDepotRemarks",
             cancellationToken);
+
+        await EnsureDevicePushTokensTableAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsureDevicePushTokensTableAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (await TableExistsAsync(db, "DevicePushTokensSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20260702150000_AddDevicePushTokens', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table DevicePushTokensSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `DevicePushTokensSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `UserId` int NOT NULL,
+                `Token` varchar(512) CHARACTER SET utf8mb4 NOT NULL,
+                `Platform` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                `DeviceName` varchar(128) CHARACTER SET utf8mb4 NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_DevicePushTokensSet_Token` (`Token`),
+                KEY `IX_DevicePushTokensSet_UserId_UpdatedAt` (`UserId`, `UpdatedAt`),
+                CONSTRAINT `FK_DevicePushTokensSet_UsersSet_UserId`
+                    FOREIGN KEY (`UserId`) REFERENCES `UsersSet` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20260702150000_AddDevicePushTokens', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task<bool> TableExistsAsync(
+        EcmsDbContext db,
+        string table,
+        CancellationToken cancellationToken)
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != System.Data.ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = @table
+                """;
+
+            var tableParam = command.CreateParameter();
+            tableParam.ParameterName = "@table";
+            tableParam.Value = table;
+            command.Parameters.Add(tableParam);
+
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return Convert.ToInt32(result) > 0;
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     private static async Task EnsureColumnAsync(

@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
         services.AddHttpClient<LogicteckOutboundClient>();
         services.AddScoped<IQrService, QrCodeService>();
 

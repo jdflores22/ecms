@@ -163,6 +163,8 @@
     <string name="profile_password_changed">Password changed</string>
     <string name="notifications_title">Notifications</string>
     <string name="notifications_empty">No notifications</string>
+    <string name="push_channel_name">ECMS alerts</string>
+    <string name="push_channel_description">Schedule, payment, and withdrawal updates from ICS ECMS</string>
     <string name="qr_passes_title">QR passes</string>
     <string name="qr_pass_title">QR pass</string>
     <string name="qr_empty">No confirmed returns with QR yet</string>

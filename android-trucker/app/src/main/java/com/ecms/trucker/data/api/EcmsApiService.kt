@@ -111,8 +111,7 @@ interface EcmsApiService {
     @GET("payments/mine")
     suspend fun getMyPayments(): List<PaymentDto>
 
-    @GET("payments/due/count")
-    suspend fun getPaymentDueCount(): CountResponse
+
 
     @GET("payments/settings")
     suspend fun getPaymentSettings(): PaymentSettingsDto
@@ -172,8 +171,7 @@ interface EcmsApiService {
         @Query("excludeWithdrawalId") excludeWithdrawalId: Int? = null,
     ): DuplicateCheckResponse
 
-    @GET("withdrawals/pending-action/count")
-    suspend fun getWithdrawalPendingActionCount(): CountResponse
+
 
     @POST("withdrawals")
     suspend fun createWithdrawal(@Body body: CreateWithdrawalRequest): WithdrawalDto
@@ -255,6 +253,12 @@ interface EcmsApiService {
 
     @POST("notifications/read-all")
     suspend fun markAllNotificationsRead()
+
+    @POST("notifications/push-token")
+    suspend fun registerPushToken(@Body body: RegisterPushTokenRequest)
+
+    @HTTP(method = "DELETE", path = "notifications/push-token", hasBody = true)
+    suspend fun unregisterPushToken(@Body body: UnregisterPushTokenRequest)
 
     // Roles
     @GET("roles/access")

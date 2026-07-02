@@ -10,10 +10,12 @@ namespace ECMS.Infrastructure.Services;
 public class NotificationService : INotificationService
 {
     private readonly IEcmsDbContext _db;
+    private readonly IPushNotificationService _push;
 
-    public NotificationService(IEcmsDbContext db)
+    public NotificationService(IEcmsDbContext db, IPushNotificationService push)
     {
         _db = db;
+        _push = push;
     }
 
     public async Task NotifyUsersAsync(
@@ -49,6 +51,14 @@ public class NotificationService : INotificationService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _push.SendToUsersAsync(
+            recipients,
+            title,
+            message,
+            category,
+            linkPath,
+            cancellationToken);
     }
 
     public async Task<NotificationPageDto> GetForUserAsync(

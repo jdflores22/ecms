@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ECMS.Application.DTOs.Notification;
 using ECMS.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,10 +12,12 @@ namespace ECMS.API.Controllers;
 public class NotificationsController : ControllerBase
 {
     private readonly INotificationService _service;
+    private readonly IPushNotificationService _push;
 
-    public NotificationsController(INotificationService service)
+    public NotificationsController(INotificationService service, IPushNotificationService push)
     {
         _service = service;
+        _push = push;
     }
 
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -42,6 +45,36 @@ public class NotificationsController : ControllerBase
     public async Task<IActionResult> MarkAllRead(CancellationToken cancellationToken)
     {
         await _service.MarkAllReadAsync(UserId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("push-token")]
+    public async Task<IActionResult> RegisterPushToken(
+        [FromBody] RegisterPushTokenRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+            return BadRequest(new { message = "Push token is required." });
+
+        await _push.RegisterTokenAsync(
+            UserId,
+            request.Token,
+            request.Platform,
+            request.DeviceName,
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpDelete("push-token")]
+    public async Task<IActionResult> UnregisterPushToken(
+        [FromBody] UnregisterPushTokenRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+            return BadRequest(new { message = "Push token is required." });
+
+        await _push.UnregisterTokenAsync(UserId, request.Token, cancellationToken);
         return NoContent();
     }
 }
