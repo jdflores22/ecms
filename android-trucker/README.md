@@ -29,7 +29,7 @@ Native Android app for **Trucker** role users. Connects to the same ECMS REST AP
 
 1. **Build → Clean Project**, then **Build → Rebuild Project** in Android Studio.
 2. **Uninstall** the old ECMS Trucker app from your phone/emulator.
-3. Run the app again (installs v**1.0.4** / versionCode **5** — centered login, improved headers, native Android layout).
+3. Run the app again (installs v**1.0.6** / versionCode **7** — FCM push notifications and API fixes).
 4. Sign in with `trucker1` / `Trucker@123`.
 
 If login still fails, open **Logcat** in Android Studio, filter by `EcmsTruckerApp`, and check the crash stack trace.

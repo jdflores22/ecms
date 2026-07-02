@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.6.0'
+export const APP_VERSION = '1.7.0'
 
 export interface ReleaseNote {
   version: string
@@ -9,6 +9,18 @@ export interface ReleaseNote {
 
 /** Newest first. First entry should match APP_VERSION. */
 export const RELEASE_HISTORY: ReleaseNote[] = [
+  {
+    version: '1.7.0',
+    releasedOn: '2026-07-02',
+    title: 'Payment proof OCR ensemble and trucker push notifications',
+    highlights: [
+      'Multi-engine payment proof OCR: browser PaddleOCR + Tesseract with layout-aware preprocessing',
+      'Server Python OCR ensemble (Tesseract, PaddleOCR, EasyOCR, and optional engines) for admin detect',
+      'Receipt date fallback uses proof upload time when OCR cannot read faint GCash transaction dates',
+      'Zoomed-crop and photo-of-screen layouts for monitor screenshots with gray date text',
+      'Trucker Android app: Firebase Cloud Messaging push alerts for ECMS events',
+    ],
+  },
   {
     version: '1.6.0',
     releasedOn: '2026-07-01',
