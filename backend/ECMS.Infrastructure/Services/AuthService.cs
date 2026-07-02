@@ -221,6 +221,7 @@ public class AuthService : IAuthService
         _db.Add(refreshToken);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(user.Id, "Login", "Auth", null, cancellationToken);
+        var normalizedRole = RoleNames.NormalizeTransactionRole(user.Role.Name);
 
         return new AuthResponse(
             accessToken,
@@ -231,10 +232,10 @@ public class AuthService : IAuthService
                 user.Username,
                 user.Email,
                 user.FullName ?? user.Username,
-                user.Role.Name,
+                normalizedRole,
                 user.ShippingLineId,
                 user.DepotId,
                 user.ProfilePhoto,
-                RoleAllowedPagesJson.Resolve(user.Role.Name, user.Role.AllowedPagesJson)));
+                RoleAllowedPagesJson.Resolve(normalizedRole, user.Role.AllowedPagesJson)));
     }
 }

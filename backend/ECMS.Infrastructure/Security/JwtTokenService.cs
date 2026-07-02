@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Entities;
+using ECMS.Domain.Enums;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -23,13 +24,14 @@ public class JwtTokenService : ITokenService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var expiryMinutes = int.Parse(_configuration["Jwt:AccessTokenMinutes"] ?? "60");
+        var normalizedRole = RoleNames.NormalizeTransactionRole(user.Role.Name);
 
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.Username),
             new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role.Name),
+            new(ClaimTypes.Role, normalizedRole),
             new("fullName", user.FullName ?? user.Username)
         };
 

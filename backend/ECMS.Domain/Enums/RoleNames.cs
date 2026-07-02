@@ -14,6 +14,24 @@ public static class RoleNames
         string.Equals(NormalizeTransactionRole(role), Trucker, StringComparison.Ordinal);
 
     /// <summary>Maps legacy JWT role claims to the current trucker role.</summary>
-    public static string NormalizeTransactionRole(string role) =>
-        string.Equals(role, "Broker", StringComparison.Ordinal) ? Trucker : role;
+    public static string NormalizeTransactionRole(string role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+            return role;
+
+        // Legacy role alias kept for old tokens/records.
+        if (string.Equals(role, "Broker", StringComparison.OrdinalIgnoreCase))
+            return Trucker;
+
+        if (string.Equals(role, Trucker, StringComparison.OrdinalIgnoreCase))
+            return Trucker;
+        if (string.Equals(role, DepotPersonnel, StringComparison.OrdinalIgnoreCase))
+            return DepotPersonnel;
+        if (string.Equals(role, ShippingLineEvaluator, StringComparison.OrdinalIgnoreCase))
+            return ShippingLineEvaluator;
+        if (string.Equals(role, Administrator, StringComparison.OrdinalIgnoreCase))
+            return Administrator;
+
+        return role.Trim();
+    }
 }
