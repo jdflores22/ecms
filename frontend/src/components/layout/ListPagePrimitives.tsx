@@ -94,7 +94,12 @@ export function ListMobileTitle({ children }: { children: ReactNode }) {
 
 export function ListMobileMeta({ children }: { children: ReactNode }) {
   return (
-    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
+    <Typography
+      component="div"
+      variant="body2"
+      color="text.secondary"
+      sx={{ mt: 0.5, wordBreak: 'break-word' }}
+    >
       {children}
     </Typography>
   )

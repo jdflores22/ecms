@@ -51,6 +51,8 @@ var mysqlTarget = new MySqlConnectionStringBuilder(connectionString);
 builder.Logging.AddConsole();
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddInfrastructure();
+builder.Services.Configure<ECMS.Infrastructure.Options.OcrEnsembleOptions>(
+    builder.Configuration.GetSection(ECMS.Infrastructure.Options.OcrEnsembleOptions.SectionName));
 builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
 builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>

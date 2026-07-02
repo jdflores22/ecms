@@ -1,0 +1,19 @@
+# Core ensemble (install first)
+Pillow>=10.0.0
+numpy>=1.24.0
+opencv-python-headless>=4.8.0
+pytesseract>=0.3.10
+
+# Recommended OCR engines
+paddleocr>=2.7.0
+easyocr>=1.7.0
+
+# Optional — pip install individually when needed (large downloads)
+# python-doctr[torch]
+# cnocr
+# surya-ocr
+# ocrmypdf
+# mmocr
+# keras-ocr
+# kraken
+# calamari-ocr

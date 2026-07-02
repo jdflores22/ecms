@@ -50,13 +50,16 @@ import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { isCrossOriginAssetUrl, resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
+import { mergeProofMetadataPasses } from '../../utils/paymentProofMetadataMerge'
 import PaymentProofProviderChip from '../../components/payments/PaymentProofProviderChip'
 import {
   formatProofReferenceNo,
   fromDatetimeLocalValue,
   normalizeProofReferenceNo,
   normalizeProofQrphInvoiceNo,
+  resolveReceiptDateFallback,
   toDatetimeLocalValue,
+  type PaymentProofProvider,
 } from '../../utils/paymentProofTextParser'
 
 const primaryDark = LIST_PRIMARY
@@ -440,30 +443,50 @@ export default function AdminPaymentsPage() {
       let transactionAt: string | null = null
       let provider: string | null = null
 
-      if (isCrossOriginAssetUrl(payment.proofFile)) {
-        try {
-          const { data } = await paymentApi.extractProofMetadata(payment.id)
-          referenceNo = data.proofReferenceNo ?? null
-          qrphInvoiceNo = data.proofQrphInvoiceNo ?? null
-          transactionAt = data.proofTransactionAt ?? null
-          provider = data.proofProvider ?? null
-        } catch {
-          /* server OCR unavailable — fall back to client OCR */
-        }
+      try {
+        const { data } = await paymentApi.extractProofMetadata(payment.id)
+        referenceNo = data.proofReferenceNo ?? null
+        qrphInvoiceNo = data.proofQrphInvoiceNo ?? null
+        transactionAt = data.proofTransactionAt ?? null
+        provider = data.proofProvider ?? null
+      } catch {
+        /* server ensemble OCR unavailable — fall back to browser ensemble */
       }
 
       try {
         const ocrSource = isCrossOriginAssetUrl(payment.proofFile)
           ? (await paymentApi.downloadProofFile(payment.id)).data
           : resolveAssetUrl(payment.proofFile)
-        const extracted = await extractPaymentProofMetadata(ocrSource)
-        referenceNo = referenceNo ?? extracted.referenceNo
-        qrphInvoiceNo = qrphInvoiceNo ?? extracted.qrphInvoiceNo
-        transactionAt = transactionAt ?? extracted.transactionAt
-        provider = provider ?? (extracted.provider && extracted.provider !== 'unknown' ? extracted.provider : null)
+        const extracted = await extractPaymentProofMetadata(ocrSource, {
+          paidAt: payment.paidAt,
+          amount: payment.amount,
+        })
+        const merged = mergeProofMetadataPasses(
+          {
+            referenceNo,
+            qrphInvoiceNo,
+            transactionAt,
+            provider: provider as PaymentProofProvider | null,
+          },
+          extracted,
+        )
+        referenceNo = merged.referenceNo
+        qrphInvoiceNo = merged.qrphInvoiceNo
+        transactionAt = merged.transactionAt
+        provider = merged.provider && merged.provider !== 'unknown' ? merged.provider : provider
       } catch {
-        /* client OCR failed — keep any server values */
+        /* browser OCR failed — keep any server values */
       }
+
+      transactionAt = resolveReceiptDateFallback(
+        {
+          referenceNo,
+          qrphInvoiceNo,
+          transactionAt,
+          provider: (provider as PaymentProofProvider | null) ?? null,
+        },
+        payment.paidAt,
+      )
 
       const { data } = await paymentApi.updateProofMetadata(payment.id, {
         proofReferenceNo: referenceNo,
@@ -638,9 +661,9 @@ export default function AdminPaymentsPage() {
                   </ListMobileChipRow>
                   <ListMobileMeta>{p.truckerName}</ListMobileMeta>
                   {p.proofProvider && (
-                    <ListMobileMeta>
+                    <ListMobileChipRow>
                       <PaymentProofProviderChip provider={p.proofProvider} />
-                    </ListMobileMeta>
+                    </ListMobileChipRow>
                   )}
                   <ListMobileMeta>
                     Ref {formatProofReferenceNo(p.proofReferenceNo)}
@@ -856,7 +879,7 @@ export default function AdminPaymentsPage() {
               onClick={() => void detectProofMetadata(proofPreview)}
               sx={{ fontWeight: 600, borderRadius: 2 }}
             >
-              Detect from proof
+              {detectingProofId === proofPreview.id ? 'Detecting…' : 'Detect from proof'}
             </Button>
           )}
           {proofPreview?.proofFile && (
@@ -991,7 +1014,7 @@ export default function AdminPaymentsPage() {
                         onClick={() => void detectProofMetadata(selectedPayment)}
                         sx={{ fontWeight: 600, borderRadius: 2 }}
                       >
-                        Detect from proof
+                        {detectingProofId === selectedPayment.id ? 'Detecting…' : 'Detect from proof'}
                       </Button>
                     </Box>
                   )}

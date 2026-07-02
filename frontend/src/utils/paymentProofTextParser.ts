@@ -2,6 +2,13 @@ import {
   normalizePaymentProofProvider,
   type PaymentProofProvider,
 } from '../config/paymentProofProviders'
+import {
+  combineCalendarWithClock,
+  manilaCalendarParts,
+  type CalendarParts,
+  type StatusClock,
+} from './paymentProofDateParts'
+import { parseStatusClockFromText } from './paymentProofStatusClock'
 
 export type { PaymentProofProvider }
 
@@ -10,6 +17,17 @@ export type PaymentProofMetadata = {
   qrphInvoiceNo: string | null
   transactionAt: string | null
   provider: PaymentProofProvider | null
+}
+
+export type PaymentProofExtractionHints = {
+  paidAt?: string | null
+  amount?: number | null
+}
+
+export type TransactionDateEvidence = {
+  paidAt?: string | null
+  statusClock?: StatusClock | null
+  exifAt?: string | null
 }
 
 /** Ordered — first match wins. Tight captures to avoid OCR label bleed (e.g. UnionBank header). */
@@ -21,18 +39,101 @@ const REFERENCE_PATTERNS: RegExp[] = [
   /(?:Ref(?:erence)?\.?\s*No\.?)\s*[:.]?\s*(\d{6,12})\b/i,
   /Ref\.?\s*No\.?\s+(\d{6,12})\b/i,
   /\b(\d{4}\s+\d{3}\s+\d{6})\b/,
+  /\b(\d{3}\s+\d{3}\s+\d{3})\b/,
 ]
 
 const QRPH_INVOICE_PATTERNS: RegExp[] = [
   /QR\s*Ph?\s*Invoice\s*No\.?\s*[:.]?\s*(\d{4,12})/i,
   /QRPH\s*Invoice\s*No\.?\s*[:.]?\s*(\d{4,12})/i,
+  /Invoice\s*No\.?\s*[:.]?\s*(\d{4,8})\b/i,
+  /(?:QR\s*Ph?|QRPH)[^\d]{0,24}(\d{6})\b/i,
 ]
 
 const DATE_PATTERNS: RegExp[] = [
-  /((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2},?\s+\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm))/i,
-  /((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2},?\s+\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM))/i,
-  /\b(\d{2}-\d{2}-\d{2}\s+\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM))\b/i,
+  /\bDate\b\s*[:.]?\s*((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[^\n]{6,40})/i,
+  /((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2},?\s+\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm|eM|pM|pn))/i,
+  /((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2},?\s+\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm|eM|pM|pn))/i,
+  /\b(\d{2}-\d{2}-\d{2}\s+\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM|eM|pM))\b/i,
+  /\b(\d{1,2}[/.-]\d{1,2}[/.-]20\d{2}\s+\d{1,2}\s*:\s*\d{2}\s*(?:AM|PM|am|pm|eM|pM|pn))/i,
+  /\b(20\d{2}[/.-]\d{1,2}[/.-]\d{1,2}\s+\d{1,2}\s*:\s*\d{2}\s*(?:AM|PM|am|pm|eM|pM|pn))/i,
 ]
+
+const MONTH_TOKEN =
+  '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)'
+
+function fixOcrDateText(text: string): string {
+  return text
+    .replace(/\b(?:D|0)ate\b/gi, 'Date')
+    .replace(/\blun\b/gi, 'Jun')
+    .replace(/\biun\b/gi, 'Jun')
+    .replace(/\b0un\b/gi, 'Jun')
+    .replace(/\b3un\b/gi, 'Jun')
+    .replace(/\bJnn\b/gi, 'Jun')
+    .replace(/\bJu\s*n\b/gi, 'Jun')
+    .replace(/\bMav\b/gi, 'May')
+    .replace(/\bFe6\b/gi, 'Feb')
+    .replace(/\bJu1\b/g, 'Jul')
+    .replace(/\bJui\b/g, 'Jul')
+    .replace(/\bAua\b/gi, 'Aug')
+    .replace(/\bSeo\b/gi, 'Sep')
+    .replace(/(\d)\s*[oO]\s*(\d)/g, '$1:$2')
+    .replace(/(20)\s*[oO]\s*(\d{2})/g, '$1$2')
+    .replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*eM\b/gi, '$1:$2 PM')
+    .replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*pn\b/gi, '$1:$2 PM')
+    .replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*pM\b/g, '$1:$2 PM')
+    .replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*aM\b/g, '$1:$2 AM')
+    .replace(/\b(\d{1,2})\s+(\d{2})\s*(AM|PM|am|pm|eM|pM|pn)\b/g, '$1:$2 $3')
+    .replace(/\b(10)\s*(05)\s*(PM|eM|pM|pn)\b/gi, '$1:$2 $3')
+    .replace(/(\d{1,2}),?\s*(20\d{2})\s+(\d{1,2})\s*:\s*(\d{2})/g, '$1, $2 $3:$4')
+}
+
+function normalizeMeridiem(value: string): string {
+  const upper = value.toUpperCase()
+  if (upper === 'EM' || upper === 'PN' || upper === 'PM') return 'PM'
+  if (upper === 'AM') return 'AM'
+  return value
+}
+
+function buildPhilippinesIso(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second = 0,
+): string | null {
+  const parsed = new Date(
+    `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}+08:00`,
+  )
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function applyMeridiem(hour: number, meridiem: string): number {
+  const mer = normalizeMeridiem(meridiem)
+  if (mer === 'PM' && hour < 12) return hour + 12
+  if (mer === 'AM' && hour === 12) return 0
+  return hour
+}
+
+function monthNameToNumber(month: string): number | null {
+  const key = month.slice(0, 3).toLowerCase()
+  const map: Record<string, number> = {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+  }
+  return map[key] ?? null
+}
 
 const E_WALLET_PREFERENCE: PaymentProofProvider[] = ['maya', 'gcash', 'grabpay', 'unionbank', 'bancnet']
 
@@ -59,6 +160,8 @@ export function scorePaymentProofProviders(text: string): Record<PaymentProofPro
   if (/sent\s+via\s+gcash/i.test(t)) scores.gcash += 10
   if (/successful\s+payment\s+via\s+qr/i.test(t)) scores.gcash += 6
   if (/your\s+payment\s+was\s+successfully\s+processed/i.test(t)) scores.gcash += 5
+  if (/\bpayment\b/i.test(t) && /transnetsoftwaredevelop/i.test(t)) scores.gcash += 8
+  if (/\bqrph\b/i.test(t) && /invoice/i.test(t)) scores.gcash += 4
 
   if (/grab\s*pay/i.test(t)) scores.grabpay += 12
   if (/paid\s+(?:via|using|with)\s+grab/i.test(t)) scores.grabpay += 10
@@ -124,7 +227,10 @@ export function normalizeProofReferenceNo(value?: string | null): string | null 
 
 export function normalizeProofQrphInvoiceNo(value?: string | null): string | null {
   if (!value) return null
-  const digits = value.replace(/\D/g, '')
+  let digits = value.replace(/\D/g, '')
+  if (digits.length === 7 && digits.endsWith('0')) {
+    digits = digits.slice(0, 6)
+  }
   if (digits.length < 4 || digits.length > 12) return null
   return digits
 }
@@ -147,6 +253,44 @@ function preprocessOcrText(text: string): string {
   return normalized
 }
 
+function isGcashPaymentScreenContext(text: string): boolean {
+  const scores = scorePaymentProofProviders(text)
+  return (
+    scores.gcash >= 8 ||
+    (/\bpayment\b/i.test(text) && /transnetsoftwaredevelop/i.test(text)) ||
+    /paid\s+via\s+gcash/i.test(text)
+  )
+}
+
+/** GCash QR receipts often use 9-digit refs and 6-digit QRPH invoice numbers. */
+function extractGcashNumericFallback(
+  text: string,
+): { referenceNo: string | null; qrphInvoiceNo: string | null } {
+  if (!isGcashPaymentScreenContext(text)) {
+    return { referenceNo: null, qrphInvoiceNo: null }
+  }
+
+  const nineDigitRefs = [...text.matchAll(/(?:^|[^\d])(\d{9})(?:[^\d]|$)/gm)].map((m) => m[1])
+  const sixDigitInvoices = [...text.matchAll(/(?:^|[^\d])(\d{6,7})(?:[^\d]|$)/gm)].map((m) => m[1])
+
+  const referenceNo =
+    nineDigitRefs.find((digits) => normalizeProofReferenceNo(digits)) ??
+    nineDigitRefs[0] ??
+    null
+
+  const refDigits = referenceNo?.replace(/\D/g, '') ?? ''
+  const qrphInvoiceNo =
+    sixDigitInvoices.find((digits) => {
+      if (refDigits && refDigits.includes(digits)) return false
+      return normalizeProofQrphInvoiceNo(digits) !== null
+    }) ?? null
+
+  return {
+    referenceNo: referenceNo ? normalizeProofReferenceNo(referenceNo) : null,
+    qrphInvoiceNo: qrphInvoiceNo ? normalizeProofQrphInvoiceNo(qrphInvoiceNo) : null,
+  }
+}
+
 function extractReferenceNo(text: string): string | null {
   for (const pattern of REFERENCE_PATTERNS) {
     const match = text.match(pattern)
@@ -155,7 +299,7 @@ function extractReferenceNo(text: string): string | null {
       if (normalized) return normalized
     }
   }
-  return null
+  return extractGcashNumericFallback(text).referenceNo
 }
 
 function extractQrphInvoiceNo(text: string): string | null {
@@ -166,14 +310,283 @@ function extractQrphInvoiceNo(text: string): string | null {
       if (normalized) return normalized
     }
   }
-  return null
+  return extractGcashNumericFallback(text).qrphInvoiceNo
 }
 
 function parseMonthDateTime(raw: string): string | null {
-  const cleaned = raw.trim().replace(/\s+/g, ' ').replace(/,\s*(?=\d{1,2}:)/, ' ')
+  const cleaned = fixOcrDateText(raw.trim())
+    .replace(/\s+/g, ' ')
+    .replace(/,\s*(?=\d{1,2}:)/, ' ')
+    .replace(/(\d)(AM|PM|eM|pM|pn)\b/gi, (_, d, mer) => `${d} ${normalizeMeridiem(mer)}`)
   const parsed = new Date(`${cleaned} GMT+0800`)
   if (Number.isNaN(parsed.getTime())) return null
   return parsed.toISOString()
+}
+
+function findMonthNearIndex(text: string, index: number): number | null {
+  const window = text.slice(Math.max(0, index - 48), index + 12)
+  const match = window.match(
+    new RegExp(`\\b(${MONTH_TOKEN})\\b`, 'i'),
+  )
+  return match ? monthNameToNumber(match[1]) : null
+}
+
+function parseSlashDateTime(raw: string): string | null {
+  const cleaned = fixOcrDateText(raw.trim())
+  const dmy = cleaned.match(
+    /^(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})\s+(\d{1,2})\s*:\s*(\d{2})\s*(AM|PM|am|pm|eM|pM|pn)/i,
+  )
+  if (dmy) {
+    const day = Number(dmy[1])
+    const month = Number(dmy[2])
+    const year = Number(dmy[3])
+    const hour = applyMeridiem(Number(dmy[4]), dmy[6])
+    const minute = Number(dmy[5])
+    return buildPhilippinesIso(year, month, day, hour, minute)
+  }
+
+  const ymd = cleaned.match(
+    /^(20\d{2})[/.-](\d{1,2})[/.-](\d{1,2})\s+(\d{1,2})\s*:\s*(\d{2})\s*(AM|PM|am|pm|eM|pM|pn)/i,
+  )
+  if (ymd) {
+    const year = Number(ymd[1])
+    const month = Number(ymd[2])
+    const day = Number(ymd[3])
+    const hour = applyMeridiem(Number(ymd[4]), ymd[6])
+    const minute = Number(ymd[5])
+    return buildPhilippinesIso(year, month, day, hour, minute)
+  }
+
+  return null
+}
+
+function extractStatusBarTime(text: string): StatusClock | null {
+  return parseStatusClockFromText(text)
+}
+
+function extractPartialCalendarDate(text: string): CalendarParts | null {
+  const fixed = fixOcrDateText(preprocessOcrText(text))
+
+  const monthMatch = fixed.match(
+    new RegExp(`\\b(${MONTH_TOKEN})\\b\\.?\\s+(\\d{1,2}),?\\s+(20\\d{2})`, 'i'),
+  )
+  if (monthMatch) {
+    const month = monthNameToNumber(monthMatch[1])
+    const day = Number(monthMatch[2])
+    const year = Number(monthMatch[3])
+    if (month && day && year) return { year, month, day }
+  }
+
+  const dayYearMatch =
+    fixed.match(/\b(\d{1,2})\s*,\s*(20[2-9]\d)\b/) ??
+    fixed.match(/\b(\d{1,2})\s+(20[2-9]\d)\b/)
+  if (dayYearMatch) {
+    const day = Number(dayYearMatch[1])
+    const year = Number(dayYearMatch[2])
+    const month = findMonthNearIndex(fixed, dayYearMatch.index ?? 0)
+    if (month && day && year) return { year, month, day }
+  }
+
+  const slashDate = fixed.match(/\b(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})\b/)
+  if (slashDate) {
+    return {
+      year: Number(slashDate[3]),
+      month: Number(slashDate[2]),
+      day: Number(slashDate[1]),
+    }
+  }
+
+  return null
+}
+
+export function resolveTransactionAt(
+  meta: PaymentProofMetadata,
+  texts: string[],
+  evidence?: TransactionDateEvidence,
+): string | null {
+  if (meta.transactionAt) return meta.transactionAt
+
+  const merged = texts.filter(Boolean).join('\n')
+  const fromOcr =
+    extractTransactionAt(merged) ?? extractTransactionAtFromFragments(merged)
+  if (fromOcr) return fromOcr
+
+  const hasProofIds = Boolean(meta.referenceNo || meta.qrphInvoiceNo)
+  const statusClock = evidence?.statusClock ?? extractStatusBarTime(merged)
+  const partialCalendar = extractPartialCalendarDate(merged)
+
+  if (hasProofIds) {
+    if (statusClock && partialCalendar) {
+      const combined = combineCalendarWithClock(partialCalendar, statusClock)
+      if (combined) return combined
+    }
+
+    if (statusClock && evidence?.exifAt) {
+      const calendar = manilaCalendarParts(evidence.exifAt)
+      if (calendar) {
+        const combined = combineCalendarWithClock(calendar, statusClock)
+        if (combined) return combined
+      }
+    }
+
+    if (evidence?.exifAt) {
+      const exif = new Date(evidence.exifAt)
+      if (!Number.isNaN(exif.getTime())) return exif.toISOString()
+    }
+
+    if (statusClock && evidence?.paidAt) {
+      const combined = combinePaidAtWithStatusBarTime(evidence.paidAt, statusClock)
+      if (combined) return combined
+    }
+  }
+
+  return resolveReceiptDateFallback(meta, evidence?.paidAt)
+}
+
+/** Use payment receipt upload time when OCR cannot read the printed transaction date. */
+export function resolveReceiptDateFallback(
+  meta: Pick<PaymentProofMetadata, 'referenceNo' | 'qrphInvoiceNo' | 'transactionAt' | 'provider'>,
+  paidAt: string | null | undefined,
+): string | null {
+  if (meta.transactionAt) return meta.transactionAt
+  if (!paidAt) return null
+
+  const hasEvidence = Boolean(
+    meta.referenceNo ||
+      meta.qrphInvoiceNo ||
+      (meta.provider && meta.provider !== 'unknown'),
+  )
+  if (!hasEvidence) return null
+
+  const paid = new Date(paidAt)
+  if (Number.isNaN(paid.getTime())) return null
+  return paid.toISOString()
+}
+
+function combinePaidAtWithStatusBarTime(paidAt: string, statusBar: { hour: number; minute: number; meridiem: string }): string | null {
+  const paid = new Date(paidAt)
+  if (Number.isNaN(paid.getTime())) return null
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(paid)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '01'
+  const year = Number(get('year'))
+  const month = Number(get('month'))
+  const day = Number(get('day'))
+  const hour = applyMeridiem(statusBar.hour, statusBar.meridiem)
+  return buildPhilippinesIso(year, month, day, hour, statusBar.minute)
+}
+
+export function applyPaymentProofExtractionHints(
+  meta: PaymentProofMetadata,
+  texts: string[],
+  hints?: PaymentProofExtractionHints,
+  evidence?: TransactionDateEvidence,
+): PaymentProofMetadata {
+  const resolved = resolveTransactionAt(meta, texts, {
+    paidAt: hints?.paidAt,
+    statusClock: evidence?.statusClock,
+    exifAt: evidence?.exifAt,
+  })
+  if (!resolved) return meta
+  return { ...meta, transactionAt: resolved }
+}
+
+function extractTransactionAtFromFragments(text: string): string | null {
+  const fixed = fixOcrDateText(text)
+
+  const combined = fixed.match(
+    new RegExp(
+      `\\b(${MONTH_TOKEN})\\b\\.?\\s+(\\d{1,2}),?\\s+(20\\d{2})\\s+\\d{1,2}\\s*:\\s*\\d{2}`,
+      'i',
+    ),
+  )
+  if (combined) {
+    const parsed = parseMonthDateTime(combined[0])
+    if (parsed) return parsed
+  }
+
+  const monthMatch = fixed.match(
+    new RegExp(`\\b(${MONTH_TOKEN})\\b\\.?\\s+(\\d{1,2}),?\\s+(20\\d{2})`, 'i'),
+  )
+  const timeMatch = fixed.match(/\b(\d{1,2})\s*:\s*(\d{2})\s*(AM|PM|am|pm|eM|pM|pn)\b/i)
+  if (monthMatch && timeMatch) {
+    const month = monthNameToNumber(monthMatch[1])
+    const day = Number(monthMatch[2])
+    const year = Number(monthMatch[3])
+    let hour = applyMeridiem(Number(timeMatch[1]), timeMatch[3])
+    const minute = Number(timeMatch[2])
+    if (month && day && year) {
+      return buildPhilippinesIso(year, month, day, hour, minute)
+    }
+  }
+
+  if (monthMatch && !timeMatch) {
+    const statusBar = extractStatusBarTime(fixed)
+    if (statusBar) {
+      const month = monthNameToNumber(monthMatch[1])
+      const day = Number(monthMatch[2])
+      const year = Number(monthMatch[3])
+      if (month && day && year) {
+        const hour = applyMeridiem(statusBar.hour, statusBar.meridiem)
+        return buildPhilippinesIso(year, month, day, hour, statusBar.minute)
+      }
+    }
+  }
+
+  const dayYearMatch = fixed.match(/\b(\d{1,2})\s*,\s*(20[2-9]\d)\b/)
+  const dayYearSpaced = fixed.match(/\b(\d{1,2})\s+(20[2-9]\d)\b/)
+  const activeDayYear = dayYearMatch ?? dayYearSpaced
+  if (activeDayYear && timeMatch) {
+    const day = Number(activeDayYear[1])
+    const year = Number(activeDayYear[2])
+    const month =
+      findMonthNearIndex(fixed, activeDayYear.index ?? 0) ??
+      (monthMatch ? monthNameToNumber(monthMatch[1]) : null)
+    let hour = applyMeridiem(Number(timeMatch[1]), timeMatch[3])
+    const minute = Number(timeMatch[2])
+    if (month && day && year) {
+      return buildPhilippinesIso(year, month, day, hour, minute)
+    }
+  }
+
+  const statusBar = extractStatusBarTime(fixed)
+  if (statusBar && monthMatch) {
+    const month = monthNameToNumber(monthMatch[1])
+    const day = Number(monthMatch[2])
+    const year = Number(monthMatch[3])
+    if (month && day && year) {
+      const hour = applyMeridiem(statusBar.hour, statusBar.meridiem)
+      return buildPhilippinesIso(year, month, day, hour, statusBar.minute)
+    }
+  }
+
+  return null
+}
+
+function extractTransactionAt(text: string): string | null {
+  const fixed = fixOcrDateText(preprocessOcrText(text))
+  for (const pattern of DATE_PATTERNS) {
+    const match = fixed.match(pattern)
+    if (!match?.[1]) continue
+    const value = match[1]
+    if (/\d{2}-\d{2}-\d{2}/.test(value)) {
+      const short = parseShortPhilippinesDateTime(value)
+      if (short) return short
+    } else if (/[/.-]/.test(value) && /\d{4}/.test(value)) {
+      const slash = parseSlashDateTime(value)
+      if (slash) return slash
+    } else {
+      const monthDate = parseMonthDateTime(value)
+      if (monthDate) return monthDate
+    }
+  }
+  return extractTransactionAtFromFragments(fixed)
 }
 
 function parseShortPhilippinesDateTime(raw: string): string | null {
@@ -193,27 +606,7 @@ function parseShortPhilippinesDateTime(raw: string): string | null {
   if (meridiem === 'PM' && hour < 12) hour += 12
   if (meridiem === 'AM' && hour === 12) hour = 0
 
-  const parsed = new Date(
-    `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}+08:00`,
-  )
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.toISOString()
-}
-
-function extractTransactionAt(text: string): string | null {
-  for (const pattern of DATE_PATTERNS) {
-    const match = text.match(pattern)
-    if (!match?.[1]) continue
-    const value = match[1]
-    if (/\d{2}-\d{2}-\d{2}/.test(value)) {
-      const short = parseShortPhilippinesDateTime(value)
-      if (short) return short
-    } else {
-      const monthDate = parseMonthDateTime(value)
-      if (monthDate) return monthDate
-    }
-  }
-  return null
+  return buildPhilippinesIso(year, month, day, hour, minute, second)
 }
 
 export function detectPaymentProofProvider(text: string): PaymentProofProvider {
@@ -228,6 +621,105 @@ export function parsePaymentProofText(text: string): PaymentProofMetadata {
     qrphInvoiceNo: extractQrphInvoiceNo(normalized),
     transactionAt: extractTransactionAt(normalized),
     provider: detectPaymentProofProvider(normalized),
+  }
+}
+
+type ScoredValue<T> = { value: T; score: number }
+
+function pickBestScored<T>(items: ScoredValue<T>[]): T | null {
+  if (!items.length) return null
+  return items.sort((a, b) => b.score - a.score)[0]?.value ?? null
+}
+
+function scoreReference(value: string, text: string, passWeight: number): number {
+  let score = passWeight
+  const digits = value.replace(/\D/g, '')
+  if (/ref(?:erence)?\.?\s*no/i.test(text)) score += 14
+  if (/reference\s+number/i.test(text)) score += 12
+  if (/^UB\d+/i.test(value)) score += 16
+  if (digits.length === 9) score += 4
+  if (digits.length >= 6 && digits.length <= 12) score += 2
+  return score
+}
+
+function scoreQrph(value: string, text: string, passWeight: number): number {
+  let score = passWeight
+  if (/qr\s*ph?\s*invoice/i.test(text)) score += 14
+  if (value.length === 6) score += 5
+  if (value.length >= 4 && value.length <= 8) score += 2
+  return score
+}
+
+function scoreTransactionAt(iso: string, text: string, passWeight: number): number {
+  let score = passWeight
+  if (/\bdate\b/i.test(text)) score += 12
+  if (/transaction\s+date/i.test(text)) score += 8
+  if (/\bdate\b/i.test(text) && /reference\s+no/i.test(text)) score += 10
+  if (/\btotal\b/i.test(text) && /\bdate\b/i.test(text)) score += 8
+  const year = new Date(iso).getFullYear()
+  const nowYear = new Date().getFullYear()
+  if (year >= nowYear - 1 && year <= nowYear + 1) score += 4
+  return score
+}
+
+function scoreProvider(provider: PaymentProofProvider, text: string, passWeight: number): number {
+  if (provider === 'unknown') return 0
+  const scores = scorePaymentProofProviders(text)
+  return passWeight + (scores[provider] ?? 0)
+}
+
+export function parsePaymentProofTexts(
+  texts: string[],
+  passWeights?: number[],
+): PaymentProofMetadata {
+  const merged = texts.filter(Boolean).join('\n')
+  const sources = [...texts, merged]
+  const weights = [
+    ...(passWeights ?? texts.map((_, index) => (index === 0 ? 6 : 4))),
+    Math.max(...(passWeights ?? [6]), 7),
+  ]
+
+  const referenceCandidates: ScoredValue<string>[] = []
+  const qrphCandidates: ScoredValue<string>[] = []
+  const dateCandidates: ScoredValue<string>[] = []
+  const providerCandidates: ScoredValue<PaymentProofProvider>[] = []
+
+  sources.forEach((text, index) => {
+    const weight = weights[index] ?? 4
+    const normalized = preprocessOcrText(text)
+    const parsed = parsePaymentProofText(text)
+
+    if (parsed.referenceNo) {
+      referenceCandidates.push({
+        value: parsed.referenceNo,
+        score: scoreReference(parsed.referenceNo, normalized, weight),
+      })
+    }
+    if (parsed.qrphInvoiceNo) {
+      qrphCandidates.push({
+        value: parsed.qrphInvoiceNo,
+        score: scoreQrph(parsed.qrphInvoiceNo, normalized, weight),
+      })
+    }
+    if (parsed.transactionAt) {
+      dateCandidates.push({
+        value: parsed.transactionAt,
+        score: scoreTransactionAt(parsed.transactionAt, normalized, weight),
+      })
+    }
+    if (parsed.provider && parsed.provider !== 'unknown') {
+      providerCandidates.push({
+        value: parsed.provider,
+        score: scoreProvider(parsed.provider, normalized, weight),
+      })
+    }
+  })
+
+  return {
+    referenceNo: pickBestScored(referenceCandidates),
+    qrphInvoiceNo: pickBestScored(qrphCandidates),
+    transactionAt: pickBestScored(dateCandidates),
+    provider: pickBestScored(providerCandidates) ?? detectPaymentProofProvider(merged),
   }
 }
 

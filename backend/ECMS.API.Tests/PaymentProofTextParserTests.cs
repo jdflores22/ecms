@@ -1,3 +1,4 @@
+using ECMS.Domain.Common;
 using ECMS.Infrastructure.Services;
 
 namespace ECMS.API.Tests;
@@ -159,10 +160,196 @@ public class PaymentProofTextParserTests
     }
 
     [Fact]
+    public void Parse_GCashPaymentScreen_ExtractsReferenceQrphAndProvider()
+    {
+        const string text = """
+            Payment
+            Transnetsoftwaredevelopme
+            Paid via GCash
+            Total P 500.00
+            Your payment was successfully processed.
+            Jun 25, 2026 10:05 PM
+            Reference No. 225101904
+            QRPH Invoice No. 543305
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.NotNull(parsed.TransactionAt);
+        Assert.Equal("gcash", parsed.Provider);
+    }
+
+    [Fact]
+    public void Parse_GCashPhotoOfScreen_GarbledOcr_ExtractsNineAndSixDigitIds()
+    {
+        const string text = """
+            wos Se -
+            Payment x
+            Transnetsoftwaredevelopm [
+            e
+            ota =
+            idl 225101904 0
+            ETRE il 543305 0
+            fic
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.Equal("gcash", parsed.Provider);
+    }
+
+    [Fact]
+    public void Parse_GCashPaymentScreen_CleanReceipt_ExtractsAllFields()
+    {
+        const string text = """
+            Payment
+            Transnetsoftwaredevelopme
+            Paid via GCash
+            Amount 500.00
+            Total P 500.00
+            Your payment was successfully processed.
+            Jun 25, 2026 10:05 PM
+            Reference No. 225101904
+            QRPH Invoice No. 543305
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.NotNull(parsed.TransactionAt);
+        Assert.Equal("gcash", parsed.Provider);
+    }
+
+    [Fact]
+    public void Parse_GCashPaymentScreen_GarbledOcr_ExtractsNumericFallback()
+    {
+        const string text = """
+            wos Se -
+            Payment x
+            Transnetsoftwaredevelopm [
+            e
+            ota =
+            idl 225101904 0
+            ETRE il 543305 0
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.Equal("gcash", parsed.Provider);
+    }
+
+    [Fact]
+    public void Parse_GCashPaymentScreen_GarbledOcr_ExtractsDateFromSplitFragments()
+    {
+        const string text = """
+            Payment
+            Transnetsoftwaredevelopm
+            Jun 25, 2026
+            10:05 eM
+            idl 225101904 0
+            ETRE il 543305 0
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.NotNull(parsed.TransactionAt);
+        var local = TimeZoneInfo.ConvertTimeFromUtc(parsed.TransactionAt!.Value, PhilippinesTime.Zone);
+        Assert.Equal(25, local.Day);
+        Assert.Equal(22, local.Hour);
+        Assert.Equal(5, local.Minute);
+    }
+
+    [Fact]
+    public void Parse_GCashPaymentScreen_GarbledOcr_ExtractsDateFromFragments()
+    {
+        const string text = """
+            Payment
+            Transnetsoftwaredevelopm
+            idl 225101904 0
+            Jun 25, 2026
+            10:05 eM
+            ETRE il 543305 0
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.NotNull(parsed.TransactionAt);
+        var local = TimeZoneInfo.ConvertTimeFromUtc(parsed.TransactionAt!.Value, PhilippinesTime.Zone);
+        Assert.Equal(25, local.Day);
+        Assert.Equal(22, local.Hour);
+        Assert.Equal(5, local.Minute);
+    }
+
+    [Fact]
+    public void ParseTexts_MergesBestFieldsFromMultiplePasses()
+    {
+        const string garbled = """
+            Payment
+            Transnetsoftwaredevelopm
+            225101904
+            543305
+            """;
+
+        const string datePass = """
+            Date Jun 25, 2026 10:05 PM
+            Reference No. 225101904
+            QRPH Invoice No. 543305
+            """;
+
+        var parsed = PaymentProofTextParser.ParseTexts(new[]
+        {
+            (garbled, 10),
+            (datePass, 18),
+        });
+
+        Assert.Equal("225101904", parsed.ReferenceNo);
+        Assert.Equal("543305", parsed.QrphInvoiceNo);
+        Assert.NotNull(parsed.TransactionAt);
+        var local = TimeZoneInfo.ConvertTimeFromUtc(parsed.TransactionAt!.Value, PhilippinesTime.Zone);
+        Assert.Equal(25, local.Day);
+        Assert.Equal(22, local.Hour);
+        Assert.Equal(5, local.Minute);
+    }
+
+    [Fact]
     public void Parse_GrabPay_DetectsProvider()
     {
         const string text = "Paid via GrabPay to merchant. Ref. No. 882211009";
         var parsed = PaymentProofTextParser.Parse(text);
         Assert.Equal("grabpay", parsed.Provider);
+    }
+
+    [Fact]
+    public void ResolveReceiptDateFallback_UsesPaidAtWhenOcrMissesDate()
+    {
+        var parsed = new PaymentProofMetadata("225101904", "543305", null, "gcash");
+        var paidAt = new DateTime(2026, 6, 25, 14, 30, 0, DateTimeKind.Utc);
+
+        var resolved = PaymentProofTextParser.ResolveReceiptDateFallback(parsed, paidAt);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(paidAt, resolved);
+    }
+
+    [Fact]
+    public void ResolveReceiptDateFallback_SkipsWhenNothingDetected()
+    {
+        var parsed = new PaymentProofMetadata(null, null, null, null);
+        var paidAt = new DateTime(2026, 6, 25, 14, 30, 0, DateTimeKind.Utc);
+
+        var resolved = PaymentProofTextParser.ResolveReceiptDateFallback(parsed, paidAt);
+
+        Assert.Null(resolved);
     }
 }

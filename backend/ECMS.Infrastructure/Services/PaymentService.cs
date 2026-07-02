@@ -67,10 +67,16 @@ public class PaymentService : IPaymentService
             && !string.IsNullOrWhiteSpace(absoluteProofPath))
         {
             var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
+            var parsed = new PaymentProofMetadata(
+                extracted.ReferenceNo,
+                extracted.QrphInvoiceNo,
+                extracted.TransactionAt,
+                extracted.Provider);
+            var transactionAt = PaymentProofTextParser.ResolveReceiptDateFallback(parsed, payment.PaidAt);
             ApplyProofMetadata(
                 payment,
                 extracted.ReferenceNo,
-                extracted.TransactionAt,
+                transactionAt,
                 extracted.Provider,
                 extracted.QrphInvoiceNo);
         }
@@ -230,10 +236,16 @@ public class PaymentService : IPaymentService
             return null;
 
         var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
+        var parsed = new PaymentProofMetadata(
+            extracted.ReferenceNo,
+            extracted.QrphInvoiceNo,
+            extracted.TransactionAt,
+            extracted.Provider);
+        var transactionAt = PaymentProofTextParser.ResolveReceiptDateFallback(parsed, payment.PaidAt);
         ApplyProofMetadata(
             payment,
             extracted.ReferenceNo,
-            extracted.TransactionAt,
+            transactionAt,
             extracted.Provider,
             extracted.QrphInvoiceNo);
         _db.Update(payment);

@@ -9,6 +9,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
+        services.AddSingleton<PythonOcrEnsembleClient>();
         services.AddMemoryCache();
         services.AddSingleton<IUploadUrlSigner, UploadUrlSigner>();
         services.AddScoped<ITokenService, JwtTokenService>();

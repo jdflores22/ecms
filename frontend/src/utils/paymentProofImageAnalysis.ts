@@ -52,7 +52,7 @@ export async function detectPaymentProviderFromImage(
     const height = Math.min(img.naturalHeight, 960)
     canvas.width = width
     canvas.height = height
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return null
 
     ctx.drawImage(img, 0, 0, width, height)

@@ -11,63 +11,93 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
         ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
     };
 
+    private readonly PythonOcrEnsembleClient _ensemble;
     private readonly ILogger<PaymentProofExtractionService> _logger;
 
-    public PaymentProofExtractionService(ILogger<PaymentProofExtractionService> logger)
+    public PaymentProofExtractionService(
+        PythonOcrEnsembleClient ensemble,
+        ILogger<PaymentProofExtractionService> logger)
     {
+        _ensemble = ensemble;
         _logger = logger;
     }
 
-    public Task<(string? ReferenceNo, string? QrphInvoiceNo, DateTime? TransactionAt, string? Provider)> ExtractFromImageAsync(
+    public async Task<(string? ReferenceNo, string? QrphInvoiceNo, DateTime? TransactionAt, string? Provider)> ExtractFromImageAsync(
         string absoluteFilePath,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(absoluteFilePath))
         {
             _logger.LogWarning("Payment proof file not found: {FilePath}", absoluteFilePath);
-            return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
+            return (null, null, null, null);
         }
 
         var extension = Path.GetExtension(absoluteFilePath);
-        if (!ImageExtensions.Contains(extension))
-            return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
+        if (!ImageExtensions.Contains(extension) && !extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            return (null, null, null, null);
 
         try
         {
-            var text = ExtractText(absoluteFilePath);
-            if (string.IsNullOrWhiteSpace(text))
+            var passes = new List<(string Text, int Weight)>();
+
+            foreach (var (text, weight) in CollectTesseractPasses(absoluteFilePath))
             {
-                _logger.LogWarning("Payment proof OCR returned no text for {FilePath}", absoluteFilePath);
-                return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
+                if (!string.IsNullOrWhiteSpace(text))
+                    passes.Add((text, weight));
             }
 
-            var parsed = PaymentProofTextParser.Parse(text);
+            var ensemblePasses = await _ensemble.RunAsync(absoluteFilePath, cancellationToken);
+            foreach (var pass in ensemblePasses)
+                passes.Add((pass.Text, pass.Weight));
+
+            if (passes.Count == 0)
+            {
+                _logger.LogWarning("Payment proof OCR returned no text for {FilePath}", absoluteFilePath);
+                return (null, null, null, null);
+            }
+
+            _logger.LogInformation(
+                "Payment proof OCR ensemble produced {PassCount} passes for {FilePath}",
+                passes.Count,
+                absoluteFilePath);
+
+            var parsed = PaymentProofTextParser.ParseTexts(passes);
             if (parsed.ReferenceNo is null && parsed.QrphInvoiceNo is null && parsed.TransactionAt is null && parsed.Provider is null)
                 _logger.LogInformation("Payment proof OCR text had no parseable metadata for {FilePath}", absoluteFilePath);
 
-            return Task.FromResult((parsed.ReferenceNo, parsed.QrphInvoiceNo, parsed.TransactionAt, parsed.Provider));
+            return (parsed.ReferenceNo, parsed.QrphInvoiceNo, parsed.TransactionAt, parsed.Provider);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Payment proof OCR failed for {FilePath}", absoluteFilePath);
-            return Task.FromResult<(string?, string?, DateTime?, string?)>((null, null, null, null));
+            return (null, null, null, null);
         }
     }
 
-    private string? ExtractText(string absoluteFilePath)
+    private IEnumerable<(string Text, int Weight)> CollectTesseractPasses(string absoluteFilePath)
     {
-        var text = TryRunTesseractNet(absoluteFilePath);
-        if (!string.IsNullOrWhiteSpace(text))
-            return text;
+        var configs = new (string Label, int Weight, Action<Tesseract.TesseractEngine> Configure)[]
+        {
+            ("tesseract_net_auto", 9, e => e.DefaultPageSegMode = Tesseract.PageSegMode.Auto),
+            ("tesseract_net_block", 10, e => e.DefaultPageSegMode = Tesseract.PageSegMode.SingleBlock),
+            ("tesseract_net_line", 11, e => e.DefaultPageSegMode = Tesseract.PageSegMode.SingleLine),
+        };
 
-        text = TryRunTesseractCli(absoluteFilePath);
-        if (!string.IsNullOrWhiteSpace(text))
-            return text;
+        foreach (var (label, weight, configure) in configs)
+        {
+            var text = TryRunTesseractNet(absoluteFilePath, configure);
+            if (!string.IsNullOrWhiteSpace(text))
+                yield return (text, weight);
+        }
 
-        return null;
+        var cliText = TryRunTesseractCli(absoluteFilePath);
+        if (!string.IsNullOrWhiteSpace(cliText))
+            yield return (cliText, 8);
     }
 
-    private static string? TryRunTesseractNet(string absoluteFilePath)
+    private static string? TryRunTesseractNet(
+        string absoluteFilePath,
+        Action<Tesseract.TesseractEngine>? configure = null)
     {
         try
         {
@@ -75,6 +105,7 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
             if (engine is null)
                 return null;
 
+            configure?.Invoke(engine);
             using var pix = Tesseract.Pix.LoadFromFile(absoluteFilePath);
             using var page = engine.Process(pix);
             return page.GetText();
