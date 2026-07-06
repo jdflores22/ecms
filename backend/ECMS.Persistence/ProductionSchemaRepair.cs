@@ -49,6 +49,10 @@ public static class ProductionSchemaRepair
         await EnsureWithdrawalBookingFlowAsync(db, logger, cancellationToken);
 
         await EnsureDevicePushTokensTableAsync(db, logger, cancellationToken);
+
+        await EnsureCertificateTemplatesTableAsync(db, logger, cancellationToken);
+
+        await EnsureYardInventoryReleaseStatusAsync(db, logger, cancellationToken);
     }
 
     private static async Task EnsureWithdrawalBookingFlowAsync(
@@ -154,6 +158,101 @@ public static class ProductionSchemaRepair
             INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
             VALUES ('20260702150000_AddDevicePushTokens', '7.0.20')
             """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureCertificateTemplatesTableAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (await TableExistsAsync(db, "CertificateTemplatesSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20260706120000_AddCertificateTemplates', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table CertificateTemplatesSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `CertificateTemplatesSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `ShippingLineId` int NOT NULL,
+                `DocumentType` int NOT NULL,
+                `Name` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+                `LayoutJson` longtext CHARACTER SET utf8mb4 NOT NULL,
+                `IsActive` tinyint(1) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_CertificateTemplates_ShippingLineId_DocumentType_IsActive` (`ShippingLineId`, `DocumentType`, `IsActive`),
+                CONSTRAINT `FK_CertificateTemplatesSet_ShippingLinesSet_ShippingLineId`
+                    FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20260706120000_AddCertificateTemplates', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureYardInventoryReleaseStatusAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "ManualYardInventoryEntriesSet",
+            column: "YardStatus",
+            definition: "int NOT NULL DEFAULT 0",
+            migrationId: "20260706153000_AddYardInventoryReleaseStatus",
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "ManualYardInventoryEntriesSet",
+            column: "ReleasedAt",
+            definition: "datetime(6) NULL",
+            migrationId: "20260706153000_AddYardInventoryReleaseStatus",
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "ManualYardInventoryEntriesSet",
+            column: "ReleasedWithdrawalRequestId",
+            definition: "int NULL",
+            migrationId: "20260706153000_AddYardInventoryReleaseStatus",
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "ManualYardInventoryEntriesSet",
+            column: "ReleasedWithdrawalLineId",
+            definition: "int NULL",
+            migrationId: "20260706153000_AddYardInventoryReleaseStatus",
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "WithdrawalRequestLinesSet",
+            column: "ReleasedAt",
+            definition: "datetime(6) NULL",
+            migrationId: "20260706153000_AddYardInventoryReleaseStatus",
             cancellationToken);
     }
 
