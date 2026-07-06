@@ -52,6 +52,7 @@ import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { prefetchSignedAssetUrls } from '../../utils/assetUrl'
 import { getPreAdviceListStatus, isScheduleForPayment } from '../../utils/scheduleStatus'
 import { truckerPaymentPath } from '../../utils/truckerPayment'
 
@@ -156,6 +157,14 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
+function initialDetailTab(): PreAdviceDetailTab {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  if (tab === 'overview' || tab === 'details' || tab === 'photos' || tab === 'schedule' || tab === 'qr') {
+    return tab
+  }
+  return 'details'
+}
+
 export default function PreAdviceDetailPage() {
   const { id } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -184,7 +193,7 @@ export default function PreAdviceDetailPage() {
   const [qrPreviewOpen, setQrPreviewOpen] = useState(false)
   const [bookLogicteckLoading, setBookLogicteckLoading] = useState(false)
   const [payment, setPayment] = useState<Payment | null>(null)
-  const [activeTab, setActiveTab] = useState<PreAdviceDetailTab>('details')
+  const [activeTab, setActiveTab] = useState<PreAdviceDetailTab>(initialDetailTab)
   const tabContextRef = useRef<{ id: number; status: string } | null>(null)
 
   const handleDocumentsChange = useCallback((next: PreAdviceDocument[]) => {
@@ -201,15 +210,21 @@ export default function PreAdviceDetailPage() {
       .finally(() => setDocumentsLoading(false))
   }, [preAdviceId])
 
-  const load = useCallback(() => {
+  const loadCore = useCallback(() => {
     if (!preAdviceId) return
     setLoading(true)
+    setDocumentsLoading(true)
     setError('')
-    preAdviceApi
-      .get(preAdviceId)
-      .then(({ data }) => setItem(data))
+    Promise.all([preAdviceApi.get(preAdviceId), preAdviceApi.documents(preAdviceId)])
+      .then(([itemRes, docsRes]) => {
+        setItem(itemRes.data)
+        setDocuments(docsRes.data)
+      })
       .catch(() => setError('Pre-forecast request not found.'))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        setDocumentsLoading(false)
+      })
   }, [preAdviceId])
 
   const loadSchedule = useCallback(() => {
@@ -257,20 +272,29 @@ export default function PreAdviceDetailPage() {
   }, [preAdviceId])
 
   useEffect(() => {
-    load()
-    loadDocuments()
-  }, [load, loadDocuments])
+    loadCore()
+  }, [loadCore])
+
+  const scheduleDataNeeded =
+    activeTab === 'overview' || activeTab === 'schedule' || activeTab === 'qr'
 
   useEffect(() => {
-    if (item?.status === 'Approved') {
-      loadSchedule()
-    } else {
-      setSchedule(null)
-      setQrBooking(null)
-      setQrImageUrl(null)
-      setPayment(null)
+    if (item?.status !== 'Approved' || !scheduleDataNeeded) {
+      if (item?.status !== 'Approved') {
+        setSchedule(null)
+        setQrBooking(null)
+        setQrImageUrl(null)
+        setPayment(null)
+      }
+      return
     }
-  }, [item?.status, loadSchedule])
+    loadSchedule()
+  }, [item?.status, scheduleDataNeeded, loadSchedule])
+
+  useEffect(() => {
+    if (!documents.length) return
+    void prefetchSignedAssetUrls(documents.map((d) => d.filePath))
+  }, [documents])
 
   useEffect(() => {
     return () => {
@@ -539,7 +563,7 @@ export default function PreAdviceDetailPage() {
     <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
       <DetailBackButton to="/preforecast" label="Back to list" />
 
-      {loading ? (
+      {loading && !item ? (
         <DetailLoadingState />
       ) : error ? (
         <DetailErrorState message={error} />

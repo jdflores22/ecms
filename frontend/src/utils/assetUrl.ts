@@ -87,3 +87,41 @@ export async function ensureSignedAssetUrl(path: string | null | undefined): Pro
   const signed = signedCache.get(normalized)
   return signed ? resolveAssetUrl(signed) : ''
 }
+
+function resolvedUrlForPath(path: string): string {
+  const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
+  if (!isCrossOriginAssetUrl(path)) return resolveAssetUrl(path)
+  const cached = signedCache.get(normalized)
+  return cached ? resolveAssetUrl(cached) : ''
+}
+
+/** Eagerly sign and browser-prefetch document images (call when document list arrives). */
+export async function prefetchSignedAssetUrls(paths: (string | null | undefined)[]): Promise<void> {
+  const unique = [...new Set(paths.filter((p): p is string => Boolean(p)))]
+  if (unique.length === 0) return
+
+  const needSign: string[] = []
+  for (const path of unique) {
+    const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
+    if (isCrossOriginAssetUrl(path) && !signedCache.has(normalized)) {
+      needSign.push(normalized)
+    }
+  }
+
+  if (needSign.length > 0) {
+    needSign.forEach((path) => pendingPaths.add(path))
+    await scheduleSignBatch()
+  }
+
+  warmAssetImages(unique.map(resolvedUrlForPath).filter(Boolean))
+}
+
+/** Start browser download/decoding for image URLs (no-op when empty). */
+export function warmAssetImages(urls: string[]): void {
+  for (const url of urls) {
+    if (!url) continue
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = url
+  }
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ensureSignedAssetUrl, isCrossOriginAssetUrl, resolveAssetUrl } from '../utils/assetUrl'
+import { ensureSignedAssetUrl, isCrossOriginAssetUrl, resolveAssetUrl, warmAssetImages } from '../utils/assetUrl'
 
 function initialAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
@@ -58,17 +58,26 @@ export function useAssetUrl(path: string | null | undefined): string {
 }
 
 export function useAssetUrls(paths: (string | null | undefined)[]): Record<string, string> {
+  return useAssetUrlsState(paths).urls
+}
+
+export function useAssetUrlsState(paths: (string | null | undefined)[]): {
+  urls: Record<string, string>
+  loading: boolean
+} {
   const key = useMemo(
     () =>
       [...new Set(paths.filter((p): p is string => Boolean(p)))].sort().join('\0'),
     [paths],
   )
   const [urls, setUrls] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const unique = key ? key.split('\0') : []
     if (unique.length === 0) {
       setUrls({})
+      setLoading(false)
       return undefined
     }
 
@@ -79,6 +88,7 @@ export function useAssetUrls(paths: (string | null | undefined)[]): Record<strin
       else sameOrigin[path] = resolveAssetUrl(path)
     }
     setUrls(sameOrigin)
+    setLoading(crossOrigin.length > 0)
 
     if (crossOrigin.length === 0) return undefined
 
@@ -88,14 +98,14 @@ export function useAssetUrls(paths: (string | null | undefined)[]): Record<strin
     )
       .then((entries) => {
         if (!cancelled) {
-          setUrls((prev) => ({
-            ...prev,
-            ...Object.fromEntries(entries.filter(([, signed]) => Boolean(signed))),
-          }))
+          const resolved = Object.fromEntries(entries.filter(([, signed]) => Boolean(signed)))
+          setUrls((prev) => ({ ...prev, ...resolved }))
+          warmAssetImages(Object.values(resolved))
+          setLoading(false)
         }
       })
       .catch(() => {
-        /* keep same-origin URLs only */
+        if (!cancelled) setLoading(false)
       })
 
     return () => {
@@ -103,5 +113,5 @@ export function useAssetUrls(paths: (string | null | undefined)[]): Record<strin
     }
   }, [key])
 
-  return urls
+  return { urls, loading }
 }

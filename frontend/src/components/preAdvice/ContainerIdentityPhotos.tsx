@@ -23,9 +23,9 @@ import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import axios from 'axios'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useToast } from '../feedback/ToastProvider'
-import { useAssetUrls } from '../../hooks/useAssetUrl'
+import { useAssetUrlsState } from '../../hooks/useAssetUrl'
 import {
   CONTAINER_PHOTO_CATEGORIES,
   CONTAINER_PHOTO_GRID_CATEGORIES,
@@ -74,12 +74,20 @@ function ResolvedDocumentImage({
   alt,
   onError,
   sx,
+  priority = false,
 }: {
   url: string
   alt: string
   onError?: () => void
   sx?: object
+  priority?: boolean
 }) {
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    setLoaded(false)
+  }, [url])
+
   if (!url) {
     return (
       <Box
@@ -98,13 +106,36 @@ function ResolvedDocumentImage({
   }
 
   return (
-    <Box
-      component="img"
-      src={url}
-      alt={alt}
-      onError={onError}
-      sx={sx}
-    />
+    <>
+      {!loaded && (
+        <Skeleton
+          variant="rounded"
+          animation="wave"
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            borderRadius: 0,
+          }}
+        />
+      )}
+      <Box
+        component="img"
+        src={url}
+        alt={alt}
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+        fetchPriority={priority ? 'high' : 'auto'}
+        onLoad={() => setLoaded(true)}
+        onError={onError}
+        sx={{
+          ...sx,
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.2s ease',
+        }}
+      />
+    </>
   )
 }
 
@@ -211,7 +242,7 @@ export default function ContainerIdentityPhotos({
   )
   const hasDamageSection = damageCategories.length > 0 || legacyDamagePhotos.length > 0
 
-  const assetUrls = useAssetUrls(documents.map((d) => d.filePath))
+  const { urls: assetUrls, loading: assetUrlsLoading } = useAssetUrlsState(documents.map((d) => d.filePath))
   const assetUrl = (path: string | null | undefined) => (path ? assetUrls[path] ?? '' : '')
 
   const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) => identityByCategory.has(c.value)).length
@@ -314,7 +345,7 @@ export default function ContainerIdentityPhotos({
     if (uploaded) closeDamageDialog()
   }
 
-  const renderIdentitySlot = (category: ContainerPhotoGridCategory) => {
+  const renderIdentitySlot = (category: ContainerPhotoGridCategory, slotIndex: number) => {
     const identityDoc = identityByCategory.get(category.value)
     const hasDamage = damageByView.has(category.value)
     const busy = uploading === category.value
@@ -405,6 +436,7 @@ export default function ContainerIdentityPhotos({
                 <ResolvedDocumentImage
                   url={assetUrl(identityDoc.filePath)}
                   alt={category.label}
+                  priority={slotIndex < 4}
                   onError={() => markImageBroken(identityDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
@@ -792,6 +824,9 @@ export default function ContainerIdentityPhotos({
         <MediaGridSkeleton />
       ) : (
         <>
+          {assetUrlsLoading && documents.length > 0 && (
+            <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />
+          )}
           <Box
             sx={{
               display: 'grid',
@@ -799,7 +834,7 @@ export default function ContainerIdentityPhotos({
               gap: 2,
             }}
           >
-            {CONTAINER_PHOTO_GRID_CATEGORIES.map(renderIdentitySlot)}
+            {CONTAINER_PHOTO_GRID_CATEGORIES.map((category, index) => renderIdentitySlot(category, index))}
           </Box>
 
           {hasDamageSection && (
