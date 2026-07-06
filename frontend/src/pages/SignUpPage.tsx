@@ -10,10 +10,12 @@ import axios from 'axios'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useParams } from 'react-router-dom'
 import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
+import PasswordField from '../components/auth/PasswordField'
 import { ICS_BRAND } from '../config/brandCopy'
 import { authApi, resetAuthRefreshState } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
+import { evaluatePasswordStrength, passwordStrengthMessage } from '../utils/passwordStrength'
 
 const primaryDark = '#0B3D91'
 
@@ -51,6 +53,9 @@ export default function SignUpPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const passwordStrength = useMemo(() => evaluatePasswordStrength(password), [password])
+  const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword
+
   if (token) return <Navigate to="/" replace />
   if (!config) return <Navigate to="/" replace />
 
@@ -58,8 +63,9 @@ export default function SignUpPage() {
     e.preventDefault()
     setError('')
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    const strengthError = passwordStrengthMessage(password)
+    if (strengthError) {
+      setError(strengthError)
       return
     }
     if (password !== confirmPassword) {
@@ -93,9 +99,13 @@ export default function SignUpPage() {
 
   return (
     <AuthShell title={config.title} subtitle={config.subtitle}>
-      <Box component="form" onSubmit={handleSubmit}>
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}
+      >
         {error && (
-          <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          <Alert severity="error" sx={{ borderRadius: 2 }}>
             {error}
           </Alert>
         )}
@@ -106,6 +116,7 @@ export default function SignUpPage() {
           onChange={(e) => setFullName(e.target.value)}
           required
           fullWidth
+          autoComplete="name"
           sx={authFieldSx}
         />
         <TextField
@@ -114,6 +125,7 @@ export default function SignUpPage() {
           onChange={(e) => setUsername(e.target.value)}
           required
           fullWidth
+          autoComplete="username"
           sx={authFieldSx}
         />
         <TextField
@@ -123,38 +135,43 @@ export default function SignUpPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
           fullWidth
+          autoComplete="email"
           sx={authFieldSx}
         />
-        <TextField
+        <PasswordField
           label="Password"
-          type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          fullWidth
-          sx={authFieldSx}
+          onChange={setPassword}
+          showStrength
+          autoComplete="new-password"
         />
-        <TextField
+        <PasswordField
           label="Confirm password"
-          type="password"
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          fullWidth
-          sx={authFieldSx}
+          onChange={setConfirmPassword}
+          autoComplete="new-password"
+          error={passwordsMismatch}
+          helperText={passwordsMismatch ? 'Passwords do not match.' : undefined}
         />
 
-        <Button type="submit" variant="contained" fullWidth disabled={loading} sx={authPrimaryButtonSx}>
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          size="large"
+          disabled={loading || !passwordStrength.isValid || passwordsMismatch}
+          sx={{ ...authPrimaryButtonSx, mt: 0 }}
+        >
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Create account'}
         </Button>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
           Already have an account?{' '}
           <Button component={RouterLink} to="/login" sx={{ fontWeight: 700, color: primaryDark, p: 0, minWidth: 0 }}>
             Sign in
           </Button>
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', pb: 0.5 }}>
           {ICS_BRAND.appBarCaption}
         </Typography>
       </Box>

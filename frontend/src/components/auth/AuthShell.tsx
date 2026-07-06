@@ -94,10 +94,7 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
           <Box sx={{ mb: 3 }}>
             <IcsLogo height={52} maxWidth={200} />
           </Box>
-          <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5 }}>
-            {ICS_BRAND.shortName}
-          </Typography>
-          <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, mb: 1.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1.5 }}>
             {ICS_BRAND.name}
           </Typography>
           <Typography sx={{ color: 'rgba(255,255,255,0.82)', lineHeight: 1.6, maxWidth: 360 }}>
@@ -119,12 +116,6 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
           >
             <IcsLogo height={36} maxWidth={120} />
             <Box sx={{ minWidth: 0 }}>
-              <Typography
-                variant="overline"
-                sx={{ color: primaryDark, letterSpacing: 1.2, lineHeight: 1.2, display: 'block' }}
-              >
-                {ICS_BRAND.shortName}
-              </Typography>
               <Typography
                 variant="subtitle2"
                 sx={{ fontWeight: 700, color: primaryDark, lineHeight: 1.3 }}
@@ -149,7 +140,15 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
 }
 
 export const authFieldSx = {
-  '& .MuiOutlinedInput-root': { borderRadius: 2 },
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    bgcolor: '#fff',
+  },
+  '& .MuiOutlinedInput-input:-webkit-autofill': {
+    WebkitBoxShadow: '0 0 0 100px #fff inset',
+    WebkitTextFillColor: '#0F172A',
+    caretColor: '#0F172A',
+  },
 }
 
 export const authPrimaryButtonSx = {
