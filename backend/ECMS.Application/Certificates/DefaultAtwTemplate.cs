@@ -87,18 +87,26 @@ public static class CertificateJson
     };
 
     public static CertificateLayoutDefinition ParseLayout(string? layoutJson, CertificateDocumentType? documentType = null)
+        => ParseLayoutWithFallback(layoutJson, documentType ?? CertificateDocumentType.Atw).Layout;
+
+    public static (CertificateLayoutDefinition Layout, bool UsedFallback) ParseLayoutWithFallback(
+        string? layoutJson,
+        CertificateDocumentType documentType)
     {
         if (string.IsNullOrWhiteSpace(layoutJson))
-            return GetDefaultLayout(documentType ?? CertificateDocumentType.Atw);
+            return (GetDefaultLayout(documentType), true);
 
         try
         {
-            return JsonSerializer.Deserialize<CertificateLayoutDefinition>(layoutJson, Options)
-                ?? GetDefaultLayout(documentType ?? CertificateDocumentType.Atw);
+            var parsed = JsonSerializer.Deserialize<CertificateLayoutDefinition>(layoutJson, Options);
+            if (parsed?.Elements is not { Count: > 0 })
+                return (GetDefaultLayout(documentType), true);
+
+            return (parsed, false);
         }
-        catch
+        catch (JsonException)
         {
-            return GetDefaultLayout(documentType ?? CertificateDocumentType.Atw);
+            return (GetDefaultLayout(documentType), true);
         }
     }
 

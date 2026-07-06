@@ -120,7 +120,7 @@ public class CertificateTemplateService : ICertificateTemplateService
         if (string.IsNullOrWhiteSpace(name))
             throw new InvalidOperationException("Template name is required.");
 
-        CertificateJson.ParseLayout(request.LayoutJson);
+        CertificateJson.ParseLayout(request.LayoutJson, entity.DocumentType);
 
         entity.Name = name;
         entity.LayoutJson = request.LayoutJson.Trim();

@@ -7,6 +7,7 @@ using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace ECMS.Infrastructure.Services;
 
@@ -16,6 +17,7 @@ public class CertificateGenerationService : ICertificateGenerationService
     private readonly ICertificateTemplateService _templates;
     private readonly ICertificateVerificationService _verification;
     private readonly IAuditService _auditService;
+    private readonly ILogger<CertificateGenerationService> _logger;
     private readonly string _contentRootPath;
     private readonly string _uploadRoot;
 
@@ -25,12 +27,14 @@ public class CertificateGenerationService : ICertificateGenerationService
         ICertificateVerificationService verification,
         IAuditService auditService,
         IConfiguration configuration,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        ILogger<CertificateGenerationService> logger)
     {
         _db = db;
         _templates = templates;
         _verification = verification;
         _auditService = auditService;
+        _logger = logger;
         _contentRootPath = environment.ContentRootPath;
         _uploadRoot = configuration["FileStorage:UploadPath"] ?? "uploads";
     }
@@ -120,8 +124,35 @@ public class CertificateGenerationService : ICertificateGenerationService
         var entity = await LoadWithdrawalAsync(withdrawalRequestId, cancellationToken);
         var releasedAt = PhilippinesTime.UtcNow;
 
-        var layoutJson = await _templates.GetActiveLayoutJsonAsync(entity.ShippingLineId, certType, cancellationToken)
-            ?? CertificateJson.GetDefaultLayoutJson(certType);
+        var activeLayoutJson = await _templates.GetActiveLayoutJsonAsync(
+            entity.ShippingLineId,
+            certType,
+            cancellationToken);
+
+        string layoutJson;
+        if (string.IsNullOrWhiteSpace(activeLayoutJson))
+        {
+            layoutJson = CertificateJson.GetDefaultLayoutJson(certType);
+            _logger.LogWarning(
+                "No active certificate template for shipping line {ShippingLineId} and document type {DocumentType}. Using default layout for withdrawal {ReferenceNo}.",
+                entity.ShippingLineId,
+                certType,
+                entity.ReferenceNo);
+        }
+        else
+        {
+            layoutJson = activeLayoutJson;
+        }
+
+        var (layout, usedFallback) = CertificateJson.ParseLayoutWithFallback(layoutJson, certType);
+        if (!string.IsNullOrWhiteSpace(activeLayoutJson) && usedFallback)
+        {
+            _logger.LogError(
+                "Active certificate template for shipping line {ShippingLineId} and document type {DocumentType} could not be parsed. Using default layout for withdrawal {ReferenceNo}.",
+                entity.ShippingLineId,
+                certType,
+                entity.ReferenceNo);
+        }
 
         var mergeData = buildMerge(entity, releasedAt);
         mergeData.IssuedByName = await ResolveIssuerNameAsync(generatedByUserId, cancellationToken);
@@ -129,7 +160,7 @@ public class CertificateGenerationService : ICertificateGenerationService
         mergeData.VerificationUrl = _verification.BuildVerifyUrl(plainToken);
 
         var pdfBytes = CertificatePdfRenderer.RenderAtw(
-            CertificateJson.ParseLayout(layoutJson, certType),
+            layout,
             mergeData,
             _contentRootPath);
 

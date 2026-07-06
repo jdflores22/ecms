@@ -103,21 +103,26 @@ export default function CertificateTemplateBuilder({
   const [saving, setSaving] = useState(false)
   const [activating, setActivating] = useState(false)
   const [error, setError] = useState('')
+  const [savedSnapshot, setSavedSnapshot] = useState({ name: '', layoutJson: '' })
 
   useEffect(() => {
     if (!template) {
       setName('')
       setLayout(DEFAULT_ATW_LAYOUT)
+      setSavedSnapshot({ name: '', layoutJson: '' })
       setSelectedIndex(null)
       return
     }
     setName(template.name)
     setLayout(parseLayoutJson(template.layoutJson, template.documentType))
+    setSavedSnapshot({ name: template.name, layoutJson: template.layoutJson })
     setSelectedIndex(null)
   }, [template])
 
   const selectedElement = selectedIndex !== null ? layout.elements[selectedIndex] : null
   const layoutJson = useMemo(() => serializeLayout(layout), [layout])
+  const isDirty =
+    name.trim() !== savedSnapshot.name.trim() || layoutJson !== savedSnapshot.layoutJson
 
   const updateElement = (index: number, next: CertificateLayoutElement) => {
     setLayout((prev) => ({
@@ -168,16 +173,23 @@ export default function CertificateTemplateBuilder({
     setAddOpen(false)
   }
 
+  const persistTemplate = async () => {
+    if (!template) throw new Error('No template selected.')
+    const { data } = await certificateTemplateApi.update(template.id, {
+      name: name.trim(),
+      layoutJson,
+    })
+    setSavedSnapshot({ name: data.name, layoutJson: data.layoutJson })
+    onSaved(data)
+    return data
+  }
+
   const handleSave = async () => {
     if (!template) return
     setSaving(true)
     setError('')
     try {
-      const { data } = await certificateTemplateApi.update(template.id, {
-        name: name.trim(),
-        layoutJson,
-      })
-      onSaved(data)
+      await persistTemplate()
     } catch {
       setError('Failed to save template.')
     } finally {
@@ -199,10 +211,11 @@ export default function CertificateTemplateBuilder({
     setActivating(true)
     setError('')
     try {
+      const saved = await persistTemplate()
       await certificateTemplateApi.activate(template.id)
-      onActivated({ ...template, isActive: true })
+      onActivated({ ...saved, isActive: true })
     } catch {
-      setError('Failed to activate template.')
+      setError('Failed to save and activate template.')
     } finally {
       setActivating(false)
     }
@@ -221,6 +234,12 @@ export default function CertificateTemplateBuilder({
       {error && (
         <Alert severity="error" sx={{ borderRadius: 2 }} onClose={() => setError('')}>
           {error}
+        </Alert>
+      )}
+      {isDirty && (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          You have unsaved design changes. Save or use Set active so issued certificates use this layout.
+          Preview PDF shows your current editor design, not necessarily what is stored on the server yet.
         </Alert>
       )}
 
@@ -267,7 +286,7 @@ export default function CertificateTemplateBuilder({
               variant="contained"
               startIcon={<SaveOutlinedIcon />}
               onClick={() => void handleSave()}
-              disabled={saving || !name.trim()}
+              disabled={saving || activating || !name.trim() || !isDirty}
               sx={{ fontWeight: 700, borderRadius: 2 }}
             >
               {saving ? 'Saving…' : 'Save'}
@@ -277,10 +296,10 @@ export default function CertificateTemplateBuilder({
                 variant="outlined"
                 color="success"
                 onClick={() => void handleActivate()}
-                disabled={activating}
+                disabled={activating || saving || !name.trim()}
                 sx={{ fontWeight: 600, borderRadius: 2 }}
               >
-                {activating ? 'Activating…' : 'Set active'}
+                {activating ? 'Saving & activating…' : isDirty ? 'Save & set active' : 'Set active'}
               </Button>
             )}
           </Box>

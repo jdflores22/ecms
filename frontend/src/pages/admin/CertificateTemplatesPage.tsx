@@ -258,11 +258,14 @@ export default function CertificateTemplatesPage() {
             }}
             onActivated={(template) => {
               setTemplates((prev) =>
-                prev.map((t) =>
-                  t.shippingLineId === template.shippingLineId && t.documentType === template.documentType
-                    ? { ...t, isActive: t.id === template.id }
-                    : t,
-                ),
+                prev.map((t) => {
+                  if (t.shippingLineId !== template.shippingLineId || t.documentType !== template.documentType) {
+                    return t
+                  }
+                  return t.id === template.id
+                    ? { ...template, isActive: true }
+                    : { ...t, isActive: false }
+                }),
               )
             }}
           />
