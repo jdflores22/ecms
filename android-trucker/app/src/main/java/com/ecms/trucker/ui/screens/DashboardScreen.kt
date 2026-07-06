@@ -45,6 +45,7 @@ fun DashboardScreen(
     repository: TruckerRepository,
     userName: String,
     onOpenNotifications: () -> Unit,
+    notificationUnreadCount: Int = 0,
     onNavigate: (String) -> Unit,
 ) {
     val cachedDashboard = DashboardCache
@@ -88,6 +89,7 @@ fun DashboardScreen(
         subtitle = stringResource(R.string.home_welcome, userName),
         branded = true,
         onNotificationClick = onOpenNotifications,
+        notificationUnreadCount = notificationUnreadCount,
         refreshing = loading,
         onRefresh = { load(force = true) },
     ) { padding ->
@@ -249,10 +251,11 @@ private fun AlertRow(label: String, count: Int, color: androidx.compose.ui.graph
 fun MenuScreen(
     repository: TruckerRepository,
     onOpenNotifications: () -> Unit,
+    notificationUnreadCount: Int = 0,
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit,
 ) {
-    var unread by remember { mutableIntStateOf(0) }
+    var unread by remember { mutableIntStateOf(notificationUnreadCount) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -263,6 +266,9 @@ fun MenuScreen(
             refreshing = false
         }
     }
+    LaunchedEffect(notificationUnreadCount) {
+        unread = notificationUnreadCount
+    }
     LaunchedEffect(Unit) {
         loadUnread()
     }
@@ -271,6 +277,7 @@ fun MenuScreen(
         title = stringResource(R.string.more_title),
         branded = true,
         onNotificationClick = onOpenNotifications,
+        notificationUnreadCount = notificationUnreadCount,
         refreshing = refreshing,
         onRefresh = { loadUnread() },
     ) { padding ->

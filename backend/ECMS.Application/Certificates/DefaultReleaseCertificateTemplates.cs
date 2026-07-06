@@ -73,6 +73,8 @@ public static class DefaultAtwReleaseTemplate
         ReleasedAt = "July 6, 2026 2:30 PM",
         ReleasedByDepotName = "Manila CY 1",
         Remarks = "All units released.",
+        GeneratedAt = "July 6, 2026 12:00 PM",
+        IssuedByName = "Maria Santos",
         ContainerLines = new List<AtwContainerLineMergeData>
         {
             new() { ContainerNo = "MSCU1234567", Size = "20", Type = "GP" },
@@ -137,6 +139,8 @@ public static class DefaultCyContainerReleaseTemplate
         ReleasedDate = "July 6, 2026",
         ReleasedAt = "July 6, 2026 2:30 PM",
         ReleasedByDepotName = "Manila CY 1",
+        GeneratedAt = "July 6, 2026 12:00 PM",
+        IssuedByName = "Maria Santos",
     };
 }
 

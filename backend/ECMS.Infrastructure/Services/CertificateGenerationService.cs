@@ -1,4 +1,5 @@
 using ECMS.Application.Certificates;
+using ECMS.Application.DTOs.Certificate;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Entities;
@@ -13,6 +14,7 @@ public class CertificateGenerationService : ICertificateGenerationService
 {
     private readonly IEcmsDbContext _db;
     private readonly ICertificateTemplateService _templates;
+    private readonly ICertificateVerificationService _verification;
     private readonly IAuditService _auditService;
     private readonly string _contentRootPath;
     private readonly string _uploadRoot;
@@ -20,12 +22,14 @@ public class CertificateGenerationService : ICertificateGenerationService
     public CertificateGenerationService(
         IEcmsDbContext db,
         ICertificateTemplateService templates,
+        ICertificateVerificationService verification,
         IAuditService auditService,
         IConfiguration configuration,
         IHostEnvironment environment)
     {
         _db = db;
         _templates = templates;
+        _verification = verification;
         _auditService = auditService;
         _contentRootPath = environment.ContentRootPath;
         _uploadRoot = configuration["FileStorage:UploadPath"] ?? "uploads";
@@ -37,9 +41,11 @@ public class CertificateGenerationService : ICertificateGenerationService
         AtwCertificateMergeData? sampleData = null)
     {
         var layout = CertificateJson.ParseLayout(layoutJson, documentType);
+        var data = sampleData ?? CertificateJson.GetSampleData(documentType);
+        data.VerificationUrl ??= _verification.BuildVerifyUrl(_verification.GeneratePlainToken());
         return CertificatePdfRenderer.RenderAtw(
             layout,
-            sampleData ?? CertificateJson.GetSampleData(documentType),
+            data,
             _contentRootPath);
     }
 
@@ -56,7 +62,7 @@ public class CertificateGenerationService : ICertificateGenerationService
             null,
             BuildIssueMergeData,
             "GenerateCertificate",
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
     public async Task AttachCyContainerReleaseCertificateAsync(
         int withdrawalRequestId,
@@ -78,6 +84,7 @@ public class CertificateGenerationService : ICertificateGenerationService
             displayName,
             (e, releasedAt) => BuildCyReleaseMergeData(e, line, releasedAt),
             "GenerateCyReleaseCertificate",
+            lineId,
             cancellationToken);
     }
 
@@ -95,7 +102,7 @@ public class CertificateGenerationService : ICertificateGenerationService
             null,
             BuildAtwReleaseMergeData,
             "GenerateAtwReleaseCertificate",
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     private async Task AttachCertificateAsync(
@@ -107,7 +114,8 @@ public class CertificateGenerationService : ICertificateGenerationService
         string? dedupeFileName,
         Func<WithdrawalRequest, DateTime, AtwCertificateMergeData> buildMerge,
         string auditAction,
-        CancellationToken cancellationToken)
+        int? withdrawalRequestLineId = null,
+        CancellationToken cancellationToken = default)
     {
         var entity = await LoadWithdrawalAsync(withdrawalRequestId, cancellationToken);
         var releasedAt = PhilippinesTime.UtcNow;
@@ -116,10 +124,16 @@ public class CertificateGenerationService : ICertificateGenerationService
             ?? CertificateJson.GetDefaultLayoutJson(certType);
 
         var mergeData = buildMerge(entity, releasedAt);
+        mergeData.IssuedByName = await ResolveIssuerNameAsync(generatedByUserId, cancellationToken);
+        var plainToken = _verification.GeneratePlainToken();
+        mergeData.VerificationUrl = _verification.BuildVerifyUrl(plainToken);
+
         var pdfBytes = CertificatePdfRenderer.RenderAtw(
             CertificateJson.ParseLayout(layoutJson, certType),
             mergeData,
             _contentRootPath);
+
+        var fingerprint = _verification.ComputeDocumentFingerprint(pdfBytes);
 
         var uploadDir = ResolveUploadDir();
         Directory.CreateDirectory(uploadDir);
@@ -131,22 +145,29 @@ public class CertificateGenerationService : ICertificateGenerationService
         var relativePath = $"/uploads/{storedName}";
         var fileName = displayNameOverride ?? ResolveDisplayName(certType, entity);
 
+        var documentsToRemove = new List<WithdrawalDocument>();
         if (dedupeFileName is not null)
         {
-            var existingByName = await _db.WithdrawalDocuments
+            documentsToRemove = await _db.WithdrawalDocuments
                 .Where(d => d.WithdrawalRequestId == withdrawalRequestId
                     && d.DocumentType == docType
                     && d.FileName == dedupeFileName)
                 .ToListAsync(cancellationToken);
-            foreach (var doc in existingByName)
-                _db.Remove(doc);
         }
         else
         {
-            var existing = await _db.WithdrawalDocuments
+            documentsToRemove = await _db.WithdrawalDocuments
                 .Where(d => d.WithdrawalRequestId == withdrawalRequestId && d.DocumentType == docType)
                 .ToListAsync(cancellationToken);
-            foreach (var doc in existing)
+        }
+
+        if (documentsToRemove.Count > 0)
+        {
+            await _verification.RevokeByDocumentIdsAsync(
+                documentsToRemove.Select(d => d.Id),
+                "Superseded by newly generated certificate",
+                cancellationToken);
+            foreach (var doc in documentsToRemove)
                 _db.Remove(doc);
         }
 
@@ -162,6 +183,27 @@ public class CertificateGenerationService : ICertificateGenerationService
         };
 
         _db.Add(document);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _verification.RegisterAsync(
+            plainToken,
+            withdrawalRequestId,
+            document.Id,
+            certType,
+            fingerprint,
+            new CertificateVerificationRegistration(
+                entity.AtwNumber,
+                entity.ReferenceNo,
+                entity.ShippingLine.Name,
+                entity.Trucker.FullName ?? entity.Trucker.Username,
+                entity.CurrentDepot.Name,
+                mergeData.ContainerNo ?? string.Empty,
+                mergeData.ContainerSize ?? string.Empty,
+                mergeData.ContainerType ?? string.Empty,
+                mergeData.Destination ?? string.Empty,
+                withdrawalRequestLineId),
+            cancellationToken);
+
         _auditService.QueueLog(generatedByUserId, auditAction, "Withdrawal", entity.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
     }
@@ -237,6 +279,7 @@ public class CertificateGenerationService : ICertificateGenerationService
             IssueDate = FormatDate(entity.IssueDate),
             ExpirationDate = FormatDate(entity.ExpirationDate),
             Remarks = entity.Remarks,
+            GeneratedAt = FormatDateTime(PhilippinesTime.UtcNow),
             ContainerLines = lines
                 .Select(l => new AtwContainerLineMergeData
                 {
@@ -277,5 +320,17 @@ public class CertificateGenerationService : ICertificateGenerationService
 
         var invalid = Path.GetInvalidFileNameChars();
         return new string(value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
+    }
+
+    private async Task<string> ResolveIssuerNameAsync(int userId, CancellationToken cancellationToken)
+    {
+        var user = await _db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user is null)
+            return string.Empty;
+
+        return !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Username;
     }
 }

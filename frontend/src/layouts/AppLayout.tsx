@@ -37,6 +37,8 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
+import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined'
+import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { roleLabel } from '../config/roleConfig'
@@ -58,6 +60,7 @@ import { useEvaluatorPendingEvaluationCount } from '../hooks/useEvaluatorPending
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
 import NotificationBell from '../components/NotificationBell'
+import TruckerBroadcastModal from '../components/TruckerBroadcastModal'
 import IcsLogo from '../components/brand/IcsLogo'
 
 const drawerWidth = 272
@@ -109,9 +112,11 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
   evaluatorAtw: <AssignmentTurnedInOutlinedIcon fontSize="small" />,
   depotWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
+  depotBroadcasts: <CampaignOutlinedIcon fontSize="small" />,
   truckerWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
   truckerQr: <QrCode2Icon fontSize="small" />,
   truckerQrPrint: <QrCode2Icon fontSize="small" />,
+  truckerNotifications: <NotificationsNoneOutlinedIcon fontSize="small" />,
   adminUsers: <PeopleIcon fontSize="small" />,
   adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
   adminMasterData: <WarehouseIcon fontSize="small" />,
@@ -552,6 +557,7 @@ export default function AppLayout() {
       >
         <Outlet />
       </Box>
+      <TruckerBroadcastModal />
     </Box>
   )
 }

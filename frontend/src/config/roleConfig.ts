@@ -35,6 +35,7 @@ export const ROLE_CATALOG: RoleInfo[] = [
     capabilities: [
       'Assign schedule slots',
       'Daily returns view',
+      'Send depot broadcasts to truckers',
       'Depot reports',
     ],
   },

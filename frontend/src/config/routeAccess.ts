@@ -21,8 +21,10 @@ export type AppPageKey =
   | 'truckerWithdrawals'
   | 'evaluatorAtw'
   | 'depotWithdrawals'
+  | 'depotBroadcasts'
   | 'truckerQr'
   | 'truckerQrPrint'
+  | 'truckerNotifications'
   | 'adminUsers'
   | 'adminRoles'
   | 'adminMasterData'
@@ -203,6 +205,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Review and approve container withdrawal requests at your CY',
     showInNav: true,
   },
+  depotBroadcasts: {
+    key: 'depotBroadcasts',
+    label: 'Broadcast',
+    path: '/depot/broadcasts',
+    group: 'Depot',
+    description: 'Send yard advisories and operational updates to truckers',
+    showInNav: true,
+  },
   truckerQr: {
     key: 'truckerQr',
     label: 'Pre-forecast QR',
@@ -217,6 +227,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/trucker/qr/print',
     group: 'Trucker',
     description: 'Printable QR pass for a confirmed return',
+    showInNav: false,
+  },
+  truckerNotifications: {
+    key: 'truckerNotifications',
+    label: 'Notifications',
+    path: '/trucker/notifications',
+    group: 'Trucker',
+    description: 'Depot broadcasts and ICS alerts',
     showInNav: false,
   },
   adminUsers: {
@@ -312,6 +330,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'depotDailyReturns',
     'depotSchedules',
     'depotWithdrawals',
+    'depotBroadcasts',
     'depotReports',
   ],
   Trucker: [
@@ -325,6 +344,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'truckerWithdrawals',
     'truckerQr',
     'truckerQrPrint',
+    'truckerNotifications',
   ],
   Administrator: ADMINISTRATOR_PAGES,
 }
@@ -336,6 +356,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'truckerReturns',
   'truckerReports',
   'truckerQr',
+  'truckerNotifications',
   'truckerWithdrawals',
   'evaluatorAtw',
   'evaluatorReports',
@@ -523,6 +544,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'depotDailyReturns',
   'depotSchedules',
   'depotWithdrawals',
+  'depotBroadcasts',
   'truckerReturns',
   'truckerPayments',
   'truckerDemurrageBilling',

@@ -8,6 +8,7 @@ import SignUpPage from './pages/SignUpPage'
 import LandingPage from './pages/LandingPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import { CertificateVerifyPage } from './routes/lazyPages'
 import AppLayout from './layouts/AppLayout'
 import RoleRouteGuard from './components/auth/RoleRouteGuard'
 import {
@@ -27,6 +28,7 @@ import {
   DashboardPage,
   DemurrageBillingDetailPage,
   DepotSchedulesPage,
+  DepotBroadcastPage,
   DepotWithdrawalDetailPage,
   DepotWithdrawalsPage,
   EvaluationDetailPage,
@@ -46,6 +48,7 @@ import {
   ScheduleDetailPage,
   TruckerDemurrageBillingPage,
   TruckerPaymentUploadPage,
+  TruckerNotificationsPage,
   TruckerPaymentsPage,
   TruckerQrPage,
   TruckerReturnDetailPage,
@@ -117,6 +120,14 @@ export default function App() {
       <Route path="/signup/:role" element={<SignUpPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/verify/certificate/:token"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <CertificateVerifyPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/trucker/qr/print/:bookingId"
         element={
@@ -297,6 +308,14 @@ export default function App() {
             </RoleRouteGuard>
           }
         />
+        <Route
+          path="depot/broadcasts"
+          element={
+            <RoleRouteGuard>
+              <DepotBroadcastPage />
+            </RoleRouteGuard>
+          }
+        />
         <Route path="depot/payments" element={<Navigate to="/admin/payments" replace />} />
         <Route
           path="admin/payments"
@@ -327,6 +346,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <TruckerReturnDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/notifications"
+          element={
+            <RoleRouteGuard>
+              <TruckerNotificationsPage />
             </RoleRouteGuard>
           }
         />

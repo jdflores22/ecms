@@ -312,3 +312,21 @@ export function clampMinScheduleDate(dateStr: string, minDate = todayIsoDate()):
 export function formatPeso(amount: number): string {
   return pesoFormatter.format(amount)
 }
+
+/** Relative time for notification lists (e.g. "about 2 months ago"). */
+export function formatRelativeTime(value: string | Date): string {
+  const date = toDate(value)
+  const diffMs = Date.now() - date.getTime()
+  if (diffMs < 0) return 'just now'
+
+  const minutes = Math.floor(diffMs / 60_000)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  const months = Math.floor(days / 30)
+
+  if (months >= 1) return months === 1 ? 'about 1 month ago' : `about ${months} months ago`
+  if (days >= 1) return days === 1 ? 'about 1 day ago' : `about ${days} days ago`
+  if (hours >= 1) return hours === 1 ? 'about 1 hour ago' : `about ${hours} hours ago`
+  if (minutes >= 1) return minutes === 1 ? 'about 1 minute ago' : `about ${minutes} minutes ago`
+  return 'just now'
+}

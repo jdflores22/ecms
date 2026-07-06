@@ -17,12 +17,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ecms.trucker.R
+import com.ecms.trucker.data.local.TokenStore
 import com.ecms.trucker.data.model.*
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
+import com.ecms.trucker.ui.theme.icsHexAlpha
+import com.ecms.trucker.ui.util.formatScheduleDate
+import com.ecms.trucker.ui.util.formatScheduleTime
 import com.ecms.trucker.util.QrCodeGenerator
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -40,8 +45,10 @@ private var WithdrawalsListCache: WithdrawalsListCacheEntry? = null
 fun WithdrawalsListScreen(
     repository: TruckerRepository,
     onOpenNotifications: () -> Unit,
+    notificationUnreadCount: Int = 0,
     onItemClick: (Int) -> Unit,
     onNewClick: () -> Unit,
+    onScheduleClick: () -> Unit,
 ) {
     val cachedItems = WithdrawalsListCache
         ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= WITHDRAWALS_LIST_CACHE_TTL_MS }
@@ -78,12 +85,31 @@ fun WithdrawalsListScreen(
     }
     LaunchedEffect(Unit) { load(force = cachedItems.isEmpty()) }
 
+    val summary = remember(items) {
+        WithdrawalListSummary(
+            total = items.size,
+            awaiting = items.count { it.status.equals("Booked", true) || it.status.equals("CyAssigned", true) },
+            scheduled = items.count { it.status.equals("Scheduled", true) },
+            approved = items.count {
+                it.status.equals("Approved", true) ||
+                    it.status.equals("Released", true) ||
+                    it.status.equals("Completed", true)
+            },
+        )
+    }
+
     IcsScreenScaffold(
         title = stringResource(R.string.withdrawals_title),
         branded = true,
         onNotificationClick = onOpenNotifications,
+        notificationUnreadCount = notificationUnreadCount,
         refreshing = loading,
         onRefresh = { load(force = true) },
+        actions = {
+            TextButton(onClick = onScheduleClick) {
+                Text(stringResource(R.string.withdrawal_pickup_schedule_btn))
+            }
+        },
         floatingActionButton = {
             IcsFab(onClick = onNewClick) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.content_desc_new_withdrawal))
@@ -95,6 +121,9 @@ fun WithdrawalsListScreen(
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             items.isEmpty() -> EmptyState(stringResource(R.string.withdrawal_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
+                item {
+                    WithdrawalSummaryGrid(summary, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                }
                 items(items) { w ->
                     IcsListItemCard(
                         title = w.referenceNo,
@@ -113,9 +142,11 @@ fun WithdrawalsListScreen(
 fun WithdrawalDetailScreen(
     id: Int,
     repository: TruckerRepository,
+    tokenStore: TokenStore,
     onBack: () -> Unit,
 ) {
     var withdrawal by remember { mutableStateOf<WithdrawalDto?>(null) }
+    var documents by remember { mutableStateOf<List<WithdrawalDocumentDto>>(emptyList()) }
     var gatePass by remember { mutableStateOf<WithdrawalGatePassDto?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -138,11 +169,14 @@ fun WithdrawalDetailScreen(
             loading = true
             runCatching {
                 withdrawal = repository.getWithdrawal(id)
+                documents = runCatching { repository.getWithdrawalDocuments(id) }.getOrDefault(emptyList())
                 if (withdrawal!!.status.equals("Approved", true) ||
                     withdrawal!!.status.equals("Released", true) ||
                     withdrawal!!.status.equals("Completed", true)
                 ) {
                     gatePass = runCatching { repository.getWithdrawalGatePass(id) }.getOrNull()
+                } else {
+                    gatePass = null
                 }
             }.onFailure { error = it.message }
             loading = false
@@ -178,6 +212,32 @@ fun WithdrawalDetailScreen(
                                 WithdrawalStatusTimeline(status = w.status)
                             },
                         )
+                    }
+                    w.pickupSchedule?.let { schedule ->
+                        item {
+                            val slotSuffix = if (schedule.slotNo > 0) {
+                                stringResource(R.string.withdrawal_pickup_slot, schedule.slotNo)
+                            } else {
+                                ""
+                            }
+                            Surface(
+                                color = icsHexAlpha(IcsColors.Primary, 0.08f),
+                                shape = MaterialTheme.shapes.medium,
+                            ) {
+                                Text(
+                                    stringResource(
+                                        R.string.withdrawal_pickup_scheduled,
+                                        formatScheduleDate(schedule.date),
+                                        formatScheduleTime(schedule.time),
+                                        slotSuffix,
+                                        schedule.depotName,
+                                    ),
+                                    modifier = Modifier.padding(12.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = IcsColors.Primary,
+                                )
+                            }
+                        }
                     }
                     item {
                         IcsSectionCard(title = stringResource(R.string.withdrawal_summary_title)) {
@@ -259,6 +319,15 @@ fun WithdrawalDetailScreen(
                             }
                         }
                     }
+                    if (documents.isNotEmpty()) {
+                        item {
+                            WithdrawalReleaseCertificates(
+                                documents = documents,
+                                tokenStore = tokenStore,
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
                     item {
                         IcsContainerLinesSection(lines = w.lines, summary = w.containerSummary)
                     }
@@ -267,6 +336,142 @@ fun WithdrawalDetailScreen(
                             Text(msg, color = IcsColors.Error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+private data class WithdrawalListSummary(
+    val total: Int,
+    val awaiting: Int,
+    val scheduled: Int,
+    val approved: Int,
+)
+
+@Composable
+private fun WithdrawalSummaryGrid(summary: WithdrawalListSummary, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WithdrawalSummaryCard(
+                label = stringResource(R.string.withdrawal_summary_total),
+                value = summary.total,
+                color = IcsColors.Primary,
+                modifier = Modifier.weight(1f),
+            )
+            WithdrawalSummaryCard(
+                label = stringResource(R.string.withdrawal_summary_awaiting),
+                value = summary.awaiting,
+                color = IcsColors.Warning,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WithdrawalSummaryCard(
+                label = stringResource(R.string.withdrawal_summary_scheduled),
+                value = summary.scheduled,
+                color = IcsColors.Primary,
+                modifier = Modifier.weight(1f),
+            )
+            WithdrawalSummaryCard(
+                label = stringResource(R.string.withdrawal_summary_approved),
+                value = summary.approved,
+                color = IcsColors.Success,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WithdrawalSummaryCard(
+    label: String,
+    value: Int,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = IcsColors.TextSecondary)
+            Text(
+                "$value",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = color,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WithdrawalScheduleScreen(
+    repository: TruckerRepository,
+    onBack: () -> Unit,
+    onItemClick: (Int) -> Unit,
+) {
+    var items by remember { mutableStateOf<List<WithdrawalScheduleDto>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        scope.launch {
+            loading = true
+            runCatching { items = repository.getMyWithdrawalSchedules() }
+                .onFailure { error = it.message }
+            loading = false
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    val upcomingCount = items.count { it.status.equals("Scheduled", true) }
+
+    IcsScreenScaffold(
+        title = stringResource(R.string.withdrawal_schedule_title),
+        subtitle = stringResource(R.string.withdrawal_schedule_subtitle),
+        onBack = onBack,
+        refreshing = loading,
+        onRefresh = { load() },
+    ) { padding ->
+        when {
+            loading -> LoadingBox(Modifier.padding(padding))
+            error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
+            items.isEmpty() -> EmptyState(stringResource(R.string.withdrawal_schedule_empty), Modifier.padding(padding))
+            else -> LazyColumn(
+                Modifier.padding(padding),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                item {
+                    Text(
+                        stringResource(R.string.withdrawal_schedule_upcoming, upcomingCount),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                items(items) { row ->
+                    IcsListItemCard(
+                        title = row.referenceNo,
+                        subtitle = buildString {
+                            append(formatScheduleDate(row.date))
+                            append(" · ")
+                            append(formatScheduleTime(row.time))
+                            if (row.slotNo > 0) append(" · Slot ${row.slotNo}")
+                            append("\n")
+                            append(row.depotName)
+                            append(" · ")
+                            append(row.containerSummary)
+                        },
+                        status = row.status,
+                        onClick = { onItemClick(row.withdrawalRequestId) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
                 }
             }
         }

@@ -31,10 +31,11 @@ public static class DependencyInjection
         services.AddScoped<IWithdrawalService, WithdrawalService>();
         services.AddScoped<ICertificateTemplateService, CertificateTemplateService>();
         services.AddScoped<ICertificateGenerationService, CertificateGenerationService>();
+        services.AddScoped<ICertificateVerificationService, CertificateVerificationService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
         services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();
         services.AddScoped<IDashboardService, DashboardService>();
-        services.AddScoped<IDepotService, DepotService>();
+        services.AddScoped<IDepotBroadcastService, DepotBroadcastService>();
         services.AddScoped<IShippingLineService, ShippingLineService>();
         services.AddScoped<IContainerService, ContainerService>();
         services.AddScoped<IContainerSizeService, ContainerSizeService>();

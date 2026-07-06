@@ -199,6 +199,12 @@ interface EcmsApiService {
     @GET("withdrawals/{id}/gate-pass")
     suspend fun getWithdrawalGatePass(@Path("id") id: Int): WithdrawalGatePassDto
 
+    @GET("withdrawals/schedules/mine")
+    suspend fun getMyWithdrawalSchedules(): List<WithdrawalScheduleDto>
+
+    @GET("withdrawals/pending-action/count")
+    suspend fun getWithdrawalPendingActionCount(): CountResponse
+
     // Demurrage
     @GET("demurrage-billing")
     suspend fun listDemurrageBillings(): List<DemurrageBillingDto>

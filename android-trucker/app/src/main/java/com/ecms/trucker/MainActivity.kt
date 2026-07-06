@@ -1,6 +1,7 @@
 package com.ecms.trucker
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,22 +22,32 @@ import androidx.navigation.navArgument
 import com.ecms.trucker.data.local.AuthState
 import com.ecms.trucker.push.PushNotificationManager
 import com.ecms.trucker.push.PushTokenRegistrar
+import com.ecms.trucker.ui.components.TruckerBroadcastModal
 import com.ecms.trucker.ui.navigation.MainBottomBar
 import com.ecms.trucker.ui.navigation.MainTab
+import com.ecms.trucker.ui.navigation.NotificationNavigator
 import com.ecms.trucker.ui.navigation.Routes
 import com.ecms.trucker.ui.screens.*
 import com.ecms.trucker.ui.screens.auth.ForgotPasswordScreen
 import com.ecms.trucker.ui.screens.auth.LoginScreen
 import com.ecms.trucker.ui.screens.auth.SignUpScreen
 import com.ecms.trucker.ui.theme.EcmsTruckerTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private data class PushNavigation(
+    val linkPath: String?,
+    val category: String?,
+)
+
 class MainActivity : ComponentActivity() {
+
+    private var pendingPushNavigation by mutableStateOf<PushNavigation?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as EcmsTruckerApp).container
-        val openNotificationsFromPush =
-            intent?.getBooleanExtra(PushNotificationManager.EXTRA_OPEN_NOTIFICATIONS, false) == true
+        pendingPushNavigation = extractPushNavigation(intent)
 
         setContent {
             EcmsTruckerTheme {
@@ -45,7 +56,8 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 var paymentBadge by remember { mutableIntStateOf(0) }
                 var withdrawalBadge by remember { mutableIntStateOf(0) }
-                var pendingOpenNotifications by remember { mutableStateOf(openNotificationsFromPush) }
+                var notificationBadge by remember { mutableIntStateOf(0) }
+                var pushNavigation by remember { mutableStateOf(pendingPushNavigation) }
 
                 val notificationPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
@@ -58,6 +70,17 @@ class MainActivity : ComponentActivity() {
                 suspend fun logout() {
                     PushTokenRegistrar.unregister(context, container.api)
                     container.authRepository.logout()
+                }
+
+                suspend fun refreshBadges() {
+                    runCatching {
+                        val d = container.truckerRepository.getDashboard()
+                        paymentBadge = d.pendingPayments
+                        withdrawalBadge = d.issuedWithdrawalsAwaitingUpload
+                    }
+                    runCatching {
+                        notificationBadge = container.truckerRepository.getUnreadNotificationCount()
+                    }
                 }
 
                 LaunchedEffect(Unit) {
@@ -76,25 +99,31 @@ class MainActivity : ComponentActivity() {
                                 PushTokenRegistrar.sync(context, container.api)
                             }
                         }
-                        runCatching {
-                            val d = container.truckerRepository.getDashboard()
-                            paymentBadge = d.pendingPayments
-                            withdrawalBadge = d.issuedWithdrawalsAwaitingUpload
+                        refreshBadges()
+                        while (true) {
+                            delay(30_000)
+                            refreshBadges()
                         }
                     } else {
                         paymentBadge = 0
                         withdrawalBadge = 0
+                        notificationBadge = 0
                     }
+                }
+
+                LaunchedEffect(pendingPushNavigation) {
+                    pushNavigation = pendingPushNavigation
                 }
 
                 key(authState.isLoggedIn) {
                     val navController = rememberNavController()
 
-                    LaunchedEffect(authState.isLoggedIn, pendingOpenNotifications) {
-                        if (authState.isLoggedIn && pendingOpenNotifications) {
-                            navController.navigate(Routes.NOTIFICATIONS)
-                            pendingOpenNotifications = false
-                        }
+                    LaunchedEffect(authState.isLoggedIn, pushNavigation) {
+                        val target = pushNavigation ?: return@LaunchedEffect
+                        if (!authState.isLoggedIn) return@LaunchedEffect
+                        NotificationNavigator.navigate(navController, target.linkPath, target.category)
+                        pushNavigation = null
+                        pendingPushNavigation = null
                     }
 
                     if (!authState.isLoggedIn) {
@@ -122,6 +151,8 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
+                        TruckerBroadcastModal(repository = container.truckerRepository)
+
                         NavHost(navController = navController, startDestination = Routes.MAIN) {
                             composable(Routes.MAIN) {
                                 val tabNav = rememberNavController()
@@ -167,6 +198,7 @@ class MainActivity : ComponentActivity() {
                                                 repository = container.truckerRepository,
                                                 userName = displayName,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                                                notificationUnreadCount = notificationBadge,
                                                 onNavigate = { route ->
                                                     when (route) {
                                                         "returns" -> tabNav.navigate(MainTab.Returns.route)
@@ -180,6 +212,7 @@ class MainActivity : ComponentActivity() {
                                             ReturnsListScreen(
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                                                notificationUnreadCount = notificationBadge,
                                                 onItemClick = { navController.navigate(Routes.returnDetail(it)) },
                                             )
                                         }
@@ -187,14 +220,17 @@ class MainActivity : ComponentActivity() {
                                             WithdrawalsListScreen(
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                                                notificationUnreadCount = notificationBadge,
                                                 onItemClick = { navController.navigate(Routes.withdrawalDetail(it)) },
                                                 onNewClick = { navController.navigate(Routes.WITHDRAWAL_NEW) },
+                                                onScheduleClick = { navController.navigate(Routes.WITHDRAWAL_SCHEDULE) },
                                             )
                                         }
                                         composable(MainTab.Payments.route) {
                                             PaymentsListScreen(
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                                                notificationUnreadCount = notificationBadge,
                                                 onOpenPayment = { navController.navigate(Routes.paymentUpload(it)) },
                                             )
                                         }
@@ -202,6 +238,7 @@ class MainActivity : ComponentActivity() {
                                             MenuScreen(
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                                                notificationUnreadCount = notificationBadge,
                                                 onNavigate = { navController.navigate(it) },
                                                 onLogout = { scope.launch { logout() } },
                                             )
@@ -290,6 +327,13 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                 )
                             }
+                            composable(Routes.WITHDRAWAL_SCHEDULE) {
+                                WithdrawalScheduleScreen(
+                                    repository = container.truckerRepository,
+                                    onBack = { navController.popBackStack() },
+                                    onItemClick = { navController.navigate(Routes.withdrawalDetail(it)) },
+                                )
+                            }
                             composable(
                                 Routes.WITHDRAWAL_DETAIL,
                                 arguments = listOf(navArgument("id") { type = NavType.IntType }),
@@ -297,6 +341,7 @@ class MainActivity : ComponentActivity() {
                                 WithdrawalDetailScreen(
                                     id = entry.arguments?.getInt("id") ?: 0,
                                     repository = container.truckerRepository,
+                                    tokenStore = container.tokenStore,
                                     onBack = { navController.popBackStack() },
                                 )
                             }
@@ -335,6 +380,7 @@ class MainActivity : ComponentActivity() {
                                 NotificationsScreen(
                                     repository = container.truckerRepository,
                                     onBack = { navController.popBackStack() },
+                                    onUnreadCountChanged = { notificationBadge = it },
                                 )
                             }
                         }
@@ -342,5 +388,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingPushNavigation = extractPushNavigation(intent)
+    }
+
+    private fun extractPushNavigation(intent: Intent?): PushNavigation? {
+        if (intent == null) return null
+        val linkPath = intent.getStringExtra(PushNotificationManager.EXTRA_LINK_PATH)
+        val category = intent.getStringExtra(PushNotificationManager.EXTRA_CATEGORY)
+        val openNotifications =
+            intent.getBooleanExtra(PushNotificationManager.EXTRA_OPEN_NOTIFICATIONS, false)
+        if (!openNotifications && linkPath.isNullOrBlank() && category.isNullOrBlank()) {
+            return null
+        }
+        return PushNavigation(
+            linkPath = linkPath?.takeIf { it.isNotBlank() },
+            category = category?.takeIf { it.isNotBlank() }
+                ?: if (openNotifications) "DepotBroadcast" else null,
+        )
     }
 }

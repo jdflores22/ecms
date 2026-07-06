@@ -14,11 +14,12 @@ import {
   Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { notificationApi, type Notification } from '../services/api'
-import { formatDateTime } from '../utils/datetime'
+import { formatDateTime, formatRelativeTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
 import { InlineLoadingSkeleton } from './layout/SkeletonPrimitives'
+import { useAppSelector } from '../store/hooks'
 
 const primaryDark = '#0B3D91'
 
@@ -31,6 +32,7 @@ const categoryColor: Record<string, 'default' | 'primary' | 'secondary' | 'succe
   QR: 'success',
   Auth: 'default',
   Profile: 'default',
+  DepotBroadcast: 'warning',
 }
 
 function hexToRgba(hex: string, alpha: number) {
@@ -43,6 +45,8 @@ function hexToRgba(hex: string, alpha: number) {
 
 export default function NotificationBell() {
   const navigate = useNavigate()
+  const role = useAppSelector((s) => s.auth.user?.role)
+  const notificationsPath = role === 'Trucker' ? '/trucker/notifications' : null
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [items, setItems] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -89,7 +93,13 @@ export default function NotificationBell() {
       setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)))
     }
     handleClose()
-    if (item.linkPath) navigate(item.linkPath)
+    if (item.linkPath) {
+      navigate(item.linkPath)
+      return
+    }
+    if (item.category === 'DepotBroadcast' && notificationsPath) {
+      navigate(notificationsPath)
+    }
   }
 
   const handleMarkAllRead = async () => {
@@ -179,8 +189,10 @@ export default function NotificationBell() {
                         {item.message}
                       </Typography>
                       <Typography variant="caption" component="span" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
-                        {formatDateTime(item.createdAt)}
-                        {item.actorName ? ` · ${item.actorName}` : ''}
+                        {item.category === 'DepotBroadcast'
+                          ? formatRelativeTime(item.createdAt)
+                          : formatDateTime(item.createdAt)}
+                        {item.actorName && item.category !== 'DepotBroadcast' ? ` · ${item.actorName}` : ''}
                       </Typography>
                     </>
                   }
@@ -188,6 +200,23 @@ export default function NotificationBell() {
               </ListItemButton>
             ))}
           </List>
+        )}
+
+        {notificationsPath && items.length > 0 && (
+          <>
+            <Divider />
+            <Box sx={{ p: 1.5, textAlign: 'center' }}>
+              <Button
+                component={Link}
+                to={notificationsPath}
+                onClick={handleClose}
+                size="small"
+                sx={{ fontWeight: 700, textTransform: 'none' }}
+              >
+                View all notifications
+              </Button>
+            </Box>
+          </>
         )}
       </Popover>
     </>

@@ -25,6 +25,8 @@ public static class RolePageKeys
     public const string TruckerWithdrawals = "truckerWithdrawals";
     public const string EvaluatorAtw = "evaluatorAtw";
     public const string DepotWithdrawals = "depotWithdrawals";
+    public const string DepotBroadcasts = "depotBroadcasts";
+    public const string TruckerNotifications = "truckerNotifications";
     public const string TruckerQr = "truckerQr";
     public const string TruckerQrPrint = "truckerQrPrint";
     public const string AdminUsers = "adminUsers";
@@ -43,7 +45,7 @@ public static class RolePageKeys
         DepotDailyReturns, DepotSchedules,
         AdminPayments,
         TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
-        EvaluatorAtw, DepotWithdrawals,
+        EvaluatorAtw, DepotWithdrawals, DepotBroadcasts, TruckerNotifications,
         AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue,
     };
 
@@ -119,6 +121,7 @@ public static class RoleCatalogDefaults
                 RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preforecast, RolePageKeys.TruckerReports,
                 RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments, RolePageKeys.TruckerDemurrageBilling,
                 RolePageKeys.TruckerWithdrawals, RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
+                RolePageKeys.TruckerNotifications,
             }),
         new(
             "ShippingLineEvaluator",
@@ -141,12 +144,14 @@ public static class RoleCatalogDefaults
             {
                 "Assign schedule slots",
                 "Daily returns view",
+                "Send depot broadcasts to truckers",
                 "Depot reports",
             },
             new[]
             {
                 RolePageKeys.Dashboard, RolePageKeys.Profile,
                 RolePageKeys.DepotDailyReturns, RolePageKeys.DepotSchedules, RolePageKeys.DepotWithdrawals,
+                RolePageKeys.DepotBroadcasts,
                 RolePageKeys.DepotReports,
             }),
     };

@@ -5,6 +5,7 @@ import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined'
 import SystemUpdateAltOutlinedIcon from '@mui/icons-material/SystemUpdateAltOutlined'
 import { Navigate } from 'react-router-dom'
 import { LIST_PRIMARY } from '../../components/layout/ListPagePrimitives'
+import { ICS_BRAND } from '../../config/brandCopy'
 import {
   APP_VERSION,
   formatReleaseDate,
@@ -88,7 +89,7 @@ export default function AdminVersionPage() {
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="overline" sx={{ opacity: 0.85, letterSpacing: 1.2 }}>
-              ECMS release
+              {ICS_BRAND.shortName} release
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
               <Typography variant="h5" sx={{ fontWeight: 800 }}>

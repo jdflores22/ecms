@@ -39,6 +39,10 @@ import ViewModuleOutlinedIcon from '@mui/icons-material/ViewModuleOutlined'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CertificateLayoutCanvas, { ElementPaletteItem } from './CertificateLayoutCanvas'
+import CertificateElementLayoutControls from './CertificateElementLayoutControls'
+import CertificateRowElementEditor from './CertificateRowElementEditor'
+import CertificateTripleRowElementEditor from './CertificateTripleRowElementEditor'
+import { SignatureDigitalSealControls } from './certificateDigitalSeal'
 import { certificateTemplateApi, type CertificateTemplate } from '../../services/api'
 import { stashCertificatePreview } from '../../utils/certificatePreviewStorage'
 import {
@@ -59,10 +63,19 @@ const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 const PALETTE_ITEMS: { type: CertificateElementType; label: string; description: string }[] = [
   { type: 'title', label: 'Title', description: 'Large heading text' },
+  { type: 'subtitle', label: 'Subtitle', description: 'Secondary heading' },
   { type: 'text', label: 'Static text', description: 'Paragraph or clause' },
   { type: 'field', label: 'Data field', description: 'Label + merge value' },
+  { type: 'value', label: 'Value only', description: 'Merge value without label' },
+  { type: 'columns', label: 'Two columns', description: 'Side-by-side field pair' },
   { type: 'table', label: 'Container table', description: 'Container lines grid' },
   { type: 'image', label: 'Image', description: 'Logo, stamp, or header art' },
+  { type: 'signature', label: 'Signature', description: 'Sign-off block with line' },
+  { type: 'stamp', label: 'Stamp badge', description: 'Bordered status label' },
+  { type: 'qrcode', label: 'Verification QR', description: 'Scan to verify document' },
+  { type: 'row', label: 'Side-by-side row', description: 'Two columns: image, QR, signature, stamp' },
+  { type: 'tripleRow', label: 'Three-column row', description: 'Three columns: image, QR, signature, stamp' },
+  { type: 'footer', label: 'Footer', description: 'Small print + timestamp' },
   { type: 'spacer', label: 'Spacer', description: 'Vertical whitespace' },
   { type: 'rule', label: 'Horizontal rule', description: 'Divider line' },
 ]
@@ -600,10 +613,38 @@ function ElementEditor({
   mergeFields: CertificateMergeField[]
   onChange: (next: CertificateLayoutElement) => void
 }) {
+  return (
+    <Box sx={{ display: 'grid', gap: 1.5 }}>
+      <ElementSpecificEditor
+        element={element}
+        templateId={templateId}
+        mergeFields={mergeFields}
+        onChange={onChange}
+      />
+      <CertificateElementLayoutControls element={element} onChange={onChange} />
+    </Box>
+  )
+}
+
+function ElementSpecificEditor({
+  element,
+  templateId,
+  mergeFields,
+  onChange,
+}: {
+  element: CertificateLayoutElement
+  templateId: number
+  mergeFields: CertificateMergeField[]
+  onChange: (next: CertificateLayoutElement) => void
+}) {
   const fieldBindings = mergeFields.filter((f) => f.kind === 'field')
 
   const boldToggle =
-    element.type === 'title' || element.type === 'text' || element.type === 'field' ? (
+    element.type === 'title' ||
+    element.type === 'subtitle' ||
+    element.type === 'text' ||
+    element.type === 'field' ||
+    element.type === 'value' ? (
       <FormControlLabel
         control={
           <Switch
@@ -617,7 +658,37 @@ function ElementEditor({
       />
     ) : null
 
-  if (element.type === 'title' || element.type === 'text') {
+  const alignSelect = (align: string, onAlign: (value: string) => void) => (
+    <FormControl size="small" sx={fieldSx}>
+      <InputLabel>Align</InputLabel>
+      <Select label="Align" value={align} onChange={(e) => onAlign(e.target.value)}>
+        <MenuItem value="left">Left</MenuItem>
+        <MenuItem value="center">Center</MenuItem>
+        <MenuItem value="right">Right</MenuItem>
+      </Select>
+    </FormControl>
+  )
+
+  const bindingSelect = (
+    binding: string,
+    onBinding: (value: string) => void,
+    label = 'Data binding',
+    allowEmpty = false,
+  ) => (
+    <FormControl size="small" sx={fieldSx}>
+      <InputLabel>{label}</InputLabel>
+      <Select label={label} value={binding} onChange={(e) => onBinding(e.target.value)}>
+        {allowEmpty && <MenuItem value="">(blank line)</MenuItem>}
+        {fieldBindings.map((field) => (
+          <MenuItem key={field.key} value={field.key}>
+            {field.label}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  )
+
+  if (element.type === 'title' || element.type === 'subtitle' || element.type === 'text') {
     return (
       <Box sx={{ display: 'grid', gap: 1.5 }}>
         <TextField
@@ -647,6 +718,240 @@ function ElementEditor({
         </FormControl>
         {boldToggle}
       </Box>
+    )
+  }
+
+  if (element.type === 'value') {
+    return (
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        {bindingSelect(element.binding, (binding) => onChange({ ...element, binding }))}
+        <TextField
+          label="Font size (pt)"
+          type="number"
+          size="small"
+          value={element.fontSize}
+          onChange={(e) => onChange({ ...element, fontSize: Number(e.target.value) || 11 })}
+          sx={fieldSx}
+        />
+        {alignSelect(element.align, (align) => onChange({ ...element, align }))}
+        {boldToggle}
+      </Box>
+    )
+  }
+
+  if (element.type === 'columns') {
+    return (
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+          Left column
+        </Typography>
+        <TextField
+          label="Label"
+          size="small"
+          value={element.leftLabel}
+          onChange={(e) => onChange({ ...element, leftLabel: e.target.value })}
+          sx={fieldSx}
+        />
+        {bindingSelect(element.leftBinding, (leftBinding) => onChange({ ...element, leftBinding }), 'Binding')}
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mt: 0.5 }}>
+          Right column
+        </Typography>
+        <TextField
+          label="Label"
+          size="small"
+          value={element.rightLabel}
+          onChange={(e) => onChange({ ...element, rightLabel: e.target.value })}
+          sx={fieldSx}
+        />
+        {bindingSelect(element.rightBinding, (rightBinding) => onChange({ ...element, rightBinding }), 'Binding')}
+        <TextField
+          label="Font size (pt)"
+          type="number"
+          size="small"
+          value={element.fontSize}
+          onChange={(e) => onChange({ ...element, fontSize: Number(e.target.value) || 11 })}
+          sx={fieldSx}
+        />
+      </Box>
+    )
+  }
+
+  if (element.type === 'signature') {
+    return (
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        <TextField
+          label="Caption"
+          size="small"
+          value={element.caption}
+          onChange={(e) => onChange({ ...element, caption: e.target.value })}
+          sx={fieldSx}
+        />
+        {bindingSelect(
+          element.nameBinding,
+          (nameBinding) => onChange({ ...element, nameBinding }),
+          'Name binding (optional)',
+          true,
+        )}
+        <TextField
+          label="Title / role"
+          size="small"
+          value={element.titleText}
+          onChange={(e) => onChange({ ...element, titleText: e.target.value })}
+          sx={fieldSx}
+          placeholder="e.g. Depot Manager"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={element.showLine}
+              onChange={(e) => onChange({ ...element, showLine: e.target.checked })}
+            />
+          }
+          label="Show signature line"
+        />
+        <SignatureDigitalSealControls
+          showDigitalSeal={element.showDigitalSeal}
+          digitalSealColor={element.digitalSealColor}
+          onShowDigitalSealChange={(showDigitalSeal) => onChange({ ...element, showDigitalSeal })}
+          onDigitalSealColorChange={(digitalSealColor) => onChange({ ...element, digitalSealColor })}
+          fieldSx={fieldSx}
+        />
+        {alignSelect(element.align, (align) => onChange({ ...element, align }))}
+        <TextField
+          label="Font size (pt)"
+          type="number"
+          size="small"
+          value={element.fontSize}
+          onChange={(e) => onChange({ ...element, fontSize: Number(e.target.value) || 10 })}
+          sx={fieldSx}
+        />
+      </Box>
+    )
+  }
+
+  if (element.type === 'footer') {
+    return (
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        <TextField
+          label="Prefix text"
+          size="small"
+          value={element.text}
+          onChange={(e) => onChange({ ...element, text: e.target.value })}
+          sx={fieldSx}
+        />
+        {bindingSelect(element.binding, (binding) => onChange({ ...element, binding }), 'Suffix binding')}
+        {alignSelect(element.align, (align) => onChange({ ...element, align }))}
+        <TextField
+          label="Font size (pt)"
+          type="number"
+          size="small"
+          value={element.fontSize}
+          onChange={(e) => onChange({ ...element, fontSize: Number(e.target.value) || 8 })}
+          sx={fieldSx}
+        />
+      </Box>
+    )
+  }
+
+  if (element.type === 'stamp') {
+    return (
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        <TextField
+          label="Stamp text"
+          size="small"
+          value={element.text}
+          onChange={(e) => onChange({ ...element, text: e.target.value })}
+          sx={fieldSx}
+        />
+        <TextField
+          label="Color (hex)"
+          size="small"
+          value={element.color}
+          onChange={(e) => onChange({ ...element, color: e.target.value })}
+          sx={fieldSx}
+          placeholder="#C62828"
+        />
+        {alignSelect(element.align, (align) => onChange({ ...element, align }))}
+        <TextField
+          label="Font size (pt)"
+          type="number"
+          size="small"
+          value={element.fontSize}
+          onChange={(e) => onChange({ ...element, fontSize: Number(e.target.value) || 22 })}
+          sx={fieldSx}
+        />
+      </Box>
+    )
+  }
+
+  if (element.type === 'qrcode') {
+    return (
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        <Typography variant="body2" color="text.secondary">
+          Encodes a unique verification URL when the certificate is generated. Each PDF gets its own secure token.
+        </Typography>
+        {alignSelect(element.align, (align) => onChange({ ...element, align }))}
+        <TextField
+          label="QR size (mm)"
+          type="number"
+          size="small"
+          value={element.widthMm}
+          onChange={(e) => onChange({ ...element, widthMm: Number(e.target.value) || 28 })}
+          sx={fieldSx}
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={element.showCaption}
+              onChange={(e) => onChange({ ...element, showCaption: e.target.checked })}
+            />
+          }
+          label="Show caption"
+        />
+        {element.showCaption && (
+          <>
+            <TextField
+              label="Caption"
+              size="small"
+              value={element.caption}
+              onChange={(e) => onChange({ ...element, caption: e.target.value })}
+              sx={fieldSx}
+            />
+            <TextField
+              label="Caption size (pt)"
+              type="number"
+              size="small"
+              value={element.captionFontSize}
+              onChange={(e) => onChange({ ...element, captionFontSize: Number(e.target.value) || 8 })}
+              sx={fieldSx}
+            />
+          </>
+        )}
+      </Box>
+    )
+  }
+
+  if (element.type === 'row') {
+    return (
+      <CertificateRowElementEditor
+        element={element}
+        templateId={templateId}
+        mergeFields={mergeFields}
+        onChange={onChange}
+      />
+    )
+  }
+
+  if (element.type === 'tripleRow') {
+    return (
+      <CertificateTripleRowElementEditor
+        element={element}
+        templateId={templateId}
+        mergeFields={mergeFields}
+        onChange={onChange}
+      />
     )
   }
 
@@ -840,7 +1145,54 @@ function ImageElementEditor({
         value={element.alt ?? ''}
         onChange={(e) => onChange({ ...element, alt: e.target.value })}
         sx={fieldSx}
+        helperText="Accessibility label (not shown on certificate)."
       />
+      <FormControlLabel
+        control={
+          <Switch
+            size="small"
+            checked={element.showTitle ?? false}
+            onChange={(e) => onChange({ ...element, showTitle: e.target.checked })}
+          />
+        }
+        label="Show title under image"
+      />
+      {(element.showTitle ?? false) && (
+        <>
+          <TextField
+            label="Title"
+            size="small"
+            value={element.title ?? ''}
+            onChange={(e) => onChange({ ...element, title: e.target.value })}
+            sx={fieldSx}
+            placeholder="e.g. Intelligent Container Solutions"
+          />
+          <TextField
+            label="Subtitle (optional)"
+            size="small"
+            value={element.subtitle ?? ''}
+            onChange={(e) => onChange({ ...element, subtitle: e.target.value })}
+            sx={fieldSx}
+            placeholder="e.g. Authorized depot"
+          />
+          <TextField
+            label="Title size (pt)"
+            type="number"
+            size="small"
+            value={element.titleFontSize ?? 10}
+            onChange={(e) => onChange({ ...element, titleFontSize: Number(e.target.value) || 10 })}
+            sx={fieldSx}
+          />
+          <TextField
+            label="Subtitle size (pt)"
+            type="number"
+            size="small"
+            value={element.subtitleFontSize ?? 8}
+            onChange={(e) => onChange({ ...element, subtitleFontSize: Number(e.target.value) || 8 })}
+            sx={fieldSx}
+          />
+        </>
+      )}
       <TextField
         label="Width (mm)"
         type="number"

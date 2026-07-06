@@ -1257,6 +1257,21 @@ export const notificationApi = {
   markAllRead: () => api.post('/notifications/read-all'),
 }
 
+export interface DepotBroadcast {
+  id: number
+  subject: string
+  message: string
+  recipientCount: number
+  createdByName: string
+  createdAt: string
+}
+
+export const depotBroadcastApi = {
+  list: () => api.get<DepotBroadcast[]>('/depot/broadcasts'),
+  send: (payload: { subject: string; message: string }) =>
+    api.post<DepotBroadcast>('/depot/broadcasts', payload),
+}
+
 export interface DailyReturnReportRow {
   date: string
   scheduled: number

@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.9.1'
+export const APP_VERSION = '1.10.0'
 
 export interface ReleaseNote {
   version: string
@@ -9,6 +9,26 @@ export interface ReleaseNote {
 
 /** Newest first. First entry should match APP_VERSION. */
 export const RELEASE_HISTORY: ReleaseNote[] = [
+  {
+    version: '1.10.0',
+    releasedOn: '2026-07-07',
+    title: 'Certificate QR verification, template builder, and depot broadcasts',
+    highlights: [
+      'Public certificate verify page (/verify/certificate/:token) with ICS branding and genuine-document confirmation',
+      'QR code element on certificate PDFs links to the verify page; tokens are hashed at rest',
+      'Verify page shows document type, ATW, reference, shipping line, CY, and authorized trucker',
+      'CY Container Release verification adds container number, size, type, and destination',
+      'Verification records store container details at issuance; older CY certs resolve via line or filename fallback',
+      'Certificate builder: two-column rows, three-column triple rows, and mixed slots (image, QR, signature, stamp)',
+      'Image captions with optional title and subtitle; stamp badges sized to content in row layouts',
+      'Signature blocks bind issuer name (IssuedByName) with optional ICS digital seal (SYSTEM ISSUED)',
+      'Depot broadcast: depot personnel send yard advisories (closures, crane status, delays) to associated truckers',
+      'Trucker notifications page (/trucker/notifications) lists depot broadcasts with relative timestamps',
+      'Unread depot broadcasts auto-open as a modal for truckers on login and while the app is open',
+      'Broadcast delivery uses in-app notifications and Android FCM push where configured',
+      'Admin version page uses ICS release branding',
+    ],
+  },
   {
     version: '1.9.1',
     releasedOn: '2026-07-06',
@@ -55,7 +75,7 @@ export const RELEASE_HISTORY: ReleaseNote[] = [
       'Server Python OCR ensemble (Tesseract, PaddleOCR, EasyOCR, and optional engines) for admin detect',
       'Receipt date fallback uses proof upload time when OCR cannot read faint GCash transaction dates',
       'Zoomed-crop and photo-of-screen layouts for monitor screenshots with gray date text',
-      'Trucker Android app: Firebase Cloud Messaging push alerts for ECMS events',
+      'Trucker Android app: Firebase Cloud Messaging push alerts for ICS events',
     ],
   },
   {
@@ -144,7 +164,7 @@ export const RELEASE_HISTORY: ReleaseNote[] = [
   {
     version: '1.0.0',
     releasedOn: '2026-06-24',
-    title: 'Initial ECMS platform',
+    title: 'Initial ICS platform',
     highlights: [
       'Pre-advice submission with container photos and workflow statuses',
       'Shipping line evaluation and CY assignment',

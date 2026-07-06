@@ -50,6 +50,7 @@ object Routes {
     const val QR_DETAIL = "qr/{bookingId}"
     const val WITHDRAWAL_DETAIL = "withdrawals/{id}"
     const val WITHDRAWAL_NEW = "withdrawals/new"
+    const val WITHDRAWAL_SCHEDULE = "withdrawals/schedule"
     const val DEMURRAGE_LIST = "demurrage"
     const val DEMURRAGE_DETAIL = "demurrage/{id}"
     const val REPORTS = "reports"

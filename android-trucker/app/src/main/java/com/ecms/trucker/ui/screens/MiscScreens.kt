@@ -3,6 +3,7 @@ package com.ecms.trucker.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,11 +13,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ecms.trucker.R
 import com.ecms.trucker.data.model.DemurrageBillingDto
+import com.ecms.trucker.data.model.NotificationDto
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
+import com.ecms.trucker.ui.theme.IcsColors
+import com.ecms.trucker.ui.theme.icsHexAlpha
+import com.ecms.trucker.ui.util.formatRelativeTime
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -274,39 +280,96 @@ fun ProfileScreen(
 fun NotificationsScreen(
     repository: TruckerRepository,
     onBack: () -> Unit,
+    onUnreadCountChanged: (Int) -> Unit = {},
 ) {
-    var page by remember { mutableStateOf<com.ecms.trucker.data.model.NotificationPageDto?>(null) }
+    var items by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
     fun loadNotifications() {
         scope.launch {
             loading = true
-            runCatching { page = repository.getNotifications() }
+            runCatching {
+                val page = repository.getNotifications(page = 1, pageSize = 50)
+                items = page.items
+                onUnreadCountChanged(page.unreadCount)
+            }
             loading = false
         }
     }
+
+    fun markRead(id: Int) {
+        scope.launch {
+            runCatching { repository.markNotificationRead(id) }
+            items = items.map { if (it.id == id) it.copy(isRead = true) else it }
+            onUnreadCountChanged(items.count { !it.isRead })
+        }
+    }
+
+    fun markAllRead() {
+        scope.launch {
+            runCatching { repository.markAllNotificationsRead() }
+            items = items.map { it.copy(isRead = true) }
+            onUnreadCountChanged(0)
+        }
+    }
+
     LaunchedEffect(Unit) { loadNotifications() }
+
+    val hasUnread = items.any { !it.isRead }
 
     IcsScreenScaffold(
         title = stringResource(R.string.notifications_title),
         onBack = onBack,
         refreshing = loading,
         onRefresh = { loadNotifications() },
+        actions = {
+            if (hasUnread) {
+                TextButton(onClick = { markAllRead() }) {
+                    Text(stringResource(R.string.notifications_mark_all_read))
+                }
+            }
+        },
     ) { padding ->
         when {
             loading -> LoadingBox(Modifier.padding(padding))
-            page?.items.isNullOrEmpty() -> EmptyState(stringResource(R.string.notifications_empty), Modifier.padding(padding))
-            else -> LazyColumn(Modifier.padding(padding)) {
-                items(page!!.items) { n ->
-                    ListItem(
-                        headlineContent = { Text(n.title) },
-                        supportingContent = { Text(n.message) },
-                        modifier = Modifier.clickable {
-                            if (!n.isRead) scope.launch { repository.markNotificationRead(n.id) }
-                        },
-                    )
-                    HorizontalDivider()
+            items.isEmpty() -> EmptyState(stringResource(R.string.notifications_empty), Modifier.padding(padding))
+            else -> LazyColumn(
+                Modifier.padding(padding),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                items(items, key = { it.id }) { n ->
+                    val bg = if (n.isRead) {
+                        MaterialTheme.colorScheme.surface
+                    } else {
+                        icsHexAlpha(IcsColors.Primary, 0.04f)
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(bg)
+                            .clickable(enabled = !n.isRead) { markRead(n.id) }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                    ) {
+                        Text(
+                            n.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            n.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = IcsColors.TextSecondary,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            formatRelativeTime(n.createdAt),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = IcsColors.TextSecondary.copy(alpha = 0.75f),
+                        )
+                    }
+                    HorizontalDivider(color = IcsColors.Divider)
                 }
             }
         }

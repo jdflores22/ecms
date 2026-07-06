@@ -63,6 +63,7 @@ private fun needsPaymentUpload(schedule: ScheduleDto, payment: PaymentDto?): Boo
 fun PaymentsListScreen(
     repository: TruckerRepository,
     onOpenNotifications: () -> Unit,
+    notificationUnreadCount: Int = 0,
     onOpenPayment: (Int) -> Unit,
 ) {
     val cached = PaymentsCache
@@ -121,6 +122,7 @@ fun PaymentsListScreen(
         title = stringResource(R.string.payments_title),
         branded = true,
         onNotificationClick = onOpenNotifications,
+        notificationUnreadCount = notificationUnreadCount,
         refreshing = loading,
         onRefresh = { load(force = true) },
     ) { padding ->

@@ -182,4 +182,35 @@ public class NotificationService : INotificationService
             .Select(u => u.Id)
             .ToListAsync(cancellationToken);
     }
+
+    public static async Task<List<int>> TruckerIdsForDepotAsync(
+        IEcmsDbContext db,
+        int depotId,
+        CancellationToken cancellationToken = default)
+    {
+        var scheduleTruckerIds = db.Schedules
+            .Where(s => s.DepotId == depotId && s.TruckerId != null)
+            .Select(s => s.TruckerId!.Value);
+
+        var withdrawalTruckerIds = db.WithdrawalRequests
+            .Where(w => w.CurrentDepotId == depotId)
+            .Select(w => w.TruckerId);
+
+        var associatedIds = await scheduleTruckerIds
+            .Union(withdrawalTruckerIds)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (associatedIds.Count == 0)
+            return new List<int>();
+
+        return await db.Users
+            .Include(u => u.Role)
+            .Where(u =>
+                associatedIds.Contains(u.Id)
+                && u.Status == UserStatus.Active
+                && u.Role.Name == RoleNames.Trucker)
+            .Select(u => u.Id)
+            .ToListAsync(cancellationToken);
+    }
 }

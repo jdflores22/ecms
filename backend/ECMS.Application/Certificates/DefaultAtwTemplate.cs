@@ -68,6 +68,8 @@ public static class DefaultAtwTemplate
         IssueDate = "July 6, 2026",
         ExpirationDate = "July 13, 2026",
         Remarks = "Handle with care.",
+        GeneratedAt = "July 6, 2026 12:00 PM",
+        IssuedByName = "Maria Santos",
         ContainerLines = new List<AtwContainerLineMergeData>
         {
             new AtwContainerLineMergeData { ContainerNo = "MSCU1234567", Size = "20", Type = "GP" },
@@ -141,6 +143,8 @@ public static class AtwCertificateFields
         new("IssueDate", "Issue date", "field"),
         new("ExpirationDate", "Expiration date", "field"),
         new("Remarks", "Remarks", "field"),
+        new("GeneratedAt", "Generated at", "field"),
+        new("IssuedByName", "Issuer name", "field"),
         new("ContainerLines", "Container lines table", "table"),
     };
 }

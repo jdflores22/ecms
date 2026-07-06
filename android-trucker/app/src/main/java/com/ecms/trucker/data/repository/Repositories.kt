@@ -150,7 +150,8 @@ class TruckerRepository(
     suspend fun submitWithdrawal(id: Int) = api.submitWithdrawal(id)
     suspend fun getWithdrawalDocuments(id: Int) = api.getWithdrawalDocuments(id)
     suspend fun getWithdrawalGatePass(id: Int) = api.getWithdrawalGatePass(id)
-
+    suspend fun getMyWithdrawalSchedules() = api.getMyWithdrawalSchedules()
+    suspend fun getWithdrawalPendingActionCount() = api.getWithdrawalPendingActionCount().count
 
     suspend fun uploadWithdrawalDocument(id: Int, uri: Uri) {
         val part = uriToMultipart(uri, "file")
@@ -191,7 +192,8 @@ class TruckerRepository(
     suspend fun changePassword(current: String, newPassword: String) =
         api.changePassword(ChangePasswordRequest(current, newPassword))
 
-    suspend fun getNotifications(page: Int = 1) = api.getNotifications(page = page)
+    suspend fun getNotifications(page: Int = 1, pageSize: Int = 50, unreadOnly: Boolean? = null) =
+        api.getNotifications(page = page, pageSize = pageSize, unreadOnly = unreadOnly)
     suspend fun getUnreadNotificationCount() = api.getUnreadNotificationCount().count
     suspend fun markNotificationRead(id: Int) = api.markNotificationRead(id)
     suspend fun markAllNotificationsRead() = api.markAllNotificationsRead()

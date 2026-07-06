@@ -14,8 +14,22 @@ export interface AtwPreviewData {
   IssueDate: string
   ExpirationDate: string
   Remarks: string
+  ReleasedDate?: string
+  ReleasedAt?: string
+  ReleasedByDepotName?: string
+  ContainerNo?: string
+  ContainerSize?: string
+  ContainerType?: string
+  GeneratedAt?: string
+  IssuedByName?: string
+  VerificationUrl?: string
   ContainerLines: { ContainerNo: string; Size: string; Type: string }[]
 }
+
+export const SAMPLE_VERIFICATION_URL =
+  typeof window !== 'undefined'
+    ? `${window.location.origin}/verify/certificate/preview-sample-token`
+    : 'https://ics.example/verify/certificate/preview-sample-token'
 
 export const SAMPLE_ATW_PREVIEW_DATA: AtwPreviewData = {
   AtwNumber: 'ATW-2026-001',
@@ -27,6 +41,12 @@ export const SAMPLE_ATW_PREVIEW_DATA: AtwPreviewData = {
   IssueDate: 'July 6, 2026',
   ExpirationDate: 'July 13, 2026',
   Remarks: 'Handle with care.',
+  ReleasedDate: 'July 6, 2026',
+  ReleasedAt: 'July 6, 2026 2:30 PM',
+  ReleasedByDepotName: 'Manila CY 1',
+  GeneratedAt: 'July 6, 2026 12:00 PM',
+  IssuedByName: 'Maria Santos',
+  VerificationUrl: SAMPLE_VERIFICATION_URL,
   ContainerLines: [
     { ContainerNo: 'MSCU1234567', Size: '20', Type: 'GP' },
     { ContainerNo: 'TCLU7654321', Size: '40', Type: 'HC' },
@@ -62,6 +82,22 @@ export function resolveFieldValue(binding: string, data: AtwPreviewData): string
       return data.ExpirationDate
     case 'Remarks':
       return data.Remarks || '—'
+    case 'ReleasedDate':
+      return data.ReleasedDate || '—'
+    case 'ReleasedAt':
+      return data.ReleasedAt || '—'
+    case 'ReleasedByDepotName':
+      return data.ReleasedByDepotName || '—'
+    case 'ContainerNo':
+      return data.ContainerNo || '—'
+    case 'ContainerSize':
+      return data.ContainerSize || '—'
+    case 'ContainerType':
+      return data.ContainerType || '—'
+    case 'GeneratedAt':
+      return data.GeneratedAt || '—'
+    case 'IssuedByName':
+      return data.IssuedByName || '—'
     default:
       return ''
   }
@@ -104,10 +140,16 @@ export function elementTypeLabel(element: CertificateLayoutElement): string {
   switch (element.type) {
     case 'title':
       return 'Title'
+    case 'subtitle':
+      return 'Subtitle'
     case 'text':
       return 'Text'
     case 'field':
       return 'Field'
+    case 'value':
+      return 'Value'
+    case 'columns':
+      return 'Columns'
     case 'table':
       return 'Table'
     case 'spacer':
@@ -116,5 +158,17 @@ export function elementTypeLabel(element: CertificateLayoutElement): string {
       return 'Rule'
     case 'image':
       return 'Image'
+    case 'signature':
+      return 'Signature'
+    case 'footer':
+      return 'Footer'
+    case 'stamp':
+      return 'Stamp'
+    case 'qrcode':
+      return 'QR Code'
+    case 'row':
+      return 'Side-by-side row'
+    case 'tripleRow':
+      return 'Three-column row'
   }
 }

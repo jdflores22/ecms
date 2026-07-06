@@ -32,6 +32,8 @@ public interface IEcmsDbContext
     IQueryable<WithdrawalDocument> WithdrawalDocuments { get; }
     IQueryable<WithdrawalSchedule> WithdrawalSchedules { get; }
     IQueryable<CertificateTemplate> CertificateTemplates { get; }
+    IQueryable<CertificateVerification> CertificateVerifications { get; }
+    IQueryable<DepotBroadcast> DepotBroadcasts { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Add<T>(T entity) where T : class;

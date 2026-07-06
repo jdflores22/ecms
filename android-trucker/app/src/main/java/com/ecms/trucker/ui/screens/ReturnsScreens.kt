@@ -30,6 +30,7 @@ private var ReturnsListCache: ReturnsListCacheEntry? = null
 fun ReturnsListScreen(
     repository: TruckerRepository,
     onOpenNotifications: () -> Unit,
+    notificationUnreadCount: Int = 0,
     onItemClick: (Int) -> Unit,
 ) {
     val cachedSchedules = ReturnsListCache
@@ -71,6 +72,7 @@ fun ReturnsListScreen(
         title = stringResource(R.string.returns_title),
         branded = true,
         onNotificationClick = onOpenNotifications,
+        notificationUnreadCount = notificationUnreadCount,
         refreshing = loading,
         onRefresh = { load(force = true) },
     ) { padding ->

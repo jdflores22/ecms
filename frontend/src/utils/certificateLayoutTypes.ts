@@ -25,7 +25,68 @@ export function getDefaultLayout(documentType: CertificateDocumentType): Certifi
   }
 }
 
-export type CertificateElementType = 'title' | 'text' | 'field' | 'table' | 'spacer' | 'rule' | 'image'
+export type CertificateElementType =
+  | 'title'
+  | 'subtitle'
+  | 'text'
+  | 'field'
+  | 'value'
+  | 'columns'
+  | 'table'
+  | 'spacer'
+  | 'rule'
+  | 'image'
+  | 'signature'
+  | 'footer'
+  | 'stamp'
+  | 'qrcode'
+  | 'row'
+  | 'tripleRow'
+
+export type CertificateRowSlotKind = 'empty' | 'image' | 'qrcode' | 'signature' | 'stamp'
+
+export interface CertificateRowSlot {
+  kind: CertificateRowSlotKind
+  align: string
+  src: string
+  widthMm: number
+  heightMm?: number
+  alt?: string
+  showImageTitle?: boolean
+  imageTitle?: string
+  imageSubtitle?: string
+  imageTitleFontSize?: number
+  imageSubtitleFontSize?: number
+  qrWidthMm: number
+  qrCaption: string
+  showQrCaption: boolean
+  qrCaptionFontSize: number
+  caption: string
+  nameBinding: string
+  titleText: string
+  showLine: boolean
+  fontSize: number
+  stampText?: string
+  stampColor?: string
+  stampFontSize?: number
+  showDigitalSeal?: boolean
+  digitalSealColor?: string
+}
+
+export interface CertificateRowElement extends CertificateLayoutElementBase {
+  type: 'row'
+  left: CertificateRowSlot
+  right: CertificateRowSlot
+  gapMm: number
+}
+
+export interface CertificateTripleRowElement extends CertificateLayoutElementBase {
+  type: 'tripleRow'
+  left: CertificateRowSlot
+  center: CertificateRowSlot
+  right: CertificateRowSlot
+  gapMm: number
+}
 
 export interface CertificatePageSettings {
   size: string
@@ -38,12 +99,35 @@ export interface CertificateLayoutDefinition {
   elements: CertificateLayoutElement[]
 }
 
-export interface CertificateLayoutElementBase {
+export interface CertificateElementLayout {
+  marginTopMm?: number
+  marginRightMm?: number
+  marginBottomMm?: number
+  marginLeftMm?: number
+  paddingTopMm?: number
+  paddingRightMm?: number
+  paddingBottomMm?: number
+  paddingLeftMm?: number
+  lineHeight?: number
+  textColor?: string
+  labelWidthMm?: number
+  cellPaddingMm?: number
+}
+
+export interface CertificateLayoutElementBase extends CertificateElementLayout {
   type: CertificateElementType
 }
 
 export interface CertificateTitleElement extends CertificateLayoutElementBase {
   type: 'title'
+  text: string
+  align: string
+  fontSize: number
+  bold: boolean
+}
+
+export interface CertificateSubtitleElement extends CertificateLayoutElementBase {
+  type: 'subtitle'
   text: string
   align: string
   fontSize: number
@@ -64,6 +148,23 @@ export interface CertificateFieldElement extends CertificateLayoutElementBase {
   binding: string
   fontSize: number
   bold: boolean
+}
+
+export interface CertificateValueElement extends CertificateLayoutElementBase {
+  type: 'value'
+  binding: string
+  align: string
+  fontSize: number
+  bold: boolean
+}
+
+export interface CertificateColumnsElement extends CertificateLayoutElementBase {
+  type: 'columns'
+  leftLabel: string
+  leftBinding: string
+  rightLabel: string
+  rightBinding: string
+  fontSize: number
 }
 
 export interface CertificateTableElement extends CertificateLayoutElementBase {
@@ -90,16 +191,67 @@ export interface CertificateImageElement extends CertificateLayoutElementBase {
   widthMm: number
   heightMm?: number
   alt?: string
+  showTitle?: boolean
+  title?: string
+  subtitle?: string
+  titleFontSize?: number
+  subtitleFontSize?: number
+}
+
+export interface CertificateSignatureElement extends CertificateLayoutElementBase {
+  type: 'signature'
+  caption: string
+  nameBinding: string
+  titleText: string
+  showLine: boolean
+  align: string
+  fontSize: number
+  showDigitalSeal?: boolean
+  digitalSealColor?: string
+}
+
+export interface CertificateFooterElement extends CertificateLayoutElementBase {
+  type: 'footer'
+  text: string
+  binding: string
+  align: string
+  fontSize: number
+}
+
+export interface CertificateStampElement extends CertificateLayoutElementBase {
+  type: 'stamp'
+  text: string
+  align: string
+  fontSize: number
+  color: string
+}
+
+export interface CertificateQrCodeElement extends CertificateLayoutElementBase {
+  type: 'qrcode'
+  align: string
+  widthMm: number
+  caption: string
+  showCaption: boolean
+  captionFontSize: number
 }
 
 export type CertificateLayoutElement =
   | CertificateTitleElement
+  | CertificateSubtitleElement
   | CertificateTextElement
   | CertificateFieldElement
+  | CertificateValueElement
+  | CertificateColumnsElement
   | CertificateTableElement
   | CertificateSpacerElement
   | CertificateRuleElement
   | CertificateImageElement
+  | CertificateSignatureElement
+  | CertificateFooterElement
+  | CertificateStampElement
+  | CertificateQrCodeElement
+  | CertificateRowElement
+  | CertificateTripleRowElement
 
 export interface CertificateTemplate {
   id: number
@@ -240,14 +392,123 @@ export function serializeLayout(layout: CertificateLayoutDefinition): string {
   return JSON.stringify(layout, null, 2)
 }
 
+export function defaultRowSlot(kind: CertificateRowSlotKind): CertificateRowSlot {
+  switch (kind) {
+    case 'image':
+      return {
+        kind,
+        align: 'center',
+        src: '',
+        widthMm: 40,
+        alt: 'Logo',
+        showImageTitle: false,
+        imageTitle: '',
+        imageSubtitle: '',
+        imageTitleFontSize: 10,
+        imageSubtitleFontSize: 8,
+        qrWidthMm: 28,
+        qrCaption: 'Scan to verify',
+        showQrCaption: true,
+        qrCaptionFontSize: 8,
+        caption: 'Authorized by',
+        nameBinding: '',
+        titleText: '',
+        showLine: true,
+        fontSize: 10,
+      }
+    case 'qrcode':
+      return {
+        kind,
+        align: 'center',
+        src: '',
+        widthMm: 40,
+        qrWidthMm: 28,
+        qrCaption: 'Scan to verify authenticity',
+        showQrCaption: true,
+        qrCaptionFontSize: 8,
+        caption: 'Authorized by',
+        nameBinding: '',
+        titleText: 'Depot Manager',
+        showLine: true,
+        fontSize: 10,
+      }
+    case 'signature':
+      return {
+        kind,
+        align: 'left',
+        src: '',
+        widthMm: 40,
+        qrWidthMm: 28,
+        qrCaption: 'Scan to verify',
+        showQrCaption: true,
+        qrCaptionFontSize: 8,
+        caption: 'Authorized by',
+        nameBinding: 'IssuedByName',
+        titleText: 'Shipping Line Evaluator',
+        showLine: true,
+        fontSize: 10,
+        showDigitalSeal: true,
+        digitalSealColor: '#0B3D91',
+      }
+    case 'stamp':
+      return {
+        kind,
+        align: 'center',
+        src: '',
+        widthMm: 40,
+        qrWidthMm: 28,
+        qrCaption: 'Scan to verify',
+        showQrCaption: true,
+        qrCaptionFontSize: 8,
+        caption: 'Authorized by',
+        nameBinding: '',
+        titleText: '',
+        showLine: true,
+        fontSize: 10,
+        stampText: 'RELEASED',
+        stampColor: '#C62828',
+        stampFontSize: 22,
+      }
+    default:
+      return {
+        kind: 'empty',
+        align: 'center',
+        src: '',
+        widthMm: 40,
+        qrWidthMm: 28,
+        qrCaption: 'Scan to verify',
+        showQrCaption: true,
+        qrCaptionFontSize: 8,
+        caption: 'Authorized by',
+        nameBinding: '',
+        titleText: '',
+        showLine: true,
+        fontSize: 10,
+      }
+  }
+}
+
 export function newElement(type: CertificateElementType): CertificateLayoutElement {
   switch (type) {
     case 'title':
       return { type, text: 'Section title', align: 'center', fontSize: 16, bold: true }
+    case 'subtitle':
+      return { type, text: 'Subtitle', align: 'center', fontSize: 14, bold: true }
     case 'text':
       return { type, text: 'Body text', align: 'left', fontSize: 11, bold: false }
     case 'field':
       return { type, label: 'Label', binding: 'AtwNumber', fontSize: 11, bold: false }
+    case 'value':
+      return { type, binding: 'AtwNumber', align: 'left', fontSize: 11, bold: true }
+    case 'columns':
+      return {
+        type,
+        leftLabel: 'Issue date',
+        leftBinding: 'IssueDate',
+        rightLabel: 'Expiration',
+        rightBinding: 'ExpirationDate',
+        fontSize: 11,
+      }
     case 'table':
       return { type, binding: 'ContainerLines', columns: ['ContainerNo', 'Size', 'Type'], fontSize: 10 }
     case 'spacer':
@@ -255,17 +516,73 @@ export function newElement(type: CertificateElementType): CertificateLayoutEleme
     case 'rule':
       return { type, thicknessPt: 1 }
     case 'image':
-      return { type, src: '', align: 'center', widthMm: 40, alt: 'Logo' }
+      return {
+        type,
+        src: '',
+        align: 'center',
+        widthMm: 40,
+        alt: 'Logo',
+        showTitle: false,
+        title: '',
+        subtitle: '',
+        titleFontSize: 10,
+        subtitleFontSize: 8,
+      }
+    case 'signature':
+      return {
+        type,
+        caption: 'Authorized by',
+        nameBinding: 'IssuedByName',
+        titleText: 'Shipping Line Evaluator',
+        showLine: true,
+        align: 'left',
+        fontSize: 10,
+        showDigitalSeal: true,
+        digitalSealColor: '#0B3D91',
+      }
+    case 'footer':
+      return { type, text: 'Generated by ICS · ', binding: 'GeneratedAt', align: 'center', fontSize: 8 }
+    case 'stamp':
+      return { type, text: 'RELEASED', align: 'center', fontSize: 22, color: '#C62828' }
+    case 'qrcode':
+      return {
+        type,
+        align: 'right',
+        widthMm: 28,
+        caption: 'Scan to verify authenticity',
+        showCaption: true,
+        captionFontSize: 8,
+      }
+    case 'row':
+      return {
+        type,
+        gapMm: 4,
+        left: defaultRowSlot('image'),
+        right: defaultRowSlot('qrcode'),
+      }
+    case 'tripleRow':
+      return {
+        type,
+        gapMm: 4,
+        left: defaultRowSlot('image'),
+        center: defaultRowSlot('stamp'),
+        right: defaultRowSlot('qrcode'),
+      }
   }
 }
 
 export function elementSummary(element: CertificateLayoutElement): string {
   switch (element.type) {
     case 'title':
+    case 'subtitle':
     case 'text':
       return element.text
     case 'field':
       return `${element.label} → ${element.binding}`
+    case 'value':
+      return `Value: ${element.binding}`
+    case 'columns':
+      return `${element.leftLabel} / ${element.rightLabel}`
     case 'table':
       return `Table: ${element.columns.join(', ')}`
     case 'spacer':
@@ -273,6 +590,37 @@ export function elementSummary(element: CertificateLayoutElement): string {
     case 'rule':
       return 'Horizontal rule'
     case 'image':
-      return element.src ? `Image: ${element.src.split('/').pop()}` : 'Image (not uploaded)'
+      return element.title
+        ? `Image: ${element.title}`
+        : element.src
+          ? `Image: ${element.src.split('/').pop()}`
+          : 'Image (not uploaded)'
+    case 'signature':
+      return element.caption || 'Signature block'
+    case 'footer':
+      return element.binding ? `${element.text}{${element.binding}}` : element.text
+    case 'stamp':
+      return `Stamp: ${element.text}`
+    case 'qrcode':
+      return 'Verification QR code'
+    case 'row':
+      return `${rowSlotSummary(element.left)} | ${rowSlotSummary(element.right)}`
+    case 'tripleRow':
+      return `${rowSlotSummary(element.left)} | ${rowSlotSummary(element.center)} | ${rowSlotSummary(element.right)}`
+  }
+}
+
+function rowSlotSummary(slot: CertificateRowSlot): string {
+  switch (slot.kind) {
+    case 'image':
+      return slot.src ? `Image` : 'Image (empty)'
+    case 'qrcode':
+      return 'QR'
+    case 'signature':
+      return 'Signature'
+    case 'stamp':
+      return slot.stampText ? `Stamp: ${slot.stampText}` : 'Stamp'
+    default:
+      return '—'
   }
 }

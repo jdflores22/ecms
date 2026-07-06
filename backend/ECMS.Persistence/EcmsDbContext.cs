@@ -36,6 +36,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<WithdrawalDocument> WithdrawalDocumentsSet => Set<WithdrawalDocument>();
     public DbSet<WithdrawalSchedule> WithdrawalSchedulesSet => Set<WithdrawalSchedule>();
     public DbSet<CertificateTemplate> CertificateTemplatesSet => Set<CertificateTemplate>();
+    public DbSet<CertificateVerification> CertificateVerificationsSet => Set<CertificateVerification>();
+    public DbSet<DepotBroadcast> DepotBroadcastsSet => Set<DepotBroadcast>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -65,6 +67,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<WithdrawalDocument> IEcmsDbContext.WithdrawalDocuments => WithdrawalDocumentsSet;
     IQueryable<WithdrawalSchedule> IEcmsDbContext.WithdrawalSchedules => WithdrawalSchedulesSet;
     IQueryable<CertificateTemplate> IEcmsDbContext.CertificateTemplates => CertificateTemplatesSet;
+    IQueryable<CertificateVerification> IEcmsDbContext.CertificateVerifications => CertificateVerificationsSet;
+    IQueryable<DepotBroadcast> IEcmsDbContext.DepotBroadcasts => DepotBroadcastsSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -316,6 +320,36 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.Name).HasMaxLength(256);
             e.HasIndex(x => new { x.ShippingLineId, x.DocumentType, x.IsActive });
             e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CertificateVerification>(e =>
+        {
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.WithdrawalDocumentId);
+            e.HasIndex(x => new { x.WithdrawalRequestId, x.RevokedAtUtc });
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.Property(x => x.DocumentFingerprint).HasMaxLength(64);
+            e.Property(x => x.AtwNumber).HasMaxLength(64);
+            e.Property(x => x.ReferenceNo).HasMaxLength(64);
+            e.Property(x => x.ShippingLineName).HasMaxLength(256);
+            e.Property(x => x.TruckerName).HasMaxLength(256);
+            e.Property(x => x.DepotName).HasMaxLength(256);
+            e.Property(x => x.ContainerNo).HasMaxLength(64);
+            e.Property(x => x.ContainerSize).HasMaxLength(32);
+            e.Property(x => x.ContainerType).HasMaxLength(32);
+            e.Property(x => x.Destination).HasMaxLength(256);
+            e.Property(x => x.RevocationReason).HasMaxLength(512);
+            e.HasOne(x => x.WithdrawalRequest).WithMany().HasForeignKey(x => x.WithdrawalRequestId).OnDelete(DeleteBehavior.Cascade).HasConstraintName("FK_CertVerif_WithdrawalRequestId");
+            e.HasOne(x => x.WithdrawalDocument).WithMany().HasForeignKey(x => x.WithdrawalDocumentId).OnDelete(DeleteBehavior.Cascade).HasConstraintName("FK_CertVerif_WithdrawalDocumentId");
+        });
+
+        modelBuilder.Entity<DepotBroadcast>(e =>
+        {
+            e.HasIndex(x => new { x.DepotId, x.CreatedAt });
+            e.Property(x => x.Subject).HasMaxLength(128);
+            e.Property(x => x.Message).HasMaxLength(4000);
+            e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

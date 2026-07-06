@@ -38,6 +38,7 @@ fun IcsScreenScaffold(
     onBack: (() -> Unit)? = null,
     branded: Boolean = false,
     onNotificationClick: (() -> Unit)? = null,
+    notificationUnreadCount: Int = 0,
     refreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     showRefreshFeedback: Boolean = true,
@@ -61,7 +62,7 @@ fun IcsScreenScaffold(
 
     Scaffold(
         containerColor = IcsColors.Background,
-        topBar = { EcmsTopBar(title, subtitle, onBack, branded, onNotificationClick, actions) },
+        topBar = { EcmsTopBar(title, subtitle, onBack, branded, onNotificationClick, notificationUnreadCount, actions) },
         snackbarHost = { snackbarHost(scaffoldSnackbarHostState) },
         floatingActionButton = floatingActionButton,
         content = { padding ->
@@ -174,6 +175,7 @@ fun EcmsTopBar(
     onBack: (() -> Unit)? = null,
     branded: Boolean = false,
     onNotificationClick: (() -> Unit)? = null,
+    notificationUnreadCount: Int = 0,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val isPrimary = branded && onBack == null
@@ -258,11 +260,27 @@ fun EcmsTopBar(
             },
             actions = {
                 if (onNotificationClick != null) {
-                    IconButton(onClick = onNotificationClick) {
-                        Icon(
-                            Icons.Outlined.Notifications,
-                            contentDescription = stringResource(R.string.content_desc_notifications),
-                        )
+                    BadgedBox(
+                        badge = {
+                            if (notificationUnreadCount > 0) {
+                                Badge(
+                                    containerColor = IcsColors.Error,
+                                    contentColor = Color.White,
+                                ) {
+                                    Text(
+                                        if (notificationUnreadCount > 99) "99+" else "$notificationUnreadCount",
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
+                        },
+                    ) {
+                        IconButton(onClick = onNotificationClick) {
+                            Icon(
+                                Icons.Outlined.Notifications,
+                                contentDescription = stringResource(R.string.content_desc_notifications),
+                            )
+                        }
                     }
                 }
                 actions()

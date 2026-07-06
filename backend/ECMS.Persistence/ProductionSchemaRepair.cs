@@ -52,6 +52,10 @@ public static class ProductionSchemaRepair
 
         await EnsureCertificateTemplatesTableAsync(db, logger, cancellationToken);
 
+        await EnsureCertificateVerificationsTableAsync(db, logger, cancellationToken);
+
+        await EnsureDepotBroadcastsTableAsync(db, logger, cancellationToken);
+
         await EnsureYardInventoryReleaseStatusAsync(db, logger, cancellationToken);
     }
 
@@ -201,6 +205,176 @@ public static class ProductionSchemaRepair
             """
             INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
             VALUES ('20260706120000_AddCertificateTemplates', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureCertificateVerificationsTableAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (await TableExistsAsync(db, "CertificateVerificationsSet", cancellationToken))
+        {
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "TruckerName",
+                "varchar(256) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''",
+                "20260707020000_AddCertificateVerificationTruckerName",
+                cancellationToken);
+
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "DepotName",
+                "varchar(256) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''",
+                "20260707023000_AddCertificateVerificationDepotName",
+                cancellationToken);
+
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "ContainerNo",
+                "varchar(64) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''",
+                "20260707030000_AddCertificateVerificationContainerFields",
+                cancellationToken);
+
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "ContainerSize",
+                "varchar(32) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''",
+                "20260707030000_AddCertificateVerificationContainerFields",
+                cancellationToken);
+
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "ContainerType",
+                "varchar(32) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''",
+                "20260707030000_AddCertificateVerificationContainerFields",
+                cancellationToken);
+
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "Destination",
+                "varchar(256) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''",
+                "20260707030000_AddCertificateVerificationContainerFields",
+                cancellationToken);
+
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "CertificateVerificationsSet",
+                "WithdrawalRequestLineId",
+                "int NULL",
+                "20260707030000_AddCertificateVerificationContainerFields",
+                cancellationToken);
+
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20260706180000_AddCertificateVerifications', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table CertificateVerificationsSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `CertificateVerificationsSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `TokenHash` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+                `WithdrawalRequestId` int NOT NULL,
+                `WithdrawalDocumentId` int NOT NULL,
+                `DocumentType` int NOT NULL,
+                `DocumentFingerprint` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+                `AtwNumber` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+                `ReferenceNo` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+                `ShippingLineName` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+                `TruckerName` varchar(256) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                `DepotName` varchar(256) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                `ContainerNo` varchar(64) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                `ContainerSize` varchar(32) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                `ContainerType` varchar(32) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                `Destination` varchar(256) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                `WithdrawalRequestLineId` int NULL,
+                `IssuedAtUtc` datetime(6) NOT NULL,
+                `RevokedAtUtc` datetime(6) NULL,
+                `RevocationReason` varchar(512) CHARACTER SET utf8mb4 NULL,
+                `VerificationCount` int NOT NULL DEFAULT 0,
+                `LastVerifiedAtUtc` datetime(6) NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_CertificateVerificationsSet_TokenHash` (`TokenHash`),
+                KEY `IX_CertificateVerificationsSet_WithdrawalDocumentId` (`WithdrawalDocumentId`),
+                KEY `IX_CertificateVerificationsSet_WithdrawalRequestId_RevokedAtUtc` (`WithdrawalRequestId`, `RevokedAtUtc`),
+                CONSTRAINT `FK_CertVerif_WithdrawalDocumentId`
+                    FOREIGN KEY (`WithdrawalDocumentId`) REFERENCES `WithdrawalDocumentsSet` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_CertVerif_WithdrawalRequestId`
+                    FOREIGN KEY (`WithdrawalRequestId`) REFERENCES `WithdrawalRequestsSet` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20260706180000_AddCertificateVerifications', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureDepotBroadcastsTableAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (await TableExistsAsync(db, "DepotBroadcastsSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20260707040000_AddDepotBroadcasts', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table DepotBroadcastsSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `DepotBroadcastsSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DepotId` int NOT NULL,
+                `Subject` varchar(128) CHARACTER SET utf8mb4 NOT NULL,
+                `Message` varchar(4000) CHARACTER SET utf8mb4 NOT NULL,
+                `CreatedByUserId` int NOT NULL,
+                `RecipientCount` int NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_DepotBroadcastsSet_DepotId_CreatedAt` (`DepotId`, `CreatedAt`),
+                CONSTRAINT `FK_DepotBroadcasts_DepotId`
+                    FOREIGN KEY (`DepotId`) REFERENCES `DepotsSet` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_DepotBroadcasts_CreatedByUserId`
+                    FOREIGN KEY (`CreatedByUserId`) REFERENCES `UsersSet` (`Id`) ON DELETE RESTRICT
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20260707040000_AddDepotBroadcasts', '7.0.20')
             """,
             cancellationToken);
     }

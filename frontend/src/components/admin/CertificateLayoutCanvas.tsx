@@ -3,10 +3,12 @@ import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import ZoomOutIcon from '@mui/icons-material/ZoomOut'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import { useCallback, useMemo, useState, type DragEvent } from 'react'
+import QRCode from 'react-qr-code'
 import {
   A4_HEIGHT_MM,
   A4_WIDTH_MM,
   SAMPLE_ATW_PREVIEW_DATA,
+  SAMPLE_VERIFICATION_URL,
   elementTypeLabel,
   formatTableColumnHeader,
   mmToPx,
@@ -15,7 +17,13 @@ import {
   resolveTableCell,
   textAlignCss,
 } from '../../utils/certificateLayoutPreview'
-import type { CertificateLayoutDefinition, CertificateLayoutElement } from '../../utils/certificateLayoutTypes'
+import {
+  elementSpacingSx,
+  resolvedLineHeight,
+  resolvedTextColor,
+} from '../../utils/certificateLayoutSpacing'
+import { SignatureBlockPreview } from './certificateDigitalSeal'
+import type { CertificateLayoutDefinition, CertificateLayoutElement, CertificateRowSlot } from '../../utils/certificateLayoutTypes'
 import { useAssetUrlState } from '../../hooks/useAssetUrl'
 
 const primary = '#0B3D91'
@@ -323,7 +331,7 @@ function CanvasElementBlock({
         }}
       />
 
-      <Box sx={{ px: 0.5, py: 0.25 }}>
+      <Box sx={{ px: 0.5, py: 0.25, ...elementSpacingSx(element, scale) }}>
         <ElementPreview element={element} scale={scale} previewData={previewData} />
       </Box>
 
@@ -349,6 +357,7 @@ function ElementPreview({
 }) {
   switch (element.type) {
     case 'title':
+    case 'subtitle':
     case 'text':
       return (
         <Typography
@@ -357,14 +366,74 @@ function ElementPreview({
             fontSize: ptToCanvasPx(element.fontSize, scale),
             fontWeight: element.bold ? 700 : 400,
             textAlign: textAlignCss(element.align),
-            lineHeight: 1.35,
-            color: '#1a1a1a',
+            lineHeight: resolvedLineHeight(element),
+            color: resolvedTextColor(element),
             py: 0.25,
           }}
         >
-          {element.text || (element.type === 'title' ? 'Title' : 'Text')}
+          {element.text ||
+            (element.type === 'title' ? 'Title' : element.type === 'subtitle' ? 'Subtitle' : 'Text')}
         </Typography>
       )
+
+    case 'value':
+      return (
+        <Typography
+          component="div"
+          sx={{
+            fontSize: ptToCanvasPx(element.fontSize, scale),
+            fontWeight: element.bold ? 700 : 400,
+            textAlign: textAlignCss(element.align),
+            lineHeight: resolvedLineHeight(element),
+            color: resolvedTextColor(element),
+            py: 0.25,
+          }}
+        >
+          {resolveFieldValue(element.binding, previewData)}
+        </Typography>
+      )
+
+    case 'columns': {
+      const labelWidth = element.labelWidthMm ? mmToPx(element.labelWidthMm, scale) : undefined
+      return (
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, py: 0.2 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'baseline' }}>
+            <Typography
+              component="span"
+              sx={{
+                fontSize: ptToCanvasPx(element.fontSize, scale),
+                fontWeight: 600,
+                color: '#444',
+                minWidth: labelWidth,
+                flexShrink: 0,
+              }}
+            >
+              {element.leftLabel}:
+            </Typography>
+            <Typography component="span" sx={{ fontSize: ptToCanvasPx(element.fontSize, scale), color: '#1a1a1a' }}>
+              {resolveFieldValue(element.leftBinding, previewData)}
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'baseline' }}>
+            <Typography
+              component="span"
+              sx={{
+                fontSize: ptToCanvasPx(element.fontSize, scale),
+                fontWeight: 600,
+                color: '#444',
+                minWidth: labelWidth,
+                flexShrink: 0,
+              }}
+            >
+              {element.rightLabel}:
+            </Typography>
+            <Typography component="span" sx={{ fontSize: ptToCanvasPx(element.fontSize, scale), color: '#1a1a1a' }}>
+              {resolveFieldValue(element.rightBinding, previewData)}
+            </Typography>
+          </Box>
+        </Box>
+      )
+    }
 
     case 'field':
       return (
@@ -375,7 +444,7 @@ function ElementPreview({
               fontSize: ptToCanvasPx(element.fontSize, scale),
               fontWeight: 600,
               color: '#444',
-              minWidth: '32%',
+              minWidth: element.labelWidthMm ? mmToPx(element.labelWidthMm, scale) : '32%',
               flexShrink: 0,
             }}
           >
@@ -386,7 +455,7 @@ function ElementPreview({
             sx={{
               fontSize: ptToCanvasPx(element.fontSize, scale),
               fontWeight: element.bold ? 700 : 400,
-              color: '#1a1a1a',
+              color: resolvedTextColor(element),
               flex: 1,
             }}
           >
@@ -395,7 +464,8 @@ function ElementPreview({
         </Box>
       )
 
-    case 'table':
+    case 'table': {
+      const cellPad = mmToPx(element.cellPaddingMm && element.cellPaddingMm > 0 ? element.cellPaddingMm : 1.4, scale)
       return (
         <Box sx={{ py: 0.5 }}>
           <Box
@@ -413,7 +483,7 @@ function ElementPreview({
                     key={col}
                     style={{
                       textAlign: 'left',
-                      padding: '4px 6px',
+                      padding: cellPad,
                       background: '#f0f0f0',
                       fontWeight: 600,
                       borderBottom: '1px solid #ddd',
@@ -431,7 +501,7 @@ function ElementPreview({
                     <td
                       key={col}
                       style={{
-                        padding: '4px 6px',
+                        padding: cellPad,
                         borderBottom: '1px solid #eee',
                         fontFamily: col === 'ContainerNo' ? 'monospace' : 'inherit',
                       }}
@@ -445,6 +515,7 @@ function ElementPreview({
           </Box>
         </Box>
       )
+    }
 
     case 'spacer':
       return (
@@ -479,7 +550,339 @@ function ElementPreview({
 
     case 'image':
       return <CanvasImagePreview element={element} scale={scale} />
+
+    case 'signature':
+      return (
+        <SignatureBlockPreview
+          align={element.align}
+          caption={element.caption}
+          titleText={element.titleText}
+          showLine={element.showLine}
+          fontSize={element.fontSize}
+          showDigitalSeal={element.showDigitalSeal}
+          digitalSealColor={element.digitalSealColor}
+          scale={scale}
+          textAlignCss={textAlignCss}
+          resolveName={() =>
+            element.nameBinding ? resolveFieldValue(element.nameBinding, previewData) : ''
+          }
+        />
+      )
+
+    case 'footer': {
+      const suffix = element.binding ? resolveFieldValue(element.binding, previewData) : ''
+      return (
+        <Typography
+          component="div"
+          sx={{
+            fontSize: ptToCanvasPx(element.fontSize, scale),
+            textAlign: textAlignCss(element.align),
+            lineHeight: resolvedLineHeight(element),
+            color: resolvedTextColor(element, '#888'),
+            py: 0.5,
+          }}
+        >
+          {element.text}
+          {suffix}
+        </Typography>
+      )
+    }
+
+    case 'stamp':
+      return (
+        <Box sx={{ py: 0.5, textAlign: textAlignCss(element.align) }}>
+          <Box
+            component="span"
+            sx={{
+              display: 'inline-block',
+              width: 'fit-content',
+              whiteSpace: 'nowrap',
+              border: `2px solid ${element.color || '#C62828'}`,
+              color: element.color || '#C62828',
+              px: 2,
+              py: 0.75,
+              fontSize: ptToCanvasPx(element.fontSize, scale),
+              fontWeight: 700,
+              letterSpacing: 1,
+              lineHeight: 1.2,
+            }}
+          >
+            {element.text || 'STAMP'}
+          </Box>
+        </Box>
+      )
+
+    case 'qrcode':
+      return (
+        <Box sx={{ py: 0.5, textAlign: textAlignCss(element.align) }}>
+          {element.showCaption && element.caption && (
+            <Typography
+              sx={{
+                fontSize: ptToCanvasPx(element.captionFontSize, scale),
+                color: '#666',
+                mb: 0.5,
+              }}
+            >
+              {element.caption}
+            </Typography>
+          )}
+          <Box
+            sx={{
+              display: 'inline-block',
+              p: 0.5,
+              bgcolor: '#fff',
+              border: '1px solid #eee',
+              width: mmToPx(element.widthMm, scale),
+            }}
+          >
+            <QRCode
+              value={previewData.VerificationUrl || SAMPLE_VERIFICATION_URL}
+              size={Math.max(48, mmToPx(element.widthMm, scale) - 8)}
+              style={{ width: '100%', height: 'auto' }}
+            />
+          </Box>
+        </Box>
+      )
+
+    case 'row':
+      return (
+        <MultiColumnRowPreview
+          slots={[element.left, element.right]}
+          gapMm={element.gapMm}
+          scale={scale}
+          previewData={previewData}
+        />
+      )
+
+    case 'tripleRow':
+      return (
+        <MultiColumnRowPreview
+          slots={[element.left, element.center, element.right]}
+          gapMm={element.gapMm}
+          scale={scale}
+          previewData={previewData}
+        />
+      )
   }
+}
+
+function MultiColumnRowPreview({
+  slots,
+  gapMm,
+  scale,
+  previewData,
+}: {
+  slots: CertificateRowSlot[]
+  gapMm: number
+  scale: number
+  previewData: typeof SAMPLE_ATW_PREVIEW_DATA
+}) {
+  return (
+    <Box sx={{ display: 'flex', py: 0.5, gap: mmToPx(gapMm, scale), alignItems: 'flex-start' }}>
+      {slots.map((slot, index) => (
+        <Box key={index} sx={{ flex: 1, minWidth: 0, textAlign: textAlignCss(slot.align) }}>
+          <RowSlotPreview slot={slot} scale={scale} previewData={previewData} />
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
+function RowSlotPreview({
+  slot,
+  scale,
+  previewData,
+}: {
+  slot: CertificateRowSlot
+  scale: number
+  previewData: typeof SAMPLE_ATW_PREVIEW_DATA
+}) {
+  switch (slot.kind) {
+    case 'image':
+      return <CanvasRowImagePreview slot={slot} scale={scale} />
+    case 'qrcode':
+      return (
+        <Box>
+          {slot.showQrCaption && slot.qrCaption && (
+            <Typography
+              sx={{
+                fontSize: ptToCanvasPx(slot.qrCaptionFontSize, scale),
+                color: '#666',
+                mb: 0.5,
+              }}
+            >
+              {slot.qrCaption}
+            </Typography>
+          )}
+          <Box
+            sx={{
+              display: 'inline-block',
+              p: 0.5,
+              bgcolor: '#fff',
+              border: '1px solid #eee',
+              width: mmToPx(slot.qrWidthMm, scale),
+            }}
+          >
+            <QRCode
+              value={previewData.VerificationUrl || SAMPLE_VERIFICATION_URL}
+              size={Math.max(48, mmToPx(slot.qrWidthMm, scale) - 8)}
+              style={{ width: '100%', height: 'auto' }}
+            />
+          </Box>
+        </Box>
+      )
+    case 'signature':
+      return (
+        <SignatureBlockPreview
+          align={slot.align}
+          caption={slot.caption}
+          titleText={slot.titleText}
+          showLine={slot.showLine}
+          fontSize={slot.fontSize}
+          showDigitalSeal={slot.showDigitalSeal}
+          digitalSealColor={slot.digitalSealColor}
+          scale={scale}
+          textAlignCss={textAlignCss}
+          resolveName={() =>
+            slot.nameBinding ? resolveFieldValue(slot.nameBinding, previewData) : ''
+          }
+        />
+      )
+    case 'stamp':
+      return (
+        <Box sx={{ py: 0.5 }}>
+          <Box
+            component="span"
+            sx={{
+              display: 'inline-block',
+              width: 'fit-content',
+              maxWidth: '100%',
+              whiteSpace: 'nowrap',
+              border: `2px solid ${slot.stampColor || '#C62828'}`,
+              color: slot.stampColor || '#C62828',
+              px: 2,
+              py: 0.75,
+              fontSize: ptToCanvasPx(slot.stampFontSize ?? 22, scale),
+              fontWeight: 700,
+              letterSpacing: 1,
+              lineHeight: 1.2,
+            }}
+          >
+            {slot.stampText || 'RELEASED'}
+          </Box>
+        </Box>
+      )
+    default:
+      return (
+        <Box
+          sx={{
+            py: 2,
+            px: 1,
+            borderRadius: 1,
+            border: '1px dashed',
+            borderColor: 'divider',
+            bgcolor: 'rgba(11, 61, 145, 0.04)',
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            Empty column
+          </Typography>
+        </Box>
+      )
+  }
+}
+
+function CanvasRowImagePreview({ slot, scale }: { slot: CertificateRowSlot; scale: number }) {
+  const { url, loading } = useAssetUrlState(slot.src || undefined)
+
+  if (!slot.src) {
+    return (
+      <Box
+        sx={{
+          py: 2,
+          px: 1,
+          borderRadius: 1,
+          border: '2px dashed',
+          borderColor: 'divider',
+          bgcolor: 'rgba(11, 61, 145, 0.04)',
+        }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          Upload image
+        </Typography>
+      </Box>
+    )
+  }
+
+  return loading ? (
+    <CircularProgress size={20} />
+  ) : url ? (
+    <Box>
+      <Box
+        component="img"
+        src={url}
+        alt={slot.alt || 'Image'}
+        sx={{ maxWidth: '100%', width: mmToPx(slot.widthMm, scale), height: 'auto', display: 'inline-block' }}
+      />
+      <ImageCaptionPreview
+        showTitle={slot.showImageTitle}
+        title={slot.imageTitle}
+        subtitle={slot.imageSubtitle}
+        titleFontSize={slot.imageTitleFontSize ?? 10}
+        subtitleFontSize={slot.imageSubtitleFontSize ?? 8}
+        align={slot.align}
+        scale={scale}
+      />
+    </Box>
+  ) : null
+}
+
+function ImageCaptionPreview({
+  showTitle,
+  title,
+  subtitle,
+  titleFontSize,
+  subtitleFontSize,
+  align,
+  scale,
+}: {
+  showTitle?: boolean
+  title?: string
+  subtitle?: string
+  titleFontSize: number
+  subtitleFontSize: number
+  align: string
+  scale: number
+}) {
+  if (!showTitle && !subtitle) return null
+
+  return (
+    <Box sx={{ mt: 0.5, textAlign: textAlignCss(align) }}>
+      {showTitle && title && (
+        <Typography
+          sx={{
+            fontSize: ptToCanvasPx(titleFontSize, scale),
+            fontWeight: 600,
+            color: '#1a1a1a',
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </Typography>
+      )}
+      {subtitle && (
+        <Typography
+          sx={{
+            fontSize: ptToCanvasPx(subtitleFontSize, scale),
+            color: '#666',
+            lineHeight: 1.2,
+          }}
+        >
+          {subtitle}
+        </Typography>
+      )}
+    </Box>
+  )
 }
 
 function CanvasImagePreview({
@@ -516,18 +919,29 @@ function CanvasImagePreview({
       {loading ? (
         <CircularProgress size={20} />
       ) : url ? (
-        <Box
-          component="img"
-          src={url}
-          alt={element.alt || 'Certificate image'}
-          sx={{
-            maxWidth: '100%',
-            width: mmToPx(element.widthMm, scale),
-            height: element.heightMm ? mmToPx(element.heightMm, scale) : 'auto',
-            objectFit: 'contain',
-            display: 'inline-block',
-          }}
-        />
+        <Box>
+          <Box
+            component="img"
+            src={url}
+            alt={element.alt || 'Certificate image'}
+            sx={{
+              maxWidth: '100%',
+              width: mmToPx(element.widthMm, scale),
+              height: element.heightMm ? mmToPx(element.heightMm, scale) : 'auto',
+              objectFit: 'contain',
+              display: 'inline-block',
+            }}
+          />
+          <ImageCaptionPreview
+            showTitle={element.showTitle}
+            title={element.title}
+            subtitle={element.subtitle}
+            titleFontSize={element.titleFontSize ?? 10}
+            subtitleFontSize={element.subtitleFontSize ?? 8}
+            align={element.align}
+            scale={scale}
+          />
+        </Box>
       ) : (
         <Typography variant="caption" color="error">
           Image failed to load

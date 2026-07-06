@@ -281,6 +281,27 @@ data class WithdrawalDto(
     val assignedDepotId: Int? = null,
     val assignedDepotName: String? = null,
     val cyAssignedAt: String? = null,
+    val pickupSchedule: WithdrawalScheduleDto? = null,
+    val truckingCompany: String? = null,
+    val plateNumber: String? = null,
+    val driverName: String? = null,
+)
+
+@Serializable
+data class WithdrawalScheduleDto(
+    val id: Int,
+    val withdrawalRequestId: Int,
+    val referenceNo: String,
+    val depotId: Int,
+    val depotName: String,
+    val date: String,
+    val time: String,
+    val slotNo: Int,
+    val status: String,
+    val truckerId: Int? = null,
+    val truckerName: String? = null,
+    val depotRemarks: String? = null,
+    val containerSummary: String,
 )
 
 @Serializable

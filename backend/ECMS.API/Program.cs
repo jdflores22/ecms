@@ -38,6 +38,8 @@ builder.Services.Configure<ECMS.Infrastructure.Options.OcrEnsembleOptions>(
     builder.Configuration.GetSection(ECMS.Infrastructure.Options.OcrEnsembleOptions.SectionName));
 builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
+builder.Services.Configure<ECMS.Application.Configuration.IcsAppOptions>(
+    builder.Configuration.GetSection(ECMS.Application.Configuration.IcsAppOptions.SectionName));
 builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>
 {
     var envKey = Environment.GetEnvironmentVariable("LOGICTECK_API_KEY");
@@ -130,6 +132,17 @@ builder.Services.AddRateLimiter(options =>
 
     // Token refresh — separate bucket so refresh retries cannot block login.
     options.AddPolicy("auth-refresh", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = isDev ? 120 : 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // Public certificate QR verification — anti-enumeration / abuse protection.
+    options.AddPolicy("cert-verify", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
