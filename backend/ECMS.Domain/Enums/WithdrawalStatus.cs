@@ -11,4 +11,7 @@ public enum WithdrawalStatus
     Released = 6,
     Completed = 7,
     Cancelled = 8,
+    Booked = 9,
+    CyAssigned = 10,
+    Scheduled = 11,
 }

@@ -4,25 +4,7 @@ import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
@@ -47,6 +29,7 @@ import {
   infoGridSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
+import AssetImage from '../../components/layout/AssetImage'
 import { demurrageBillingApi, type DemurrageBilling } from '../../services/api'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { openSignedAsset } from '../../utils/openSignedAsset'
@@ -394,30 +377,24 @@ export default function DemurrageBillingDetailPage() {
         {item.proofFile ? (
           <Box sx={{ mb: canUpload ? 3 : 0 }}>
             {isImageProof(item.proofFile) ? (
-              <Box
-                component="button"
-                type="button"
+              <AssetImage
+                path={item.proofFile}
+                alt="Payment proof"
                 onClick={() => setProofPreviewOpen(true)}
+                skeletonHeight={280}
+                skeletonMaxHeight={360}
                 sx={{
-                  display: 'block',
                   width: '100%',
                   maxWidth: 480,
-                  p: 0,
+                  maxHeight: 360,
+                  objectFit: 'contain',
+                  display: 'block',
                   border: '1px solid',
                   borderColor: 'divider',
                   borderRadius: 2.5,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
                   bgcolor: '#fafafa',
                 }}
-              >
-                <Box
-                  component="img"
-                  src={proofFileUrl}
-                  alt="Payment proof"
-                  sx={{ width: '100%', maxHeight: 360, objectFit: 'contain', display: 'block' }}
-                />
-              </Box>
+              />
             ) : (
               <Paper
                 elevation={0}
@@ -481,10 +458,10 @@ export default function DemurrageBillingDetailPage() {
         <DialogTitle sx={{ fontWeight: 700 }}>Payment proof</DialogTitle>
         <DialogContent>
           {item.proofFile && isImageProof(item.proofFile) && (
-            <Box
-              component="img"
-              src={proofFileUrl}
+            <AssetImage
+              path={item.proofFile}
               alt="Payment proof"
+              skeletonHeight={400}
               sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }}
             />
           )}

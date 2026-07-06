@@ -10,6 +10,7 @@ public record PaymentDto(
     decimal Amount,
     string? ProofFile,
     string? ProofReferenceNo,
+    string? ProofPaymentId,
     string? ProofQrphInvoiceNo,
     DateTime? ProofTransactionAt,
     string? ProofProvider,
@@ -20,14 +21,16 @@ public record UpdatePaymentProofMetadataRequest(
     string? ProofReferenceNo,
     DateTime? ProofTransactionAt,
     string? ProofProvider = null,
-    string? ProofQrphInvoiceNo = null);
+    string? ProofQrphInvoiceNo = null,
+    string? ProofPaymentId = null);
 
 public record VerifyPaymentRequest(
     bool Approved,
     string? ProofReferenceNo,
     DateTime? ProofTransactionAt,
     string? ProofProvider = null,
-    string? ProofQrphInvoiceNo = null);
+    string? ProofQrphInvoiceNo = null,
+    string? ProofPaymentId = null);
 
 public record PaymentStatusDto(int Id, PaymentStatus Status, string? ProofFile);
 
@@ -48,6 +51,7 @@ public record UploadPaymentRequest(
     string? ProofReferenceNo = null,
     DateTime? ProofTransactionAt = null,
     string? ProofProvider = null,
-    string? ProofQrphInvoiceNo = null);
+    string? ProofQrphInvoiceNo = null,
+    string? ProofPaymentId = null);
 
 public record PaymentProofFileInfo(string AbsolutePath, string ContentType, string FileName);

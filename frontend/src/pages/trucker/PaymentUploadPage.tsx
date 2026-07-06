@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -36,6 +35,8 @@ import {
   infoGridSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
+import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
+import AssetImage from '../../components/layout/AssetImage'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, preAdviceApi, scheduleApi, type Payment, type PreAdvice, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
@@ -262,6 +263,7 @@ export default function TruckerPaymentUploadPage() {
           const extracted = await extractPaymentProofMetadata(file)
           metadata = {
             proofReferenceNo: extracted.referenceNo,
+            proofPaymentId: extracted.paymentId,
             proofQrphInvoiceNo: extracted.qrphInvoiceNo,
             proofTransactionAt: extracted.transactionAt,
             proofProvider: extracted.provider && extracted.provider !== 'unknown' ? extracted.provider : undefined,
@@ -470,36 +472,25 @@ export default function TruckerPaymentUploadPage() {
                   {payment?.proofFile && (
                     <Box sx={{ mb: paymentUploadNeeded ? 3 : 0 }}>
                       {isImageProof(payment.proofFile) ? (
-                        <Box
-                          component="button"
-                          type="button"
+                        <AssetImage
+                          path={payment.proofFile}
+                          alt="Payment proof"
                           onClick={() => setProofPreviewOpen(true)}
+                          skeletonHeight={280}
+                          skeletonMaxHeight={360}
                           sx={{
-                            display: 'block',
                             width: '100%',
-                            p: 0,
+                            maxHeight: 360,
+                            objectFit: 'contain',
+                            display: 'block',
                             border: '1px solid',
                             borderColor: 'divider',
                             borderRadius: 2.5,
-                            overflow: 'hidden',
-                            cursor: 'pointer',
                             bgcolor: '#fafafa',
                             transition: 'box-shadow 0.15s ease',
                             '&:hover': { boxShadow: '0 4px 16px rgba(11, 61, 145, 0.12)' },
                           }}
-                        >
-                          <Box
-                            component="img"
-                            src={proofFileUrl}
-                            alt="Payment proof"
-                            sx={{
-                              width: '100%',
-                              maxHeight: 360,
-                              objectFit: 'contain',
-                              display: 'block',
-                            }}
-                          />
-                        </Box>
+                        />
                       ) : (
                         <Paper
                           elevation={0}
@@ -667,12 +658,7 @@ export default function TruckerPaymentUploadPage() {
         </DialogTitle>
         <DialogContent dividers={confirmFullScreen}>
           {submitting ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, gap: 2 }}>
-              <CircularProgress size={40} sx={{ color: primaryDark }} />
-              <Typography color="text.secondary" align="center">
-                Uploading payment proof…
-              </Typography>
-            </Box>
+            <DialogBusySkeleton message="Uploading payment proof…" />
           ) : saveSuccess ? (
             <Alert severity="success" sx={{ borderRadius: 2 }}>
               Payment proof submitted successfully. Depot will verify your upload. Returning to payments…
@@ -791,10 +777,11 @@ export default function TruckerPaymentUploadPage() {
           {payment?.proofFile && (
             <>
               {isImageProof(payment.proofFile) ? (
-                <Box
-                  component="img"
-                  src={proofFileUrl}
+                <AssetImage
+                  path={payment.proofFile}
                   alt="Payment proof"
+                  skeletonHeight={360}
+                  skeletonMaxHeight={480}
                   sx={{
                     width: '100%',
                     maxHeight: 480,

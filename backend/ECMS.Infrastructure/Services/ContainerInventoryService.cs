@@ -28,9 +28,11 @@ public class ContainerInventoryService : IContainerInventoryService
         int? depotId,
         int? shippingLineId,
         string? complianceStatus,
+        string? yardStatus,
         CancellationToken cancellationToken = default)
     {
         var lineId = await ResolveShippingLineIdAsync(shippingLineId, userId, role, cancellationToken);
+        var releasedDetails = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(_db, lineId, cancellationToken);
 
         var schedules = await _db.Schedules
             .Include(s => s.PreAdvice)
@@ -57,14 +59,27 @@ public class ContainerInventoryService : IContainerInventoryService
             .ToListAsync(cancellationToken);
 
         var items = schedules
-            .Select(MapScheduleItem)
-            .Concat(manualEntries.Select(MapManualItem))
+            .Select(s => MapScheduleItem(s, releasedDetails))
+            .Concat(manualEntries.Select(e => MapManualItem(e, releasedDetails)))
             .Where(i => MatchesComplianceFilter(i.ComplianceStatus, complianceStatus))
-            .OrderBy(i => i.DepotName)
+            .Where(i => MatchesYardStatusFilter(i.YardStatus, yardStatus))
+            .OrderByDescending(i => i.YardStatus == nameof(YardInventoryStatus.AtYard))
+            .ThenBy(i => i.DepotName)
             .ThenByDescending(i => i.YardInDate)
             .ToList();
 
-        var summary = BuildSummary(items, await GetContractTeuAsync(lineId, cancellationToken));
+        var shippingLine = await _db.ShippingLines
+            .AsNoTracking()
+            .Where(s => s.Id == lineId)
+            .Select(s => new { s.Id, s.Code, s.Name })
+            .FirstAsync(cancellationToken);
+
+        var summary = BuildSummary(
+            items,
+            await GetContractTeuAsync(lineId, cancellationToken),
+            shippingLine.Id,
+            shippingLine.Code,
+            shippingLine.Name);
 
         return new ContainerInventoryResponseDto(summary, items);
     }
@@ -124,6 +139,9 @@ public class ContainerInventoryService : IContainerInventoryService
         if (entry is null)
             return false;
 
+        if (entry.YardStatus == YardInventoryStatus.Released)
+            throw new InvalidOperationException("Released inventory records cannot be deleted.");
+
         if (role == RoleNames.ShippingLineEvaluator)
         {
             var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
@@ -135,6 +153,48 @@ public class ContainerInventoryService : IContainerInventoryService
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Delete", "ManualYardInventory", entry.ContainerNo, cancellationToken);
         return true;
+    }
+
+    public async Task ApplyYardReleaseAsync(
+        int shippingLineId,
+        int depotId,
+        string containerNoNormalized,
+        int containerSizeId,
+        int containerTypeId,
+        int withdrawalRequestId,
+        int withdrawalLineId,
+        string withdrawalReferenceNo,
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = containerNoNormalized.Trim().ToUpperInvariant();
+        var releasedAt = PhilippinesTime.UtcNow;
+
+        var manualEntries = await _db.ManualYardInventoryEntries
+            .Where(e => e.ShippingLineId == shippingLineId
+                && e.DepotId == depotId
+                && e.ContainerNo == normalized
+                && e.ContainerSizeId == containerSizeId
+                && e.ContainerTypeId == containerTypeId
+                && e.YardStatus == YardInventoryStatus.AtYard)
+            .ToListAsync(cancellationToken);
+
+        foreach (var entry in manualEntries)
+        {
+            entry.YardStatus = YardInventoryStatus.Released;
+            entry.ReleasedAt = releasedAt;
+            entry.ReleasedWithdrawalRequestId = withdrawalRequestId;
+            entry.ReleasedWithdrawalLineId = withdrawalLineId;
+        }
+
+        if (manualEntries.Count > 0)
+            await _db.SaveChangesAsync(cancellationToken);
+
+        _auditService.QueueLog(
+            userId,
+            "YardRelease",
+            "ContainerInventory",
+            $"{normalized} ({withdrawalReferenceNo})");
     }
 
     private async Task<ManualYardInventoryEntry> CreateManualEntryCoreAsync(
@@ -170,7 +230,10 @@ public class ContainerInventoryService : IContainerInventoryService
             throw new InvalidOperationException($"No active CY contract for {depot.Name}.");
 
         if (await _db.ManualYardInventoryEntries.AnyAsync(
-                e => e.ShippingLineId == shippingLineId && e.ContainerNo == containerNo && e.DepotId == request.DepotId,
+                e => e.ShippingLineId == shippingLineId
+                    && e.ContainerNo == containerNo
+                    && e.DepotId == request.DepotId
+                    && e.YardStatus == YardInventoryStatus.AtYard,
                 cancellationToken))
             throw new InvalidOperationException($"Container {containerNo} is already registered at {depot.Name}.");
 
@@ -187,6 +250,7 @@ public class ContainerInventoryService : IContainerInventoryService
             YardInDate = request.YardInDate,
             Remarks = string.IsNullOrWhiteSpace(request.Remarks) ? null : request.Remarks.Trim(),
             CreatedByUserId = userId,
+            YardStatus = YardInventoryStatus.AtYard,
         };
 
         _db.Add(entry);
@@ -207,23 +271,39 @@ public class ContainerInventoryService : IContainerInventoryService
         int depotId,
         CancellationToken cancellationToken)
     {
-        return await _db.Schedules
+        var releasedDetails = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(_db, shippingLineId, cancellationToken);
+
+        var schedules = await _db.Schedules
             .Include(s => s.PreAdvice)
             .ThenInclude(p => p.Container)
-            .AnyAsync(
+            .Where(
                 s => s.Status == ScheduleStatus.Confirmed
                      && s.PreAdvice.Status == PreAdviceStatus.Approved
                      && s.PreAdvice.ShippingLineId == shippingLineId
                      && s.DepotId == depotId
-                     && s.PreAdvice.Container.ContainerNo == containerNo,
-                cancellationToken);
+                     && s.PreAdvice.Container.ContainerNo == containerNo)
+            .ToListAsync(cancellationToken);
+
+        return schedules.Any(s => !releasedDetails.ContainsKey(YardInventoryReleaseHelper.BuildKey(
+            s.DepotId,
+            s.PreAdvice.ContainerNoNormalized,
+            s.PreAdvice.ContainerSizeId,
+            s.PreAdvice.ContainerTypeId)));
     }
 
-    private static ContainerInventoryItemDto MapScheduleItem(Schedule schedule)
+    private static ContainerInventoryItemDto MapScheduleItem(
+        Schedule schedule,
+        IReadOnlyDictionary<string, ReleasedYardDetail> releasedDetails)
     {
+        var key = YardInventoryReleaseHelper.BuildKey(
+            schedule.DepotId,
+            schedule.PreAdvice.ContainerNoNormalized,
+            schedule.PreAdvice.ContainerSizeId,
+            schedule.PreAdvice.ContainerTypeId);
+        var released = releasedDetails.TryGetValue(key, out var release);
         var yardIn = ResolveYardInDate(schedule);
         var dwellDays = DwellDays(yardIn);
-        var compliance = ResolveCompliance(dwellDays);
+        var compliance = released ? "Released" : ResolveCompliance(dwellDays);
 
         return new ContainerInventoryItemDto(
             schedule.Id,
@@ -242,16 +322,31 @@ public class ContainerInventoryService : IContainerInventoryService
             yardIn,
             schedule.Time.ToString("HH:mm"),
             dwellDays,
-            Math.Max(0, DwellLimitDays - dwellDays),
+            released ? 0 : Math.Max(0, DwellLimitDays - dwellDays),
             compliance,
+            released ? nameof(YardInventoryStatus.Released) : nameof(YardInventoryStatus.AtYard),
+            released ? release!.ReleasedAt.ToString("O") : null,
+            released ? release!.ReferenceNo : null,
+            released ? release!.WithdrawalRequestId : null,
             schedule.Status.ToString(),
             schedule.PreAdvice.Remarks);
     }
 
-    private static ContainerInventoryItemDto MapManualItem(ManualYardInventoryEntry entry)
+    private static ContainerInventoryItemDto MapManualItem(
+        ManualYardInventoryEntry entry,
+        IReadOnlyDictionary<string, ReleasedYardDetail> releasedDetails)
     {
-        var dwellDays = DwellDays(entry.YardInDate);
-        var compliance = ResolveCompliance(dwellDays);
+        var key = YardInventoryReleaseHelper.BuildKey(
+            entry.DepotId,
+            entry.ContainerNo,
+            entry.ContainerSizeId,
+            entry.ContainerTypeId);
+
+        var releasedFromLine = releasedDetails.TryGetValue(key, out var release);
+        var isReleased = entry.YardStatus == YardInventoryStatus.Released || releasedFromLine;
+        var yardIn = entry.YardInDate;
+        var dwellDays = DwellDays(yardIn);
+        var compliance = isReleased ? "Released" : ResolveCompliance(dwellDays);
 
         return new ContainerInventoryItemDto(
             null,
@@ -267,11 +362,15 @@ public class ContainerInventoryService : IContainerInventoryService
             null,
             entry.DepotId,
             entry.Depot.Name,
-            entry.YardInDate,
+            yardIn,
             null,
             dwellDays,
-            Math.Max(0, DwellLimitDays - dwellDays),
+            isReleased ? 0 : Math.Max(0, DwellLimitDays - dwellDays),
             compliance,
+            isReleased ? nameof(YardInventoryStatus.Released) : nameof(YardInventoryStatus.AtYard),
+            isReleased ? (entry.ReleasedAt ?? release?.ReleasedAt)?.ToString("O") : null,
+            isReleased ? release?.ReferenceNo : null,
+            isReleased ? release?.WithdrawalRequestId ?? entry.ReleasedWithdrawalRequestId : null,
             null,
             entry.Remarks);
     }
@@ -320,29 +419,49 @@ public class ContainerInventoryService : IContainerInventoryService
         return string.Equals(status, filter.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool MatchesYardStatusFilter(string status, string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+            return true;
+
+        return string.Equals(status, filter.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static ContainerInventorySummaryDto BuildSummary(
         IReadOnlyList<ContainerInventoryItemDto> items,
-        decimal contractTeu)
+        decimal contractTeu,
+        int shippingLineId,
+        string shippingLineCode,
+        string shippingLineName)
     {
+        var atYardItems = items.Where(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)).ToList();
+
         var byDepot = items
             .GroupBy(i => new { i.DepotId, i.DepotName })
             .Select(g => new ContainerInventoryDepotSummaryDto(
                 g.Key.DepotId,
                 g.Key.DepotName,
-                g.Count(),
-                g.Count(i => i.ComplianceStatus == "Overstay")))
+                g.Count(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)),
+                g.Count(i => i.YardStatus == nameof(YardInventoryStatus.Released)),
+                g.Count(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)
+                    && i.ComplianceStatus == "Overstay")))
+            .Where(d => d.AtYardCount > 0 || d.ReleasedCount > 0)
             .OrderBy(d => d.DepotName)
             .ToList();
 
-        var size20Count = items.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "20");
-        var size40Count = items.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "40");
-        var usedTeu = items.Sum(i => TeuCalculator.FromContainerSize(i.ContainerSize));
+        var size20Count = atYardItems.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "20");
+        var size40Count = atYardItems.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "40");
+        var usedTeu = atYardItems.Sum(i => TeuCalculator.FromContainerSize(i.ContainerSize));
 
         return new ContainerInventorySummaryDto(
-            items.Count,
-            items.Count(i => i.ComplianceStatus == "WithinLimit"),
-            items.Count(i => i.ComplianceStatus == "ApproachingLimit"),
-            items.Count(i => i.ComplianceStatus == "Overstay"),
+            shippingLineId,
+            shippingLineCode,
+            shippingLineName,
+            atYardItems.Count,
+            items.Count(i => i.YardStatus == nameof(YardInventoryStatus.Released)),
+            atYardItems.Count(i => i.ComplianceStatus == "WithinLimit"),
+            atYardItems.Count(i => i.ComplianceStatus == "ApproachingLimit"),
+            atYardItems.Count(i => i.ComplianceStatus == "Overstay"),
             DwellLimitDays,
             WarningThresholdDays,
             size20Count,

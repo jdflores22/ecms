@@ -119,7 +119,7 @@ try {
     }
     Write-Host ""
     Write-Host "Production deploy complete." -ForegroundColor Green
-    Write-Host "  Frontend: https://deepskyblue-marten-415020.hostingersite.com/" -ForegroundColor Green
+    Write-Host "  Frontend: https://deepskyblue-marteqwn-415020.hostingersite.com/" -ForegroundColor Green
     Write-Host "  API:      $($ApiBaseUrl -replace '/api$','')" -ForegroundColor Green
     if (-not $SkipGitPush) {
         Write-Host "  Railway:  check Deployments tab if the API build is still running." -ForegroundColor DarkGray

@@ -31,6 +31,7 @@ import {
 import { summarizeBillings } from '../../components/demurrage/demurrageBillingUtils'
 import {
   ListDesktopOnly,
+  ListLoadingState,
   ListMobileCard,
   ListMobileChipRow,
   ListMobileMeta,
@@ -211,9 +212,7 @@ export default function TruckerDemurrageBillingPage() {
       </Paper>
 
       {loading ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
+        <ListLoadingState />
       ) : filtered.length === 0 ? (
         <Alert severity="info" sx={{ borderRadius: 2, mt: 2 }}>
           {tabEmptyMessage[activeTab]}

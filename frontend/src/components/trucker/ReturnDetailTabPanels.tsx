@@ -4,7 +4,7 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import PrintIcon from '@mui/icons-material/Print'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import { Box, Button, Chip, CircularProgress, Paper, Typography } from '@mui/material'
+import { Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import {
@@ -14,9 +14,10 @@ import {
   hexToRgba,
   infoGridSx,
 } from '../layout/DetailPagePrimitives'
+import { QrImageSkeleton } from '../layout/SkeletonPrimitives'
+import AssetImage from '../layout/AssetImage'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type { Payment, PreAdvice, PreAdviceDocument, QrBooking, Schedule } from '../../services/api'
-import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import {
   paymentStatusColor,
@@ -89,8 +90,6 @@ export default function ReturnDetailTabPanels({
   onPrintQr,
   onReloadDocuments,
 }: ReturnDetailTabPanelsProps) {
-  const proofFileUrl = useAssetUrl(payment?.proofFile)
-
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
@@ -168,11 +167,12 @@ export default function ReturnDetailTabPanels({
                   Proof of payment
                 </Typography>
                 {isImageProof(payment.proofFile) ? (
-                  <Box
-                    component="img"
-                    src={proofFileUrl}
+                  <AssetImage
+                    path={payment.proofFile}
                     alt="Payment proof"
                     onClick={onProofPreview}
+                    skeletonHeight={240}
+                    skeletonMaxHeight={320}
                     sx={{
                       width: '100%',
                       maxWidth: 420,
@@ -182,7 +182,6 @@ export default function ReturnDetailTabPanels({
                       border: '1px solid',
                       borderColor: 'divider',
                       bgcolor: '#fafafa',
-                      cursor: 'pointer',
                     }}
                   />
                 ) : (
@@ -254,12 +253,7 @@ export default function ReturnDetailTabPanels({
         </Typography>
 
         {qrLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-            <CircularProgress size={24} sx={{ color: primaryDark }} />
-            <Typography variant="body2" color="text.secondary">
-              Loading QR code…
-            </Typography>
-          </Box>
+          <QrImageSkeleton size={200} />
         ) : qrBooking ? (
           <Box
             sx={{

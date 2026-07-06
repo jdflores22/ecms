@@ -1,15 +1,4 @@
-import {
-  Box,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import { Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
@@ -36,6 +25,7 @@ const SUMMARY_TAIL_HEADERS = [
   'TEUs',
   'Units',
   'Overstay',
+  'Released',
   'Yard-in (Today)',
 ] as const
 
@@ -71,6 +61,7 @@ function SummaryDataRow({ row, isTotal }: { row: InventorySummaryRow; isTotal?: 
       <SummaryCell value={row.teus} />
       <SummaryCell value={row.units} bold />
       <SummaryCell value={row.overstayCount} />
+      <SummaryCell value={row.releasedCount} />
       <SummaryCell value={row.yardInToday} />
     </TableRow>
   )
@@ -90,8 +81,8 @@ function SummaryMobileCard({ row, isTotal }: { row: InventorySummaryRow; isTotal
         {formatSummaryCount(row.manualCount)}
       </ListMobileMeta>
       <ListMobileMeta>
-        Booking {formatSummaryCount(row.bookingCount)} · Overstay {formatSummaryCount(row.overstayCount)} · Yard-in
-        today {formatSummaryCount(row.yardInToday)}
+        Booking {formatSummaryCount(row.bookingCount)} · Overstay {formatSummaryCount(row.overstayCount)} · Released{' '}
+        {formatSummaryCount(row.releasedCount)} · Yard-in today {formatSummaryCount(row.yardInToday)}
       </ListMobileMeta>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
         {ECMS_INVENTORY_TYPE_CODES.map((code) => (

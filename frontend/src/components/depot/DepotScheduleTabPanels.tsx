@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Paper,
   TextField,
   Typography,
@@ -17,6 +16,8 @@ import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import { QrImageSkeleton } from '../layout/SkeletonPrimitives'
+import AssetImage from '../layout/AssetImage'
 import { qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Payment,
@@ -438,18 +439,17 @@ export default function DepotScheduleTabPanels({
                   Payment proof
                 </Typography>
                 {isImageProof(payment.proofFile) ? (
-                  <Box
-                    component="img"
-                    src={proofFileUrl}
+                  <AssetImage
+                    path={payment.proofFile}
                     alt="Payment proof"
                     onClick={onProofPreview}
+                    skeletonHeight={200}
                     sx={{
                       width: '100%',
                       maxWidth: 320,
                       borderRadius: 2,
                       border: '1px solid',
                       borderColor: 'divider',
-                      cursor: 'pointer',
                     }}
                   />
                 ) : isPdfProof(payment.proofFile) ? (
@@ -489,9 +489,7 @@ export default function DepotScheduleTabPanels({
       {!depotView && (
       <DetailTabPanel value="qr" activeTab={activeTab}>
         {qrLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <QrImageSkeleton />
         ) : qrBooking && qrImageUrl ? (
           <>
             <Box sx={infoGridSx}>

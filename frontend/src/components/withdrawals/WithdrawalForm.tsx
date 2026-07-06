@@ -1,16 +1,4 @@
-import {
-  Autocomplete,
-  Box,
-  Button,
-  Chip,
-  FormControl,
-  FormHelperText,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Autocomplete, Box, Button, Chip, FormControl, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import { useEffect, useMemo, useState } from 'react'
 import type { WithdrawalFormConfig, WithdrawalLookups } from '../../services/api'
@@ -72,6 +60,7 @@ interface WithdrawalFormProps {
   submitting?: boolean
   excludeWithdrawalId?: number
   hideActions?: boolean
+  bookMode?: boolean
 }
 
 export default function WithdrawalForm({
@@ -87,6 +76,7 @@ export default function WithdrawalForm({
   submitting = false,
   excludeWithdrawalId,
   hideActions = false,
+  bookMode = false,
 }: WithdrawalFormProps) {
   const [internalValues, setInternalValues] = useState(initial)
   const values = controlledValues ?? internalValues
@@ -125,7 +115,7 @@ export default function WithdrawalForm({
   }, [values.issueDate, values.expirationDate])
 
   useEffect(() => {
-    if (!values.atwNumber.trim()) {
+    if (!(values.atwNumber ?? '').trim()) {
       setAtwTakenWarning(null)
       return
     }
@@ -148,11 +138,11 @@ export default function WithdrawalForm({
     e.preventDefault()
     const lineValues = toLineSubmitValues(values.lines)
     if (
-      !values.atwNumber.trim() ||
+      !(values.atwNumber ?? '').trim() ||
       values.shippingLineId === '' ||
       !lineValues ||
-      values.currentDepotId === '' ||
-      !values.destination.trim() ||
+      (!bookMode && values.currentDepotId === '') ||
+      !(values.destination ?? '').trim() ||
       !values.issueDate ||
       !values.expirationDate
     ) {
@@ -160,24 +150,24 @@ export default function WithdrawalForm({
     }
 
     onSubmit?.({
-      atwNumber: values.atwNumber.trim().toUpperCase(),
+      atwNumber: (values.atwNumber ?? '').trim().toUpperCase(),
       shippingLineId: values.shippingLineId,
       lines: lineValues,
-      currentDepotId: values.currentDepotId,
-      destination: values.destination.trim(),
+      currentDepotId: (bookMode ? 0 : values.currentDepotId) as number,
+      destination: (values.destination ?? '').trim(),
       issueDate: values.issueDate,
       expirationDate: values.expirationDate,
-      remarks: values.remarks.trim() || undefined,
+      remarks: (values.remarks ?? '').trim() || undefined,
     })
   }
 
   const lineValues = toLineSubmitValues(values.lines)
   const canSubmit =
-    values.atwNumber.trim() &&
+    (values.atwNumber ?? '').trim() &&
     values.shippingLineId !== '' &&
     lineValues &&
-    values.currentDepotId !== '' &&
-    values.destination.trim() &&
+    (bookMode || values.currentDepotId !== '') &&
+    (values.destination ?? '').trim() &&
     values.issueDate &&
     values.expirationDate &&
     !dateError &&
@@ -313,21 +303,23 @@ export default function WithdrawalForm({
             gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
           }}
         >
-          <FormControl required size="small" sx={fieldSx}>
-            <InputLabel>Current container yard (CY)</InputLabel>
-            <Select
-              label="Current container yard (CY)"
-              value={values.currentDepotId}
-              onChange={(e) => setField('currentDepotId', e.target.value as number)}
-            >
-              {filteredDepots.map((depot) => (
-                <MenuItem key={depot.id} value={depot.id}>
-                  {depot.name}
-                </MenuItem>
-              ))}
-            </Select>
-            <FormHelperText>Where the containers are currently located</FormHelperText>
-          </FormControl>
+          {!bookMode && (
+            <FormControl required size="small" sx={fieldSx}>
+              <InputLabel>Current container yard (CY)</InputLabel>
+              <Select
+                label="Current container yard (CY)"
+                value={values.currentDepotId}
+                onChange={(e) => setField('currentDepotId', e.target.value as number)}
+              >
+                {filteredDepots.map((depot) => (
+                  <MenuItem key={depot.id} value={depot.id}>
+                    {depot.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>Where the containers are currently located</FormHelperText>
+            </FormControl>
+          )}
 
           <Autocomplete
             freeSolo

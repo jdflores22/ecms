@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,7 +89,16 @@ fun MainBottomBar(
                 alwaysShowLabel = true,
                 icon = {
                     if (badge > 0) {
-                        BadgedBox(badge = { Badge { Text("$badge") } }) {
+                        BadgedBox(
+                            badge = {
+                                Badge(
+                                    containerColor = IcsColors.Error,
+                                    contentColor = Color.White,
+                                ) {
+                                    Text(if (badge > 99) "99+" else "$badge")
+                                }
+                            },
+                        ) {
                             Icon(tab.icon, contentDescription = tabLabel)
                         }
                     } else {

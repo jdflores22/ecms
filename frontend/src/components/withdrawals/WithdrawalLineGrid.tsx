@@ -1,22 +1,4 @@
-import {
-  Alert,
-  Box,
-  Button,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import { useEffect, useState } from 'react'
@@ -178,7 +160,7 @@ export default function WithdrawalLineGrid({
   }, [lines, shippingLineId])
 
   useEffect(() => {
-    if (currentDepotId === '' || currentDepotId === undefined) {
+    if (currentDepotId === '' || currentDepotId === undefined || shippingLineId === '' || shippingLineId === undefined) {
       setYardWarnings({})
       return
     }
@@ -191,11 +173,12 @@ export default function WithdrawalLineGrid({
         try {
           const { data } = await withdrawalApi.checkYard({
             depotId: currentDepotId as number,
+            shippingLineId: shippingLineId as number,
             containerNo: line.containerNo.trim().toUpperCase(),
             containerSizeId: line.containerSizeId as number,
             containerTypeId: line.containerTypeId as number,
           })
-          return { index, warning: !data.isInYard ? data.message ?? 'Not found in yard inventory.' : null }
+          return { index, warning: !data.isInYard ? data.message ?? 'Not in shipping line yard inventory.' : null }
         } catch {
           return { index, warning: null }
         }
@@ -211,7 +194,7 @@ export default function WithdrawalLineGrid({
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [lines, currentDepotId])
+  }, [lines, currentDepotId, shippingLineId])
 
   const updateLine = (index: number, patch: Partial<WithdrawalLineFormValue>) => {
     onChange(lines.map((line, i) => (i === index ? { ...line, ...patch } : line)))

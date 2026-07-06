@@ -11,10 +11,59 @@ export function formatCyCountSplit(preAdvisedCount: number, bookingCount: number
   return `${preAdvisedCount} pre-forecasted · ${bookingCount} booking`
 }
 
-/** Utilization percentage; may exceed 100 when over contract limit. */
+/** TEU split for CY capacity panels. */
+export function formatCyTeuSplit(preAdvisedTeu: number, bookingTeu: number): string {
+  return `${Math.round(preAdvisedTeu)} TEU pre-forecasted · ${Math.round(bookingTeu)} TEU booking`
+}
+
+type BreakdownTeuRow = Pick<CyAllocationBreakdownRow, 'preAdvisedCount' | 'contractCount' | 'bookingCount' | 'availableCount' | 'teuPerContainer'>
+
+export function breakdownUsedTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.preAdvisedCount * row.teuPerContainer)
+}
+
+export function breakdownContractTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.contractCount * row.teuPerContainer)
+}
+
+export function breakdownBookingTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.bookingCount * row.teuPerContainer)
+}
+
+export function breakdownAvailableTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.availableCount * row.teuPerContainer)
+}
+
+/** Utilization percentage (0–100+); may exceed 100 when over contract limit. */
 export function cyUtilizationPctUncapped(used: number, limit: number): number {
   if (limit <= 0) return used > 0 ? 100 : 0
-  return Math.round((used / limit) * 10) / 10
+  return Math.round((used / limit) * 1000) / 10
+}
+
+/** Utilization percentage capped at 100 for display (1–100% scale). */
+export function cyUtilizationPctCapped(used: number, limit: number): number {
+  return Math.min(100, cyUtilizationPctUncapped(used, limit))
+}
+
+export function formatUtilizationPctLabel(used: number, limit: number): string {
+  const capped = cyUtilizationPctCapped(used, limit)
+  const display = Number.isInteger(capped) ? `${capped}` : capped.toFixed(1)
+  if (limit > 0 && used > limit) return `${display}% · over limit`
+  return `${display}%`
+}
+
+/** Same format as Admin → Master Data CY contract chips. */
+export function formatMasterDataContractLine(
+  groupKey: '20' | '40',
+  row: CyAllocationBreakdownRow | undefined,
+): string | null {
+  if (!row || row.contractCount <= 0) return null
+  const sizeLabel = groupKey === '20' ? '20ft' : '40ft'
+  return `${sizeLabel}: ${row.contractCount} slots · ${breakdownContractTeu(row)} TEU`
 }
 
 export function getGroupBreakdownRow(
@@ -36,6 +85,21 @@ export function aggregatePreAdvisedBySize(items: { breakdown: CyAllocationBreakd
     size40 += getGroupBreakdownRow(item, '40')?.preAdvisedCount ?? 0
   }
   return { total: size20 + size40, size20, size40 }
+}
+
+/** Pre-advised TEU totals by size group across yards. */
+export function aggregatePreAdvisedTeuBySize(items: { breakdown: CyAllocationBreakdownRow[] }[]): {
+  total: number
+  teu20: number
+  teu40: number
+} {
+  let teu20 = 0
+  let teu40 = 0
+  for (const item of items) {
+    teu20 += breakdownUsedTeu(getGroupBreakdownRow(item, '20'))
+    teu40 += breakdownUsedTeu(getGroupBreakdownRow(item, '40'))
+  }
+  return { total: teu20 + teu40, teu20, teu40 }
 }
 
 export function progressBarColor(pct: number): string {
@@ -147,13 +211,62 @@ export function formatCySizeOptionLabel(
 
 export function formatDepotCapacitySummary(row: {
   breakdown: CyAllocationBreakdownRow[]
-  availableCount: number
-  preAdvisedCount: number
-  bookingCount: number
+  availableTeu?: number
+  preAdvisedTeu?: number
+  bookingTeu?: number
 }): string {
   const sizeParts = row.breakdown
     .filter((r) => r.contractCount > 0)
-    .map((r) => `${getCapacityDisplayLabel(r.sizeLabel)}: ${r.availableCount}/${r.contractCount}`)
-  const sizes = sizeParts.length > 0 ? sizeParts.join(' · ') : `${row.availableCount} available`
-  return `${sizes} (${formatCyCountSplit(row.preAdvisedCount, row.bookingCount)})`
+    .map(
+      (r) =>
+        `${getCapacityDisplayLabel(r.sizeLabel)}: ${breakdownAvailableTeu(r)}/${breakdownContractTeu(r)} TEU`,
+    )
+  const sizes = sizeParts.length > 0 ? sizeParts.join(' · ') : `${Math.round(row.availableTeu ?? 0)} TEU available`
+  const teuSplit = formatCyTeuSplit(row.preAdvisedTeu ?? 0, row.bookingTeu ?? 0)
+  return `${sizes} (${teuSplit})`
+}
+
+export function countWithdrawalLinesBySizeGroup(lines: { containerSize: string }[]): Record<'20' | '40', number> {
+  const counts: Record<'20' | '40', number> = { '20': 0, '40': 0 }
+  for (const line of lines) {
+    const key = getCapacityGroupKey(line.containerSize)
+    if (key === '20' || key === '40') counts[key] += 1
+  }
+  return counts
+}
+
+export function depotHasCapacityForWithdrawal(
+  allocation: { depotName: string; breakdown: CyAllocationBreakdownRow[] },
+  lines: { containerSize: string }[],
+): { ok: boolean; reason?: string } {
+  const needed = countWithdrawalLinesBySizeGroup(lines)
+  for (const group of ['20', '40'] as const) {
+    if (needed[group] === 0) continue
+    const row = getGroupBreakdownRow(allocation, group)
+    const available = row?.availableCount ?? 0
+    if (available < needed[group]) {
+      return {
+        ok: false,
+        reason: `Need ${needed[group]} ${getCapacityDisplayLabel(group)} slot(s); only ${available} available at ${allocation.depotName}.`,
+      }
+    }
+  }
+  return { ok: true }
+}
+
+export function formatWithdrawalDepotOptionLabel(
+  allocation: {
+    depotName: string
+    breakdown: CyAllocationBreakdownRow[]
+    availableTeu: number
+    preAdvisedTeu: number
+    bookingTeu: number
+    contractTeu: number
+  },
+  lines: { containerSize: string }[],
+): string {
+  const capacity = depotHasCapacityForWithdrawal(allocation, lines)
+  const summary = formatDepotCapacitySummary(allocation)
+  const teuNote = `${Math.round(allocation.preAdvisedTeu)} / ${allocation.contractTeu} TEU`
+  return `${allocation.depotName} — ${summary} · ${teuNote}${capacity.ok ? '' : ' — insufficient for this batch'}`
 }

@@ -97,7 +97,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     stats: [
       { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'issuedWithdrawalsAwaitingUpload', label: 'Issued ATW — upload', description: 'Shipping line issued ATW awaiting certificate', icon: UnarchiveOutlinedIcon, color: '#6a1b9a', highlightWhenPositive: true },
+      { key: 'issuedWithdrawalsAwaitingUpload', label: 'ATW awaiting submit', description: 'Shipping line issued ATW — view certificate and submit', icon: UnarchiveOutlinedIcon, color: '#6a1b9a', highlightWhenPositive: true },
       { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: '#1565c0', highlightWhenPositive: true },
       { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
       { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
@@ -131,6 +131,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       { label: 'Manage users', path: '/admin/users', icon: PeopleIcon },
       { label: 'Roles', path: '/admin/roles', icon: AdminPanelSettingsIcon },
       { label: 'Master data', path: '/admin/master-data', icon: WarehouseIcon },
+      { label: 'Certificates', path: '/admin/certificate-templates', icon: AssignmentIcon },
       { label: 'Reports', path: '/admin/reports', icon: TrendingUpIcon },
       { label: 'Revenue', path: '/admin/revenue', icon: PaymentsIcon },
       { label: 'Audit log', path: '/admin/audit', icon: HistoryIcon },

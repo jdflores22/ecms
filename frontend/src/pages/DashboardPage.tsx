@@ -1,10 +1,10 @@
+import { DashboardSkeleton, CardPanelSkeleton } from '../components/layout/SkeletonPrimitives'
 import {
   Alert,
   Box,
   Button,
   Card,
   CardActionArea,
-  CircularProgress,
   Paper,
   Typography,
 } from '@mui/material'
@@ -250,21 +250,7 @@ export default function DashboardPage() {
       )}
 
       {loading ? (
-        <Paper
-          elevation={0}
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            py: 10,
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'divider',
-            bgcolor: '#fff',
-          }}
-        >
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Paper>
+        <DashboardSkeleton />
       ) : (
         <>
       <Box
@@ -468,10 +454,12 @@ export default function DashboardPage() {
                   bgcolor: '#fff',
                   display: 'flex',
                   justifyContent: 'center',
-                  py: 4,
+                  py: 2,
                 }}
               >
-                <CircularProgress size={28} sx={{ color: primaryDark }} />
+                <Box sx={{ width: '100%' }}>
+                  <CardPanelSkeleton />
+                </Box>
               </Paper>
             ) : (
               <CyAllocationDashboardPanel items={cyAllocations} />

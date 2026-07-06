@@ -163,8 +163,13 @@ public class DbSeeder
             {
                 ShippingLineId = maersk.Id,
                 DepotId = depot.Id,
-                ContractTeu = 200,
+                ContractTeu = 300,
             };
+            maerskContract.SizeAllocations.Add(new ShippingLineDepotContractSizeAllocation
+            {
+                ContainerSizeId = (await _context.ContainerSizesSet.FirstAsync(s => s.Label == "20")).Id,
+                ContractCount = 100,
+            });
             maerskContract.SizeAllocations.Add(new ShippingLineDepotContractSizeAllocation
             {
                 ContainerSizeId = size40.Id,
@@ -228,6 +233,7 @@ public class DbSeeder
         }
 
         await SeedDemurrageBillingTestDataAsync();
+        await YardInventoryDemoSeeder.SeedAsync(_context);
     }
 
     /// <summary>

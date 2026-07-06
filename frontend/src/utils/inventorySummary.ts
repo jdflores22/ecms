@@ -17,6 +17,7 @@ export interface InventorySummaryRow {
   manualCount: number
   bookingCount: number
   overstayCount: number
+  releasedCount: number
   yardInToday: number
   teus: number
   units: number
@@ -49,6 +50,30 @@ export function buildInventorySummaryRows(items: ContainerInventoryItem[]): Inve
   const grouped = new Map<number, InventorySummaryRow>()
 
   for (const item of items) {
+    if (item.yardStatus === 'Released') {
+      let row = grouped.get(item.depotId)
+      if (!row) {
+        row = {
+          depotId: item.depotId,
+          depotName: item.depotName,
+          size20Count: 0,
+          size40Count: 0,
+          typeCounts: emptyTypeCounts(),
+          preAdvisedCount: 0,
+          manualCount: 0,
+          bookingCount: 0,
+          overstayCount: 0,
+          releasedCount: 0,
+          yardInToday: 0,
+          teus: 0,
+          units: 0,
+        }
+        grouped.set(item.depotId, row)
+      }
+      row.releasedCount += 1
+      continue
+    }
+
     let row = grouped.get(item.depotId)
     if (!row) {
       row = {
@@ -61,6 +86,7 @@ export function buildInventorySummaryRows(items: ContainerInventoryItem[]): Inve
         manualCount: 0,
         bookingCount: 0,
         overstayCount: 0,
+        releasedCount: 0,
         yardInToday: 0,
         teus: 0,
         units: 0,
@@ -99,6 +125,7 @@ export function sumInventorySummaryRows(rows: InventorySummaryRow[]): InventoryS
     manualCount: 0,
     bookingCount: 0,
     overstayCount: 0,
+    releasedCount: 0,
     yardInToday: 0,
     teus: 0,
     units: 0,
@@ -114,6 +141,7 @@ export function sumInventorySummaryRows(rows: InventorySummaryRow[]): InventoryS
     totals.manualCount += row.manualCount
     totals.bookingCount += row.bookingCount
     totals.overstayCount += row.overstayCount
+    totals.releasedCount += row.releasedCount
     totals.yardInToday += row.yardInToday
     totals.teus += row.teus
     totals.units += row.units

@@ -6,6 +6,7 @@ namespace ECMS.Infrastructure.Services;
 
 public sealed record PaymentProofMetadata(
     string? ReferenceNo,
+    string? PaymentId,
     string? QrphInvoiceNo,
     DateTime? TransactionAt,
     string? Provider);
@@ -25,6 +26,16 @@ public static class PaymentProofTextParser
             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant),
         new(
             @"(?:QR\s*Ph?|QRPH)[^\d]{0,24}(\d{6})\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant),
+    };
+
+    private static readonly Regex[] PaymentIdPatterns =
+    {
+        new(
+            @"Payment\s+ID\s*[:.]?\s*((?:[0-9A-Fa-f]{4}\s*){2,3}[0-9A-Fa-f]{4})\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant),
+        new(
+            @"Payment\s+ID\s*[:.]?\s*([0-9A-Fa-f]{10,16})\b",
             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant),
     };
 
@@ -115,14 +126,15 @@ public static class PaymentProofTextParser
     public static PaymentProofMetadata Parse(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return new PaymentProofMetadata(null, null, null, null);
+            return new PaymentProofMetadata(null, null, null, null, null);
 
         var normalized = PreprocessOcrText(text);
         var referenceNo = ExtractReferenceNo(normalized);
+        var paymentId = ExtractPaymentId(normalized);
         var qrphInvoiceNo = ExtractQrphInvoiceNo(normalized);
         var transactionAt = ExtractTransactionAt(normalized);
         var provider = DetectProvider(normalized);
-        return new PaymentProofMetadata(referenceNo, qrphInvoiceNo, transactionAt, provider);
+        return new PaymentProofMetadata(referenceNo, paymentId, qrphInvoiceNo, transactionAt, provider);
     }
 
     public static string? DetectProvider(string? text)
@@ -247,6 +259,21 @@ public static class PaymentProofTextParser
             return null;
 
         return normalized.Length <= 64 ? normalized : normalized[..64];
+    }
+
+    public static string? NormalizePaymentId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = Regex.Replace(value.Trim().ToUpperInvariant(), @"[^A-Z0-9]", string.Empty);
+        if (normalized.Length < 10 || normalized.Length > 16)
+            return null;
+
+        if (!Regex.IsMatch(normalized, @"^[0-9A-F]+$", RegexOptions.CultureInvariant))
+            return null;
+
+        return normalized;
     }
 
     public static string? NormalizeQrphInvoiceNo(string? value)
@@ -555,6 +582,22 @@ public static class PaymentProofTextParser
         return ExtractGcashNumericFallback(text).ReferenceNo;
     }
 
+    private static string? ExtractPaymentId(string text)
+    {
+        foreach (var pattern in PaymentIdPatterns)
+        {
+            var match = pattern.Match(text);
+            if (!match.Success)
+                continue;
+
+            var normalized = NormalizePaymentId(match.Groups[1].Value);
+            if (normalized is not null)
+                return normalized;
+        }
+
+        return null;
+    }
+
     private static (int Hour, int Minute, string Meridiem)? ExtractStatusBarTime(string text)
     {
         var head = text.Length <= 500 ? text : text[..500];
@@ -683,16 +726,17 @@ public static class PaymentProofTextParser
             .Select(p => (Text: p.Text.Trim(), p.Weight))
             .ToList();
         if (passList.Count == 0)
-            return new PaymentProofMetadata(null, null, null, null);
+            return new PaymentProofMetadata(null, null, null, null, null);
 
         var texts = passList.Select(p => p.Text).ToList();
         texts.Add(string.Join("\n", texts));
         var weights = passList.Select(p => p.Weight).ToList();
         weights.Add(weights.Count > 0 ? weights.Max() + 2 : 10);
 
-        string? bestRef = null, bestQrph = null, bestProvider = null;
+        string? bestRef = null, bestPaymentId = null, bestQrph = null, bestProvider = null;
         DateTime? bestDate = null;
         var bestRefScore = -1;
+        var bestPaymentIdScore = -1;
         var bestQrphScore = -1;
         var bestDateScore = -1;
         var bestProviderScore = -1;
@@ -710,6 +754,16 @@ public static class PaymentProofTextParser
                 {
                     bestRefScore = score;
                     bestRef = parsed.ReferenceNo;
+                }
+            }
+
+            if (parsed.PaymentId is not null)
+            {
+                var score = weight + ScorePaymentId(parsed.PaymentId, normalized);
+                if (score > bestPaymentIdScore)
+                {
+                    bestPaymentIdScore = score;
+                    bestPaymentId = parsed.PaymentId;
                 }
             }
 
@@ -748,6 +802,7 @@ public static class PaymentProofTextParser
         var merged = string.Join("\n", passList.Select(p => p.Text));
         return new PaymentProofMetadata(
             bestRef,
+            bestPaymentId,
             bestQrph,
             bestDate,
             bestProvider ?? DetectProvider(merged));
@@ -769,6 +824,7 @@ public static class PaymentProofTextParser
 
     private static bool HasProofEvidence(PaymentProofMetadata parsed) =>
         parsed.ReferenceNo is not null
+        || parsed.PaymentId is not null
         || parsed.QrphInvoiceNo is not null
         || parsed.Provider is not null;
 
@@ -780,6 +836,14 @@ public static class PaymentProofTextParser
         if (value.StartsWith("UB", StringComparison.OrdinalIgnoreCase)) score += 16;
         var digits = Regex.Replace(value, @"\D", "");
         if (digits.Length == 9) score += 4;
+        return score;
+    }
+
+    private static int ScorePaymentId(string value, string text)
+    {
+        var score = 0;
+        if (Regex.IsMatch(text, @"payment\s+id", RegexOptions.IgnoreCase)) score += 16;
+        if (value.Length is >= 10 and <= 16) score += 4;
         return score;
     }
 

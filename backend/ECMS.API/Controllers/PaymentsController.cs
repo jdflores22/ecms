@@ -67,6 +67,7 @@ public class PaymentsController : ControllerBase
         [FromForm] string? proofTransactionAt,
         [FromForm] string? proofProvider,
         [FromForm] string? proofQrphInvoiceNo,
+        [FromForm] string? proofPaymentId,
         CancellationToken cancellationToken)
     {
         if (proof is null || proof.Length == 0)
@@ -95,7 +96,7 @@ public class PaymentsController : ControllerBase
         }
 
         return Ok(await _service.UploadProofAsync(
-            new UploadPaymentRequest(scheduleId, proofReferenceNo, transactionAt, proofProvider, proofQrphInvoiceNo),
+            new UploadPaymentRequest(scheduleId, proofReferenceNo, transactionAt, proofProvider, proofQrphInvoiceNo, proofPaymentId),
             UserId,
             relativePath,
             filePath,

@@ -9,8 +9,10 @@ public class Payment : BaseEntity
     public int TruckerId { get; set; }
     public decimal Amount { get; set; }
     public string? ProofFile { get; set; }
-    /// <summary>Reference number read from the payment proof (e.g. GCash Ref No.).</summary>
+    /// <summary>Reference number read from the payment proof (e.g. GCash Ref No., Maya Reference ID).</summary>
     public string? ProofReferenceNo { get; set; }
+    /// <summary>Maya Payment ID when present on e-wallet receipts (separate from Reference ID).</summary>
+    public string? ProofPaymentId { get; set; }
     /// <summary>QR Ph / QRPH invoice number when present on e-wallet receipts (Maya, GCash).</summary>
     public string? ProofQrphInvoiceNo { get; set; }
     /// <summary>Transaction date/time read from the payment proof, stored as UTC.</summary>

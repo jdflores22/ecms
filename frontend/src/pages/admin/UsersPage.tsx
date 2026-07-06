@@ -1,27 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
@@ -405,9 +383,7 @@ export default function UsersPage() {
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : displayedUsers.length === 0 ? (
           <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
             No users found.

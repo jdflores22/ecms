@@ -25,24 +25,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var mysqlHost = builder.Configuration["MYSQL_HOST"];
-if (!string.IsNullOrWhiteSpace(mysqlHost))
-{
-    var csb = new MySqlConnectionStringBuilder
-    {
-        Server = mysqlHost,
-        Port = uint.TryParse(builder.Configuration["MYSQL_PORT"], out var p) ? p : 3306,
-        Database = builder.Configuration["MYSQL_DATABASE"] ?? "",
-        UserID = builder.Configuration["MYSQL_USER"] ?? "",
-        Password = builder.Configuration["MYSQL_PASSWORD"] ?? "",
-        SslMode = MySqlSslMode.Required,
-    };
-    connectionString = csb.ConnectionString;
-}
-
-if (string.IsNullOrWhiteSpace(connectionString))
-    connectionString = DatabaseConnection.Resolve();
+var connectionString = DatabaseConnection.ResolveFromConfiguration(builder.Configuration);
 
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Set ConnectionStrings__DefaultConnection or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER/MYSQL_PASSWORD.");

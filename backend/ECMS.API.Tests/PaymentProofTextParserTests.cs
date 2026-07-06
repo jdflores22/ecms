@@ -23,6 +23,7 @@ public class PaymentProofTextParserTests
         var parsed = PaymentProofTextParser.Parse(text);
 
         Assert.Equal("1CB11EB89D49", parsed.ReferenceNo);
+        Assert.Equal("FEC0B60F7440", parsed.PaymentId);
         Assert.Equal("112375", parsed.QrphInvoiceNo);
         Assert.NotNull(parsed.TransactionAt);
         Assert.Equal("maya", parsed.Provider);
@@ -156,6 +157,7 @@ public class PaymentProofTextParserTests
 
         Assert.Equal("maya", parsed.Provider);
         Assert.Equal("1CB11EB89D49", parsed.ReferenceNo);
+        Assert.Equal("FEC0B60F7440", parsed.PaymentId);
         Assert.Equal("112375", parsed.QrphInvoiceNo);
     }
 
@@ -323,6 +325,28 @@ public class PaymentProofTextParserTests
     }
 
     [Fact]
+    public void Parse_MayaPurchased_ExtractsPaymentIdWithoutReferenceId()
+    {
+        const string text = """
+            Purchased
+            transnetsoftwaredevelopme
+            - P500.00
+            Completed
+            Payment method My Wallet
+            Payment ID 69A5393F05FD
+            QR Ph Invoice No. 997443
+            maya
+            """;
+
+        var parsed = PaymentProofTextParser.Parse(text);
+
+        Assert.Null(parsed.ReferenceNo);
+        Assert.Equal("69A5393F05FD", parsed.PaymentId);
+        Assert.Equal("997443", parsed.QrphInvoiceNo);
+        Assert.Equal("maya", parsed.Provider);
+    }
+
+    [Fact]
     public void Parse_GrabPay_DetectsProvider()
     {
         const string text = "Paid via GrabPay to merchant. Ref. No. 882211009";
@@ -333,7 +357,7 @@ public class PaymentProofTextParserTests
     [Fact]
     public void ResolveReceiptDateFallback_UsesPaidAtWhenOcrMissesDate()
     {
-        var parsed = new PaymentProofMetadata("225101904", "543305", null, "gcash");
+        var parsed = new PaymentProofMetadata("225101904", null, "543305", null, "gcash");
         var paidAt = new DateTime(2026, 6, 25, 14, 30, 0, DateTimeKind.Utc);
 
         var resolved = PaymentProofTextParser.ResolveReceiptDateFallback(parsed, paidAt);
@@ -345,7 +369,7 @@ public class PaymentProofTextParserTests
     [Fact]
     public void ResolveReceiptDateFallback_SkipsWhenNothingDetected()
     {
-        var parsed = new PaymentProofMetadata(null, null, null, null);
+        var parsed = new PaymentProofMetadata(null, null, null, null, null);
         var paidAt = new DateTime(2026, 6, 25, 14, 30, 0, DateTimeKind.Utc);
 
         var resolved = PaymentProofTextParser.ResolveReceiptDateFallback(parsed, paidAt);

@@ -46,7 +46,8 @@ import {
 import { profileApi, type Profile } from '../services/api'
 import { useAppDispatch } from '../store/hooks'
 import { updateUser } from '../store/slices/authSlice'
-import { useAssetUrl } from '../hooks/useAssetUrl'
+import { useAssetUrlState } from '../hooks/useAssetUrl'
+import { AvatarSkeleton } from '../components/layout/SkeletonPrimitives'
 import { formatDate } from '../utils/datetime'
 
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
@@ -116,7 +117,7 @@ export default function ProfilePage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [profileSuccess, setProfileSuccess] = useState('')
   const [profileError, setProfileError] = useState('')
-  const profilePhotoUrl = useAssetUrl(profile?.profilePhoto)
+  const { url: profilePhotoUrl, loading: profilePhotoLoading } = useAssetUrlState(profile?.profilePhoto)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -299,6 +300,9 @@ export default function ProfilePage() {
             }}
           >
             <Box sx={{ position: 'relative', display: 'inline-block' }}>
+              {profile.profilePhoto && profilePhotoLoading ? (
+                <AvatarSkeleton size={96} />
+              ) : (
               <Avatar
                 src={profilePhotoUrl || undefined}
                 sx={{
@@ -314,6 +318,7 @@ export default function ProfilePage() {
               >
                 {profile.profilePhoto ? null : userInitials(profile.fullName)}
               </Avatar>
+              )}
               <Tooltip title="Change photo">
                 <span>
                   <IconButton

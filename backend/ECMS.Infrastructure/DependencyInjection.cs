@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddSingleton<IUploadUrlSigner, UploadUrlSigner>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IUploadAccessService, UploadAccessService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
@@ -28,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IDemurrageBillingService, DemurrageBillingService>();
         services.AddScoped<IWithdrawalService, WithdrawalService>();
+        services.AddScoped<ICertificateTemplateService, CertificateTemplateService>();
+        services.AddScoped<ICertificateGenerationService, CertificateGenerationService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
         services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();
         services.AddScoped<IDashboardService, DashboardService>();

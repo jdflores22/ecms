@@ -1,9 +1,11 @@
+import { DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
+import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
+import AssetImage from '../../components/layout/AssetImage'
 import {
   Alert,
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -338,20 +340,7 @@ export default function ScheduleDetailPage() {
       </Button>
 
       {loading ? (
-        <Paper
-          elevation={0}
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            py: 12,
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'divider',
-            bgcolor: '#fff',
-          }}
-        >
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Paper>
+        <DetailLoadingState />
       ) : error ? (
         <Alert severity="error" sx={{ borderRadius: 2 }}>
           {error}
@@ -589,12 +578,7 @@ export default function ScheduleDetailPage() {
         </DialogTitle>
         <DialogContent>
           {submitting ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, gap: 2 }}>
-              <CircularProgress size={40} sx={{ color: primaryDark }} />
-              <Typography color="text.secondary" align="center">
-                Saving schedule and notifying trucker…
-              </Typography>
-            </Box>
+            <DialogBusySkeleton message="Saving schedule and notifying trucker…" />
           ) : saveSuccess ? (
             <Alert severity="success" sx={{ borderRadius: 2 }}>
               Schedule saved successfully. Trucker has been notified. Returning to the schedule
@@ -679,10 +663,11 @@ export default function ScheduleDetailPage() {
           {payment?.proofFile && (
             <>
               {isImageProof(payment.proofFile) ? (
-                <Box
-                  component="img"
-                  src={proofFileUrl}
+                <AssetImage
+                  path={payment.proofFile}
                   alt="Payment proof"
+                  skeletonHeight={360}
+                  skeletonMaxHeight={480}
                   sx={{
                     width: '100%',
                     maxHeight: 480,

@@ -1,20 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -167,9 +152,7 @@ function DataTable({
   return (
     <Paper elevation={0} sx={listTablePaperSx}>
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Box>
+        <ListLoadingState />
       ) : isEmpty ? (
         <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
           {emptyMessage}

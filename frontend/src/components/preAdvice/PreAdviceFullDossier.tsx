@@ -2,7 +2,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Paper,
   Typography,
 } from '@mui/material'
@@ -11,6 +10,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from './ContainerIdentityPhotos'
 import { PreAdviceStatusChip } from './PreAdviceStatusChip'
 import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import { InlineLoadingSkeleton, QrImageSkeleton } from '../layout/SkeletonPrimitives'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Evaluation,
@@ -172,12 +172,7 @@ export default function PreAdviceFullDossier({
         >
           <SectionTitle>Return schedule</SectionTitle>
           {scheduleLoading ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
-              <CircularProgress size={22} sx={{ color: primaryDark }} />
-              <Typography variant="body2" color="text.secondary">
-                Loading schedule…
-              </Typography>
-            </Box>
+            <InlineLoadingSkeleton rows={2} />
           ) : schedule ? (
             <>
               {isScheduleForPayment(schedule.status) && (
@@ -244,12 +239,7 @@ export default function PreAdviceFullDossier({
         >
           <SectionTitle>{LOGICTECK_QR.sectionTitle}</SectionTitle>
           {qrLoading ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
-              <CircularProgress size={22} sx={{ color: primaryDark }} />
-              <Typography variant="body2" color="text.secondary">
-                Loading booking QR…
-              </Typography>
-            </Box>
+            <QrImageSkeleton size={180} />
           ) : qrBooking ? (
             <Box
               sx={{

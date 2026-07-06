@@ -110,7 +110,9 @@ public class DashboardService : IDashboardService
             preAdvices.Count(p => p.Status == PreAdviceStatus.Rejected),
             completedPreAdviceReturns,
             withdrawals.Count(w => w.Status == WithdrawalStatus.Draft),
-            withdrawals.Count(w => w.Status == WithdrawalStatus.Issued),
+            withdrawals.Count(w =>
+                w.Status == WithdrawalStatus.Issued
+                || (w.Status == WithdrawalStatus.CyAssigned && w.BookedAt == null)),
             withdrawals.Count(w => w.Status is WithdrawalStatus.Submitted or WithdrawalStatus.UnderReview),
             withdrawals.Count(w => w.Status is WithdrawalStatus.Approved or WithdrawalStatus.Released or WithdrawalStatus.Completed),
             widgets);

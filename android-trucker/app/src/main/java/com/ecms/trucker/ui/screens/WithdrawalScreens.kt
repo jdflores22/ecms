@@ -163,6 +163,8 @@ fun WithdrawalDetailScreen(
                 val w = withdrawal!!
                 val isDraft = w.status.equals("Draft", true)
                 val isIssued = w.status.equals("Issued", true)
+                val isIssueFirstCyAssigned = w.status.equals("CyAssigned", true) && w.bookedAt.isNullOrBlank()
+                val showSubmitActions = isDraft || isIssued || isIssueFirstCyAssigned
                 val showGatePass = w.status.equals("Approved", true) ||
                     w.status.equals("Released", true) ||
                     w.status.equals("Completed", true)
@@ -201,10 +203,10 @@ fun WithdrawalDetailScreen(
                             }
                         }
                     }
-                    if (isDraft || isIssued) {
+                    if (showSubmitActions) {
                         item {
                             IcsSectionCard(title = stringResource(R.string.section_actions)) {
-                                if (!w.hasAtwDocument) {
+                                if (!w.hasAtwDocument && (isDraft || isIssued)) {
                                     OutlinedButton(
                                         onClick = { docPicker.launch("*/*") },
                                         modifier = Modifier.fillMaxWidth(),
@@ -229,7 +231,7 @@ fun WithdrawalDetailScreen(
                                             actionLoading = false
                                         }
                                     },
-                                    enabled = !actionLoading && (w.hasAtwDocument || isIssued),
+                                    enabled = !actionLoading && (w.hasAtwDocument || isIssued || isIssueFirstCyAssigned),
                                     loading = actionLoading,
                                 )
                             }

@@ -1,22 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  InputAdornment,
-  Paper,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, InputAdornment, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import SearchIcon from '@mui/icons-material/Search'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
@@ -39,11 +22,14 @@ import {
 import { withdrawalApi, type Withdrawal } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatDateTime, formatScheduleDate } from '../../utils/datetime'
+import ScheduleWithdrawalPickupDialog from '../../components/withdrawals/ScheduleWithdrawalPickupDialog'
 
 const primaryDark = LIST_PRIMARY
 
 type WithdrawalFilterTab =
   | 'NeedsReview'
+  | 'AwaitingSchedule'
+  | 'Scheduled'
   | 'Submitted'
   | 'UnderReview'
   | 'Approved'
@@ -62,6 +48,18 @@ const FILTER_TABS: {
     summaryColor: '#ED6C02',
     match: (w) => w.status === 'Submitted' || w.status === 'UnderReview',
   },
+  {
+    key: 'AwaitingSchedule',
+    label: 'Awaiting schedule',
+    summaryColor: '#9C27B0',
+    match: (w) => w.status === 'CyAssigned',
+  },
+  {
+    key: 'Scheduled',
+    label: 'Scheduled',
+    summaryColor: '#0288D1',
+    match: (w) => w.status === 'Scheduled',
+  },
   { key: 'Submitted', label: 'Submitted', summaryColor: '#0288D1', match: (w) => w.status === 'Submitted' },
   { key: 'UnderReview', label: 'Under review', summaryColor: '#F57C00', match: (w) => w.status === 'UnderReview' },
   { key: 'Approved', label: 'Approved', summaryColor: '#2E7D32', match: (w) => w.status === 'Approved' },
@@ -75,6 +73,9 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
   Approved: 'success',
   Rejected: 'error',
   Released: 'success',
+  CyAssigned: 'info',
+  Scheduled: 'info',
+  Booked: 'warning',
 }
 
 const statusLabel: Record<string, string> = {
@@ -173,23 +174,40 @@ function matchesSearch(item: Withdrawal, query: string) {
   )
 }
 
-function rowActionLabel(status: string) {
-  if (status === 'Approved') return 'Release'
-  if (status === 'Submitted' || status === 'UnderReview') return 'Review'
+function isBookFirstCyAssigned(item: Withdrawal) {
+  return item.status === 'CyAssigned' && Boolean(item.bookedAt || item.bookingNumber)
+}
+
+function rowActionLabel(item: Withdrawal) {
+  if (item.status === 'CyAssigned') return isBookFirstCyAssigned(item) ? 'Schedule' : 'Confirm ATW'
+  if (item.status === 'Approved') return 'Release'
+  if (item.status === 'Submitted' || item.status === 'UnderReview') return 'Review'
   return 'View'
 }
 
-function WithdrawalRowActions({ item, onClick }: { item: Withdrawal; onClick: () => void }) {
-  const isUrgent = item.status === 'Submitted' || item.status === 'UnderReview'
+function WithdrawalRowActions({
+  item,
+  onClick,
+  onSchedule,
+}: {
+  item: Withdrawal
+  onClick: () => void
+  onSchedule?: () => void
+}) {
+  const isUrgent = item.status === 'Submitted' || item.status === 'UnderReview' || item.status === 'CyAssigned'
   return (
     <Button
       size="small"
       variant={isUrgent ? 'contained' : 'outlined'}
       endIcon={<OpenInNewIcon />}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (item.status === 'CyAssigned' && isBookFirstCyAssigned(item) && onSchedule) onSchedule()
+        else onClick()
+      }}
       sx={{ fontWeight: 600, borderRadius: 2 }}
     >
-      {rowActionLabel(item.status)}
+      {rowActionLabel(item)}
     </Button>
   )
 }
@@ -205,7 +223,14 @@ export default function DepotWithdrawalsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [scheduleItem, setScheduleItem] = useState<Withdrawal | null>(null)
   const widget = searchParams.get('widget')
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'awaiting-schedule') {
+      setActiveTab('AwaitingSchedule')
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const message = (location.state as { message?: string } | null)?.message
@@ -405,7 +430,7 @@ export default function DepotWithdrawalsPage() {
           gridTemplateColumns: {
             xs: 'repeat(2, minmax(0, 1fr))',
             sm: 'repeat(3, 1fr)',
-            lg: 'repeat(6, 1fr)',
+            lg: 'repeat(7, 1fr)',
           },
           gap: { xs: 1.5, sm: 2 },
           mb: 3,
@@ -487,6 +512,12 @@ export default function DepotWithdrawalsPage() {
         </Alert>
       )}
 
+      <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+        In the book-first flow, trucker bookings appear here only after the shipping line assigns your container yard.
+        Open the <strong>Awaiting schedule</strong> tab once CY is assigned, then set the pick-up day.
+        Bookings still with the shipping line (status Booked) are not shown on this page yet.
+      </Alert>
+
       {widget && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
@@ -503,9 +534,7 @@ export default function DepotWithdrawalsPage() {
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : filtered.length === 0 ? (
           <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
             <UnarchiveOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
@@ -516,7 +545,12 @@ export default function DepotWithdrawalsPage() {
             </Typography>
             {activeTab === 'NeedsReview' && !search.trim() && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                New trucker submissions will appear here for ATW validation.
+                Legacy trucker submissions (Submitted / Under review) appear here for ATW validation.
+              </Typography>
+            )}
+            {activeTab === 'AwaitingSchedule' && !search.trim() && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                After a trucker books ICS, the shipping line must assign CY first. Those requests then show here so you can set pick-up day and time.
               </Typography>
             )}
           </Box>
@@ -579,13 +613,18 @@ export default function DepotWithdrawalsPage() {
                           <Button
                             size="small"
                             variant={
-                              row.status === 'Submitted' || row.status === 'UnderReview' ? 'contained' : 'outlined'
+                              row.status === 'Submitted' || row.status === 'UnderReview' || row.status === 'CyAssigned'
+                                ? 'contained'
+                                : 'outlined'
                             }
                             endIcon={<OpenInNewIcon />}
-                            onClick={() => navigate(`/depot/withdrawals/${row.id}`)}
+                            onClick={() => {
+                              if (row.status === 'CyAssigned' && isBookFirstCyAssigned(row)) setScheduleItem(row)
+                              else navigate(`/depot/withdrawals/${row.id}`)
+                            }}
                             sx={{ fontWeight: 600, borderRadius: 2 }}
                           >
-                            {rowActionLabel(row.status)}
+                            {rowActionLabel(row)}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -627,6 +666,9 @@ export default function DepotWithdrawalsPage() {
                       <WithdrawalRowActions
                         item={row}
                         onClick={() => navigate(`/depot/withdrawals/${row.id}`)}
+                        onSchedule={() => {
+                          if (isBookFirstCyAssigned(row)) setScheduleItem(row)
+                        }}
                       />
                     </Box>
                   </ListMobileCard>
@@ -635,6 +677,17 @@ export default function DepotWithdrawalsPage() {
           </>
         )}
       </Paper>
+
+      <ScheduleWithdrawalPickupDialog
+        open={Boolean(scheduleItem)}
+        item={scheduleItem}
+        onClose={() => setScheduleItem(null)}
+        onScheduled={(updated) => {
+          setItems((prev) => prev.map((w) => (w.id === updated.id ? updated : w)))
+          setSuccessMessage(`Pick-up scheduled for ${updated.referenceNo}.`)
+          setScheduleItem(null)
+        }}
+      />
     </Box>
   )
 }

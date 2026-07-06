@@ -8,8 +8,6 @@ import {
 
   Chip,
 
-  CircularProgress,
-
   Dialog,
 
   DialogActions,
@@ -45,6 +43,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-router-dom'
 
 import ReturnDetailTabPanels, { type ReturnDetailTab } from '../../components/trucker/ReturnDetailTabPanels'
+import AssetImage from '../../components/layout/AssetImage'
+import { QrImageSkeleton } from '../../components/layout/SkeletonPrimitives'
 
 import ReturnJourneyStrip, { buildReturnJourneySteps } from '../../components/trucker/ReturnJourneyStrip'
 
@@ -838,13 +838,15 @@ export default function TruckerReturnDetailPage() {
 
               {isImageProof(payment.proofFile) ? (
 
-                <Box
+                <AssetImage
 
-                  component="img"
-
-                  src={proofFileUrl}
+                  path={payment.proofFile}
 
                   alt="Payment proof"
+
+                  skeletonHeight={360}
+
+                  skeletonMaxHeight={480}
 
                   sx={{
 
@@ -1016,11 +1018,7 @@ export default function TruckerReturnDetailPage() {
 
               ) : (
 
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4, mb: 2 }}>
-
-                  <CircularProgress sx={{ color: primaryDark }} />
-
-                </Box>
+                <QrImageSkeleton />
 
               )}
 

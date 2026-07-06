@@ -26,6 +26,10 @@ public class EvaluationsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<EvaluationDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _service.GetAllAsync(UserId, Role, cancellationToken));
 
+    [HttpGet("pending/count")]
+    public async Task<ActionResult<object>> GetPendingCount(CancellationToken cancellationToken)
+        => Ok(new { count = await _service.GetPendingCountAsync(UserId, Role, cancellationToken) });
+
     [HttpGet("by-preforecast/{preAdviceId:int}")]
     [HttpGet("by-preadvice/{preAdviceId:int}")]
     public async Task<ActionResult<EvaluationDto>> GetByPreAdvice(int preAdviceId, CancellationToken cancellationToken)

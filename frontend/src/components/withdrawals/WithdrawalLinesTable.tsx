@@ -1,15 +1,5 @@
-import {
-  Box,
-  Chip,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material'
+import { Box, Button, Chip, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import type { WithdrawalLine } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import {
@@ -25,16 +15,26 @@ const lineStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error
   Pending: 'default',
   Approved: 'success',
   Rejected: 'error',
-  Released: 'success',
+  Released: 'info',
 }
 
 interface WithdrawalLinesTableProps {
   lines: WithdrawalLine[]
   summary?: string
   showLineStatus?: boolean
+  showReleaseAction?: boolean
+  onReleaseLine?: (line: WithdrawalLine) => void
+  releasingLineId?: number | null
 }
 
-export default function WithdrawalLinesTable({ lines, summary, showLineStatus = false }: WithdrawalLinesTableProps) {
+export default function WithdrawalLinesTable({
+  lines,
+  summary,
+  showLineStatus = false,
+  showReleaseAction = false,
+  onReleaseLine,
+  releasingLineId = null,
+}: WithdrawalLinesTableProps) {
   return (
     <Box>
       {summary && (
@@ -78,6 +78,18 @@ export default function WithdrawalLinesTable({ lines, summary, showLineStatus = 
                 <ListMobileMeta>
                   {formatContainerSizeLabel(line.containerSize)} · {line.containerType}
                 </ListMobileMeta>
+                {showReleaseAction && line.lineStatus === 'Approved' && onReleaseLine && (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<LocalShippingOutlinedIcon />}
+                    disabled={releasingLineId === line.id}
+                    onClick={() => onReleaseLine(line)}
+                    sx={{ mt: 1.5, fontWeight: 600, borderRadius: 2 }}
+                  >
+                    {releasingLineId === line.id ? 'Releasing…' : 'Release'}
+                  </Button>
+                )}
               </ListMobileCard>
             ))}
           </ListMobileOnly>
@@ -92,6 +104,7 @@ export default function WithdrawalLinesTable({ lines, summary, showLineStatus = 
                     <TableCell>Size</TableCell>
                     <TableCell>Type</TableCell>
                     {showLineStatus && <TableCell>Status</TableCell>}
+                    {showReleaseAction && <TableCell align="right">Action</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -108,6 +121,24 @@ export default function WithdrawalLinesTable({ lines, summary, showLineStatus = 
                             size="small"
                             color={lineStatusColor[line.lineStatus] ?? 'default'}
                           />
+                        </TableCell>
+                      )}
+                      {showReleaseAction && (
+                        <TableCell align="right">
+                          {line.lineStatus === 'Approved' && onReleaseLine ? (
+                            <Button
+                              size="small"
+                              variant="contained"
+                              startIcon={<LocalShippingOutlinedIcon />}
+                              disabled={releasingLineId === line.id}
+                              onClick={() => onReleaseLine(line)}
+                              sx={{ fontWeight: 600, borderRadius: 2 }}
+                            >
+                              {releasingLineId === line.id ? 'Releasing…' : 'Release'}
+                            </Button>
+                          ) : (
+                            '—'
+                          )}
                         </TableCell>
                       )}
                     </TableRow>

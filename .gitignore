@@ -5,6 +5,7 @@
 **/dist/
 **/publish/
 frontend/ecms-dist.tgz
+android-trucker/app/build/
 
 # IDE
 .vs/

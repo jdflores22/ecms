@@ -43,7 +43,8 @@ import { roleLabel } from '../config/roleConfig'
 import { logoutSession, roleApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout, updateUser } from '../store/slices/authSlice'
-import { useAssetUrl } from '../hooks/useAssetUrl'
+import { useAssetUrlState } from '../hooks/useAssetUrl'
+import { AvatarSkeleton } from '../components/layout/SkeletonPrimitives'
 import { ICS_BRAND } from '../config/brandCopy'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCount'
@@ -51,6 +52,9 @@ import { useDepotWaitingScheduleCount } from '../hooks/useDepotWaitingScheduleCo
 import { useDepotPendingWithdrawalCount } from '../hooks/useDepotPendingWithdrawalCount'
 import { useTruckerPendingWithdrawalCount } from '../hooks/useTruckerPendingWithdrawalCount'
 import { useTruckerPaymentDueCount } from '../hooks/useTruckerPaymentDueCount'
+import { useTruckerDemurrageDueCount } from '../hooks/useTruckerDemurrageDueCount'
+import { useEvaluatorAwaitingCyCount } from '../hooks/useEvaluatorAwaitingCyCount'
+import { useEvaluatorPendingEvaluationCount } from '../hooks/useEvaluatorPendingEvaluationCount'
 import { SYSTEM_TIMEZONE } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
 import NotificationBell from '../components/NotificationBell'
@@ -111,6 +115,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   adminUsers: <PeopleIcon fontSize="small" />,
   adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
   adminMasterData: <WarehouseIcon fontSize="small" />,
+  adminCertificateTemplates: <DescriptionIcon fontSize="small" />,
   adminAudit: <HistoryIcon fontSize="small" />,
   adminVersion: <SystemUpdateAltOutlinedIcon fontSize="small" />,
   adminRevenue: <TrendingUpIcon fontSize="small" />,
@@ -128,8 +133,11 @@ export default function AppLayout() {
   const pendingWithdrawalCount = useDepotPendingWithdrawalCount(user?.role, user?.allowedPages)
   const truckerPendingWithdrawalCount = useTruckerPendingWithdrawalCount(user?.role, user?.allowedPages)
   const paymentDueCount = useTruckerPaymentDueCount(user?.role, user?.allowedPages)
+  const demurrageDueCount = useTruckerDemurrageDueCount(user?.role, user?.allowedPages)
   const pendingPaymentVerifyCount = useAdminPendingPaymentCount(user?.role, user?.allowedPages)
-  const profilePhotoUrl = useAssetUrl(user?.profilePhoto)
+  const awaitingCyCount = useEvaluatorAwaitingCyCount(user?.role, user?.allowedPages)
+  const pendingEvaluationCount = useEvaluatorPendingEvaluationCount(user?.role, user?.allowedPages)
+  const { url: profilePhotoUrl, loading: profilePhotoLoading } = useAssetUrlState(user?.profilePhoto)
 
   useEffect(() => {
     if (!user?.role) return undefined
@@ -175,14 +183,20 @@ export default function AppLayout() {
         ariaLabel: 'withdrawal action required',
       },
       truckerPayments: { count: paymentDueCount, ariaLabel: 'payment due' },
+      truckerDemurrageBilling: { count: demurrageDueCount, ariaLabel: 'demurrage payment due' },
       adminPayments: { count: pendingPaymentVerifyCount, ariaLabel: 'awaiting verification' },
+      evaluations: { count: pendingEvaluationCount, ariaLabel: 'pre-forecast pending evaluation' },
+      evaluatorAtw: { count: awaitingCyCount, ariaLabel: 'awaiting CY assignment' },
     }),
     [
       waitingScheduleCount,
       pendingWithdrawalCount,
       truckerPendingWithdrawalCount,
       paymentDueCount,
+      demurrageDueCount,
       pendingPaymentVerifyCount,
+      pendingEvaluationCount,
+      awaitingCyCount,
     ],
   )
 
@@ -285,6 +299,9 @@ export default function AppLayout() {
             },
           }}
         >
+          {user?.profilePhoto && profilePhotoLoading ? (
+            <AvatarSkeleton size={40} />
+          ) : (
           <Avatar
             src={profilePhotoUrl || undefined}
             sx={{
@@ -297,6 +314,7 @@ export default function AppLayout() {
           >
             {user?.profilePhoto ? null : userInitials(user?.fullName)}
           </Avatar>
+          )}
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap>
               {user?.fullName}
@@ -462,12 +480,16 @@ export default function AppLayout() {
           <Tooltip title={`${user?.fullName ?? 'Profile'} — view profile`}>
             <Chip
               avatar={
+                user?.profilePhoto && profilePhotoLoading ? (
+                  <AvatarSkeleton size={28} />
+                ) : (
                 <Avatar
                   src={profilePhotoUrl || undefined}
                   sx={{ bgcolor: primaryLight, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}
                 >
                   {user?.profilePhoto ? null : userInitials(user?.fullName)}
                 </Avatar>
+                )
               }
               label={user?.role ? roleLabel(user.role) : ''}
               onClick={() => navigate('/profile')}

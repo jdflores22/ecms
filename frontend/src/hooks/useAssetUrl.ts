@@ -7,27 +7,42 @@ function initialAssetUrl(path: string | null | undefined): string {
   return resolveAssetUrl(path)
 }
 
-export function useAssetUrl(path: string | null | undefined): string {
+function initialAssetLoading(path: string | null | undefined): boolean {
+  return Boolean(path && isCrossOriginAssetUrl(path))
+}
+
+export function useAssetUrlState(path: string | null | undefined): { url: string; loading: boolean } {
   const [url, setUrl] = useState(() => initialAssetUrl(path))
+  const [loading, setLoading] = useState(() => initialAssetLoading(path))
 
   useEffect(() => {
     if (!path) {
       setUrl('')
+      setLoading(false)
       return undefined
     }
 
     if (!isCrossOriginAssetUrl(path)) {
       setUrl(resolveAssetUrl(path))
+      setLoading(false)
       return undefined
     }
 
     let cancelled = false
+    setLoading(true)
+    setUrl('')
     ensureSignedAssetUrl(path)
       .then((signed) => {
-        if (!cancelled) setUrl(signed)
+        if (!cancelled) {
+          setUrl(signed)
+          setLoading(false)
+        }
       })
       .catch(() => {
-        if (!cancelled) setUrl('')
+        if (!cancelled) {
+          setUrl('')
+          setLoading(false)
+        }
       })
 
     return () => {
@@ -35,7 +50,11 @@ export function useAssetUrl(path: string | null | undefined): string {
     }
   }, [path])
 
-  return url
+  return { url, loading }
+}
+
+export function useAssetUrl(path: string | null | undefined): string {
+  return useAssetUrlState(path).url
 }
 
 export function useAssetUrls(paths: (string | null | undefined)[]): Record<string, string> {

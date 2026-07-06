@@ -134,6 +134,21 @@ public class DemurrageBillingService : IDemurrageBillingService
         return items.Select(MapToDto).ToList();
     }
 
+    public async Task<int> GetPaymentDueCountAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        if (role != RoleNames.Trucker)
+            return 0;
+
+        await MaybeSyncExpiredBillingsAsync(cancellationToken);
+
+        return await _db.DemurrageBillings.CountAsync(
+            b => b.TruckerId == userId && b.Status == PaymentStatus.Pending,
+            cancellationToken);
+    }
+
     public async Task<DemurrageBillingDto?> GetByIdAsync(
         int id,
         int userId,
@@ -527,17 +542,23 @@ public class DemurrageBillingService : IDemurrageBillingService
         string role,
         CancellationToken cancellationToken)
     {
-        if (role == RoleNames.Trucker && billing.TruckerId != userId)
-            return false;
-
-        if (role == RoleNames.ShippingLineEvaluator)
+        return role switch
         {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            if (user.ShippingLineId.HasValue && billing.ShippingLineId != user.ShippingLineId)
-                return false;
-        }
+            RoleNames.Administrator => true,
+            RoleNames.Trucker => billing.TruckerId == userId,
+            RoleNames.ShippingLineEvaluator => await EvaluatorOwnsShippingLineAsync(
+                userId, billing.ShippingLineId, cancellationToken),
+            _ => false,
+        };
+    }
 
-        return true;
+    private async Task<bool> EvaluatorOwnsShippingLineAsync(
+        int userId,
+        int shippingLineId,
+        CancellationToken cancellationToken)
+    {
+        var user = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, cancellationToken);
+        return user.ShippingLineId.HasValue && user.ShippingLineId.Value == shippingLineId;
     }
 
     private static bool IsSuccessfullyReturned(PreAdvice preAdvice)

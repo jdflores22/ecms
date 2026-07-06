@@ -1,20 +1,35 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace ECMS.Persistence;
 
 /// <summary>
 /// Used by <c>dotnet ef</c> so migrations do not boot the full API (JWT / LOGICTECK checks).
+/// Defaults to <c>appsettings.Development.json</c> (local MySQL) unless
+/// <c>ASPNETCORE_ENVIRONMENT=Production</c>.
 /// </summary>
 public class EcmsDbContextFactory : IDesignTimeDbContextFactory<EcmsDbContext>
 {
     public EcmsDbContext CreateDbContext(string[] args)
     {
-        EnvFileLoader.LoadProductionEnv();
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+        var apiRoot = FindApiContentRoot()
+            ?? throw new InvalidOperationException("Could not find ECMS.API appsettings for migrations.");
 
-        var connectionString = DatabaseConnection.Resolve()
+        if (string.Equals(environment, "Production", StringComparison.OrdinalIgnoreCase))
+            EnvFileLoader.LoadProductionEnv(apiRoot);
+
+        var config = new ConfigurationBuilder()
+            .SetBasePath(apiRoot)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile($"appsettings.{environment}.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+        var connectionString = DatabaseConnection.ResolveFromConfiguration(config)
             ?? throw new InvalidOperationException(
-                "No database connection for migrations. Set ConnectionStrings__DefaultConnection or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER/MYSQL_PASSWORD in backend/ECMS.API/.env.production or environment variables.");
+                "No database connection for migrations. Use appsettings.Development.json (local) or set ASPNETCORE_ENVIRONMENT=Production with backend/ECMS.API/.env.production.");
 
         var options = new DbContextOptionsBuilder<EcmsDbContext>()
             .UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)))
@@ -22,25 +37,35 @@ public class EcmsDbContextFactory : IDesignTimeDbContextFactory<EcmsDbContext>
 
         return new EcmsDbContext(options);
     }
-}
 
-internal static class EnvFileLoader
-{
-    public static void LoadProductionEnv()
+    private static string? FindApiContentRoot()
     {
         var candidates = new[]
         {
-            Path.Combine(Directory.GetCurrentDirectory(), "ECMS.API", ".env.production"),
-            Path.Combine(Directory.GetCurrentDirectory(), "..", "ECMS.API", ".env.production"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ECMS.API", ".env.production"),
+            Path.Combine(Directory.GetCurrentDirectory(), "ECMS.API"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "ECMS.API"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ECMS.API"),
         };
 
         foreach (var path in candidates.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!File.Exists(path)) continue;
-            ApplyFile(path);
-            return;
+            if (File.Exists(Path.Combine(path, "appsettings.json")))
+                return path;
         }
+
+        return null;
+    }
+}
+
+internal static class EnvFileLoader
+{
+    public static void LoadProductionEnv(string apiRoot)
+    {
+        var path = Path.Combine(apiRoot, ".env.production");
+        if (!File.Exists(path))
+            return;
+
+        ApplyFile(path);
     }
 
     private static void ApplyFile(string path)
@@ -62,7 +87,6 @@ internal static class EnvFileLoader
                 Environment.SetEnvironmentVariable(key, value);
         }
 
-        // Align Railway-style LOGICTECK env with config key used by Program.cs
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LOGICTECK_API_KEY")))
         {
             var logicteck = Environment.GetEnvironmentVariable("Logicteck__ApiKey");

@@ -14,6 +14,7 @@ export type { PaymentProofProvider }
 
 export type PaymentProofMetadata = {
   referenceNo: string | null
+  paymentId: string | null
   qrphInvoiceNo: string | null
   transactionAt: string | null
   provider: PaymentProofProvider | null
@@ -31,6 +32,11 @@ export type TransactionDateEvidence = {
 }
 
 /** Ordered — first match wins. Tight captures to avoid OCR label bleed (e.g. UnionBank header). */
+const PAYMENT_ID_PATTERNS: RegExp[] = [
+  /Payment\s+ID\s*[:.]?\s*((?:[0-9A-Fa-f]{4}\s*){2,3}[0-9A-Fa-f]{4})\b/i,
+  /Payment\s+ID\s*[:.]?\s*([0-9A-Fa-f]{10,16})\b/i,
+]
+
 const REFERENCE_PATTERNS: RegExp[] = [
   /(?:Reference\s+Number|Referencenumber)\s*(?:Transaction\s+Date|Transactiondate)?\s*(UB\d{4,12})\b/i,
   /(UB\d{4,12})/i,
@@ -225,6 +231,23 @@ export function normalizeProofReferenceNo(value?: string | null): string | null 
   return normalized.slice(0, 64)
 }
 
+export function normalizeProofPaymentId(value?: string | null): string | null {
+  if (!value) return null
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (normalized.length < 10 || normalized.length > 16) return null
+  if (!/^[0-9A-F]+$/.test(normalized)) return null
+  return normalized
+}
+
+export function formatProofPaymentId(value?: string | null): string {
+  if (!value) return '—'
+  const raw = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+  if (/^[0-9A-F]{12}$/.test(raw)) {
+    return `${raw.slice(0, 4)} ${raw.slice(4, 8)} ${raw.slice(8)}`
+  }
+  return raw || value
+}
+
 export function normalizeProofQrphInvoiceNo(value?: string | null): string | null {
   if (!value) return null
   let digits = value.replace(/\D/g, '')
@@ -289,6 +312,17 @@ function extractGcashNumericFallback(
     referenceNo: referenceNo ? normalizeProofReferenceNo(referenceNo) : null,
     qrphInvoiceNo: qrphInvoiceNo ? normalizeProofQrphInvoiceNo(qrphInvoiceNo) : null,
   }
+}
+
+function extractPaymentId(text: string): string | null {
+  for (const pattern of PAYMENT_ID_PATTERNS) {
+    const match = text.match(pattern)
+    if (match?.[1]) {
+      const normalized = normalizeProofPaymentId(match[1])
+      if (normalized) return normalized
+    }
+  }
+  return null
 }
 
 function extractReferenceNo(text: string): string | null {
@@ -411,7 +445,7 @@ export function resolveTransactionAt(
     extractTransactionAt(merged) ?? extractTransactionAtFromFragments(merged)
   if (fromOcr) return fromOcr
 
-  const hasProofIds = Boolean(meta.referenceNo || meta.qrphInvoiceNo)
+  const hasProofIds = Boolean(meta.referenceNo || meta.paymentId || meta.qrphInvoiceNo)
   const statusClock = evidence?.statusClock ?? extractStatusBarTime(merged)
   const partialCalendar = extractPartialCalendarDate(merged)
 
@@ -445,7 +479,7 @@ export function resolveTransactionAt(
 
 /** Use payment receipt upload time when OCR cannot read the printed transaction date. */
 export function resolveReceiptDateFallback(
-  meta: Pick<PaymentProofMetadata, 'referenceNo' | 'qrphInvoiceNo' | 'transactionAt' | 'provider'>,
+  meta: Pick<PaymentProofMetadata, 'referenceNo' | 'paymentId' | 'qrphInvoiceNo' | 'transactionAt' | 'provider'>,
   paidAt: string | null | undefined,
 ): string | null {
   if (meta.transactionAt) return meta.transactionAt
@@ -453,6 +487,7 @@ export function resolveReceiptDateFallback(
 
   const hasEvidence = Boolean(
     meta.referenceNo ||
+      meta.paymentId ||
       meta.qrphInvoiceNo ||
       (meta.provider && meta.provider !== 'unknown'),
   )
@@ -618,6 +653,7 @@ export function parsePaymentProofText(text: string): PaymentProofMetadata {
   const normalized = preprocessOcrText(text)
   return {
     referenceNo: extractReferenceNo(normalized),
+    paymentId: extractPaymentId(normalized),
     qrphInvoiceNo: extractQrphInvoiceNo(normalized),
     transactionAt: extractTransactionAt(normalized),
     provider: detectPaymentProofProvider(normalized),
@@ -639,6 +675,13 @@ function scoreReference(value: string, text: string, passWeight: number): number
   if (/^UB\d+/i.test(value)) score += 16
   if (digits.length === 9) score += 4
   if (digits.length >= 6 && digits.length <= 12) score += 2
+  return score
+}
+
+function scorePaymentId(value: string, text: string, passWeight: number): number {
+  let score = passWeight
+  if (/payment\s+id/i.test(text)) score += 16
+  if (value.length >= 10 && value.length <= 16) score += 4
   return score
 }
 
@@ -680,6 +723,7 @@ export function parsePaymentProofTexts(
   ]
 
   const referenceCandidates: ScoredValue<string>[] = []
+  const paymentIdCandidates: ScoredValue<string>[] = []
   const qrphCandidates: ScoredValue<string>[] = []
   const dateCandidates: ScoredValue<string>[] = []
   const providerCandidates: ScoredValue<PaymentProofProvider>[] = []
@@ -693,6 +737,12 @@ export function parsePaymentProofTexts(
       referenceCandidates.push({
         value: parsed.referenceNo,
         score: scoreReference(parsed.referenceNo, normalized, weight),
+      })
+    }
+    if (parsed.paymentId) {
+      paymentIdCandidates.push({
+        value: parsed.paymentId,
+        score: scorePaymentId(parsed.paymentId, normalized, weight),
       })
     }
     if (parsed.qrphInvoiceNo) {
@@ -717,6 +767,7 @@ export function parsePaymentProofTexts(
 
   return {
     referenceNo: pickBestScored(referenceCandidates),
+    paymentId: pickBestScored(paymentIdCandidates),
     qrphInvoiceNo: pickBestScored(qrphCandidates),
     transactionAt: pickBestScored(dateCandidates),
     provider: pickBestScored(providerCandidates) ?? detectPaymentProofProvider(merged),

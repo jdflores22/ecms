@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                             PaymentsListScreen(
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                                                onUploadClick = { navController.navigate(Routes.paymentUpload(it)) },
+                                                onOpenPayment = { navController.navigate(Routes.paymentUpload(it)) },
                                             )
                                         }
                                         composable(MainTab.Menu.route) {

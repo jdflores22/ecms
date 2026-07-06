@@ -26,6 +26,7 @@ export type AppPageKey =
   | 'adminUsers'
   | 'adminRoles'
   | 'adminMasterData'
+  | 'adminCertificateTemplates'
   | 'adminAudit'
   | 'adminVersion'
   | 'adminRevenue'
@@ -242,6 +243,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Shipping lines, depots, and container reference data',
     showInNav: true,
   },
+  adminCertificateTemplates: {
+    key: 'adminCertificateTemplates',
+    label: 'Certificates',
+    path: '/admin/certificate-templates',
+    group: 'Admin',
+    description: 'ATW and other certificate layout templates per shipping line',
+    showInNav: true,
+  },
   adminAudit: {
     key: 'adminAudit',
     label: 'Audit log',
@@ -279,6 +288,7 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'adminUsers',
   'adminRoles',
   'adminMasterData',
+  'adminCertificateTemplates',
   'adminAudit',
   'adminVersion',
   'adminRevenue',
@@ -339,6 +349,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'adminUsers',
   'adminRoles',
   'adminMasterData',
+  'adminCertificateTemplates',
   'adminAudit',
   'adminVersion',
   'adminRevenue',
@@ -504,6 +515,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'adminUsers',
   'adminRoles',
   'adminMasterData',
+  'adminCertificateTemplates',
   'adminRevenue',
   'adminPayments',
   'adminAudit',

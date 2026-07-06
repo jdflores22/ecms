@@ -27,6 +27,7 @@ public class ContainerInventoryController : ControllerBase
         [FromQuery] int? depotId,
         [FromQuery] int? shippingLineId,
         [FromQuery] string? compliance,
+        [FromQuery] string? yardStatus,
         CancellationToken cancellationToken)
     {
         try
@@ -37,6 +38,7 @@ public class ContainerInventoryController : ControllerBase
                 depotId,
                 shippingLineId,
                 compliance,
+                yardStatus,
                 cancellationToken));
         }
         catch (InvalidOperationException ex)

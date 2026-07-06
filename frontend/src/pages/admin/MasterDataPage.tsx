@@ -1,27 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  Paper,
-  Switch,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import CyContractsMasterTab from '../../components/admin/CyContractsMasterTab'
 import {
   ListDesktopOnly,
@@ -528,9 +506,7 @@ export default function MasterDataPage() {
       {tab === 0 && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-              <CircularProgress sx={{ color: primaryDark }} />
-            </Box>
+            <ListLoadingState />
           ) : lines.length === 0 ? (
             <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
               No shipping lines.
@@ -638,9 +614,7 @@ export default function MasterDataPage() {
       {tab === 1 && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-              <CircularProgress sx={{ color: primaryDark }} />
-            </Box>
+            <ListLoadingState />
           ) : depots.length === 0 ? (
             <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
               No depots.
@@ -758,9 +732,7 @@ export default function MasterDataPage() {
       {tab === 2 && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-              <CircularProgress sx={{ color: primaryDark }} />
-            </Box>
+            <ListLoadingState />
           ) : containerSizes.length === 0 ? (
             <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
               No container sizes.
@@ -870,9 +842,7 @@ export default function MasterDataPage() {
       {tab === 3 && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-              <CircularProgress sx={{ color: primaryDark }} />
-            </Box>
+            <ListLoadingState />
           ) : containerTypes.length === 0 ? (
             <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
               No container types.

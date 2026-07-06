@@ -1,25 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import FilterListIcon from '@mui/icons-material/FilterList'
@@ -364,9 +344,7 @@ export default function PreAdvicePage() {
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : filteredItems.length === 0 ? (
           <Box sx={{ py: 8, textAlign: 'center', px: 2 }}>
             <Typography color="text.secondary" sx={{ mb: 1 }}>

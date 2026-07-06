@@ -1,9 +1,4 @@
-import {
-  Box,
-  Button,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { Box, Button, Paper, Typography } from '@mui/material'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined'
 import { Link as RouterLink } from 'react-router-dom'

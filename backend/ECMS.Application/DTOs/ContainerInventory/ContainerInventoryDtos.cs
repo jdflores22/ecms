@@ -5,7 +5,11 @@ public record ContainerInventoryResponseDto(
     IReadOnlyList<ContainerInventoryItemDto> Items);
 
 public record ContainerInventorySummaryDto(
+    int ShippingLineId,
+    string ShippingLineCode,
+    string ShippingLineName,
     int TotalAtYard,
+    int ReleasedCount,
     int WithinLimitCount,
     int ApproachingLimitCount,
     int OverstayCount,
@@ -20,7 +24,8 @@ public record ContainerInventorySummaryDto(
 public record ContainerInventoryDepotSummaryDto(
     int DepotId,
     string DepotName,
-    int Count,
+    int AtYardCount,
+    int ReleasedCount,
     int OverstayCount);
 
 public record ContainerInventoryItemDto(
@@ -42,6 +47,10 @@ public record ContainerInventoryItemDto(
     int DwellDays,
     int DaysRemaining,
     string ComplianceStatus,
+    string YardStatus,
+    string? ReleasedAt,
+    string? ReleaseReferenceNo,
+    int? ReleaseWithdrawalId,
     string? ScheduleStatus,
     string? Remarks);
 

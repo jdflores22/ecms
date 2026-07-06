@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Paper,
   Typography,
 } from '@mui/material'
@@ -18,6 +17,7 @@ import {
   hexToRgba,
   infoGridSx,
 } from '../layout/DetailPagePrimitives'
+import { InlineLoadingSkeleton, QrImageSkeleton } from '../layout/SkeletonPrimitives'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
   Evaluation,
@@ -204,12 +204,7 @@ export default function EvaluationDetailTabPanels({
             Return schedule details will appear here after this pre-forecast is approved.
           </Typography>
         ) : scheduleLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-            <CircularProgress size={24} sx={{ color: primaryDark }} />
-            <Typography variant="body2" color="text.secondary">
-              Loading return schedule…
-            </Typography>
-          </Box>
+          <InlineLoadingSkeleton rows={3} />
         ) : schedule ? (
           <>
             {schedule.status === 'WaitingSchedule' && (
@@ -258,12 +253,7 @@ export default function EvaluationDetailTabPanels({
         </Typography>
 
         {qrLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-            <CircularProgress size={24} sx={{ color: primaryDark }} />
-            <Typography variant="body2" color="text.secondary">
-              Loading booking QR…
-            </Typography>
-          </Box>
+          <QrImageSkeleton size={200} />
         ) : qrBooking && schedule ? (
           <Box
             sx={{

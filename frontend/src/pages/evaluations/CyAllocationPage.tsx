@@ -1,33 +1,20 @@
-import {
-  Alert,
-  Box,
-  CircularProgress,
-  LinearProgress,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { CardGridSkeleton, StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
+import { Alert, Box, Button, LinearProgress, Paper, Typography } from '@mui/material'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useSearchParams } from 'react-router-dom'
 import CyYardAllocationCard from '../../components/evaluations/CyYardAllocationCard'
-import CyAllocationLimitEditDialog, {
-  type CyAllocationEditMode,
-} from '../../components/evaluations/CyAllocationLimitEditDialog'
 import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
 import { listPageRootSx } from '../../components/layout/ListPagePrimitives'
 import { canAccessPage } from '../../config/routeAccess'
-import {
-  containerSizeApi,
-  cyAllocationApi,
-  type ContainerSizeMaster,
-  type CyAllocation,
-  type CyAllocationForApproval,
-} from '../../services/api'
+import { cyAllocationApi, type CyAllocation, type CyAllocationForApproval } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import {
-  aggregatePreAdvisedBySize,
-  cyUtilizationPctUncapped,
+  aggregatePreAdvisedTeuBySize,
+  cyUtilizationPctCapped,
+  formatUtilizationPctLabel,
   getAllocationSizeLabel,
   progressBarColor,
 } from '../../utils/cyAllocation'
@@ -83,9 +70,6 @@ export default function CyAllocationPage() {
   const [approvalContext, setApprovalContext] = useState<CyAllocationForApproval | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [containerSizes, setContainerSizes] = useState<ContainerSizeMaster[]>([])
-  const [editMode, setEditMode] = useState<CyAllocationEditMode | null>(null)
-  const [editAllocation, setEditAllocation] = useState<CyAllocation | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -117,50 +101,18 @@ export default function CyAllocationPage() {
     load()
   }, [load])
 
-  useEffect(() => {
-    containerSizeApi
-      .list()
-      .then(({ data }) => setContainerSizes(data))
-      .catch(() => setContainerSizes([]))
-  }, [])
-
-  const openEdit = (allocation: CyAllocation, mode: CyAllocationEditMode) => {
-    setEditAllocation(allocation)
-    setEditMode(mode)
-  }
-
-  const closeEdit = () => {
-    setEditMode(null)
-    setEditAllocation(null)
-  }
-
-  const saveEdit = async (
-    allocation: CyAllocation,
-    sizes: { containerSizeId: number; contractCount: number }[],
-  ) => {
-    const { data } = await cyAllocationApi.updateContract(allocation.contractId, { sizes })
-    setItems((prev) => prev.map((row) => (row.contractId === data.contractId ? data : row)))
-    if (approvalContext) {
-      setApprovalContext({
-        ...approvalContext,
-        allocations: approvalContext.allocations.map((row) =>
-          row.contractId === data.contractId ? data : row,
-        ),
-      })
-    }
-  }
-
   const shippingLineCode = items[0]?.shippingLineCode ?? ''
   const shippingLineName = items[0]?.shippingLineName ?? ''
 
   const totals = useMemo(() => {
-    const sizeTotals = aggregatePreAdvisedBySize(items)
+    const sizeTotals = aggregatePreAdvisedTeuBySize(items)
     const contractTeu = items.reduce((sum, i) => sum + i.contractTeu, 0)
     const usedTeu = Math.round(items.reduce((sum, i) => sum + i.preAdvisedTeu, 0))
-    const bookingCount = items.reduce((sum, i) => sum + i.bookingCount, 0)
+    const bookingTeu = Math.round(items.reduce((sum, i) => sum + i.bookingTeu, 0))
     const yardsAtLimit = items.filter((i) => !i.hasCapacity).length
-    const teuPct = cyUtilizationPctUncapped(usedTeu, contractTeu)
-    return { ...sizeTotals, contractTeu, usedTeu, bookingCount, yardsAtLimit, teuPct }
+    const teuPct = cyUtilizationPctCapped(usedTeu, contractTeu)
+    const teuOver = contractTeu > 0 && usedTeu > contractTeu
+    return { ...sizeTotals, contractTeu, usedTeu, bookingTeu, yardsAtLimit, teuPct, teuOver }
   }, [items])
 
   if (user?.role && !canAccessPage(user.role, 'cyAllocation', user.allowedPages)) {
@@ -180,29 +132,55 @@ export default function CyAllocationPage() {
           boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-          <Box
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 2,
+                bgcolor: 'rgba(255,255,255,0.14)',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <WarehouseOutlinedIcon />
+            </Box>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+                CY allocation
+              </Typography>
+              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 640 }}>
+                Read-only view of your shipping line&apos;s contracted yard capacity and current utilization.
+                In-yard counts exclude containers released on an ATW — see{' '}
+                <Box
+                  component={RouterLink}
+                  to="/evaluations/container-inventory"
+                  sx={{ color: '#fff', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
+                >
+                  CY inventory
+                </Box>{' '}
+                for released units.
+                {shippingLineName ? ` ${shippingLineName}.` : ''}
+              </Typography>
+            </Box>
+          </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={load}
+            disabled={loading}
             sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
               flexShrink: 0,
+              color: '#fff',
+              borderColor: 'rgba(255,255,255,0.45)',
+              '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
             }}
           >
-            <WarehouseOutlinedIcon />
-          </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              CY allocation
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-              View contract TEU capacity and per-size unit limits at each container yard. Pre-advised counts come from
-              ECMS; booking counts sync from LOGICTECK when integrated.
-            </Typography>
-          </Box>
+            Refresh
+          </Button>
         </Box>
       </Paper>
 
@@ -245,13 +223,9 @@ export default function CyAllocationPage() {
               mb: 2,
             }}
           >
-            <SummaryCard label="Pre-advised" value={totals.total} color={primaryDark} />
-            <SummaryCard label="Booking (LOGICTECK)" value={totals.bookingCount} color="#546E7A" />
-            <SummaryCard
-              label="TEU utilized"
-              value={`${totals.usedTeu} / ${totals.contractTeu}`}
-              color={progressBarColor(totals.teuPct)}
-            />
+            <SummaryCard label="Contract (TEU)" value={totals.contractTeu} color={primaryDark} />
+            <SummaryCard label="In yard (TEU)" value={totals.usedTeu} color="#ED6C02" />
+            <SummaryCard label="Booking (TEU)" value={totals.bookingTeu} color="#546E7A" />
             <SummaryCard label="Yards at limit" value={totals.yardsAtLimit} color="#D32F2F" />
           </Box>
 
@@ -270,12 +244,11 @@ export default function CyAllocationPage() {
               <Inventory2OutlinedIcon sx={{ color: 'text.secondary', mt: 0.25 }} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Pre-advised by size
+                  Overall utilization
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {getAllocationSizeLabel('20')}: {totals.size20} · {getAllocationSizeLabel('40')}: {totals.size40}
-                  {shippingLineName ? ` · ${shippingLineName}` : ''} ·{' '}
-                  {Number.isInteger(totals.teuPct) ? totals.teuPct : totals.teuPct.toFixed(1)}% TEU utilized
+                  {getAllocationSizeLabel('20')}: {totals.teu20} TEU · {getAllocationSizeLabel('40')}: {totals.teu40} TEU ·{' '}
+                  {formatUtilizationPctLabel(totals.usedTeu, totals.contractTeu)}
                 </Typography>
               </Box>
             </Box>
@@ -287,7 +260,7 @@ export default function CyAllocationPage() {
                 borderRadius: 4,
                 bgcolor: hexToRgba(primaryDark, 0.08),
                 '& .MuiLinearProgress-bar': {
-                  bgcolor: progressBarColor(totals.teuPct),
+                  bgcolor: totals.teuOver ? '#D32F2F' : progressBarColor(totals.teuPct),
                   borderRadius: 4,
                 },
               }}
@@ -298,19 +271,15 @@ export default function CyAllocationPage() {
 
       <Box sx={{ mb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Container yard allocations
+          Container yards
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 800 }}>
-          Manage TEU limits and per-size unit limits for each contracted yard
-          {shippingLineName ? ` under ${shippingLineName}` : ''}. Auto-hold activates when pre-forecasted count reaches
-          the unit limit.
+        <Typography variant="body2" color="text.secondary">
+          Contract limits are configured by administrators in Master Data.
         </Typography>
       </Box>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Box>
+        <><StatCardsSkeleton count={4} /><CardGridSkeleton cards={2} /></>
       ) : items.length === 0 ? (
         <Paper
           elevation={0}
@@ -335,7 +304,6 @@ export default function CyAllocationPage() {
             gridTemplateColumns: {
               xs: '1fr',
               sm: 'repeat(2, minmax(0, 1fr))',
-              lg: 'repeat(2, minmax(0, 1fr))',
               xl: 'repeat(3, minmax(0, 1fr))',
             },
             gap: 2,
@@ -347,20 +315,10 @@ export default function CyAllocationPage() {
               allocation={row}
               shippingLineCode={shippingLineCode}
               shippingLineName={shippingLineName}
-              onEdit={(mode) => openEdit(row, mode)}
             />
           ))}
         </Box>
       )}
-
-      <CyAllocationLimitEditDialog
-        open={editMode !== null && editAllocation !== null}
-        mode={editMode}
-        allocation={editAllocation}
-        containerSizes={containerSizes}
-        onClose={closeEdit}
-        onSave={saveEdit}
-      />
     </Box>
   )
 }

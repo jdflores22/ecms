@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -18,7 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,7 +43,6 @@ fun IcsAuthBackground(content: @Composable BoxScope.() -> Unit) {
                     colors = listOf(
                         IcsColors.Primary,
                         IcsColors.PrimaryDark,
-                        IcsColors.Accent.copy(alpha = 0.85f),
                     ),
                 ),
             ),
@@ -136,6 +140,79 @@ fun IcsAuthCard(
 }
 
 @Composable
+fun IcsSecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(48.dp),
+        shape = RoundedCornerShape(10.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, IcsColors.Divider),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = IcsColors.Surface,
+            contentColor = IcsColors.Primary,
+        ),
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(text, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+fun IcsOutlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    password: Boolean = false,
+    singleLine: Boolean = true,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier.fillMaxWidth(),
+        singleLine = singleLine,
+        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = if (password) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
+        shape = RoundedCornerShape(10.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = IcsColors.Primary,
+            unfocusedBorderColor = IcsColors.Divider,
+            focusedLabelColor = IcsColors.Primary,
+            cursorColor = IcsColors.Primary,
+        ),
+    )
+}
+
+@Composable
+fun IcsOverviewPanel(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = IcsColors.SurfaceMuted,
+        border = androidx.compose.foundation.BorderStroke(1.dp, IcsColors.Divider),
+    ) {
+        Column(
+            Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
 fun IcsPrimaryButton(
     text: String,
     onClick: () -> Unit,
@@ -169,23 +246,26 @@ fun IcsStatCard(
     color: Color,
     highlighted: Boolean,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(12.dp),
         color = IcsColors.Surface,
         tonalElevation = if (highlighted) 2.dp else 1.dp,
         shadowElevation = if (highlighted) 2.dp else 0.dp,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (highlighted) icsHexAlpha(color, 0.35f) else IcsColors.Divider,
+            if (highlighted) icsHexAlpha(IcsColors.Primary, 0.35f) else IcsColors.Divider,
         ),
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(
                 value,
                 style = MaterialTheme.typography.headlineSmall,
-                color = if (highlighted) color else IcsColors.Primary,
+                color = IcsColors.Primary,
                 fontWeight = FontWeight.Bold,
             )
             Text(
@@ -249,6 +329,78 @@ fun IcsQuickActionRow(
 }
 
 @Composable
+fun IcsPaymentListRow(
+    title: String,
+    subtitle: String,
+    amount: String,
+    status: String,
+    actionLabel: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+) {
+    ListItem(
+        headlineContent = {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = IcsColors.TextSecondary)
+                Text(
+                    amount,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = IcsColors.Primary,
+                )
+                Text(
+                    actionLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (emphasized) IcsColors.Primary else IcsColors.TextSecondary,
+                )
+            }
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                StatusChip(status)
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = if (emphasized) IcsColors.Primary else IcsColors.TextSecondary,
+                )
+            }
+        },
+        modifier = modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
+}
+
+@Composable
+fun IcsPaymentDueCard(
+    title: String,
+    subtitle: String,
+    hint: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = IcsColors.TextSecondary)
+                Text(hint, style = MaterialTheme.typography.labelMedium, color = IcsColors.Primary)
+            }
+        },
+        trailingContent = {
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = IcsColors.Primary)
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
+}
+
+@Composable
 fun IcsListItemCard(
     title: String,
     subtitle: String,
@@ -264,6 +416,7 @@ fun IcsListItemCard(
         shape = RoundedCornerShape(12.dp),
         color = IcsColors.Surface,
         tonalElevation = 1.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, IcsColors.Divider),
     ) {
         ListItem(
             headlineContent = {
@@ -287,12 +440,12 @@ data class IcsStatDef(
 )
 
 val TruckerDashboardStats = listOf(
-    IcsStatDef("pendingRequests", R.string.dashboard_stat_pending_preforecast, R.string.dashboard_stat_pending_preforecast_desc, IcsColors.Warning),
-    IcsStatDef("draftWithdrawals", R.string.dashboard_stat_draft_withdrawals, R.string.dashboard_stat_draft_withdrawals_desc, IcsColors.Warning),
-    IcsStatDef("issuedWithdrawalsAwaitingUpload", R.string.dashboard_stat_issued_upload, R.string.dashboard_stat_issued_upload_desc, IcsColors.Purple),
-    IcsStatDef("submittedWithdrawals", R.string.dashboard_stat_awaiting_review, R.string.dashboard_stat_awaiting_review_desc, IcsColors.BlueStat),
-    IcsStatDef("upcomingReturns", R.string.dashboard_stat_upcoming_returns, R.string.dashboard_stat_upcoming_returns_desc, IcsColors.Purple),
-    IcsStatDef("pendingPayments", R.string.dashboard_stat_pending_payments, R.string.dashboard_stat_pending_payments_desc, IcsColors.Warning),
-    IcsStatDef("confirmedReturns", R.string.dashboard_stat_confirmed_returns, R.string.dashboard_stat_confirmed_returns_desc, IcsColors.Success),
-    IcsStatDef("approvedWithdrawals", R.string.dashboard_stat_approved_withdrawals, R.string.dashboard_stat_approved_withdrawals_desc, IcsColors.Success),
+    IcsStatDef("pendingRequests", R.string.dashboard_stat_pending_preforecast, R.string.dashboard_stat_pending_preforecast_desc, IcsColors.Primary),
+    IcsStatDef("draftWithdrawals", R.string.dashboard_stat_draft_withdrawals, R.string.dashboard_stat_draft_withdrawals_desc, IcsColors.Primary),
+    IcsStatDef("issuedWithdrawalsAwaitingUpload", R.string.dashboard_stat_issued_upload, R.string.dashboard_stat_issued_upload_desc, IcsColors.Primary),
+    IcsStatDef("submittedWithdrawals", R.string.dashboard_stat_awaiting_review, R.string.dashboard_stat_awaiting_review_desc, IcsColors.Primary),
+    IcsStatDef("upcomingReturns", R.string.dashboard_stat_upcoming_returns, R.string.dashboard_stat_upcoming_returns_desc, IcsColors.Primary),
+    IcsStatDef("pendingPayments", R.string.dashboard_stat_pending_payments, R.string.dashboard_stat_pending_payments_desc, IcsColors.Primary),
+    IcsStatDef("confirmedReturns", R.string.dashboard_stat_confirmed_returns, R.string.dashboard_stat_confirmed_returns_desc, IcsColors.Primary),
+    IcsStatDef("approvedWithdrawals", R.string.dashboard_stat_approved_withdrawals, R.string.dashboard_stat_approved_withdrawals_desc, IcsColors.Primary),
 )

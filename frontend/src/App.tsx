@@ -1,6 +1,6 @@
-import { CircularProgress, Box } from '@mui/material'
 import { Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AppRouteSkeleton } from './components/layout/SkeletonPrimitives'
 import { ensureValidAccessToken } from './services/api'
 import { useAppSelector } from './store/hooks'
 import LoginPage from './pages/LoginPage'
@@ -17,6 +17,7 @@ import {
   AdminTransactionReportsPage,
   AdminUsersPage,
   AdminVersionPage,
+  AtwBulkSelectPage,
   AtwDetailPage,
   AtwNewPage,
   AtwPage,
@@ -32,6 +33,8 @@ import {
   EvaluationsPage,
   EvaluatorDemurrageBillingPage,
   MasterDataPage,
+  CertificateTemplatesPage,
+  CertificateTemplatePreviewPage,
   PreAdviceDetailPage,
   PreAdviceNewPage,
   PreAdvicePage,
@@ -48,16 +51,13 @@ import {
   TruckerReturnDetailPage,
   TruckerReturnsPage,
   TruckerWithdrawalsPage,
+  TruckerWithdrawalSchedulePage,
   WithdrawalDetailPage,
   WithdrawalNewPage,
 } from './routes/lazyPages'
 
 function RouteFallback() {
-  return (
-    <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '40vh' }}>
-      <CircularProgress />
-    </Box>
-  )
+  return <AppRouteSkeleton />
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -88,11 +88,7 @@ function GuestOrApp() {
   }, [token])
 
   if (!authReady) {
-    return (
-      <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
-        <CircularProgress />
-      </Box>
-    )
+    return <AppRouteSkeleton />
   }
 
   if (!token) {
@@ -210,6 +206,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <AtwNewPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/atw/new/containers"
+          element={
+            <RoleRouteGuard>
+              <AtwBulkSelectPage />
             </RoleRouteGuard>
           }
         />
@@ -359,6 +363,14 @@ export default function App() {
           }
         />
         <Route
+          path="trucker/withdrawals/schedule"
+          element={
+            <RoleRouteGuard>
+              <TruckerWithdrawalSchedulePage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
           path="trucker/withdrawals/new"
           element={
             <RoleRouteGuard>
@@ -411,6 +423,22 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <MasterDataPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="admin/certificate-templates/preview"
+          element={
+            <RoleRouteGuard>
+              <CertificateTemplatePreviewPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="admin/certificate-templates"
+          element={
+            <RoleRouteGuard>
+              <CertificateTemplatesPage />
             </RoleRouteGuard>
           }
         />

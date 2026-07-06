@@ -1,20 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -326,9 +311,7 @@ export default function TruckerPaymentsPage() {
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : schedules.length === 0 ? (
           <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
             No scheduled returns requiring payment.

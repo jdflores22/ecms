@@ -324,6 +324,22 @@ export interface WithdrawalLine {
   lineStatus: string
 }
 
+export interface WithdrawalSchedule {
+  id: number
+  withdrawalRequestId: number
+  referenceNo: string
+  depotId: number
+  depotName: string
+  date: string
+  time: string
+  slotNo: number
+  status: string
+  truckerId?: number | null
+  truckerName?: string | null
+  depotRemarks?: string | null
+  containerSummary: string
+}
+
 export interface Withdrawal {
   id: number
   referenceNo: string
@@ -347,6 +363,17 @@ export interface Withdrawal {
   containerCount: number
   containerSummary: string
   lines: WithdrawalLine[]
+  bookingNumber?: string | null
+  truckingCompany?: string | null
+  plateNumber?: string | null
+  driverName?: string | null
+  requestedDepotId?: number | null
+  requestedDepotName?: string | null
+  assignedDepotId?: number | null
+  assignedDepotName?: string | null
+  bookedAt?: string | null
+  cyAssignedAt?: string | null
+  pickupSchedule?: WithdrawalSchedule | null
 }
 
 export interface EvaluatorAtwLookups {
@@ -381,6 +408,7 @@ export const withdrawalApi = {
     ),
   checkYard: (params: {
     depotId: number
+    shippingLineId: number
     containerNo: string
     containerSizeId: number
     containerTypeId: number
@@ -457,6 +485,31 @@ export const withdrawalApi = {
   reject: (id: number, remarks: string) =>
     api.post<Withdrawal>(`/withdrawals/${id}/reject`, { remarks }),
   release: (id: number) => api.post<Withdrawal>(`/withdrawals/${id}/release`),
+  releaseLine: (id: number, lineId: number) =>
+    api.post<Withdrawal>(`/withdrawals/${id}/lines/${lineId}/release`),
+  book: (data: {
+    plateNumber: string
+    driverName: string
+    atwNumber: string
+    shippingLineId: number
+    purpose: 'Repositioning' | 'Export'
+    lines: { containerNo: string; containerSizeId: number; containerTypeId: number }[]
+    destination: string
+    issueDate: string
+    expirationDate: string
+    requestedDepotId?: number
+    remarks?: string
+  }) => api.post<Withdrawal>('/withdrawals/book', data),
+  nextBookingNumber: () => api.get<{ nextBookingNumber: string }>('/withdrawals/next-booking-number'),
+  assignCy: (id: number, data: { assignedDepotId: number; remarks?: string }) =>
+    api.post<Withdrawal>(`/withdrawals/${id}/assign-cy`, data),
+  schedulePickup: (id: number, data: { date: string; time: string; slotNo: number; depotRemarks?: string }) =>
+    api.post<Withdrawal>(`/withdrawals/${id}/schedule`, data),
+  mySchedules: () => api.get<WithdrawalSchedule[]>('/withdrawals/schedules/mine'),
+  awaitingCy: () => api.get<Withdrawal[]>('/withdrawals/awaiting-cy'),
+  awaitingSchedule: () => api.get<Withdrawal[]>('/withdrawals/awaiting-schedule'),
+  awaitingCyCount: () => api.get<{ count: number }>('/withdrawals/awaiting-cy/count'),
+  awaitingScheduleCount: () => api.get<{ count: number }>('/withdrawals/awaiting-schedule/count'),
 }
 
 export interface PreAdviceDocument {
@@ -528,6 +581,7 @@ export interface Depot {
 
 export const evaluationApi = {
   list: () => api.get<Evaluation[]>('/evaluations'),
+  pendingCount: () => api.get<{ count: number }>('/evaluations/pending/count'),
   getByPreAdvice: async (preAdviceId: number): Promise<{ data: Evaluation | null }> => {
     const { data, status } = await api.get<Evaluation>(`/evaluations/by-preforecast/${preAdviceId}`, {
       validateStatus: (s) => s === 200 || s === 204 || s === 404,
@@ -604,7 +658,9 @@ export const cyAllocationApi = {
   ) => api.put<CyAllocation>(`/cy-allocations/contracts/${contractId}`, { ...data, isActive: data.isActive ?? true }),
 }
 
-export type ContainerDwellCompliance = 'WithinLimit' | 'ApproachingLimit' | 'Overstay'
+export type ContainerDwellCompliance = 'WithinLimit' | 'ApproachingLimit' | 'Overstay' | 'Released'
+
+export type ContainerYardStatus = 'AtYard' | 'Released'
 
 export type ContainerInventorySource = 'Workflow' | 'Manual'
 
@@ -627,6 +683,10 @@ export interface ContainerInventoryItem {
   dwellDays: number
   daysRemaining: number
   complianceStatus: ContainerDwellCompliance
+  yardStatus: ContainerYardStatus
+  releasedAt: string | null
+  releaseReferenceNo: string | null
+  releaseWithdrawalId: number | null
   scheduleStatus: string | null
   remarks: string | null
 }
@@ -634,12 +694,19 @@ export interface ContainerInventoryItem {
 export interface ContainerInventoryDepotSummary {
   depotId: number
   depotName: string
-  count: number
+  /** @deprecated API < 2026-07-06 — use atYardCount */
+  count?: number
+  atYardCount: number
+  releasedCount: number
   overstayCount: number
 }
 
 export interface ContainerInventorySummary {
+  shippingLineId?: number
+  shippingLineCode?: string
+  shippingLineName?: string
   totalAtYard: number
+  releasedCount: number
   withinLimitCount: number
   approachingLimitCount: number
   overstayCount: number
@@ -658,7 +725,12 @@ export interface ContainerInventoryResponse {
 }
 
 export const containerInventoryApi = {
-  list: (params?: { depotId?: number; shippingLineId?: number; compliance?: ContainerDwellCompliance }) =>
+  list: (params?: {
+    depotId?: number
+    shippingLineId?: number
+    compliance?: ContainerDwellCompliance
+    yardStatus?: ContainerYardStatus
+  }) =>
     api.get<ContainerInventoryResponse>('/container-inventory', { params }),
   createManual: (data: {
     containerNo: string
@@ -797,6 +869,38 @@ export const containerTypeApi = {
   deactivate: (id: number) => api.post(`/container-types/${id}/deactivate`),
 }
 
+export type { CertificateTemplate, CertificateMergeField, CertificateDocumentType } from '../utils/certificateLayoutTypes'
+
+export const certificateTemplateApi = {
+  list: (params?: { shippingLineId?: number; documentType?: string }) =>
+    api.get<import('../utils/certificateLayoutTypes').CertificateTemplate[]>('/certificate-templates', { params }),
+  get: (id: number) => api.get<import('../utils/certificateLayoutTypes').CertificateTemplate>(`/certificate-templates/${id}`),
+  create: (data: {
+    shippingLineId: number
+    documentType: string
+    name: string
+    layoutJson?: string
+  }) => api.post<import('../utils/certificateLayoutTypes').CertificateTemplate>('/certificate-templates', data),
+  update: (id: number, data: { name: string; layoutJson: string }) =>
+    api.put<import('../utils/certificateLayoutTypes').CertificateTemplate>(`/certificate-templates/${id}`, data),
+  activate: (id: number) => api.post(`/certificate-templates/${id}/activate`),
+  preview: (id: number) =>
+    api.post(`/certificate-templates/${id}/preview`, {}, { responseType: 'blob' }),
+  previewLayout: (layoutJson: string, documentType = 'Atw') =>
+    api.post('/certificate-templates/preview-layout', { layoutJson, documentType }, { responseType: 'blob' }),
+  fields: (documentType: string) =>
+    api.get<import('../utils/certificateLayoutTypes').CertificateMergeField[]>(
+      `/certificate-templates/fields/${documentType}`,
+    ),
+  uploadImage: (id: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<{ path: string; fileName: string }>(`/certificate-templates/${id}/upload-image`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+}
+
 export interface Schedule {
   id: number
   preAdviceId: number
@@ -820,6 +924,7 @@ export interface Payment {
   amount: number
   proofFile?: string | null
   proofReferenceNo?: string | null
+  proofPaymentId?: string | null
   proofQrphInvoiceNo?: string | null
   proofTransactionAt?: string | null
   proofProvider?: string | null
@@ -829,6 +934,7 @@ export interface Payment {
 
 export interface PaymentProofMetadataInput {
   proofReferenceNo?: string | null
+  proofPaymentId?: string | null
   proofQrphInvoiceNo?: string | null
   proofTransactionAt?: string | null
   proofProvider?: string | null
@@ -939,6 +1045,7 @@ export const paymentApi = {
     form.append('scheduleId', String(scheduleId))
     form.append('proof', proof)
     if (metadata?.proofReferenceNo) form.append('proofReferenceNo', metadata.proofReferenceNo)
+    if (metadata?.proofPaymentId) form.append('proofPaymentId', metadata.proofPaymentId)
     if (metadata?.proofQrphInvoiceNo) form.append('proofQrphInvoiceNo', metadata.proofQrphInvoiceNo)
     if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
     if (metadata?.proofProvider) form.append('proofProvider', metadata.proofProvider)
@@ -955,6 +1062,7 @@ export const paymentApi = {
     api.post<Payment>(`/payments/${id}/verify`, {
       approved,
       proofReferenceNo: metadata?.proofReferenceNo ?? null,
+      proofPaymentId: metadata?.proofPaymentId ?? null,
       proofQrphInvoiceNo: metadata?.proofQrphInvoiceNo ?? null,
       proofTransactionAt: metadata?.proofTransactionAt ?? null,
       proofProvider: metadata?.proofProvider ?? null,
@@ -1017,6 +1125,7 @@ export interface DemurrageBlockCheck {
 
 export const demurrageBillingApi = {
   list: () => api.get<DemurrageBilling[]>('/demurrage-billing'),
+  paymentDueCount: () => api.get<{ count: number }>('/demurrage-billing/payment-due/count'),
   get: (id: number) => api.get<DemurrageBilling>(`/demurrage-billing/${id}`),
   eligiblePreAdvices: () => api.get<EligibleDemurragePreAdvice[]>('/demurrage-billing/eligible-pre-forecasts'),
   create: (payload: { preAdviceId: number; feeLines?: DemurrageBillingFeeInput[] }) =>

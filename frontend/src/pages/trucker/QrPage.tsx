@@ -1,5 +1,6 @@
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { QrImageSkeleton } from '../../components/layout/SkeletonPrimitives'
 import {
-
   Alert,
 
   Box,
@@ -7,8 +8,6 @@ import {
   Button,
 
   Chip,
-
-  CircularProgress,
 
   Dialog,
 
@@ -586,11 +585,7 @@ export default function TruckerQrPage() {
 
       {loading ? (
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-
-          <CircularProgress sx={{ color: primaryDark }} />
-
-        </Box>
+        <ListLoadingState />
 
       ) : schedules.length === 0 ? (
 
@@ -630,15 +625,47 @@ export default function TruckerQrPage() {
 
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 2 }}>
 
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
 
-                    <QrCode2OutlinedIcon sx={{ color: primaryDark }} />
+                    <QrCode2OutlinedIcon sx={{ color: primaryDark, mt: 0.25, flexShrink: 0 }} />
 
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: primaryDark, wordBreak: 'break-all' }}>
+                    <Box sx={{ minWidth: 0 }}>
 
-                      {schedule.referenceNo}
+                      <Typography
 
-                    </Typography>
+                        variant="h6"
+
+                        sx={{
+
+                          fontWeight: 800,
+
+                          color: primaryDark,
+
+                          fontFamily: qr ? 'monospace' : 'inherit',
+
+                          wordBreak: 'break-all',
+
+                          lineHeight: 1.25,
+
+                        }}
+
+                      >
+
+                        {qr?.payload.containerNo ?? schedule.referenceNo}
+
+                      </Typography>
+
+                      {qr ? (
+
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+
+                          Pre-forecast {schedule.referenceNo}
+
+                        </Typography>
+
+                      ) : null}
+
+                    </Box>
 
                   </Box>
 
@@ -722,37 +749,7 @@ export default function TruckerQrPage() {
 
                     ) : (
 
-                      <Box
-
-                        sx={{
-
-                          width: '100%',
-
-                          maxWidth: 160,
-
-                          aspectRatio: '1',
-
-                          mx: 'auto',
-
-                          display: 'grid',
-
-                          placeItems: 'center',
-
-                          borderRadius: 2,
-
-                          border: '1px dashed',
-
-                          borderColor: 'divider',
-
-                          bgcolor: hexToRgba(primaryDark, 0.02),
-
-                        }}
-
-                      >
-
-                        <CircularProgress size={28} sx={{ color: primaryDark }} />
-
-                      </Box>
+                      <QrImageSkeleton size={160} inline />
 
                     )}
 
@@ -762,17 +759,11 @@ export default function TruckerQrPage() {
 
                       <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
 
-                        Booking reference: {qr.qrCode}
+                        {LOGICTECK_QR.bookingIdLabel}: {qr.qrCode}
 
                       </Typography>
 
-                      <Typography variant="body2" sx={{ mt: 0.5 }}>
-
-                        Container: {qr.payload.containerNo}
-
-                      </Typography>
-
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
 
                         {qr.payload.depot} · {formatScheduleSlot(qr.payload.scheduleDate, qr.payload.scheduleTime)}
 
@@ -958,15 +949,21 @@ export default function TruckerQrPage() {
 
               >
 
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                <Typography
 
-                  {preview.schedule.referenceNo}
+                  variant="h6"
+
+                  sx={{ fontWeight: 800, fontFamily: 'monospace', wordBreak: 'break-all' }}
+
+                >
+
+                  {preview.qr.payload.containerNo}
 
                 </Typography>
 
                 <Typography variant="caption" color="text.secondary">
 
-                  {preview.qr.payload.containerNo} · {preview.qr.payload.depot}
+                  Pre-forecast {preview.schedule.referenceNo} · {preview.qr.payload.depot}
 
                 </Typography>
 
@@ -1024,11 +1021,7 @@ export default function TruckerQrPage() {
 
               ) : (
 
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4, mb: 2 }}>
-
-                  <CircularProgress sx={{ color: primaryDark }} />
-
-                </Box>
+                <QrImageSkeleton />
 
               )}
 
@@ -1044,11 +1037,11 @@ export default function TruckerQrPage() {
 
               <Box sx={infoGridSx}>
 
+                <InfoTile label="Container" value={preview.qr.payload.containerNo} mono />
+
                 <InfoTile label={LOGICTECK_QR.bookingIdLabel} value={preview.qr.qrCode} mono />
 
                 <InfoTile label="Generated" value={formatDateTime(preview.qr.generatedAt)} />
-
-                <InfoTile label="Container" value={preview.qr.payload.containerNo} mono />
 
                 <InfoTile
 

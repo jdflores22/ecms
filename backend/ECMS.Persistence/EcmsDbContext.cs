@@ -34,6 +34,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<WithdrawalRequest> WithdrawalRequestsSet => Set<WithdrawalRequest>();
     public DbSet<WithdrawalRequestLine> WithdrawalRequestLinesSet => Set<WithdrawalRequestLine>();
     public DbSet<WithdrawalDocument> WithdrawalDocumentsSet => Set<WithdrawalDocument>();
+    public DbSet<WithdrawalSchedule> WithdrawalSchedulesSet => Set<WithdrawalSchedule>();
+    public DbSet<CertificateTemplate> CertificateTemplatesSet => Set<CertificateTemplate>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -61,6 +63,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<WithdrawalRequest> IEcmsDbContext.WithdrawalRequests => WithdrawalRequestsSet;
     IQueryable<WithdrawalRequestLine> IEcmsDbContext.WithdrawalRequestLines => WithdrawalRequestLinesSet;
     IQueryable<WithdrawalDocument> IEcmsDbContext.WithdrawalDocuments => WithdrawalDocumentsSet;
+    IQueryable<WithdrawalSchedule> IEcmsDbContext.WithdrawalSchedules => WithdrawalSchedulesSet;
+    IQueryable<CertificateTemplate> IEcmsDbContext.CertificateTemplates => CertificateTemplatesSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -163,6 +167,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasIndex(x => new { x.Status, x.PaidAt });
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
+            e.Property(x => x.ProofPaymentId).HasMaxLength(64);
             e.Property(x => x.ProofQrphInvoiceNo).HasMaxLength(32);
             e.Property(x => x.ProofProvider).HasMaxLength(32);
             e.HasOne(x => x.Schedule).WithOne(x => x.Payment).HasForeignKey<Payment>(x => x.ScheduleId);
@@ -213,7 +218,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<ManualYardInventoryEntry>(e =>
         {
-            e.HasIndex(x => new { x.ShippingLineId, x.ContainerNo, x.DepotId }).IsUnique();
+            e.HasIndex(x => new { x.ShippingLineId, x.ContainerNo, x.DepotId });
             e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
             e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
             e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId);
@@ -259,11 +264,28 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasIndex(x => x.ReferenceNo).IsUnique();
             e.HasIndex(x => new { x.TruckerId, x.CreatedAt });
             e.HasIndex(x => new { x.CurrentDepotId, x.Status });
+            e.HasIndex(x => new { x.ShippingLineId, x.Status });
             e.Property(x => x.AtwNumber).HasMaxLength(128);
             e.Property(x => x.Destination).HasMaxLength(512);
+            e.Property(x => x.BookingNumber).HasMaxLength(128);
+            e.Property(x => x.TruckingCompany).HasMaxLength(256);
+            e.Property(x => x.PlateNumber).HasMaxLength(32);
+            e.Property(x => x.DriverName).HasMaxLength(256);
             e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId);
             e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
             e.HasOne(x => x.CurrentDepot).WithMany().HasForeignKey(x => x.CurrentDepotId);
+            e.HasOne(x => x.RequestedDepot).WithMany().HasForeignKey(x => x.RequestedDepotId);
+            e.HasOne(x => x.AssignedDepot).WithMany().HasForeignKey(x => x.AssignedDepotId);
+            e.HasOne(x => x.CyAssignedBy).WithMany().HasForeignKey(x => x.CyAssignedByUserId);
+            e.HasOne(x => x.PickupSchedule).WithOne(x => x.WithdrawalRequest).HasForeignKey<WithdrawalSchedule>(x => x.WithdrawalRequestId).HasConstraintName("FK_WSched_WithdrawalRequestId");
+        });
+
+        modelBuilder.Entity<WithdrawalSchedule>(e =>
+        {
+            e.HasIndex(x => x.WithdrawalRequestId).IsUnique().HasDatabaseName("IX_WSched_WithdrawalRequestId");
+            e.HasIndex(x => new { x.DepotId, x.Date, x.SlotNo }).HasDatabaseName("IX_WSched_DepotId_Date_SlotNo");
+            e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId).HasConstraintName("FK_WSched_DepotId");
+            e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId).HasConstraintName("FK_WSched_TruckerId");
         });
 
         modelBuilder.Entity<WithdrawalRequestLine>(e =>
@@ -287,6 +309,13 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.ContentType).HasMaxLength(128);
             e.HasOne(x => x.WithdrawalRequest).WithMany(x => x.Documents).HasForeignKey(x => x.WithdrawalRequestId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedById);
+        });
+
+        modelBuilder.Entity<CertificateTemplate>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(256);
+            e.HasIndex(x => new { x.ShippingLineId, x.DocumentType, x.IsActive });
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

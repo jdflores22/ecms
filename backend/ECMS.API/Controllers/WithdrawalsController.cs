@@ -62,6 +62,104 @@ public class WithdrawalsController : ControllerBase
         }
     }
 
+    [HttpGet("awaiting-cy/count")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<object>> AwaitingCyCount(CancellationToken cancellationToken)
+        => Ok(new { count = await _service.GetAwaitingCyCountAsync(UserId, Role, cancellationToken) });
+
+    [HttpGet("awaiting-schedule/count")]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
+    public async Task<ActionResult<object>> AwaitingScheduleCount(CancellationToken cancellationToken)
+        => Ok(new { count = await _service.GetAwaitingScheduleCountAsync(UserId, Role, cancellationToken) });
+
+    [HttpGet("awaiting-cy")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<IReadOnlyList<WithdrawalDto>>> AwaitingCy(CancellationToken cancellationToken)
+        => Ok(await _service.GetAwaitingCyAsync(UserId, Role, cancellationToken));
+
+    [HttpGet("awaiting-schedule")]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
+    public async Task<ActionResult<IReadOnlyList<WithdrawalDto>>> AwaitingSchedule(CancellationToken cancellationToken)
+        => Ok(await _service.GetAwaitingScheduleAsync(UserId, Role, cancellationToken));
+
+    [HttpGet("schedules/mine")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<ActionResult<IReadOnlyList<WithdrawalScheduleDto>>> MySchedules(CancellationToken cancellationToken)
+        => Ok(await _service.GetMySchedulesAsync(UserId, Role, cancellationToken));
+
+    [HttpGet("next-booking-number")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<ActionResult<WithdrawalBookingNumberPreviewDto>> NextBookingNumber(CancellationToken cancellationToken)
+        => Ok(await _service.GetNextBookingNumberAsync(cancellationToken));
+
+    [HttpPost("book")]
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    public async Task<ActionResult<WithdrawalDto>> Book([FromBody] BookWithdrawalRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.BookAsync(request, UserId, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:int}/assign-cy")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<WithdrawalDto>> AssignCy(
+        int id,
+        [FromBody] AssignCyRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var item = await _service.AssignCyAsync(id, request, UserId, cancellationToken);
+            return item is null ? NotFound() : Ok(item);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:int}/schedule")]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
+    public async Task<ActionResult<WithdrawalDto>> SchedulePickup(
+        int id,
+        [FromBody] ScheduleWithdrawalPickupRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var item = await _service.SchedulePickupAsync(id, request, UserId, Role, cancellationToken);
+            return item is null ? NotFound() : Ok(item);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("schedules/{scheduleId:int}")]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
+    public async Task<ActionResult<WithdrawalScheduleDto>> UpdateSchedule(
+        int scheduleId,
+        [FromBody] UpdateWithdrawalScheduleRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var item = await _service.UpdateScheduleAsync(scheduleId, request, UserId, Role, cancellationToken);
+            return item is null ? NotFound() : Ok(item);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("issue")]
     [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<WithdrawalDto>> Issue([FromBody] IssueAtwRequest request, CancellationToken cancellationToken)
@@ -127,6 +225,21 @@ public class WithdrawalsController : ControllerBase
         }
     }
 
+    [HttpPost("{id:int}/lines/{lineId:int}/release")]
+    [Authorize(Roles = RoleNames.DepotPersonnel)]
+    public async Task<ActionResult<WithdrawalDto>> ReleaseLine(int id, int lineId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var item = await _service.ReleaseLineAsync(id, lineId, UserId, Role, cancellationToken);
+            return item is null ? NotFound() : Ok(item);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("lookups")]
     [Authorize(Roles = RoleNames.PreAdviceManager)]
     public async Task<ActionResult<WithdrawalLookupsDto>> Lookups(CancellationToken cancellationToken)
@@ -149,12 +262,13 @@ public class WithdrawalsController : ControllerBase
     [Authorize(Roles = RoleNames.PreAdviceManager)]
     public async Task<ActionResult<WithdrawalYardCheckDto>> CheckYard(
         [FromQuery] int depotId,
+        [FromQuery] int shippingLineId,
         [FromQuery] string containerNo,
         [FromQuery] int containerSizeId,
         [FromQuery] int containerTypeId,
         CancellationToken cancellationToken)
         => Ok(await _service.CheckContainerInYardAsync(
-            depotId, containerNo, containerSizeId, containerTypeId, cancellationToken));
+            depotId, shippingLineId, containerNo, containerSizeId, containerTypeId, cancellationToken));
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = RoleNames.PreAdviceManager)]
@@ -179,7 +293,7 @@ public class WithdrawalsController : ControllerBase
     }
 
     [HttpGet("check-duplicate")]
-    [Authorize(Roles = RoleNames.PreAdviceManager)]
+    [Authorize(Roles = RoleNames.PreAdviceManager + "," + RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<WithdrawalDuplicateCheckDto>> CheckDuplicate(
         [FromQuery] int currentDepotId,
         [FromQuery] string containerNo,

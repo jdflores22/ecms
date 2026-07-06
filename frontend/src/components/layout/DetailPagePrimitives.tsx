@@ -1,8 +1,9 @@
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { Alert, Box, Button, Chip, CircularProgress, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { SYSTEM_TIMEZONE } from '../../utils/datetime'
+import { DetailPageSkeleton } from './SkeletonPrimitives'
 
 export const ICS_PRIMARY = '#0B3D91'
 
@@ -107,23 +108,16 @@ export function DetailBackButton({ to, label }: { to: string; label: string }) {
   )
 }
 
-export function DetailLoadingState() {
-  return (
-    <Paper
-      elevation={0}
-      sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        py: 12,
-        borderRadius: 3,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: '#fff',
-      }}
-    >
-      <CircularProgress sx={{ color: ICS_PRIMARY }} />
-    </Paper>
-  )
+export function DetailLoadingState({
+  showTabs = true,
+  infoTiles = 6,
+  sections = 1,
+}: {
+  showTabs?: boolean
+  infoTiles?: number
+  sections?: number
+} = {}) {
+  return <DetailPageSkeleton showTabs={showTabs} infoTiles={infoTiles} sections={sections} />
 }
 
 export function DetailErrorState({ message }: { message: string }) {

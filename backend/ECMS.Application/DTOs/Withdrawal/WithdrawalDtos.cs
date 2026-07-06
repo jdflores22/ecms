@@ -14,6 +14,21 @@ public record WithdrawalLineDto(
     string ContainerType,
     WithdrawalLineStatus LineStatus);
 
+public record WithdrawalScheduleDto(
+    int Id,
+    int WithdrawalRequestId,
+    string ReferenceNo,
+    int DepotId,
+    string DepotName,
+    DateOnly Date,
+    TimeOnly Time,
+    int SlotNo,
+    ScheduleStatus Status,
+    int? TruckerId,
+    string? TruckerName,
+    string? DepotRemarks,
+    string ContainerSummary);
+
 public record WithdrawalDto(
     int Id,
     string ReferenceNo,
@@ -36,9 +51,50 @@ public record WithdrawalDto(
     string? ReviewRemarks,
     int ContainerCount,
     string ContainerSummary,
-    IReadOnlyList<WithdrawalLineDto> Lines);
+    IReadOnlyList<WithdrawalLineDto> Lines,
+    string? BookingNumber,
+    string? TruckingCompany,
+    string? PlateNumber,
+    string? DriverName,
+    int? RequestedDepotId,
+    string? RequestedDepotName,
+    int? AssignedDepotId,
+    string? AssignedDepotName,
+    DateTime? BookedAt,
+    DateTime? CyAssignedAt,
+    WithdrawalScheduleDto? PickupSchedule);
 
 public record WithdrawalLineInput(string ContainerNo, int ContainerSizeId, int ContainerTypeId);
+
+public record BookWithdrawalRequest(
+    string PlateNumber,
+    string DriverName,
+    string AtwNumber,
+    int ShippingLineId,
+    WithdrawalPurpose Purpose,
+    IReadOnlyList<WithdrawalLineInput> Lines,
+    string Destination,
+    string IssueDate,
+    string ExpirationDate,
+    int? RequestedDepotId,
+    string? Remarks);
+
+public record WithdrawalBookingNumberPreviewDto(string NextBookingNumber);
+
+public record AssignCyRequest(int AssignedDepotId, string? Remarks);
+
+public record ScheduleWithdrawalPickupRequest(
+    DateOnly Date,
+    TimeOnly Time,
+    int SlotNo,
+    string? DepotRemarks);
+
+public record UpdateWithdrawalScheduleRequest(
+    DateOnly Date,
+    TimeOnly Time,
+    int SlotNo,
+    ScheduleStatus Status,
+    string? DepotRemarks);
 
 public record IssueAtwRequest(
     string? AtwNumber,

@@ -1,6 +1,6 @@
 import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import type { CyAllocationBreakdownRow } from '../../services/api'
-import { getCapacityDisplayLabel } from '../../utils/cyAllocation'
+import { getCapacityDisplayLabel, breakdownAvailableTeu, breakdownBookingTeu, breakdownContractTeu, breakdownUsedTeu } from '../../utils/cyAllocation'
 
 const primaryDark = '#0B3D91'
 
@@ -10,13 +10,11 @@ interface CyAllocationBreakdownGridProps {
   compact?: boolean
 }
 
-function CellVolume({ preAdvisedCount, preAdvisedTeu, bookingCount, bookingTeu }: {
-  preAdvisedCount: number
+function CellVolume({ preAdvisedTeu, bookingTeu }: {
   preAdvisedTeu: number
-  bookingCount: number
   bookingTeu: number
 }) {
-  if (preAdvisedCount === 0 && bookingCount === 0) {
+  if (preAdvisedTeu === 0 && bookingTeu === 0) {
     return (
       <Typography variant="body2" color="text.disabled">
         —
@@ -30,19 +28,13 @@ function CellVolume({ preAdvisedCount, preAdvisedTeu, bookingCount, bookingTeu }
         Pre-advised
       </Typography>
       <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: '#ED6C02' }}>
-        {preAdvisedCount}
-        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-          ({preAdvisedTeu.toFixed(1)} TEU)
-        </Typography>
+        {Math.round(preAdvisedTeu)} TEU
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2, mt: 0.25 }}>
         Booking
       </Typography>
       <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: '#6A1B9A' }}>
-        {bookingCount}
-        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-          ({bookingTeu.toFixed(1)} TEU)
-        </Typography>
+        {Math.round(bookingTeu)} TEU
       </Typography>
     </Box>
   )
@@ -69,7 +61,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
           variant="caption"
           sx={{ display: 'block', px: 1.5, py: 1, fontWeight: 700, color: 'text.secondary' }}
         >
-          Pre-advised · booking by size and type (counts · TEU)
+          Pre-advised · booking by size and type (TEU)
         </Typography>
       )}
 
@@ -89,8 +81,9 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
             }}
           >
             <Typography variant="body2" sx={{ fontWeight: 700, color: primaryDark, mb: 1 }}>
-              {getCapacityDisplayLabel(row.sizeLabel)} · contract {row.contractCount} · {row.availableCount}{' '}
-              available · pre-forecasted {row.preAdvisedCount} · booking {row.bookingCount}
+              {getCapacityDisplayLabel(row.sizeLabel)} · contract {breakdownContractTeu(row)} TEU ·{' '}
+              {breakdownAvailableTeu(row)} TEU available · pre-forecasted {breakdownUsedTeu(row)} TEU · booking{' '}
+              {breakdownBookingTeu(row)} TEU
             </Typography>
             <Box
               sx={{
@@ -115,7 +108,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>
                     {cell.typeCode}
                   </Typography>
-                  <CellVolume {...cell} />
+                  <CellVolume preAdvisedTeu={cell.preAdvisedTeu} bookingTeu={cell.bookingTeu} />
                 </Box>
               ))}
             </Box>
@@ -150,7 +143,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
                 </TableCell>
                 {row.cells.map((cell) => (
                   <TableCell key={cell.typeCode} align="center">
-                    <CellVolume {...cell} />
+                    <CellVolume preAdvisedTeu={cell.preAdvisedTeu} bookingTeu={cell.bookingTeu} />
                   </TableCell>
                 ))}
               </TableRow>

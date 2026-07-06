@@ -14,6 +14,7 @@ public class WithdrawalRequestLine : BaseEntity
     /// <summary>Blocks duplicate in-flight requests: depot|container|size|type.</summary>
     public string? ActiveRequestKey { get; set; }
     public WithdrawalLineStatus LineStatus { get; set; } = WithdrawalLineStatus.Pending;
+    public DateTime? ReleasedAt { get; set; }
 
     public WithdrawalRequest WithdrawalRequest { get; set; } = null!;
     public Container Container { get; set; } = null!;

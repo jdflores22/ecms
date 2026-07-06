@@ -2,6 +2,9 @@ package com.ecms.trucker.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -81,7 +84,7 @@ fun DashboardScreen(
     LaunchedEffect(Unit) { load(force = cachedDashboard == null) }
 
     IcsScreenScaffold(
-        title = stringResource(R.string.home_title),
+        title = "",
         subtitle = stringResource(R.string.home_welcome, userName),
         branded = true,
         onNotificationClick = onOpenNotifications,
@@ -103,43 +106,70 @@ fun DashboardScreen(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            FilledTonalButton(
+                            IcsSecondaryButton(
                                 onClick = { onNavigate(Routes.WITHDRAWAL_NEW) },
                                 modifier = Modifier.weight(1f),
-                            ) { Text(stringResource(R.string.home_new_withdrawal)) }
-                            FilledTonalButton(
+                                icon = Icons.AutoMirrored.Filled.NoteAdd,
+                                text = stringResource(R.string.home_new_withdrawal),
+                            )
+                            IcsSecondaryButton(
                                 onClick = { onNavigate(Routes.PREFORECAST_NEW) },
                                 modifier = Modifier.weight(1f),
-                            ) { Text(stringResource(R.string.home_preforecast)) }
+                                icon = Icons.Default.PostAdd,
+                                text = stringResource(R.string.home_preforecast),
+                            )
                         }
+                    }
+
+                    item {
+                        IcsSecondaryButton(
+                            text = stringResource(R.string.home_my_preforecast),
+                            onClick = { onNavigate(Routes.PREFORECAST_LIST) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
 
                     item { IcsScreenSectionTitle(stringResource(R.string.home_overview)) }
 
-                    TruckerDashboardStats.chunked(2).forEach { row ->
-                        item {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                row.forEach { stat ->
-                                    val count = dashboardStatValue(d, stat.key)
-                                    IcsStatCard(
-                                        label = stringResource(stat.labelRes),
-                                        value = "$count",
-                                        description = stringResource(stat.descriptionRes),
-                                        color = stat.color,
-                                        highlighted = stat.highlightWhenPositive && count > 0,
-                                        modifier = Modifier.weight(1f),
-                                    )
+                    item {
+                        IcsOverviewPanel {
+                            TruckerDashboardStats.chunked(2).forEach { row ->
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    row.forEach { stat ->
+                                        val count = dashboardStatValue(d, stat.key)
+                                        val onStatClick = when (stat.key) {
+                                            "pendingRequests" -> ({ onNavigate(Routes.PREFORECAST_LIST) })
+                                            "pendingPayments" -> ({ onNavigate("payments") })
+                                            "upcomingReturns", "confirmedReturns" -> ({ onNavigate("returns") })
+                                            else -> null
+                                        }
+                                        IcsStatCard(
+                                            label = stringResource(stat.labelRes),
+                                            value = "$count",
+                                            description = stringResource(stat.descriptionRes),
+                                            color = stat.color,
+                                            highlighted = stat.highlightWhenPositive && count > 0,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = onStatClick,
+                                        )
+                                    }
+                                    if (row.size == 1) Spacer(Modifier.weight(1f))
                                 }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                     }
 
                     item {
                         IcsSectionCard(title = stringResource(R.string.home_quick_actions)) {
+                            IcsQuickActionRow(
+                                stringResource(R.string.home_my_preforecast),
+                                stringResource(R.string.home_preforecast_summary, d.pendingRequests),
+                                onClick = { onNavigate(Routes.PREFORECAST_LIST) },
+                            )
+                            HorizontalDivider(color = IcsColors.Divider)
                             IcsQuickActionRow(
                                 stringResource(R.string.home_new_preforecast),
                                 stringResource(R.string.home_submit_container_return_request),
@@ -183,7 +213,7 @@ fun DashboardScreen(
                                     AlertRow(
                                         stringResource(R.string.home_alert_review_24h),
                                         widgets.stuckOver24HoursInReview,
-                                        IcsColors.Purple,
+                                        IcsColors.Primary,
                                     )
                                 }
                             }

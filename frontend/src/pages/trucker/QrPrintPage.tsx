@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import PrintIcon from '@mui/icons-material/Print'
 import { useEffect, useState } from 'react'
@@ -77,19 +78,7 @@ export default function QrPrintPage() {
   }, [booking, imageUrl, searchParams])
 
   if (loading) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100dvh',
-          bgcolor: '#f4f7fb',
-        }}
-      >
-        <CircularProgress sx={{ color: primaryDark }} />
-      </Box>
-    )
+    return <DetailLoadingState showTabs={false} infoTiles={2} sections={0} />
   }
 
   if (error || !booking || !imageUrl) {
@@ -209,8 +198,15 @@ export default function QrPrintPage() {
           />
         </Box>
 
-        <Typography variant="subtitle1" align="center" sx={{ fontWeight: 700, mb: 2, color: primaryDark }}>
-          {booking.qrCode}
+        <Typography
+          variant="h5"
+          align="center"
+          sx={{ fontWeight: 800, letterSpacing: 0.5, mb: 0.5, color: primaryDark, fontFamily: 'monospace' }}
+        >
+          {payload.containerNo}
+        </Typography>
+        <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 2 }}>
+          {LOGICTECK_QR.bookingIdLabel}: {booking.qrCode}
         </Typography>
 
         <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>

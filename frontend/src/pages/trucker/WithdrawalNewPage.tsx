@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import { useEffect, useState } from 'react'
@@ -98,9 +99,7 @@ export default function WithdrawalNewPage() {
       )}
 
       {loading ? (
-        <Paper elevation={0} sx={{ py: 10, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Paper>
+        <FormWizardSkeleton />
       ) : formConfig ? (
         <WithdrawalNewWizard formConfig={formConfig} onError={setError} />
       ) : (

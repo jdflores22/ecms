@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,10 +15,11 @@ import {
 } from '@mui/material'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type { Payment, QrBooking, Schedule } from '../../services/api'
-import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
 import { paymentStatusColor, paymentStatusLabel } from '../../utils/truckerPayment'
 import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import { QrImageSkeleton } from '../layout/SkeletonPrimitives'
+import AssetImage from '../layout/AssetImage'
 
 const primaryDark = ICS_PRIMARY
 
@@ -60,8 +60,6 @@ export default function BookingQrPreviewDialog({
   bookLogicteckLoading = false,
   showPrint = false,
 }: BookingQrPreviewDialogProps) {
-  const proofFileUrl = useAssetUrl(payment?.proofFile)
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 700 }}>{LOGICTECK_QR.sectionTitle}</DialogTitle>
@@ -79,11 +77,11 @@ export default function BookingQrPreviewDialog({
                 borderColor: hexToRgba(primaryDark, 0.1),
               }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {schedule.referenceNo}
+              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                {qrBooking.payload.containerNo}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {qrBooking.payload.containerNo} · {qrBooking.payload.depot}
+                Pre-forecast {schedule.referenceNo} · {qrBooking.payload.depot}
               </Typography>
             </Paper>
 
@@ -106,15 +104,13 @@ export default function BookingQrPreviewDialog({
                 />
               </Box>
             ) : (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4, mb: 2 }}>
-                <CircularProgress sx={{ color: primaryDark }} />
-              </Box>
+              <QrImageSkeleton />
             )}
 
             <Box sx={infoGridSx}>
+              <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />
               <InfoTile label={LOGICTECK_QR.bookingIdLabel} value={qrBooking.qrCode} mono />
               <InfoTile label="Generated" value={formatDateTime(qrBooking.generatedAt)} />
-              <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />
               <InfoTile
                 label="Return slot"
                 value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
@@ -166,10 +162,11 @@ export default function BookingQrPreviewDialog({
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
                       Proof of payment
                     </Typography>
-                    <Box
-                      component="img"
-                      src={proofFileUrl}
+                    <AssetImage
+                      path={payment.proofFile}
                       alt="Payment proof"
+                      skeletonHeight={160}
+                      skeletonMaxHeight={200}
                       sx={{
                         width: '100%',
                         maxWidth: 320,

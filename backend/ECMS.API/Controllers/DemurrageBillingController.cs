@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ECMS.Application.DTOs.DemurrageBilling;
+using ECMS.Application.DTOs.Common;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -37,6 +38,11 @@ public class DemurrageBillingController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<DemurrageBillingDto>>> List(CancellationToken cancellationToken)
         => Ok(await _service.GetAllAsync(UserId, UserRole, cancellationToken));
+
+    [HttpGet("payment-due/count")]
+    [Authorize(Roles = RoleNames.Trucker)]
+    public async Task<ActionResult<CountDto>> PaymentDueCount(CancellationToken cancellationToken)
+        => Ok(new CountDto(await _service.GetPaymentDueCountAsync(UserId, UserRole, cancellationToken)));
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<DemurrageBillingDto>> Get(int id, CancellationToken cancellationToken)

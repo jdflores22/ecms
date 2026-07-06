@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -55,6 +54,7 @@ import {
 } from '../../components/demurrage/demurrageBillingUtils'
 import {
   ListDesktopOnly,
+  ListLoadingState,
   ListMobileCard,
   ListMobileChipRow,
   ListMobileMeta,
@@ -66,6 +66,7 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
+import { InlineLoadingSkeleton } from '../../components/layout/SkeletonPrimitives'
 import {
   demurrageBillingApi,
   type DemurrageBilling,
@@ -334,9 +335,7 @@ export default function DemurrageBillingPage() {
       </Paper>
 
       {loading ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
+        <ListLoadingState />
       ) : filtered.length === 0 ? (
         <Alert severity="info" sx={{ borderRadius: 2, mt: 2 }}>
           {search.trim() ? 'No records match your search.' : tabEmptyMessage[activeTab]}
@@ -512,9 +511,7 @@ export default function DemurrageBillingPage() {
             </Alert>
           )}
           {eligibleLoading ? (
-            <Box sx={{ display: 'grid', placeItems: 'center', py: 5 }}>
-              <CircularProgress size={28} />
-            </Box>
+            <InlineLoadingSkeleton rows={4} />
           ) : eligible.length === 0 ? (
             <Alert severity="info" sx={{ borderRadius: 2 }}>
               No expired pre-forecast waiting for billing. Records are also created automatically when demurrage validity

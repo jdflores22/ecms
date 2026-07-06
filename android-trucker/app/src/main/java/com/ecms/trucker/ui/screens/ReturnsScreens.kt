@@ -1,6 +1,5 @@
 package com.ecms.trucker.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,9 +12,9 @@ import com.ecms.trucker.R
 import com.ecms.trucker.data.model.*
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
-import com.ecms.trucker.ui.navigation.Routes
 import com.ecms.trucker.ui.theme.IcsColors
-import kotlinx.coroutines.async
+import com.ecms.trucker.ui.util.isWaitingSchedule
+import com.ecms.trucker.ui.util.scheduleListSubtitle
 import kotlinx.coroutines.launch
 
 private data class ReturnsListCacheEntry(
@@ -80,10 +79,10 @@ fun ReturnsListScreen(
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             schedules.isEmpty() -> EmptyState(stringResource(R.string.returns_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
-                items(schedules) { s ->
+                items(schedules, key = { it.id }) { s ->
                     IcsListItemCard(
                         title = s.referenceNo,
-                        subtitle = stringResource(R.string.returns_subtitle, s.depotName, s.date, s.time, s.slotNo),
+                        subtitle = scheduleListSubtitle(s.depotName, s.date, s.time, s.slotNo, s.status),
                         status = s.status,
                         onClick = { onItemClick(s.id) },
                     )
@@ -113,16 +112,24 @@ fun ReturnDetailScreen(
     fun load() {
         scope.launch {
             loading = true
-            runCatching {
-                schedule = repository.getSchedule(scheduleId)
-                val s = schedule!!
-                val preAdviceDeferred = async { repository.getPreAdvice(s.preAdviceId) }
-                val paymentDeferred = async { repository.getPaymentBySchedule(scheduleId) }
-                val qrDeferred = async { runCatching { repository.getQrBySchedule(scheduleId) }.getOrNull() }
-                preAdvice = preAdviceDeferred.await()
-                payment = paymentDeferred.await()
-                qr = qrDeferred.await()
-            }.onFailure { error = it.message }
+            error = null
+            preAdvice = null
+            payment = null
+            qr = null
+
+            val loadedSchedule = runCatching { repository.getSchedule(scheduleId) }
+                .onFailure { error = it.message }
+                .getOrNull()
+
+            schedule = loadedSchedule
+            if (loadedSchedule == null) {
+                loading = false
+                return@launch
+            }
+
+            preAdvice = repository.getPreAdviceOrNull(loadedSchedule.preAdviceId)
+            payment = repository.getPaymentBySchedule(scheduleId)
+            qr = runCatching { repository.getQrBySchedule(scheduleId) }.getOrNull()
             loading = false
         }
     }
@@ -139,20 +146,47 @@ fun ReturnDetailScreen(
             error != null && schedule == null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             schedule != null -> {
                 val s = schedule!!
+                val waitingSchedule = isWaitingSchedule(s.status)
                 IcsDetailScaffoldContent(Modifier.padding(padding)) {
                     item {
                         IcsDetailHeader(referenceNo = s.referenceNo, status = s.status)
                     }
-                    item {
-                        IcsSectionCard(title = stringResource(R.string.section_schedule)) {
-                            IcsInfoTileGrid(
-                                tiles = listOf(
-                                    stringResource(R.string.field_depot) to s.depotName,
-                                    stringResource(R.string.field_date) to s.date,
-                                    stringResource(R.string.field_time) to s.time,
-                                    stringResource(R.string.field_slot) to s.slotNo.toString(),
-                                ),
-                            )
+                    if (waitingSchedule) {
+                        item {
+                            IcsSectionCard(title = stringResource(R.string.section_schedule)) {
+                                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Text(
+                                        stringResource(R.string.returns_waiting_schedule_message),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text(
+                                        stringResource(R.string.returns_waiting_schedule_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = IcsColors.TextSecondary,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    IcsInfoTileGrid(
+                                        tiles = listOf(
+                                            stringResource(R.string.field_depot) to s.depotName,
+                                            stringResource(R.string.field_status) to stringResource(R.string.returns_status_waiting_schedule),
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            IcsSectionCard(title = stringResource(R.string.section_schedule)) {
+                                IcsInfoTileGrid(
+                                    tiles = listOf(
+                                        stringResource(R.string.field_depot) to s.depotName,
+                                        stringResource(R.string.field_date) to s.date,
+                                        stringResource(R.string.field_time) to s.time,
+                                        stringResource(R.string.field_slot) to s.slotNo.toString(),
+                                    ),
+                                )
+                            }
                         }
                     }
                     preAdvice?.let { p ->
@@ -165,36 +199,40 @@ fun ReturnDetailScreen(
                                         add(stringResource(R.string.field_size_type) to "${p.containerSize} / ${p.containerType}")
                                         add(stringResource(R.string.field_shipping_line) to p.shippingLineName)
                                         add(stringResource(R.string.field_status) to p.status)
-                                        p.demurrageValidUntil?.let { add(stringResource(R.string.field_demurrage_valid_until) to it) }
+                                        p.demurrageValidUntil?.let {
+                                            add(stringResource(R.string.field_demurrage_valid_until) to it)
+                                        }
                                     },
                                 )
                             }
                         }
                     }
-                    item {
-                        IcsSectionCard(title = stringResource(R.string.section_payment)) {
-                            if (payment != null) {
-                                IcsInfoTileGrid(
-                                    tiles = listOf(
-                                        stringResource(R.string.field_status) to payment!!.status,
-                                        stringResource(R.string.field_amount) to "\u20B1${payment!!.amount}",
-                                    ),
-                                )
-                            } else {
-                                Text(
-                                    stringResource(R.string.payment_not_uploaded_yet),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = IcsColors.TextSecondary,
-                                )
-                            }
-                            if (payment == null || payment!!.status.equals("Pending", true) ||
-                                payment!!.status.equals("Rejected", true)
-                            ) {
-                                Spacer(Modifier.height(12.dp))
-                                IcsPrimaryButton(
-                                    text = stringResource(R.string.payment_upload_title),
-                                    onClick = { onUploadPayment(scheduleId) },
-                                )
+                    if (!waitingSchedule) {
+                        item {
+                            IcsSectionCard(title = stringResource(R.string.section_payment)) {
+                                if (payment != null) {
+                                    IcsInfoTileGrid(
+                                        tiles = listOf(
+                                            stringResource(R.string.field_status) to payment!!.status,
+                                            stringResource(R.string.field_amount) to "\u20B1${payment!!.amount}",
+                                        ),
+                                    )
+                                } else {
+                                    Text(
+                                        stringResource(R.string.payment_not_uploaded_yet),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = IcsColors.TextSecondary,
+                                    )
+                                }
+                                if (payment == null || payment!!.status.equals("Pending", true) ||
+                                    payment!!.status.equals("Rejected", true)
+                                ) {
+                                    Spacer(Modifier.height(12.dp))
+                                    IcsPrimaryButton(
+                                        text = stringResource(R.string.payment_upload_title),
+                                        onClick = { onUploadPayment(scheduleId) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -208,12 +246,10 @@ fun ReturnDetailScreen(
                                     ),
                                 )
                                 Spacer(Modifier.height(12.dp))
-                                OutlinedButton(
+                                IcsSecondaryButton(
+                                    text = stringResource(R.string.action_view_qr_pass),
                                     onClick = { onViewQr(q.id) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(stringResource(R.string.action_view_qr_pass))
-                                }
+                                )
                             }
                         }
                     }

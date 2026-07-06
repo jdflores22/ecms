@@ -1,9 +1,9 @@
+import { MediaGridSkeleton, Skel } from '../layout/SkeletonPrimitives'
 import {
   Alert,
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,6 +11,7 @@ import {
   IconButton,
   LinearProgress,
   Paper,
+  Skeleton,
   TextField,
   Tooltip,
   Typography,
@@ -91,7 +92,7 @@ function ResolvedDocumentImage({
           ...sx,
         }}
       >
-        <CircularProgress size={24} sx={{ color: primaryDark }} />
+        <Skeleton variant="rounded" animation="wave" sx={{ width: '100%', height: '100%', borderRadius: 2 }} />
       </Box>
     )
   }
@@ -477,7 +478,7 @@ export default function ContainerIdentityPhotos({
               }}
             >
               {busy ? (
-                <CircularProgress size={28} sx={{ color: primaryDark }} />
+                <Skel width={28} height={28} sx={{ borderRadius: '50%' }} />
               ) : canManage ? (
                 <>
                   <PhotoCameraOutlinedIcon sx={{ color: 'text.disabled', fontSize: 32 }} />
@@ -788,9 +789,7 @@ export default function ContainerIdentityPhotos({
       )}
 
       {loading ? (
-        <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Box>
+        <MediaGridSkeleton />
       ) : (
         <>
           <Box
@@ -996,9 +995,7 @@ export default function ContainerIdentityPhotos({
               sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 2 }}
             />
           ) : preview ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-              <CircularProgress size={28} sx={{ color: primaryDark }} />
-            </Box>
+            <Skeleton variant="rounded" animation="wave" height={320} sx={{ borderRadius: 2, mx: 1 }} />
           ) : null}
         </DialogContent>
         <DialogActions>

@@ -1,22 +1,30 @@
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined'
 import axios from 'axios'
-import { useEffect, useState } from 'react'
-import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
-import AtwIssueForm from '../../components/withdrawals/AtwIssueForm'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import AtwIssueForm, { type AtwIssueFormValues } from '../../components/withdrawals/AtwIssueForm'
 import { heroPaperSx, sectionPaperSx } from '../../components/layout/DetailPagePrimitives'
 import { withdrawalApi, type EvaluatorAtwLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
+import {
+  clearAtwIssueDraft,
+  emptyAtwIssueFormValues,
+  loadAtwIssueDraft,
+  normalizeAtwIssueDraft,
+  saveAtwIssueDraft,
+} from '../../utils/atwIssueDraftStorage'
 import { todayIsoDate } from '../../utils/datetime'
 
 const primaryDark = '#0B3D91'
 
 const workflowSteps = [
   'Confirm the auto-assigned ATW number and validity dates.',
-  'Select the authorized trucker, current CY, and destination.',
-  'Add every container in the batch — mixed sizes and types are supported.',
-  'Issue ATW — the trucker is notified to upload the certificate and submit.',
+  'Select the authorized trucker, container yard (CY), and destination.',
+  'Pick containers from CY inventory — use Bulk select for many units, or add one at a time.',
+  'Issue ATW — official PDF generated, CY assigned, and depot + trucker notified.',
 ]
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -27,27 +35,58 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
+type AtwNewLocationState = {
+  draft?: AtwIssueFormValues
+  lookups?: EvaluatorAtwLookups
+}
+
 export default function EvaluatorAtwNewPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const locationState = (location.state ?? {}) as AtwNewLocationState
   const user = useAppSelector((s) => s.auth.user)
-  const [lookups, setLookups] = useState<EvaluatorAtwLookups | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [lookups, setLookups] = useState<EvaluatorAtwLookups | null>(locationState.lookups ?? null)
+  const [loading, setLoading] = useState(!locationState.lookups)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [formValues, setFormValues] = useState<AtwIssueFormValues | null>(null)
+  const hydratedRef = useRef(false)
+
+  const handleFormChange = useCallback((next: AtwIssueFormValues) => {
+    setFormValues(next)
+    saveAtwIssueDraft(next)
+  }, [])
 
   useEffect(() => {
+    if (locationState.lookups) return
     withdrawalApi
       .evaluatorLookups()
       .then(({ data }) => setLookups(data))
       .catch(() => setError('Failed to load form data.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [locationState.lookups])
+
+  useEffect(() => {
+    if (!lookups) return
+    const defaults = emptyAtwIssueFormValues(lookups.nextAtwNumber, todayIsoDate())
+    if (locationState.draft) {
+      const next = normalizeAtwIssueDraft(
+        { ...locationState.draft, atwNumber: lookups.nextAtwNumber },
+        defaults,
+      )
+      setFormValues(next)
+      saveAtwIssueDraft(next)
+      hydratedRef.current = true
+      return
+    }
+    if (hydratedRef.current) return
+    hydratedRef.current = true
+    setFormValues(normalizeAtwIssueDraft(loadAtwIssueDraft(), defaults))
+  }, [lookups, locationState.draft])
 
   if (user?.role !== 'ShippingLineEvaluator') {
     return <Navigate to="/" replace />
   }
-
-  const today = todayIsoDate()
 
   return (
     <Box sx={{ maxWidth: '100%' }}>
@@ -88,7 +127,7 @@ export default function EvaluatorAtwNewPage() {
               Issue new ATW
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-              Authorize a trucker to withdraw one or more containers for repositioning under a single ATW batch.
+              Authorize a trucker to withdraw containers that are currently in CY inventory at the selected yard.
             </Typography>
           </Box>
         </Box>
@@ -110,30 +149,28 @@ export default function EvaluatorAtwNewPage() {
       >
         <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0, p: { xs: 2, sm: 2.5, md: 3 } }}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-              <CircularProgress sx={{ color: primaryDark }} />
-            </Box>
-          ) : lookups ? (
+            <FormWizardSkeleton />
+          ) : lookups && formValues ? (
             <AtwIssueForm
               lookups={lookups}
-              initial={{
-                atwNumber: lookups.nextAtwNumber,
-                authorizedTruckerId: '',
-                lines: [{ containerNo: '', containerSizeId: '', containerTypeId: '' }],
-                currentDepotId: '',
-                destination: '',
-                issueDate: today,
-                expirationDate: today,
-                remarks: '',
-              }}
+              values={formValues}
+              onChange={handleFormChange}
               submitting={submitting}
               onCancel={() => navigate('/evaluations/atw')}
+              onBulkSelect={(draft) => {
+                saveAtwIssueDraft(draft)
+                setFormValues(draft)
+                navigate('/evaluations/atw/new/containers', { state: { draft, lookups } })
+              }}
               onSubmit={async (values) => {
                 setSubmitting(true)
                 setError('')
                 try {
                   const { data } = await withdrawalApi.issue(values)
-                  navigate(`/evaluations/atw/${data.id}`, { state: { message: 'ATW issued. Trucker has been notified.' } })
+                  clearAtwIssueDraft()
+                  navigate(`/evaluations/atw/${data.id}`, {
+                    state: { message: 'ATW issued — CY assigned. Trucker and container yard have been notified.' },
+                  })
                 } catch (err) {
                   setError(apiErrorMessage(err, 'Failed to issue ATW.'))
                 } finally {

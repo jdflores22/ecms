@@ -1,4 +1,5 @@
 using ECMS.Domain.Common;
+using ECMS.Domain.Enums;
 
 namespace ECMS.Domain.Entities;
 
@@ -12,6 +13,10 @@ public class ManualYardInventoryEntry : BaseEntity
     public DateOnly YardInDate { get; set; }
     public string? Remarks { get; set; }
     public int CreatedByUserId { get; set; }
+    public YardInventoryStatus YardStatus { get; set; } = YardInventoryStatus.AtYard;
+    public DateTime? ReleasedAt { get; set; }
+    public int? ReleasedWithdrawalRequestId { get; set; }
+    public int? ReleasedWithdrawalLineId { get; set; }
 
     public ContainerSize ContainerSize { get; set; } = null!;
     public ContainerType ContainerType { get; set; } = null!;

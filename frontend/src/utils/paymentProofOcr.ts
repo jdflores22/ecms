@@ -23,8 +23,9 @@ export { preloadPaddleOcr, isPaddleOcrSupported } from './paymentProofPaddleOcr'
 export { BROWSER_OCR_ENGINES, SERVER_OCR_ENGINES, PAYMENT_PROOF_OCR_STACK } from './paymentProofOcrEngines'
 
 function isComplete(meta: PaymentProofMetadata): boolean {
+  const hasId = Boolean(meta.referenceNo || meta.paymentId)
   return Boolean(
-    meta.referenceNo &&
+    hasId &&
       meta.qrphInvoiceNo &&
       meta.transactionAt &&
       meta.provider &&
@@ -190,6 +191,7 @@ export async function extractPaymentProofMetadata(
   const weights: number[] = []
   let fromText: PaymentProofMetadata = {
     referenceNo: null,
+    paymentId: null,
     qrphInvoiceNo: null,
     transactionAt: null,
     provider: null,
@@ -297,6 +299,7 @@ async function finalizeMetadata(
   const withHints = applyPaymentProofExtractionHints(
     {
       referenceNo: fromText.referenceNo,
+      paymentId: fromText.paymentId,
       transactionAt: fromText.transactionAt,
       provider,
       qrphInvoiceNo: fromText.qrphInvoiceNo,

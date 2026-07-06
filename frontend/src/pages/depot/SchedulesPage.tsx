@@ -1,20 +1,4 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import CalendarViewDayOutlinedIcon from '@mui/icons-material/CalendarViewDayOutlined'
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -38,6 +22,7 @@ import { scheduleApi, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleDate } from '../../utils/datetime'
 import { scheduleStatusLabel } from '../../utils/scheduleStatus'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
 
 const primaryDark = LIST_PRIMARY
 
@@ -313,9 +298,7 @@ export default function DepotSchedulesPage() {
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : filtered.length === 0 ? (
           <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
             No {activeTabMeta.label.toLowerCase()} schedules for this depot.

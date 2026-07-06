@@ -1,6 +1,5 @@
 import {
   Box,
-  CircularProgress,
   Paper,
   Table,
   TableBody,
@@ -13,6 +12,7 @@ import {
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import {
   ListDesktopOnly,
+  ListLoadingState,
   ListMobileCard,
   ListMobileChipRow,
   ListMobileOnly,
@@ -73,9 +73,7 @@ export default function ReportStatusTable({
   return (
     <Paper elevation={0} sx={listTablePaperSx}>
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-          <CircularProgress sx={{ color: ICS_PRIMARY }} />
-        </Box>
+        <ListLoadingState />
       ) : rows.length === 0 ? (
         <ReportEmptyState />
       ) : (

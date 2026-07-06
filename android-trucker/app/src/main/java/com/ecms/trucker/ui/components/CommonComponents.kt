@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.ecms.trucker.R
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.theme.icsHexAlpha
+import com.ecms.trucker.ui.util.formatScheduleStatus
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
@@ -132,16 +133,18 @@ fun ErrorMessage(
 
 @Composable
 fun StatusChip(status: String) {
+    val label = formatScheduleStatus(status)
     val (bg, fg) = when (status.lowercase()) {
-        "draft", "pending", "waiting", "scheduled" -> icsHexAlpha(IcsColors.Primary, 0.12f) to IcsColors.Primary
+        "draft", "pending", "scheduled" -> icsHexAlpha(IcsColors.Primary, 0.12f) to IcsColors.Primary
+        "waitingschedule" -> icsHexAlpha(IcsColors.Warning, 0.14f) to IcsColors.Warning
         "approved", "confirmed", "paid", "completed", "released" -> icsHexAlpha(IcsColors.Success, 0.12f) to IcsColors.Success
-        "rejected", "cancelled" -> icsHexAlpha(IcsColors.Error, 0.12f) to IcsColors.Error
+        "rejected", "cancelled", "noshow" -> icsHexAlpha(IcsColors.Error, 0.12f) to IcsColors.Error
         "submitted", "forverification", "issued" -> icsHexAlpha(IcsColors.Warning, 0.14f) to IcsColors.Warning
         else -> IcsColors.Divider to IcsColors.TextSecondary
     }
     Surface(color = bg, shape = MaterialTheme.shapes.small) {
         Text(
-            text = status,
+            text = label,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             color = fg,
@@ -193,26 +196,49 @@ fun EcmsTopBar(
     Column {
         TopAppBar(
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.fillMaxWidth()) {
                     if (isPrimary) {
-                        IcsLogoMark(size = 20.dp)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Column(Modifier.padding(end = 8.dp)) {
-                        Text(
-                            title,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        IcsHeaderBrand(onDarkBackground = true, logoHeight = 26.dp)
                         if (!subtitle.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 subtitle,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isPrimary) Color.White.copy(0.82f) else IcsColors.TextSecondary,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                        } else if (title.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.padding(end = 8.dp)) {
+                                Text(
+                                    title,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (!subtitle.isNullOrBlank()) {
+                                    Text(
+                                        subtitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = IcsColors.TextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

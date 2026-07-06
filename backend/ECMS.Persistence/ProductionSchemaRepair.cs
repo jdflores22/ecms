@@ -37,7 +37,80 @@ public static class ProductionSchemaRepair
             migrationId: "20260701160000_AddScheduleDepotRemarks",
             cancellationToken);
 
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "PaymentsSet",
+            column: "ProofPaymentId",
+            definition: "varchar(64) CHARACTER SET utf8mb4 NULL",
+            migrationId: "20260703150000_AddPaymentProofPaymentId",
+            cancellationToken);
+
+        await EnsureWithdrawalBookingFlowAsync(db, logger, cancellationToken);
+
         await EnsureDevicePushTokensTableAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsureWithdrawalBookingFlowAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "BookingNumber", "varchar(128) CHARACTER SET utf8mb4 NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "TruckingCompany", "varchar(256) CHARACTER SET utf8mb4 NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "PlateNumber", "varchar(32) CHARACTER SET utf8mb4 NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "DriverName", "varchar(256) CHARACTER SET utf8mb4 NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "RequestedDepotId", "int NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "AssignedDepotId", "int NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "BookedAt", "datetime(6) NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "CyAssignedAt", "datetime(6) NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+        await EnsureColumnAsync(db, logger, "WithdrawalRequestsSet", "CyAssignedByUserId", "int NULL", "20260705120000_AddWithdrawalBookingFlow", cancellationToken);
+
+        if (await TableExistsAsync(db, "WithdrawalSchedulesSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20260705120000_AddWithdrawalBookingFlow', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table WithdrawalSchedulesSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `WithdrawalSchedulesSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `WithdrawalRequestId` int NOT NULL,
+                `DepotId` int NOT NULL,
+                `Date` date NOT NULL,
+                `Time` time(6) NOT NULL,
+                `SlotNo` int NOT NULL,
+                `Status` int NOT NULL,
+                `TruckerId` int NULL,
+                `DepotRemarks` longtext CHARACTER SET utf8mb4 NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_WSched_WithdrawalRequestId` (`WithdrawalRequestId`),
+                KEY `IX_WSched_DepotId_Date_SlotNo` (`DepotId`, `Date`, `SlotNo`),
+                KEY `IX_WSched_TruckerId` (`TruckerId`),
+                CONSTRAINT `FK_WSched_DepotId`
+                    FOREIGN KEY (`DepotId`) REFERENCES `DepotsSet` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_WSched_TruckerId`
+                    FOREIGN KEY (`TruckerId`) REFERENCES `UsersSet` (`Id`),
+                CONSTRAINT `FK_WSched_WithdrawalRequestId`
+                    FOREIGN KEY (`WithdrawalRequestId`) REFERENCES `WithdrawalRequestsSet` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20260705120000_AddWithdrawalBookingFlow', '7.0.20')
+            """,
+            cancellationToken);
     }
 
     private static async Task EnsureDevicePushTokensTableAsync(

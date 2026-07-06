@@ -11,6 +11,8 @@ public interface IDemurrageBillingService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<int> GetPaymentDueCountAsync(int userId, string role, CancellationToken cancellationToken = default);
+
     Task<DemurrageBillingDto?> GetByIdAsync(
         int id,
         int userId,

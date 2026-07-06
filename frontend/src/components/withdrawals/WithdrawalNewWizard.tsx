@@ -1,6 +1,10 @@
 import {
   Alert,
   Autocomplete,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Box,
   Button,
   Chip,
@@ -16,8 +20,10 @@ import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined'
 import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 import HistoryIcon from '@mui/icons-material/History'
 import SyncAltOutlinedIcon from '@mui/icons-material/SyncAltOutlined'
+import axios from 'axios'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAppSelector } from '../../store/hooks'
 import {
   withdrawalApi,
   type Withdrawal,
@@ -27,30 +33,36 @@ import { extractAtwDocumentMetadata } from '../../utils/atwDocumentOcr'
 import { todayIsoDate, shiftIsoDate } from '../../utils/datetime'
 import {
   clearWithdrawalDraft,
+  emptyWithdrawalFormValues,
   loadWithdrawalDraft,
+  normalizeWithdrawalDraft,
   saveWithdrawalDraft,
 } from '../../utils/withdrawalDraftStorage'
 import BulkContainerPasteDialog from './BulkContainerPasteDialog'
 import WithdrawalForm, {
-  type WithdrawalFormSubmitValues,
   type WithdrawalFormValues,
 } from './WithdrawalForm'
 import WithdrawalProgressChecklist from './WithdrawalProgressChecklist'
 
-const steps = ['Details', 'ATW document', 'Review']
+const steps = ['Booking', 'Shipment', 'ATW document', 'Review & Book']
+
+function apiErrorMessage(err: unknown, fallback: string) {
+  if (axios.isAxiosError(err)) {
+    const msg = err.response?.data?.message
+    if (typeof msg === 'string' && msg.trim()) return msg
+  }
+  return fallback
+}
+
+interface BookingDetails {
+  plateNumber: string
+  driverName: string
+  purpose: 'Repositioning' | 'Export'
+}
 
 function emptyValues(): WithdrawalFormValues {
   const today = todayIsoDate()
-  return {
-    atwNumber: '',
-    shippingLineId: '',
-    lines: [{ containerNo: '', containerSizeId: '', containerTypeId: '' }],
-    currentDepotId: '',
-    destination: '',
-    issueDate: today,
-    expirationDate: shiftIsoDate(today, 14),
-    remarks: '',
-  }
+  return emptyWithdrawalFormValues(today, shiftIsoDate(today, 14))
 }
 
 function withdrawalToFormValues(item: Withdrawal): WithdrawalFormValues {
@@ -77,9 +89,13 @@ interface WithdrawalNewWizardProps {
 
 export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalNewWizardProps) {
   const navigate = useNavigate()
+  const user = useAppSelector((s) => s.auth.user)
+  const truckingCompany = user?.fullName?.trim() || user?.username || ''
   const fileRef = useRef<HTMLInputElement>(null)
   const [activeStep, setActiveStep] = useState(0)
-  const [values, setValues] = useState<WithdrawalFormValues>(() => loadWithdrawalDraft() ?? emptyValues())
+  const [values, setValues] = useState<WithdrawalFormValues>(() =>
+    normalizeWithdrawalDraft(loadWithdrawalDraft(), emptyValues(), { clearDepot: true }),
+  )
   const [issuedItems, setIssuedItems] = useState<Withdrawal[]>([])
   const [previousItems, setPreviousItems] = useState<Withdrawal[]>([])
   const [atwFile, setAtwFile] = useState<File | null>(null)
@@ -87,13 +103,24 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
   const [ocrNote, setOcrNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
-  const [submitMode, setSubmitMode] = useState<'draft' | 'submit'>('draft')
   const [showQuickStart, setShowQuickStart] = useState(false)
+  const [booking, setBooking] = useState<BookingDetails>({
+    plateNumber: '',
+    driverName: '',
+    purpose: 'Repositioning',
+  })
+  const [nextBookingNumber, setNextBookingNumber] = useState('')
   const hasSavedDraft = useMemo(() => Boolean(loadWithdrawalDraft()), [])
 
   useEffect(() => {
     saveWithdrawalDraft(values)
   }, [values])
+
+  useEffect(() => {
+    withdrawalApi.nextBookingNumber()
+      .then(({ data }) => setNextBookingNumber(data.nextBookingNumber))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     withdrawalApi.list().then(({ data }) => {
@@ -102,26 +129,54 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
     }).catch(() => {})
   }, [])
 
-  const depotName = useMemo(
-    () => formConfig.depots.find((d) => d.id === values.currentDepotId)?.name,
-    [formConfig.depots, values.currentDepotId],
+  const completeLines = useMemo(
+    () =>
+      values.lines.filter(
+        (l) =>
+          (l.containerNo ?? '').trim() &&
+          l.containerSizeId !== '' &&
+          l.containerTypeId !== '',
+      ),
+    [values.lines],
+  )
+
+  const shipmentStepValid = useMemo(
+    () =>
+      Boolean(
+        (values.atwNumber ?? '').trim() &&
+          values.shippingLineId !== '' &&
+          (values.destination ?? '').trim() &&
+          values.issueDate &&
+          values.expirationDate &&
+          completeLines.length > 0,
+      ),
+    [values, completeLines.length],
   )
 
   const progressItems = useMemo(
     () => [
-      { key: 'atw', label: 'ATW number entered', done: Boolean(values.atwNumber.trim()) },
+      { key: 'booking', label: 'Booking # ready', done: Boolean(nextBookingNumber) },
+      {
+        key: 'truck',
+        label: 'Trucking details set',
+        done: Boolean(
+          truckingCompany &&
+            (booking.plateNumber ?? '').trim() &&
+            (booking.driverName ?? '').trim(),
+        ),
+      },
+      { key: 'atw', label: 'ATW number entered', done: Boolean((values.atwNumber ?? '').trim()) },
       { key: 'line', label: 'Shipping line selected', done: values.shippingLineId !== '' },
-      { key: 'cy', label: 'Current CY selected', done: values.currentDepotId !== '' },
-      { key: 'dest', label: 'Destination set', done: Boolean(values.destination.trim()) },
+      { key: 'dest', label: 'Destination set', done: Boolean((values.destination ?? '').trim()) },
       { key: 'dates', label: 'Validity dates set', done: Boolean(values.issueDate && values.expirationDate) },
       {
         key: 'containers',
         label: 'Containers added',
-        done: values.lines.some((l) => l.containerNo.trim() && l.containerSizeId !== '' && l.containerTypeId !== ''),
+        done: completeLines.length > 0,
       },
       { key: 'cert', label: 'ATW certificate attached', done: Boolean(atwFile) },
     ],
-    [values, atwFile],
+    [booking, values, atwFile, nextBookingNumber, truckingCompany, completeLines.length],
   )
 
   const applySmartDefaults = useCallback(
@@ -134,11 +189,7 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
         issueDate: prev.issueDate || today,
         expirationDate: prev.expirationDate || shiftIsoDate(today, rules?.defaultValidityDays ?? 14),
         currentDepotId:
-          prev.currentDepotId !== ''
-            ? prev.currentDepotId
-            : rules?.contractDepotIds.length === 1
-              ? rules.contractDepotIds[0]
-              : prev.currentDepotId,
+          rules && rules.contractDepotIds.length > 0 ? rules.contractDepotIds[0] : '',
       }))
     },
     [formConfig.shippingLineRules],
@@ -177,41 +228,52 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
     }
   }
 
-  const finalize = async (mode: 'draft' | 'submit') => {
+  const finalizeBook = async () => {
+    if (!shipmentStepValid) {
+      onError('Complete shipment details: ATW number, shipping line, destination, dates, and at least one container with size and type.')
+      return
+    }
+    if (!atwFile) {
+      onError('Attach the ATW certificate before booking.')
+      return
+    }
+
     setSubmitting(true)
     onError('')
     try {
-      const payload: WithdrawalFormSubmitValues = {
-        atwNumber: values.atwNumber.trim().toUpperCase(),
+      const lines = completeLines.map((l) => ({
+        containerNo: (l.containerNo ?? '').trim().toUpperCase(),
+        containerSizeId: l.containerSizeId as number,
+        containerTypeId: l.containerTypeId as number,
+      }))
+
+      const { data } = await withdrawalApi.book({
+        plateNumber: (booking.plateNumber ?? '').trim(),
+        driverName: (booking.driverName ?? '').trim(),
+        atwNumber: (values.atwNumber ?? '').trim().toUpperCase(),
         shippingLineId: values.shippingLineId as number,
-        lines: values.lines
-          .filter((l) => l.containerNo.trim() && l.containerSizeId !== '' && l.containerTypeId !== '')
-          .map((l) => ({
-            containerNo: l.containerNo.trim().toUpperCase(),
-            containerSizeId: l.containerSizeId as number,
-            containerTypeId: l.containerTypeId as number,
-          })),
-        currentDepotId: values.currentDepotId as number,
-        destination: values.destination.trim(),
+        purpose: booking.purpose,
+        lines,
+        destination: (values.destination ?? '').trim(),
         issueDate: values.issueDate,
         expirationDate: values.expirationDate,
-        remarks: values.remarks.trim() || undefined,
-      }
-
-      const { data } = await withdrawalApi.create(payload)
+        remarks: (values.remarks ?? '').trim() || undefined,
+      })
       if (atwFile) {
         await withdrawalApi.uploadDocument(data.id, atwFile)
       }
-      if (mode === 'submit') {
-        await withdrawalApi.submit(data.id)
-      }
       clearWithdrawalDraft()
       navigate(`/trucker/withdrawals/${data.id}`)
-    } catch {
-      onError('Failed to save withdrawal request.')
+    } catch (err) {
+      onError(apiErrorMessage(err, 'Failed to book ICS withdrawal.'))
       setSubmitting(false)
     }
   }
+
+  const bookingStepValid =
+    truckingCompany &&
+    (booking.plateNumber ?? '').trim() &&
+    (booking.driverName ?? '').trim()
 
   return (
     <Box sx={{ maxWidth: 1280, mx: 'auto' }}>
@@ -244,6 +306,62 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
       >
         <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5, md: 3 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           {activeStep === 0 && (
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                Book ICS — booking details
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                ICS assigns the booking number automatically. Enter trucking details below; container yard assignment comes later from the shipping line.
+              </Typography>
+              <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+                <TextField
+                  label="Booking #"
+                  value={nextBookingNumber || 'Generating…'}
+                  slotProps={{ input: { readOnly: true } }}
+                  helperText="Auto-increment · assigned when you book"
+                />
+                <FormControl fullWidth>
+                  <InputLabel>Purpose</InputLabel>
+                  <Select
+                    label="Purpose"
+                    value={booking.purpose}
+                    onChange={(e) =>
+                      setBooking((b) => ({ ...b, purpose: e.target.value as BookingDetails['purpose'] }))
+                    }
+                  >
+                    <MenuItem value="Repositioning">Repositioning</MenuItem>
+                    <MenuItem value="Export">Export</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="Trucking company"
+                  value={truckingCompany || '—'}
+                  slotProps={{ input: { readOnly: true } }}
+                  helperText="From your ICS trucker profile"
+                />
+                <TextField
+                  label="Plate #"
+                  required
+                  value={booking.plateNumber}
+                  onChange={(e) => setBooking((b) => ({ ...b, plateNumber: e.target.value.toUpperCase() }))}
+                />
+                <TextField
+                  label="Driver name"
+                  required
+                  value={booking.driverName}
+                  onChange={(e) => setBooking((b) => ({ ...b, driverName: e.target.value }))}
+                  sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                <Button variant="contained" disabled={!bookingStepValid} onClick={() => setActiveStep(1)}>
+                  Continue to shipment
+                </Button>
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 1 && (
             <Box>
               {hasSavedDraft && (
                 <Alert severity="info" sx={{ borderRadius: 2, mb: 2 }}>
@@ -304,7 +422,7 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
                             variant="outlined"
                             sx={{ justifyContent: 'flex-start', textAlign: 'left' }}
                             onClick={() => {
-                              setValues(withdrawalToFormValues(item))
+                              setValues({ ...withdrawalToFormValues(item), currentDepotId: '' })
                               setShowQuickStart(false)
                             }}
                           >
@@ -327,6 +445,12 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
                 </Paper>
               )}
 
+              {values.lines.some((l) => (l.containerNo ?? '').trim() && (l.containerSizeId === '' || l.containerTypeId === '')) && (
+                <Alert severity="warning" sx={{ borderRadius: 2, mb: 2 }}>
+                  Each container needs a size and type before you can continue. OCR may fill numbers only — set size and type for every row.
+                </Alert>
+              )}
+
               <WithdrawalForm
                 lookups={formConfig}
                 formConfig={formConfig}
@@ -335,19 +459,25 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
                 onValuesChange={setValues}
                 onShippingLineChange={applySmartDefaults}
                 hideActions
+                bookMode
                 onSubmit={() => {}}
               />
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, gap: 1, flexWrap: 'wrap' }}>
-                <Box />
-                <Button variant="contained" onClick={() => setActiveStep(1)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                <Button onClick={() => setActiveStep(0)}>Back</Button>
+                <Button
+                  variant="contained"
+                  disabled={!shipmentStepValid}
+                  onClick={() => setActiveStep(2)}
+                  sx={{ width: { xs: '100%', sm: 'auto' } }}
+                >
                   Continue to ATW upload
                 </Button>
               </Box>
             </Box>
           )}
 
-          {activeStep === 1 && (
+          {activeStep === 2 && (
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                 Upload ATW certificate
@@ -379,61 +509,51 @@ export default function WithdrawalNewWizard({ formConfig, onError }: WithdrawalN
                 </Alert>
               )}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3, gap: 1, flexWrap: 'wrap' }}>
-                <Button onClick={() => setActiveStep(0)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                <Button onClick={() => setActiveStep(1)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                   Back
                 </Button>
-                <Button variant="contained" onClick={() => setActiveStep(2)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                  Review
+                <Button
+                  variant="contained"
+                  onClick={() => setActiveStep(3)}
+                  disabled={!atwFile || !shipmentStepValid}
+                  sx={{ width: { xs: '100%', sm: 'auto' } }}
+                >
+                  Review &amp; book
                 </Button>
               </Box>
             </Box>
           )}
 
-          {activeStep === 2 && (
+          {activeStep === 3 && (
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-                Review &amp; save
+                Review &amp; book ICS
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+                <Typography variant="body2"><strong>Booking #:</strong> {nextBookingNumber || 'Auto-assigned on book'}</Typography>
+                <Typography variant="body2"><strong>Trucking:</strong> {truckingCompany} · {booking.plateNumber} · {booking.driverName}</Typography>
+                <Typography variant="body2"><strong>Purpose:</strong> {booking.purpose}</Typography>
                 <Typography variant="body2"><strong>ATW:</strong> {values.atwNumber}</Typography>
-                <Typography variant="body2"><strong>CY:</strong> {depotName}</Typography>
                 <Typography variant="body2"><strong>Destination:</strong> {values.destination}</Typography>
                 <Typography variant="body2"><strong>Containers:</strong> {values.lines.filter((l) => l.containerNo).length}</Typography>
                 <Typography variant="body2"><strong>ATW document:</strong> {atwFile ? atwFile.name : 'Not attached'}</Typography>
               </Box>
 
               <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                On submit, the container yard ({depotName ?? 'selected CY'}) and administrators will be notified.
-                {values.issueDate && (
-                  <> Upload your ATW certificate within 3 days of issue date ({values.issueDate}) to avoid delays.</>
-                )}
+                After booking, your shipping line will assign the container yard, then the depot will set your pick-up day.
               </Alert>
 
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end' }}>
-                <Button onClick={() => setActiveStep(1)} disabled={submitting} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                <Button onClick={() => setActiveStep(2)} disabled={submitting} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                   Back
                 </Button>
                 <Button
-                  variant="outlined"
-                  disabled={submitting}
-                  sx={{ width: { xs: '100%', sm: 'auto' } }}
-                  onClick={() => {
-                    setSubmitMode('draft')
-                    void finalize('draft')
-                  }}
-                >
-                  Save draft
-                </Button>
-                <Button
                   variant="contained"
-                  disabled={submitting || !atwFile}
+                  disabled={submitting || !atwFile || !shipmentStepValid}
                   sx={{ width: { xs: '100%', sm: 'auto' } }}
-                  onClick={() => {
-                    setSubmitMode('submit')
-                    void finalize('submit')
-                  }}
+                  onClick={() => void finalizeBook()}
                 >
-                  {submitting ? (submitMode === 'submit' ? 'Submitting…' : 'Saving…') : 'Save & submit to CY'}
+                  {submitting ? 'Booking…' : 'Book ICS'}
                 </Button>
               </Box>
             </Box>

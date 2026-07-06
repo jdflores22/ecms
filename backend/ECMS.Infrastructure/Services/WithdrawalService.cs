@@ -14,17 +14,42 @@ public class WithdrawalService : IWithdrawalService
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
+    private readonly ISlotCapacityService _slotCapacity;
+    private readonly ICertificateGenerationService _certificateGeneration;
+    private readonly IContainerInventoryService _containerInventory;
 
-    public WithdrawalService(IEcmsDbContext db, IAuditService auditService, INotificationService notifications)
+    public WithdrawalService(
+        IEcmsDbContext db,
+        IAuditService auditService,
+        INotificationService notifications,
+        ISlotCapacityService slotCapacity,
+        ICertificateGenerationService certificateGeneration,
+        IContainerInventoryService containerInventory)
     {
         _db = db;
         _auditService = auditService;
         _notifications = notifications;
+        _slotCapacity = slotCapacity;
+        _certificateGeneration = certificateGeneration;
+        _containerInventory = containerInventory;
     }
 
     public async Task<IReadOnlyList<WithdrawalDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
         var query = await ApplyRoleScopeAsync(BaseQuery(), userId, role, cancellationToken);
+        if (role == RoleNames.DepotPersonnel)
+        {
+            query = query.Where(w =>
+                w.Status == WithdrawalStatus.Submitted
+                || w.Status == WithdrawalStatus.UnderReview
+                || w.Status == WithdrawalStatus.Approved
+                || w.Status == WithdrawalStatus.Released
+                || w.Status == WithdrawalStatus.Rejected
+                || w.Status == WithdrawalStatus.Completed
+                || w.Status == WithdrawalStatus.CyAssigned
+                || w.Status == WithdrawalStatus.Scheduled);
+        }
+
         var items = await query.OrderByDescending(w => w.CreatedAt).ToListAsync(cancellationToken);
         var docIds = await LoadAtwDocumentIdsAsync(items.Select(w => w.Id).ToList(), cancellationToken);
         return items.Select(w => MapToDto(w, docIds.Contains(w.Id))).ToList();
@@ -41,7 +66,40 @@ public class WithdrawalService : IWithdrawalService
 
         return await _db.WithdrawalRequests.CountAsync(
             w => w.CurrentDepotId == depotId.Value
-                && (w.Status == WithdrawalStatus.Submitted || w.Status == WithdrawalStatus.UnderReview),
+                && (w.Status == WithdrawalStatus.Submitted
+                    || w.Status == WithdrawalStatus.UnderReview
+                    || w.Status == WithdrawalStatus.CyAssigned),
+            cancellationToken);
+    }
+
+    public async Task<int> GetAwaitingScheduleCountAsync(int userId, string role, CancellationToken cancellationToken = default)
+    {
+        if (role != RoleNames.DepotPersonnel)
+            return 0;
+
+        var depotId = await GetUserDepotIdAsync(userId, cancellationToken);
+        if (!depotId.HasValue)
+            return 0;
+
+        return await _db.WithdrawalRequests.CountAsync(
+            w => w.CurrentDepotId == depotId.Value && w.Status == WithdrawalStatus.CyAssigned,
+            cancellationToken);
+    }
+
+    public async Task<int> GetAwaitingCyCountAsync(int userId, string role, CancellationToken cancellationToken = default)
+    {
+        if (role != RoleNames.ShippingLineEvaluator)
+            return 0;
+
+        var shippingLineId = await _db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.ShippingLineId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!shippingLineId.HasValue)
+            return 0;
+
+        return await _db.WithdrawalRequests.CountAsync(
+            w => w.ShippingLineId == shippingLineId.Value && w.Status == WithdrawalStatus.Booked,
             cancellationToken);
     }
 
@@ -52,8 +110,69 @@ public class WithdrawalService : IWithdrawalService
 
         return await _db.WithdrawalRequests.CountAsync(
             w => w.TruckerId == userId
-                && (w.Status == WithdrawalStatus.Draft || w.Status == WithdrawalStatus.Issued),
+                && (w.Status == WithdrawalStatus.Draft
+                    || w.Status == WithdrawalStatus.Issued
+                    || w.Status == WithdrawalStatus.Booked
+                    || (w.Status == WithdrawalStatus.CyAssigned && w.BookedAt == null)),
             cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WithdrawalDto>> GetAwaitingCyAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var query = await ApplyRoleScopeAsync(
+            BaseQuery().Where(w => w.Status == WithdrawalStatus.Booked),
+            userId,
+            role,
+            cancellationToken);
+        var items = await query.OrderBy(w => w.BookedAt).ThenBy(w => w.CreatedAt).ToListAsync(cancellationToken);
+        var docIds = await LoadAtwDocumentIdsAsync(items.Select(w => w.Id).ToList(), cancellationToken);
+        return items.Select(w => MapToDto(w, docIds.Contains(w.Id))).ToList();
+    }
+
+    public async Task<IReadOnlyList<WithdrawalDto>> GetAwaitingScheduleAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var query = await ApplyRoleScopeAsync(
+            BaseQuery().Where(w => w.Status == WithdrawalStatus.CyAssigned),
+            userId,
+            role,
+            cancellationToken);
+        var items = await query.OrderBy(w => w.CyAssignedAt).ThenBy(w => w.CreatedAt).ToListAsync(cancellationToken);
+        var docIds = await LoadAtwDocumentIdsAsync(items.Select(w => w.Id).ToList(), cancellationToken);
+        return items.Select(w => MapToDto(w, docIds.Contains(w.Id))).ToList();
+    }
+
+    public async Task<IReadOnlyList<WithdrawalScheduleDto>> GetMySchedulesAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        if (!RoleNames.IsPreAdviceManager(role))
+            return Array.Empty<WithdrawalScheduleDto>();
+
+        var schedules = await _db.WithdrawalSchedules
+            .Include(s => s.WithdrawalRequest)
+                .ThenInclude(w => w.Lines)
+                    .ThenInclude(l => l.ContainerSize)
+            .Include(s => s.WithdrawalRequest)
+                .ThenInclude(w => w.Lines)
+                    .ThenInclude(l => l.ContainerType)
+            .Include(s => s.Depot)
+            .Include(s => s.Trucker)
+            .Where(s => s.TruckerId == userId)
+            .OrderBy(s => s.Date)
+            .ThenBy(s => s.Time)
+            .ToListAsync(cancellationToken);
+
+        return schedules.Select(s => MapScheduleToDto(
+            s,
+            s.WithdrawalRequest.ReferenceNo,
+            s.WithdrawalRequest.Lines.ToList())).ToList();
     }
 
     public async Task<WithdrawalDto?> GetByIdAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
@@ -164,40 +283,65 @@ public class WithdrawalService : IWithdrawalService
 
     public async Task<WithdrawalYardCheckDto> CheckContainerInYardAsync(
         int depotId,
+        int shippingLineId,
         string containerNo,
         int containerSizeId,
         int containerTypeId,
         CancellationToken cancellationToken = default)
     {
         var normalized = WithdrawalDuplicateGuard.NormalizeContainerNo(containerNo);
-        if (depotId <= 0 || string.IsNullOrWhiteSpace(normalized))
-            return new WithdrawalYardCheckDto(false, null, "Select a container yard and enter a container number.");
+        if (depotId <= 0 || shippingLineId <= 0 || string.IsNullOrWhiteSpace(normalized))
+            return new WithdrawalYardCheckDto(false, null, "Select a shipping line, container yard, and container number.");
 
         var manual = await _db.ManualYardInventoryEntries.AsNoTracking()
             .AnyAsync(
                 e => e.DepotId == depotId
+                    && e.ShippingLineId == shippingLineId
                     && e.ContainerNo == normalized
                     && e.ContainerSizeId == containerSizeId
                     && e.ContainerTypeId == containerTypeId,
                 cancellationToken);
         if (manual)
+        {
+            if (await YardInventoryReleaseHelper.IsReleasedAsync(
+                    _db, shippingLineId, depotId, normalized, containerSizeId, containerTypeId, cancellationToken))
+            {
+                return new WithdrawalYardCheckDto(
+                    false,
+                    null,
+                    "Container was released from yard inventory and is no longer at this CY.");
+            }
+
             return new WithdrawalYardCheckDto(true, "Manual yard inventory", null);
+        }
 
         var scheduled = await _db.Schedules.AsNoTracking()
             .AnyAsync(
                 s => s.DepotId == depotId
                     && s.Status == ScheduleStatus.Confirmed
+                    && s.PreAdvice.ShippingLineId == shippingLineId
                     && s.PreAdvice.ContainerNoNormalized == normalized
                     && s.PreAdvice.ContainerSizeId == containerSizeId
                     && s.PreAdvice.ContainerTypeId == containerTypeId,
                 cancellationToken);
         if (scheduled)
+        {
+            if (await YardInventoryReleaseHelper.IsReleasedAsync(
+                    _db, shippingLineId, depotId, normalized, containerSizeId, containerTypeId, cancellationToken))
+            {
+                return new WithdrawalYardCheckDto(
+                    false,
+                    null,
+                    "Container was released from yard inventory and is no longer at this CY.");
+            }
+
             return new WithdrawalYardCheckDto(true, "Confirmed return schedule", null);
+        }
 
         return new WithdrawalYardCheckDto(
             false,
             null,
-            "Container not found in yard inventory at the selected CY. Verify the number, size, and type.");
+            "Container not found in this shipping line's yard inventory at the selected CY. Verify the number, size, and type.");
     }
 
     public async Task<bool> DeleteDraftAsync(int id, int userId, CancellationToken cancellationToken = default)
@@ -361,6 +505,257 @@ public class WithdrawalService : IWithdrawalService
         return (await GetByIdAsync(entity.Id, truckerId, RoleNames.Trucker, cancellationToken))!;
     }
 
+    public async Task<WithdrawalDto> BookAsync(BookWithdrawalRequest request, int truckerId, CancellationToken cancellationToken = default)
+    {
+        var trucker = await _db.Users
+            .FirstOrDefaultAsync(u => u.Id == truckerId, cancellationToken)
+            ?? throw new InvalidOperationException("Trucker not found.");
+
+        var truckingCompany = (trucker.FullName ?? trucker.Username).Trim();
+        if (string.IsNullOrWhiteSpace(truckingCompany))
+            throw new InvalidOperationException("Your profile must have a name before booking.");
+
+        if (string.IsNullOrWhiteSpace(request.PlateNumber?.Trim()))
+            throw new InvalidOperationException("Plate number is required.");
+        if (string.IsNullOrWhiteSpace(request.DriverName?.Trim()))
+            throw new InvalidOperationException("Driver name is required.");
+
+        var placeholderDepotId = await ResolveBookDepotIdAsync(
+            request.ShippingLineId,
+            request.RequestedDepotId,
+            cancellationToken);
+
+        var header = await ValidateHeaderAsync(
+            request.AtwNumber,
+            request.ShippingLineId,
+            placeholderDepotId,
+            request.Destination,
+            request.IssueDate,
+            request.ExpirationDate,
+            request.Remarks,
+            cancellationToken);
+
+        await EnsureContainersInYardAsync(placeholderDepotId, request.ShippingLineId, request.Lines, cancellationToken);
+
+        var lineRows = await MaterializeLinesAsync(request.Lines, request.ShippingLineId, cancellationToken);
+        var referenceNo = await GenerateReferenceNoAsync(cancellationToken);
+        var bookingNumber = await GenerateBookingNumberAsync(cancellationToken);
+        var now = PhilippinesTime.UtcNow;
+
+        var entity = new WithdrawalRequest
+        {
+            ReferenceNo = referenceNo,
+            AtwNumber = header.AtwNumber,
+            TruckerId = truckerId,
+            ShippingLineId = request.ShippingLineId,
+            CurrentDepotId = placeholderDepotId,
+            RequestedDepotId = request.RequestedDepotId,
+            Destination = header.Destination,
+            IssueDate = header.IssueDate,
+            ExpirationDate = header.ExpirationDate,
+            Purpose = request.Purpose,
+            Status = WithdrawalStatus.Booked,
+            Remarks = header.Remarks,
+            BookingNumber = bookingNumber,
+            TruckingCompany = truckingCompany,
+            PlateNumber = request.PlateNumber.Trim().ToUpperInvariant(),
+            DriverName = request.DriverName.Trim(),
+            BookedAt = now,
+        };
+
+        AttachLines(entity, lineRows);
+        _db.Add(entity);
+        _auditService.QueueLog(truckerId, "Book", "Withdrawal", referenceNo);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var containerLabel = lineRows.Count == 1 ? "1 container" : $"{lineRows.Count} containers";
+        var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(_db, entity.ShippingLineId, cancellationToken);
+        await _notifications.NotifyUsersAsync(
+            evaluatorIds,
+            "ICS booking awaiting CY",
+            $"{referenceNo} ({entity.BookingNumber}, {containerLabel}) — assign a container yard.",
+            "Withdrawal",
+            $"/evaluations/atw?tab=awaiting-cy",
+            truckerId,
+            referenceNo,
+            cancellationToken);
+
+        return (await GetByIdAsync(entity.Id, truckerId, RoleNames.Trucker, cancellationToken))!;
+    }
+
+    public async Task<WithdrawalBookingNumberPreviewDto> GetNextBookingNumberAsync(CancellationToken cancellationToken = default)
+        => new(await GenerateBookingNumberAsync(cancellationToken));
+
+    public async Task<WithdrawalDto?> AssignCyAsync(
+        int id,
+        AssignCyRequest request,
+        int evaluatorId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await FindScopedAsync(id, evaluatorId, RoleNames.ShippingLineEvaluator, cancellationToken)
+            ?? throw new InvalidOperationException("Withdrawal request not found.");
+
+        if (entity.Status != WithdrawalStatus.Booked)
+            throw new InvalidOperationException("Only booked requests can be assigned a container yard.");
+
+        var hasAtwDoc = await _db.WithdrawalDocuments
+            .AnyAsync(
+                d => d.WithdrawalRequestId == id && d.DocumentType == WithdrawalDocumentType.AtwCertificate,
+                cancellationToken);
+        if (!hasAtwDoc)
+            throw new InvalidOperationException("The trucker must attach the ATW certificate before CY assignment.");
+
+        await EnsureDepotAllowedForShippingLineAsync(entity.ShippingLineId, request.AssignedDepotId, cancellationToken);
+
+        if (!await _db.Depots.AnyAsync(d => d.Id == request.AssignedDepotId, cancellationToken))
+            throw new InvalidOperationException("Container yard not found.");
+
+        var assignLines = entity.Lines
+            .Select(l => new WithdrawalLineInput(l.ContainerNoNormalized, l.ContainerSizeId, l.ContainerTypeId))
+            .ToList();
+        await EnsureContainersInYardAsync(request.AssignedDepotId, entity.ShippingLineId, assignLines, cancellationToken);
+
+        entity.AssignedDepotId = request.AssignedDepotId;
+        entity.CurrentDepotId = request.AssignedDepotId;
+        entity.CyAssignedAt = PhilippinesTime.UtcNow;
+        entity.CyAssignedByUserId = evaluatorId;
+        entity.Status = WithdrawalStatus.CyAssigned;
+        if (!string.IsNullOrWhiteSpace(request.Remarks))
+            entity.Remarks = request.Remarks.Trim();
+
+        _db.Update(entity);
+        _auditService.QueueLog(evaluatorId, "AssignCy", "Withdrawal", entity.ReferenceNo);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var containerLabel = entity.Lines.Count == 1 ? "1 container" : $"{entity.Lines.Count} containers";
+        var depotIds = await NotificationService.DepotPersonnelIdsAsync(_db, entity.CurrentDepotId, cancellationToken);
+        await _notifications.NotifyUsersAsync(
+            depotIds,
+            "Withdrawal awaiting pickup schedule",
+            $"{entity.ReferenceNo} ({containerLabel}) — assign a pick-up day.",
+            "Withdrawal",
+            $"/depot/withdrawals?tab=awaiting-schedule",
+            evaluatorId,
+            entity.ReferenceNo,
+            cancellationToken);
+
+        await _notifications.NotifyUsersAsync(
+            new[] { entity.TruckerId },
+            "Container yard assigned",
+            $"{entity.ReferenceNo} — CY assigned. Awaiting pick-up schedule from the depot.",
+            "Withdrawal",
+            $"/trucker/withdrawals/{entity.Id}",
+            evaluatorId,
+            entity.ReferenceNo,
+            cancellationToken);
+
+        return await GetByIdAsync(id, evaluatorId, RoleNames.ShippingLineEvaluator, cancellationToken);
+    }
+
+    public async Task<WithdrawalDto?> SchedulePickupAsync(
+        int id,
+        ScheduleWithdrawalPickupRequest request,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await RequireDepotReviewAsync(id, userId, role, cancellationToken);
+
+        if (entity.Status != WithdrawalStatus.CyAssigned)
+            throw new InvalidOperationException("Only CY-assigned requests can be scheduled for pick-up.");
+
+        if (!entity.BookedAt.HasValue)
+            throw new InvalidOperationException("The trucker must submit the withdrawal request before pick-up can be scheduled.");
+
+        await _slotCapacity.ValidateAssignmentAsync(
+            entity.CurrentDepotId,
+            request.Date,
+            request.SlotNo,
+            null,
+            cancellationToken);
+
+        var schedule = await _db.WithdrawalSchedules
+            .FirstOrDefaultAsync(s => s.WithdrawalRequestId == id, cancellationToken)
+            ?? new WithdrawalSchedule { WithdrawalRequestId = id };
+
+        var isNew = schedule.Id == 0;
+        schedule.DepotId = entity.CurrentDepotId;
+        schedule.Date = request.Date;
+        schedule.Time = request.Time;
+        schedule.SlotNo = request.SlotNo;
+        schedule.TruckerId = entity.TruckerId;
+        schedule.Status = ScheduleStatus.Scheduled;
+        schedule.DepotRemarks = string.IsNullOrWhiteSpace(request.DepotRemarks) ? null : request.DepotRemarks.Trim();
+
+        if (isNew)
+            _db.Add(schedule);
+        else
+            _db.Update(schedule);
+
+        entity.Status = WithdrawalStatus.Scheduled;
+        _db.Update(entity);
+        _auditService.QueueLog(userId, isNew ? "SchedulePickup" : "ReschedulePickup", "Withdrawal", entity.ReferenceNo);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var containerLabel = entity.Lines.Count == 1 ? "1 container" : $"{entity.Lines.Count} containers";
+        await _notifications.NotifyUsersAsync(
+            new[] { entity.TruckerId },
+            "Pick-up scheduled",
+            $"{entity.ReferenceNo} ({containerLabel}) — {request.Date:yyyy-MM-dd} {request.Time:HH:mm}.",
+            "Withdrawal",
+            $"/trucker/withdrawals/schedule",
+            userId,
+            entity.ReferenceNo,
+            cancellationToken);
+
+        return await GetByIdAsync(id, userId, role, cancellationToken);
+    }
+
+    public async Task<WithdrawalScheduleDto?> UpdateScheduleAsync(
+        int scheduleId,
+        UpdateWithdrawalScheduleRequest request,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        if (role != RoleNames.DepotPersonnel)
+            throw new InvalidOperationException("Only depot personnel can update withdrawal schedules.");
+
+        var schedule = await _db.WithdrawalSchedules
+            .Include(s => s.WithdrawalRequest)
+                .ThenInclude(w => w.Lines)
+                    .ThenInclude(l => l.ContainerSize)
+            .Include(s => s.WithdrawalRequest)
+                .ThenInclude(w => w.Lines)
+                    .ThenInclude(l => l.ContainerType)
+            .Include(s => s.Depot)
+            .Include(s => s.Trucker)
+            .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken)
+            ?? throw new InvalidOperationException("Schedule not found.");
+
+        var depotId = await GetUserDepotIdAsync(userId, cancellationToken);
+        if (!depotId.HasValue || schedule.DepotId != depotId.Value)
+            throw new InvalidOperationException("You can only update schedules for your container yard.");
+
+        await _slotCapacity.ValidateAssignmentAsync(
+            schedule.DepotId,
+            request.Date,
+            request.SlotNo,
+            schedule.Id,
+            cancellationToken);
+
+        schedule.Date = request.Date;
+        schedule.Time = request.Time;
+        schedule.SlotNo = request.SlotNo;
+        schedule.Status = request.Status;
+        schedule.DepotRemarks = string.IsNullOrWhiteSpace(request.DepotRemarks) ? null : request.DepotRemarks.Trim();
+        _db.Update(schedule);
+        _auditService.QueueLog(userId, "UpdateSchedule", "Withdrawal", schedule.WithdrawalRequest.ReferenceNo);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return MapScheduleToDto(schedule, schedule.WithdrawalRequest.ReferenceNo, schedule.WithdrawalRequest.Lines.ToList());
+    }
+
     public async Task<WithdrawalDto> IssueAtwAsync(IssueAtwRequest request, int evaluatorId, CancellationToken cancellationToken = default)
     {
         var evaluator = await _db.Users
@@ -390,6 +785,8 @@ public class WithdrawalService : IWithdrawalService
             request.Remarks,
             cancellationToken);
 
+        await EnsureContainersInYardAsync(request.CurrentDepotId, evaluator.ShippingLineId.Value, request.Lines, cancellationToken);
+
         var lineRows = await MaterializeLinesAsync(request.Lines, evaluator.ShippingLineId.Value, cancellationToken);
         var referenceNo = await GenerateReferenceNoAsync(cancellationToken);
         var containerCount = lineRows.Count;
@@ -414,11 +811,36 @@ public class WithdrawalService : IWithdrawalService
         _auditService.QueueLog(evaluatorId, "Issue", "Withdrawal", referenceNo);
         await _db.SaveChangesAsync(cancellationToken);
 
+        await _certificateGeneration.AttachAtwCertificateAsync(entity.Id, evaluatorId, cancellationToken);
+
+        entity.AssignedDepotId = request.CurrentDepotId;
+        entity.CyAssignedAt = PhilippinesTime.UtcNow;
+        entity.CyAssignedByUserId = evaluatorId;
+        entity.Status = WithdrawalStatus.CyAssigned;
+        _db.Update(entity);
+        await _db.SaveChangesAsync(cancellationToken);
+
         var containerLabel = containerCount == 1 ? "1 container" : $"{containerCount} containers";
+        var depotName = await _db.Depots
+            .Where(d => d.Id == request.CurrentDepotId)
+            .Select(d => d.Name)
+            .FirstAsync(cancellationToken);
+
+        var depotIds = await NotificationService.DepotPersonnelIdsAsync(_db, entity.CurrentDepotId, cancellationToken);
+        await _notifications.NotifyUsersAsync(
+            depotIds,
+            "Shipping line issued ATW — confirm CY assignment",
+            $"{referenceNo} ({entity.AtwNumber}, {containerLabel}) — official ATW attached. Review the certificate and confirm the assigned container yard.",
+            "Withdrawal",
+            $"/depot/withdrawals/{entity.Id}",
+            evaluatorId,
+            referenceNo,
+            cancellationToken);
+
         await _notifications.NotifyUsersAsync(
             new[] { request.AuthorizedTruckerId },
-            "ATW issued",
-            $"{referenceNo} ({entity.AtwNumber}, {containerLabel}) — submit your withdrawal request with the ATW certificate.",
+            "ATW issued — CY assigned",
+            $"{referenceNo} ({entity.AtwNumber}, {containerLabel}) — CY assigned at {depotName}. View your ATW certificate and submit the withdrawal request.",
             "Withdrawal",
             $"/trucker/withdrawals/{entity.Id}",
             evaluatorId,
@@ -477,8 +899,9 @@ public class WithdrawalService : IWithdrawalService
         var entity = await FindScopedAsync(id, userId, RoleNames.Trucker, cancellationToken);
         if (entity is null) return null;
 
-        if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued))
-            throw new InvalidOperationException("Only draft or issued withdrawal requests can be submitted.");
+        var isIssueFirstCyAssigned = entity.Status == WithdrawalStatus.CyAssigned && !entity.BookedAt.HasValue;
+        if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued) && !isIssueFirstCyAssigned)
+            throw new InvalidOperationException("Only draft, issued, or CY-assigned withdrawal requests can be submitted.");
 
         if (entity.Lines.Count == 0)
             throw new InvalidOperationException("Add at least one container before submitting.");
@@ -503,6 +926,11 @@ public class WithdrawalService : IWithdrawalService
                 excludeId: id,
                 cancellationToken);
         }
+
+        var submitLines = entity.Lines
+            .Select(l => new WithdrawalLineInput(l.ContainerNoNormalized, l.ContainerSizeId, l.ContainerTypeId))
+            .ToList();
+        await EnsureContainersInYardAsync(entity.CurrentDepotId, entity.ShippingLineId, submitLines, cancellationToken);
 
         entity.Status = WithdrawalStatus.Submitted;
         entity.SubmittedAt = PhilippinesTime.UtcNow;
@@ -546,8 +974,8 @@ public class WithdrawalService : IWithdrawalService
     {
         var entity = await RequireDepotReviewAsync(id, userId, role, cancellationToken);
 
-        if (entity.Status is not (WithdrawalStatus.Submitted or WithdrawalStatus.UnderReview))
-            throw new InvalidOperationException("Only submitted or under-review requests can be approved.");
+        if (entity.Status is not (WithdrawalStatus.Submitted or WithdrawalStatus.UnderReview or WithdrawalStatus.Scheduled))
+            throw new InvalidOperationException("Only submitted, under-review, or scheduled requests can be approved.");
 
         if (entity.ExpirationDate < PhilippinesTime.Today)
             throw new InvalidOperationException("The ATW has expired. Reject the request instead.");
@@ -618,28 +1046,170 @@ public class WithdrawalService : IWithdrawalService
         var entity = await RequireDepotReviewAsync(id, userId, role, cancellationToken);
 
         if (entity.Status != WithdrawalStatus.Approved)
-            throw new InvalidOperationException("Only approved requests can be marked as released.");
+            throw new InvalidOperationException("Only approved requests can have containers released.");
 
-        entity.Status = WithdrawalStatus.Released;
-        foreach (var line in entity.Lines)
-            line.LineStatus = WithdrawalLineStatus.Released;
-        WithdrawalDuplicateGuard.RefreshActiveKeys(entity);
+        var linesToRelease = entity.Lines
+            .Where(l => l.LineStatus == WithdrawalLineStatus.Approved)
+            .ToList();
+        if (linesToRelease.Count == 0)
+            throw new InvalidOperationException("No containers are awaiting release.");
+
+        foreach (var line in linesToRelease)
+            ApplyLineReleased(entity, line);
+
         _db.Update(entity);
         _auditService.QueueLog(userId, "Release", "Withdrawal", entity.ReferenceNo);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var containerLabel = entity.Lines.Count == 1 ? "1 container" : $"{entity.Lines.Count} containers";
+        await TryApplyYardInventoryReleaseAsync(entity, linesToRelease, userId, cancellationToken);
+        await TryGenerateReleaseCertificatesAsync(entity, linesToRelease, userId, cancellationToken);
+
+        foreach (var line in linesToRelease)
+            await NotifyLineReleasedAsync(entity, line, userId, cancellationToken);
+
+        return await GetByIdAsync(id, userId, role, cancellationToken);
+    }
+
+    public async Task<WithdrawalDto?> ReleaseLineAsync(
+        int id,
+        int lineId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await RequireDepotReviewAsync(id, userId, role, cancellationToken);
+
+        if (entity.Status != WithdrawalStatus.Approved)
+            throw new InvalidOperationException("Only approved requests can have containers released.");
+
+        var line = entity.Lines.FirstOrDefault(l => l.Id == lineId)
+            ?? throw new InvalidOperationException("Container line not found.");
+
+        if (line.LineStatus == WithdrawalLineStatus.Released)
+            throw new InvalidOperationException("This container has already been released.");
+
+        if (line.LineStatus != WithdrawalLineStatus.Approved)
+            throw new InvalidOperationException("Only approved containers can be released.");
+
+        ApplyLineReleased(entity, line);
+        _db.Update(entity);
+        _auditService.QueueLog(userId, "ReleaseLine", "Withdrawal", $"{entity.ReferenceNo}:{line.ContainerNoNormalized}");
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await TryApplyYardInventoryReleaseAsync(entity, new[] { line }, userId, cancellationToken);
+        await TryGenerateReleaseCertificatesAsync(entity, new[] { line }, userId, cancellationToken);
+
+        await NotifyLineReleasedAsync(entity, line, userId, cancellationToken);
+
+        return await GetByIdAsync(id, userId, role, cancellationToken);
+    }
+
+    private static void ApplyLineReleased(WithdrawalRequest entity, WithdrawalRequestLine line)
+    {
+        line.LineStatus = WithdrawalLineStatus.Released;
+        line.ReleasedAt = PhilippinesTime.UtcNow;
+        if (entity.Lines.All(l => l.LineStatus == WithdrawalLineStatus.Released))
+            entity.Status = WithdrawalStatus.Released;
+        WithdrawalDuplicateGuard.RefreshActiveKeys(entity);
+    }
+
+    private async Task TryApplyYardInventoryReleaseAsync(
+        WithdrawalRequest entity,
+        IReadOnlyList<WithdrawalRequestLine> releasedLines,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        foreach (var releasedLine in releasedLines)
+        {
+            try
+            {
+                await _containerInventory.ApplyYardReleaseAsync(
+                    entity.ShippingLineId,
+                    entity.CurrentDepotId,
+                    releasedLine.ContainerNoNormalized,
+                    releasedLine.ContainerSizeId,
+                    releasedLine.ContainerTypeId,
+                    entity.Id,
+                    releasedLine.Id,
+                    entity.ReferenceNo,
+                    userId,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _auditService.QueueLog(
+                    userId,
+                    "YardReleaseFailed",
+                    "ContainerInventory",
+                    $"{entity.ReferenceNo}:{releasedLine.ContainerNoNormalized}:{ex.Message}");
+            }
+        }
+    }
+
+    private async Task TryGenerateReleaseCertificatesAsync(
+        WithdrawalRequest entity,
+        IReadOnlyList<WithdrawalRequestLine> releasedLines,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        foreach (var releasedLine in releasedLines)
+        {
+            try
+            {
+                await _certificateGeneration.AttachCyContainerReleaseCertificateAsync(
+                    entity.Id, releasedLine.Id, userId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _auditService.QueueLog(
+                    userId,
+                    "CyReleaseCertificateFailed",
+                    "Withdrawal",
+                    $"{entity.ReferenceNo}:{releasedLine.ContainerNoNormalized}:{ex.Message}");
+            }
+        }
+
+        if (entity.Status != WithdrawalStatus.Released)
+            return;
+
+        try
+        {
+            await _certificateGeneration.AttachAtwReleaseCertificateAsync(entity.Id, userId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _auditService.QueueLog(userId, "AtwReleaseCertificateFailed", "Withdrawal", $"{entity.ReferenceNo}:{ex.Message}");
+        }
+    }
+
+    private async Task NotifyLineReleasedAsync(
+        WithdrawalRequest entity,
+        WithdrawalRequestLine line,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        var containerNo = line.ContainerNoNormalized;
+        var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(_db, entity.ShippingLineId, cancellationToken);
+
+        await _notifications.NotifyUsersAsync(
+            evaluatorIds,
+            "Container released",
+            $"{containerNo} released under {entity.ReferenceNo} (ATW {entity.AtwNumber}).",
+            "Withdrawal",
+            $"/evaluations/atw/{entity.Id}",
+            userId,
+            entity.ReferenceNo,
+            cancellationToken);
+
         await _notifications.NotifyUsersAsync(
             new[] { entity.TruckerId },
             "Container released",
-            $"{entity.ReferenceNo} ({containerLabel}) — release confirmed at the CY.",
+            $"{containerNo} — {entity.ReferenceNo} release confirmed at the CY.",
             "Withdrawal",
             $"/trucker/withdrawals/{entity.Id}",
             userId,
             entity.ReferenceNo,
             cancellationToken);
-
-        return await GetByIdAsync(id, userId, role, cancellationToken);
     }
 
     public async Task<IReadOnlyList<WithdrawalDocumentDto>> GetDocumentsAsync(
@@ -681,8 +1251,8 @@ public class WithdrawalService : IWithdrawalService
         var entity = await FindScopedAsync(id, userId, role, cancellationToken)
             ?? throw new InvalidOperationException("Withdrawal request not found.");
 
-        if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued))
-            throw new InvalidOperationException("Documents can only be uploaded while the request is draft or issued.");
+        if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued or WithdrawalStatus.Booked))
+            throw new InvalidOperationException("Documents can only be uploaded while the request is draft, issued, or booked.");
 
         if (RoleNames.IsPreAdviceManager(role) && entity.TruckerId != userId)
             throw new InvalidOperationException("You can only upload documents for your own withdrawal requests.");
@@ -732,8 +1302,8 @@ public class WithdrawalService : IWithdrawalService
         var entity = await FindScopedAsync(withdrawalId, userId, role, cancellationToken);
         if (entity is null) return false;
 
-        if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued))
-            throw new InvalidOperationException("Documents can only be removed while the request is draft or issued.");
+        if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued or WithdrawalStatus.Booked))
+            throw new InvalidOperationException("Documents can only be removed while the request is draft, issued, or booked.");
 
         var document = await _db.WithdrawalDocuments
             .FirstOrDefaultAsync(d => d.Id == documentId && d.WithdrawalRequestId == withdrawalId, cancellationToken);
@@ -750,6 +1320,10 @@ public class WithdrawalService : IWithdrawalService
             .Include(w => w.Trucker)
             .Include(w => w.ShippingLine)
             .Include(w => w.CurrentDepot)
+            .Include(w => w.RequestedDepot)
+            .Include(w => w.AssignedDepot)
+            .Include(w => w.PickupSchedule)
+                .ThenInclude(s => s!.Depot)
             .Include(w => w.Lines)
                 .ThenInclude(l => l.Container)
             .Include(w => w.Lines)
@@ -857,7 +1431,40 @@ public class WithdrawalService : IWithdrawalService
             w.ReviewRemarks,
             orderedLines.Count,
             BuildContainerSummary(orderedLines),
-            lineDtos);
+            lineDtos,
+            w.BookingNumber,
+            w.TruckingCompany,
+            w.PlateNumber,
+            w.DriverName,
+            w.RequestedDepotId,
+            w.RequestedDepot?.Name,
+            w.AssignedDepotId,
+            w.AssignedDepot?.Name ?? (w.AssignedDepotId.HasValue ? w.CurrentDepot.Name : null),
+            w.BookedAt,
+            w.CyAssignedAt,
+            w.PickupSchedule is null ? null : MapScheduleToDto(w.PickupSchedule, w.ReferenceNo, orderedLines));
+    }
+
+    private static WithdrawalScheduleDto MapScheduleToDto(
+        WithdrawalSchedule schedule,
+        string referenceNo,
+        IReadOnlyList<WithdrawalRequestLine>? lines = null)
+    {
+        var summaryLines = lines ?? schedule.WithdrawalRequest?.Lines.ToList() ?? new List<WithdrawalRequestLine>();
+        return new WithdrawalScheduleDto(
+            schedule.Id,
+            schedule.WithdrawalRequestId,
+            referenceNo,
+            schedule.DepotId,
+            schedule.Depot.Name,
+            schedule.Date,
+            schedule.Time,
+            schedule.SlotNo,
+            schedule.Status,
+            schedule.TruckerId,
+            schedule.Trucker?.FullName ?? schedule.Trucker?.Username,
+            schedule.DepotRemarks,
+            BuildContainerSummary(summaryLines));
     }
 
     private static string BuildContainerSummary(IReadOnlyList<WithdrawalRequestLine> lines) =>
@@ -1043,6 +1650,65 @@ public class WithdrawalService : IWithdrawalService
         return container.Id;
     }
 
+    private async Task EnsureContainersInYardAsync(
+        int depotId,
+        int shippingLineId,
+        IReadOnlyList<WithdrawalLineInput> lines,
+        CancellationToken cancellationToken)
+    {
+        foreach (var line in lines)
+        {
+            var check = await CheckContainerInYardAsync(
+                depotId,
+                shippingLineId,
+                line.ContainerNo,
+                line.ContainerSizeId,
+                line.ContainerTypeId,
+                cancellationToken);
+            if (!check.IsInYard)
+            {
+                throw new InvalidOperationException(
+                    check.Message
+                    ?? $"Container {line.ContainerNo.Trim().ToUpperInvariant()} is not in yard inventory for this shipping line.");
+            }
+        }
+    }
+
+    private async Task<int> ResolveBookDepotIdAsync(
+        int shippingLineId,
+        int? requestedDepotId,
+        CancellationToken cancellationToken)
+    {
+        var contractDepotIds = await _db.ShippingLineDepotContracts
+            .Where(c => c.ShippingLineId == shippingLineId)
+            .Select(c => c.DepotId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (contractDepotIds.Count == 0)
+            throw new InvalidOperationException("No container yards are configured for this shipping line.");
+
+        if (requestedDepotId.HasValue)
+        {
+            if (!contractDepotIds.Contains(requestedDepotId.Value))
+                throw new InvalidOperationException("The requested container yard is not allowed for this shipping line.");
+            return requestedDepotId.Value;
+        }
+
+        return contractDepotIds[0];
+    }
+
+    private async Task EnsureDepotAllowedForShippingLineAsync(
+        int shippingLineId,
+        int depotId,
+        CancellationToken cancellationToken)
+    {
+        var allowed = await _db.ShippingLineDepotContracts
+            .AnyAsync(c => c.ShippingLineId == shippingLineId && c.DepotId == depotId, cancellationToken);
+        if (!allowed)
+            throw new InvalidOperationException("The selected container yard is not allowed for this shipping line.");
+    }
+
     private async Task<string> GenerateReferenceNoAsync(CancellationToken cancellationToken)
     {
         var today = PhilippinesTime.Today.ToString("yyyyMMdd");
@@ -1051,6 +1717,27 @@ public class WithdrawalService : IWithdrawalService
             .Where(w => w.ReferenceNo.StartsWith(prefix))
             .OrderByDescending(w => w.ReferenceNo)
             .Select(w => w.ReferenceNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var seq = 1;
+        if (latest is not null)
+        {
+            var suffix = latest[prefix.Length..];
+            if (int.TryParse(suffix, out var n))
+                seq = n + 1;
+        }
+
+        return $"{prefix}{seq:D4}";
+    }
+
+    private async Task<string> GenerateBookingNumberAsync(CancellationToken cancellationToken)
+    {
+        var today = PhilippinesTime.Today.ToString("yyyyMMdd");
+        var prefix = $"BK-{today}-";
+        var latest = await _db.WithdrawalRequests
+            .Where(w => w.BookingNumber != null && w.BookingNumber.StartsWith(prefix))
+            .OrderByDescending(w => w.BookingNumber)
+            .Select(w => w.BookingNumber!)
             .FirstOrDefaultAsync(cancellationToken);
 
         var seq = 1;

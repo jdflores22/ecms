@@ -1,13 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Divider,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
+import { Alert, Box, Button, Chip, Divider, Paper, Typography } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import SendIcon from '@mui/icons-material/Send'
@@ -19,12 +11,13 @@ import WithdrawalForm, { type WithdrawalFormSubmitValues } from '../../component
 import WithdrawalLinesTable from '../../components/withdrawals/WithdrawalLinesTable'
 import WithdrawalStatusTimeline from '../../components/withdrawals/WithdrawalStatusTimeline'
 import WithdrawalGatePassCard from '../../components/withdrawals/WithdrawalGatePassCard'
+import WithdrawalReleaseCertificates from '../../components/withdrawals/WithdrawalReleaseCertificates'
 import { InfoTile, infoGridSx } from '../../components/layout/DetailPagePrimitives'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type Withdrawal, type WithdrawalDocument, type WithdrawalLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
-import { formatDateTime, formatScheduleDate } from '../../utils/datetime'
+import { formatDateTime, formatScheduleDate, formatScheduleTime } from '../../utils/datetime'
 
 const primaryDark = '#0B3D91'
 
@@ -38,6 +31,9 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
   Released: 'success',
   Completed: 'success',
   Cancelled: 'default',
+  Booked: 'warning',
+  CyAssigned: 'info',
+  Scheduled: 'info',
 }
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -59,9 +55,13 @@ function WithdrawalSummaryGrid({ item }: { item: Withdrawal }) {
         }}
       >
         <InfoTile label="Shipping line" value={item.shippingLineName} />
-        <InfoTile label="Current CY" value={item.currentDepotName} />
+        <InfoTile label="Assigned CY" value={item.assignedDepotName ?? item.currentDepotName} />
         <InfoTile label="Destination" value={item.destination} />
-        <InfoTile label="Purpose" value="Repositioning" />
+        <InfoTile label="Purpose" value={item.purpose === 'Export' ? 'Export' : 'Repositioning'} />
+        {item.bookingNumber && <InfoTile label="Booking #" value={item.bookingNumber} />}
+        {item.truckingCompany && <InfoTile label="Trucking company" value={item.truckingCompany} />}
+        {item.plateNumber && <InfoTile label="Plate #" value={item.plateNumber} />}
+        {item.driverName && <InfoTile label="Driver" value={item.driverName} />}
         <InfoTile label="Issue date" value={formatScheduleDate(item.issueDate)} />
         <InfoTile label="Expiration date" value={formatScheduleDate(item.expirationDate)} />
         {item.submittedAt && (
@@ -138,8 +138,13 @@ export default function WithdrawalDetailPage() {
   }
 
   const detailsEditable = item?.status === 'Draft'
-  const shippingLineIssued = item?.status === 'Issued'
-  const canUploadAndSubmit = detailsEditable || shippingLineIssued
+  const bookFirst = Boolean(item?.bookingNumber || item?.bookedAt)
+  const shippingLineIssued = !bookFirst && (item?.status === 'Issued' || item?.status === 'CyAssigned')
+  const systemIssuedCertificate = Boolean(shippingLineIssued && item?.hasAtwDocument)
+  const canUploadAtw = detailsEditable || (item?.status === 'Issued' && !item?.hasAtwDocument)
+  const canSubmitToDepot =
+    detailsEditable ||
+    (shippingLineIssued && Boolean(item?.hasAtwDocument) && (item?.status === 'Issued' || item?.status === 'CyAssigned'))
   const showGatePass = Boolean(item && ['Approved', 'Released', 'Completed'].includes(item.status))
 
   const handleSave = async (values: WithdrawalFormSubmitValues) => {
@@ -197,9 +202,7 @@ export default function WithdrawalDetailPage() {
       </Button>
 
       {loading ? (
-        <Paper elevation={0} sx={{ py: 8, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Paper>
+        <DetailLoadingState />
       ) : error || !item ? (
         <Alert severity="error">{error || 'Withdrawal request not found.'}</Alert>
       ) : (
@@ -245,7 +248,18 @@ export default function WithdrawalDetailPage() {
             </Box>
           </Paper>
 
-          <WithdrawalStatusTimeline status={item.status} issuedByShippingLine={item.status === 'Issued'} />
+          <WithdrawalStatusTimeline
+            status={item.status}
+            issuedByShippingLine={shippingLineIssued}
+            bookFirst={bookFirst}
+          />
+
+          {item.pickupSchedule && (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              Pick-up scheduled: {formatScheduleDate(item.pickupSchedule.date)} at {formatScheduleTime(item.pickupSchedule.time)}
+              {item.pickupSchedule.slotNo > 0 ? ` · Slot ${item.pickupSchedule.slotNo}` : ''} · {item.pickupSchedule.depotName}
+            </Alert>
+          )}
 
           {actionError && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
@@ -268,7 +282,18 @@ export default function WithdrawalDetailPage() {
 
               {shippingLineIssued && (
                 <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                  This ATW was issued by <strong>{item.shippingLineName}</strong>. Request details cannot be changed — attach the ATW certificate and submit to the container yard.
+                  {systemIssuedCertificate ? (
+                    <>
+                      This ATW was issued by <strong>{item.shippingLineName}</strong> with CY assigned at{' '}
+                      <strong>{item.assignedDepotName ?? item.currentDepotName}</strong>. View the official certificate
+                      below and submit to the container yard.
+                    </>
+                  ) : (
+                    <>
+                      This ATW was issued by <strong>{item.shippingLineName}</strong>. Request details cannot be changed
+                      — attach the ATW certificate and submit to the container yard.
+                    </>
+                  )}
                 </Alert>
               )}
 
@@ -299,104 +324,113 @@ export default function WithdrawalDetailPage() {
               )}
             </Paper>
 
-            <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                ATW certificate
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Attach the Authority to Withdraw document issued by the shipping line (PDF or image).
-              </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+              <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                  ATW certificate
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {systemIssuedCertificate
+                    ? 'Official Authority to Withdraw certificate from your shipping line.'
+                    : 'Attach the Authority to Withdraw document issued by the shipping line (PDF or image).'}
+                </Typography>
 
-              {atwDoc ? (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {atwDoc.fileName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Uploaded {formatDateTime(atwDoc.createdAt)}
-                  </Typography>
-                  <Box sx={{ mt: 1.5 }}>
-                    <Button
-                      component="a"
-                      href={atwDocUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      size="small"
-                    >
-                      View document
-                    </Button>
+                {atwDoc ? (
+                  <Box sx={{ mb: 2 }}>
+                    {systemIssuedCertificate && (
+                      <Chip size="small" color="success" label="Official certificate" sx={{ mb: 1 }} />
+                    )}
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {atwDoc.fileName}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {systemIssuedCertificate ? 'Generated' : 'Uploaded'} {formatDateTime(atwDoc.createdAt)}
+                    </Typography>
+                    <Box sx={{ mt: 1.5 }}>
+                      <Button
+                        component="a"
+                        href={atwDocUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="small"
+                      >
+                        View document
+                      </Button>
+                    </Box>
                   </Box>
-                </Box>
-              ) : (
-                <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
-                  No ATW document attached yet.
-                </Alert>
-              )}
+                ) : (
+                  <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                    No ATW document attached yet.
+                  </Alert>
+                )}
 
-              {canUploadAndSubmit && (
-                <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    hidden
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) void handleUpload(file)
-                      e.target.value = ''
-                    }}
-                  />
+                <WithdrawalReleaseCertificates documents={documents} embedded />
+
+                {canUploadAtw && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      hidden
+                      accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleUpload(file)
+                        e.target.value = ''
+                      }}
+                    />
+                    <Button
+                      variant="outlined"
+                      startIcon={<CloudUploadIcon />}
+                      disabled={uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                      fullWidth
+                      sx={{ mb: 2 }}
+                    >
+                      {uploading ? 'Uploading…' : atwDoc ? 'Replace ATW document' : 'Upload ATW document'}
+                    </Button>
+                  </>
+                )}
+
+                <Divider sx={{ my: 2 }} />
+
+                {canSubmitToDepot ? (
                   <Button
-                    variant="outlined"
-                    startIcon={<CloudUploadIcon />}
-                    disabled={uploading}
-                    onClick={() => fileInputRef.current?.click()}
+                    variant="contained"
                     fullWidth
-                    sx={{ mb: 2 }}
+                    startIcon={<SendIcon />}
+                    disabled={submitting || !item.hasAtwDocument}
+                    onClick={() => void handleSubmit()}
+                    sx={{ fontWeight: 700 }}
                   >
-                    {uploading ? 'Uploading…' : atwDoc ? 'Replace ATW document' : 'Upload ATW document'}
+                    {submitting ? 'Submitting…' : 'Submit to container yard'}
                   </Button>
-                </>
-              )}
+                ) : !detailsEditable ? (
+                  <Chip
+                    label={item.status === 'UnderReview' ? 'Under review' : item.status}
+                    color={statusColor[item.status] ?? 'default'}
+                    sx={{ fontWeight: 700 }}
+                  />
+                ) : null}
+              </Paper>
 
-              <Divider sx={{ my: 2 }} />
-
-              {canUploadAndSubmit ? (
-                <Button
-                  variant="contained"
-                  fullWidth
-                  startIcon={<SendIcon />}
-                  disabled={submitting || !item.hasAtwDocument}
-                  onClick={() => void handleSubmit()}
-                  sx={{ fontWeight: 700 }}
+              {showGatePass && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: { xs: 2, sm: 2.5 },
+                    borderRadius: 3,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: '#fff',
+                    boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+                  }}
                 >
-                  {submitting ? 'Submitting…' : 'Submit to container yard'}
-                </Button>
-              ) : !detailsEditable ? (
-                <Chip
-                  label={item.status === 'UnderReview' ? 'Under review' : item.status}
-                  color={statusColor[item.status] ?? 'default'}
-                  sx={{ fontWeight: 700 }}
-                />
-              ) : null}
-            </Paper>
+                  <WithdrawalGatePassCard withdrawalId={item.id} status={item.status} />
+                </Paper>
+              )}
+            </Box>
           </Box>
-
-          {showGatePass && (
-            <Paper
-              elevation={0}
-              sx={{
-                mt: 2,
-                p: { xs: 2, sm: 2.5 },
-                borderRadius: 3,
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: 'rgba(11, 61, 145, 0.03)',
-              }}
-            >
-              <WithdrawalGatePassCard withdrawalId={item.id} status={item.status} />
-            </Paper>
-          )}
         </>
       )}
     </Box>

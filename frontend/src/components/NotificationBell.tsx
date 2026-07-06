@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Divider,
   IconButton,
   List,
@@ -19,6 +18,7 @@ import { useNavigate } from 'react-router-dom'
 import { notificationApi, type Notification } from '../services/api'
 import { formatDateTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
+import { InlineLoadingSkeleton } from './layout/SkeletonPrimitives'
 
 const primaryDark = '#0B3D91'
 
@@ -139,9 +139,7 @@ export default function NotificationBell() {
         <Divider />
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-            <CircularProgress size={28} sx={{ color: primaryDark }} />
-          </Box>
+          <InlineLoadingSkeleton rows={4} />
         ) : items.length === 0 ? (
           <Box sx={{ py: 6, px: 2, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary">

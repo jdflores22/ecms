@@ -4,7 +4,8 @@ public static class EnvFileLoader
 {
     public static void LoadProductionEnvIfPresent(IWebHostEnvironment environment)
     {
-        if (!environment.IsProduction() && !environment.IsDevelopment())
+        // Keep local Development on appsettings.Development.json (XAMPP). Production/Railway uses .env.production.
+        if (!environment.IsProduction())
             return;
 
         var path = Path.Combine(environment.ContentRootPath, ".env.production");

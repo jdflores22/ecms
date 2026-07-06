@@ -1,8 +1,8 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -24,6 +24,7 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import axios from 'axios'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   containerSizeApi,
@@ -36,12 +37,14 @@ import {
   type ShippingLineDepotContract,
 } from '../../services/api'
 import {
+  breakdownContractTeu,
   formatCyCountSplit,
   getCapacityDisplayLabel,
   isSecondaryCapacitySize,
 } from '../../utils/cyAllocation'
 import {
   ListDesktopOnly,
+  ListLoadingState,
   ListMobileCard,
   ListMobileChipRow,
   ListMobileMeta,
@@ -74,6 +77,22 @@ function sizeFormFromContract(contract: ShippingLineDepotContract, sizes: Contai
   return form
 }
 
+function formatContractSizeLabel(size: { sizeLabel: string; contractCount: number; teuPerContainer: number }) {
+  const teu = breakdownContractTeu({
+    contractCount: size.contractCount,
+    preAdvisedCount: 0,
+    bookingCount: 0,
+    availableCount: 0,
+    teuPerContainer: size.teuPerContainer,
+  })
+  return `${getCapacityDisplayLabel(size.sizeLabel)}: ${size.contractCount} slots · ${teu} TEU`
+}
+
+function sizeTeu(size: ContainerSizeMaster, count: number | ''): number {
+  if (typeof count !== 'number' || count <= 0) return 0
+  return Math.round(count * size.teu)
+}
+
 function buildSizePayload(form: SizeCountForm) {
   return Object.entries(form)
     .filter(([, count]) => typeof count === 'number' && count > 0)
@@ -98,6 +117,7 @@ export default function CyContractsMasterTab() {
   })
   const [sizeForm, setSizeForm] = useState<SizeCountForm>({})
   const [submitting, setSubmitting] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const activeSizes = useMemo(
     () =>
@@ -129,6 +149,7 @@ export default function CyContractsMasterTab() {
   }, [load])
 
   const openCreate = () => {
+    setSaveError('')
     setForm({
       shippingLineId: lines[0]?.id ?? '',
       depotId: depots[0]?.id ?? '',
@@ -139,6 +160,7 @@ export default function CyContractsMasterTab() {
   }
 
   const openEdit = (contract: ShippingLineDepotContract) => {
+    setSaveError('')
     setSelected(contract)
     setForm({
       shippingLineId: contract.shippingLineId,
@@ -154,6 +176,7 @@ export default function CyContractsMasterTab() {
     const sizes = buildSizePayload(sizeForm)
     if (sizes.length === 0) return
     setSubmitting(true)
+    setSaveError('')
     try {
       if (dialog === 'create') {
         await shippingLineDepotContractApi.create({
@@ -169,6 +192,9 @@ export default function CyContractsMasterTab() {
       }
       setDialog(null)
       load()
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message : null
+      setSaveError(typeof msg === 'string' && msg.trim() ? msg : 'Failed to save CY contract.')
     } finally {
       setSubmitting(false)
     }
@@ -183,8 +209,9 @@ export default function CyContractsMasterTab() {
   return (
     <>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 720 }}>
-        Set maximum container counts per size for each shipping line and container yard. Sizes{' '}
-        <strong>40 / 45</strong> share one pool (one slot whether the container is 40 or 45).
+        Set maximum container slot counts per size for each shipping line and container yard. The shipping line CY
+        allocation page shows the same contract converted to TEU (40 / 45 = 2 TEU per slot). Sizes{' '}
+        <strong>40 / 45</strong> share one pool.
       </Typography>
       <Button
         variant="contained"
@@ -196,7 +223,7 @@ export default function CyContractsMasterTab() {
         Add CY contract
       </Button>
       {loading ? (
-        <CircularProgress sx={{ color: primaryDark }} />
+        <ListLoadingState rows={5} columns={4} showMobileCards={false} />
       ) : contracts.length === 0 ? (
         <Typography sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
           No CY contracts configured.
@@ -219,7 +246,7 @@ export default function CyContractsMasterTab() {
                     <Chip
                       key={size.containerSizeId}
                       size="small"
-                      label={`${getCapacityDisplayLabel(size.sizeLabel)}: ${size.contractCount}`}
+                      label={formatContractSizeLabel(size)}
                       sx={{ fontWeight: 600 }}
                     />
                   ))}
@@ -267,7 +294,7 @@ export default function CyContractsMasterTab() {
                           <Chip
                             key={size.containerSizeId}
                             size="small"
-                            label={`${getCapacityDisplayLabel(size.sizeLabel)}: ${size.contractCount}`}
+                            label={formatContractSizeLabel(size)}
                             sx={{ fontWeight: 600 }}
                           />
                         ))}
@@ -346,9 +373,17 @@ export default function CyContractsMasterTab() {
               </FormControl>
             </>
           ) : selected ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {selected.shippingLineName} · {selected.depotName}
-            </Typography>
+            <>
+              <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>
+                  {selected.shippingLineName} · {selected.depotName}
+                </Typography>
+                <Typography variant="body2">
+                  Only evaluators assigned to <strong>{selected.shippingLineName}</strong> will see these limits on CY
+                  allocation. Editing OPTIMUS does not change ASL (and vice versa).
+                </Typography>
+              </Alert>
+            </>
           ) : null}
 
           <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1, mb: 1 }}>
@@ -359,7 +394,7 @@ export default function CyContractsMasterTab() {
               <TextField
                 key={size.id}
                 fullWidth
-                label={`${getCapacityDisplayLabel(size.label)} (max containers)`}
+                label={`${getCapacityDisplayLabel(size.label)} max slots (${size.teu} TEU each)`}
                 type="number"
                 value={sizeForm[size.id] ?? ''}
                 onChange={(e) => {
@@ -369,14 +404,25 @@ export default function CyContractsMasterTab() {
                     [size.id]: raw === '' ? '' : Math.max(0, Number(raw)),
                   })
                 }}
+                helperText={
+                  sizeTeu(size, sizeForm[size.id] ?? '') > 0
+                    ? `= ${sizeTeu(size, sizeForm[size.id] ?? '')} TEU on CY allocation`
+                    : undefined
+                }
                 slotProps={{ htmlInput: { min: 0 } }}
                 sx={fieldSx}
               />
             ))}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Enter at least one size with a count of 1 or more. 40 / 45 use a single shared limit.
+            Enter at least one size with a slot count of 1 or more. Evaluators see these limits as TEU on CY allocation.
           </Typography>
+
+          {saveError && (
+            <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+              {saveError}
+            </Alert>
+          )}
 
           {dialog === 'edit' && (
             <FormControlLabel

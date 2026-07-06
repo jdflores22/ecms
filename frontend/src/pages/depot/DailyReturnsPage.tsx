@@ -1,9 +1,10 @@
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { ProgressBarSkeleton } from '../../components/layout/SkeletonPrimitives'
 import {
   Alert,
   Box,
   Button,
   Chip,
-  CircularProgress,
   FormControl,
   InputAdornment,
   InputLabel,
@@ -522,9 +523,7 @@ export default function DailyReturnsPage() {
         {capacityInfo && (
           <>
             {capacityLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
-                <CircularProgress size={24} sx={{ color: primaryDark }} />
-              </Box>
+              <ProgressBarSkeleton height={8} />
             ) : (
               <LinearProgress
                 variant="determinate"
@@ -623,9 +622,7 @@ export default function DailyReturnsPage() {
 
       <Paper elevation={0} sx={listTablePaperSx}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : filtered.length === 0 ? (
           <Box sx={{ py: 8, px: 3, textAlign: 'center' }}>
             <CalendarViewDayOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />

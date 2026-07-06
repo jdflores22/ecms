@@ -18,10 +18,23 @@ public class WithdrawalRequest : BaseEntity
     public string? Remarks { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public string? ReviewRemarks { get; set; }
+    public string? BookingNumber { get; set; }
+    public string? TruckingCompany { get; set; }
+    public string? PlateNumber { get; set; }
+    public string? DriverName { get; set; }
+    public int? RequestedDepotId { get; set; }
+    public int? AssignedDepotId { get; set; }
+    public DateTime? BookedAt { get; set; }
+    public DateTime? CyAssignedAt { get; set; }
+    public int? CyAssignedByUserId { get; set; }
 
     public User Trucker { get; set; } = null!;
     public ShippingLine ShippingLine { get; set; } = null!;
     public Depot CurrentDepot { get; set; } = null!;
+    public Depot? RequestedDepot { get; set; }
+    public Depot? AssignedDepot { get; set; }
+    public User? CyAssignedBy { get; set; }
+    public WithdrawalSchedule? PickupSchedule { get; set; }
     public ICollection<WithdrawalRequestLine> Lines { get; set; } = new List<WithdrawalRequestLine>();
     public ICollection<WithdrawalDocument> Documents { get; set; } = new List<WithdrawalDocument>();
 }

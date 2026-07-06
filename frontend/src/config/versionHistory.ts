@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.7.0'
+export const APP_VERSION = '1.9.1'
 
 export interface ReleaseNote {
   version: string
@@ -9,6 +9,43 @@ export interface ReleaseNote {
 
 /** Newest first. First entry should match APP_VERSION. */
 export const RELEASE_HISTORY: ReleaseNote[] = [
+  {
+    version: '1.9.1',
+    releasedOn: '2026-07-06',
+    title: 'Nav count badges and pre-forecast QR container-first display',
+    highlights: [
+      'Evaluator Evaluations menu: orange badge for pre-forecasts pending review (Submitted, Under evaluation, For compliance)',
+      'Trucker Demurrage menu: badge for billings with payment due, matching the Payments and withdrawals badges',
+      'Pre-forecast QR page: container number is the primary headline on cards, preview, and print pass',
+      'Pre-forecast reference and ICS QR reference moved to secondary labels for gate and yard processing',
+    ],
+  },
+  {
+    version: '1.9.0',
+    releasedOn: '2026-07-06',
+    title: 'CY release certificates, yard inventory release status, and shipping line inventory UX',
+    highlights: [
+      'Depot container release: auto-generate CY Container Release and ATW Release PDF certificates from admin templates',
+      'Admin certificate builder: new document types for CY Container Release and ATW Release with preview and activate',
+      'Release certificates on depot, evaluator, and trucker withdrawal detail pages (compact table under ATW certificate)',
+      'Shipping line CY inventory: Released yard status kept for audit trail when depot gate-outs containers on an ATW',
+      'Inventory page: at-yard vs released filters, release reference links to ATW, and shipping line scoped header',
+      'Yard capacity and summary counts exclude released containers; per-depot released counts in yard filter',
+      'ATW issue picker and bulk select only offer containers still at yard (released units ineligible)',
+    ],
+  },
+  {
+    version: '1.8.0',
+    releasedOn: '2026-07-06',
+    title: 'ATW certificate PDF generation and admin template builder',
+    highlights: [
+      'Issue ATW: official PDF certificate auto-generated from the shipping line active template',
+      'Admin certificate builder: per-line ATW layouts with canvas editor, image upload, and in-app PDF preview',
+      'Evaluator and trucker detail pages show system-generated certificates; issue-first flow needs no re-upload',
+      'Book-first trucker withdrawal flow unchanged (external ATW upload and OCR)',
+      'Certificate templates: activate one layout per shipping line; default layout when none is active',
+    ],
+  },
   {
     version: '1.7.0',
     releasedOn: '2026-07-02',

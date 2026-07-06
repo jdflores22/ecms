@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   IconButton,
   LinearProgress,
   Paper,
@@ -33,9 +32,14 @@ import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link as RouterLink, Navigate } from 'react-router-dom'
-import { heroMutedChipSx, heroPaperSx, hexToRgba } from '../../components/layout/DetailPagePrimitives'
+import {
+  heroMutedChipSx,
+  heroPaperSx,
+  hexToRgba,
+} from '../../components/layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
+  ListLoadingState,
   ListMobileCard,
   ListMobileChipRow,
   ListMobileMeta,
@@ -46,6 +50,7 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
+import { StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
 import {
   paymentApi,
   reportApi,
@@ -527,7 +532,10 @@ export default function AdminRevenuePage() {
         </Alert>
       )}
 
-      {report && (
+      {loading && !report ? (
+        <StatCardsSkeleton count={4} />
+      ) : (
+        report && (
         <Box
           sx={{
             display: 'grid',
@@ -576,6 +584,7 @@ export default function AdminRevenuePage() {
             }
           />
         </Box>
+        )
       )}
 
       {report && report.rows.length > 0 && maxRowAmount > 0 && (
@@ -622,9 +631,7 @@ export default function AdminRevenuePage() {
         </Box>
 
         {loading && !report ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState rows={6} columns={5} showMobileCards />
         ) : report && report.rows.length > 0 ? (
           <>
             <ListMobileOnly>

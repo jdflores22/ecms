@@ -1,18 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
@@ -48,10 +35,14 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
   Released: 'success',
   Completed: 'success',
   Cancelled: 'default',
+  Booked: 'warning',
+  CyAssigned: 'info',
+  Scheduled: 'info',
 }
 
 const statusLabel: Record<string, string> = {
   UnderReview: 'Under review',
+  CyAssigned: 'CY assigned',
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -90,7 +81,8 @@ export default function TruckerWithdrawalsPage() {
     const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
     if (widget === 'expiring48') {
       return items.filter((w) => {
-        if (!['Draft', 'Issued', 'Submitted', 'UnderReview', 'Approved'].includes(w.status)) return false
+        if (!['Draft', 'Issued', 'CyAssigned', 'Submitted', 'UnderReview', 'Approved'].includes(w.status)) return false
+        if (w.status === 'CyAssigned' && w.bookedAt) return false
         const exp = new Date(`${w.expirationDate}T23:59:59`)
         return exp >= now && exp <= in48h
       })
@@ -121,7 +113,9 @@ export default function TruckerWithdrawalsPage() {
   const summary = useMemo(
     () => ({
       total: items.length,
-      draft: items.filter((w) => w.status === 'Draft' || w.status === 'Issued').length,
+      awaiting: items.filter((w) => ['Booked', 'CyAssigned'].includes(w.status)).length,
+      scheduled: items.filter((w) => w.status === 'Scheduled').length,
+      draft: items.filter((w) => w.status === 'Draft' || w.status === 'Issued' || (w.status === 'CyAssigned' && !w.bookedAt)).length,
       pending: items.filter((w) => ['Submitted', 'UnderReview'].includes(w.status)).length,
       approved: items.filter((w) => ['Approved', 'Released', 'Completed'].includes(w.status)).length,
     }),
@@ -192,19 +186,40 @@ export default function TruckerWithdrawalsPage() {
                 My withdrawals
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-                Submit Authority to Withdraw (ATW) requests for container repositioning.
+                Book ICS for export or repositioning. Shipping line assigns CY; depot sets pick-up day.
               </Typography>
             </Box>
           </Box>
-          <Button
-            component={RouterLink}
-            to="/trucker/withdrawals/new"
-            variant="contained"
-            startIcon={<AddIcon />}
-            sx={{ ...listHeroActionSx, px: 2.5 }}
-          >
-            New withdrawal
-          </Button>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            <Button
+              component={RouterLink}
+              to="/trucker/withdrawals/schedule"
+              variant="outlined"
+              sx={{
+                flexShrink: 0,
+                width: { xs: '100%', sm: 'auto' },
+                fontWeight: 700,
+                color: '#fff',
+                borderColor: 'rgba(255,255,255,0.55)',
+                bgcolor: 'transparent',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.14)',
+                  borderColor: '#fff',
+                },
+              }}
+            >
+              Pick-up schedule
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/trucker/withdrawals/new"
+              variant="contained"
+              startIcon={<AddIcon />}
+              sx={{ ...listHeroActionSx, px: 2.5 }}
+            >
+              Book ICS
+            </Button>
+          </Box>
         </Box>
       </Paper>
 
@@ -217,8 +232,8 @@ export default function TruckerWithdrawalsPage() {
         }}
       >
         <SummaryCard label="Total requests" value={summary.total} color={primaryDark} />
-        <SummaryCard label="Draft / issued" value={summary.draft} color="#ed6c02" />
-        <SummaryCard label="Awaiting CY review" value={summary.pending} color="#6a1b9a" />
+        <SummaryCard label="Awaiting CY / schedule" value={summary.awaiting} color="#ed6c02" />
+        <SummaryCard label="Pick-up scheduled" value={summary.scheduled} color="#0288d1" />
         <SummaryCard label="Approved / released" value={summary.approved} color="#2e7d32" />
       </Box>
 
@@ -242,9 +257,7 @@ export default function TruckerWithdrawalsPage() {
       )}
 
       {loading ? (
-        <Paper elevation={0} sx={{ py: 8, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Paper>
+        <ListLoadingState />
       ) : filteredItems.length === 0 ? (
         <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
           <Typography color="text.secondary" sx={{ mb: 2 }}>

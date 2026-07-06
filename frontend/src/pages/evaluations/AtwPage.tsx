@@ -1,18 +1,5 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -45,10 +32,38 @@ const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 
   Released: 'success',
   Completed: 'success',
   Cancelled: 'default',
+  Booked: 'warning',
+  CyAssigned: 'info',
+  Scheduled: 'info',
 }
 
 function statusLabel(status: string) {
-  return status === 'UnderReview' ? 'Under review' : status
+  if (status === 'UnderReview') return 'Under review'
+  if (status === 'CyAssigned') return 'CY assigned'
+  return status
+}
+
+function getReleaseProgress(item: Withdrawal) {
+  const released = item.lines.filter((line) => line.lineStatus === 'Released').length
+  if (released === 0) return null
+  return {
+    released,
+    total: item.containerCount,
+    complete: released >= item.containerCount,
+  }
+}
+
+function ReleaseProgressBadge({ item }: { item: Withdrawal }) {
+  const progress = getReleaseProgress(item)
+  if (!progress) return null
+  return (
+    <Chip
+      size="small"
+      label={`${progress.released}/${progress.total} released`}
+      color={progress.complete ? 'success' : 'info'}
+      sx={{ fontWeight: 600 }}
+    />
+  )
 }
 
 export default function EvaluatorAtwPage() {
@@ -56,15 +71,19 @@ export default function EvaluatorAtwPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAppSelector((s) => s.auth.user)
   const [items, setItems] = useState<Withdrawal[]>([])
+  const [awaitingCy, setAwaitingCy] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const tab = searchParams.get('tab') === 'awaiting-cy' ? 'awaiting-cy' : 'all'
   const widget = searchParams.get('widget')
+  const listItems = tab === 'awaiting-cy' ? awaitingCy : items
   const filteredItems = useMemo(() => {
     const now = new Date()
     const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
     if (widget === 'expiring48') {
       return items.filter((w) => {
-        if (!['Issued', 'Submitted', 'UnderReview', 'Approved'].includes(w.status)) return false
+        if (!['Issued', 'CyAssigned', 'Submitted', 'UnderReview', 'Approved'].includes(w.status)) return false
+        if (w.status === 'CyAssigned' && w.bookedAt) return false
         const exp = new Date(`${w.expirationDate}T23:59:59`)
         return exp >= now && exp <= in48h
       })
@@ -74,17 +93,19 @@ export default function EvaluatorAtwPage() {
       return items.filter((w) => ['Submitted', 'UnderReview'].includes(w.status) && !!w.submittedAt && new Date(w.submittedAt) <= cutoff)
     }
     if (widget === 'rejectedReasons') return items.filter((w) => w.status === 'Rejected')
-    if (widget === 'turnaround') return items.filter((w) => ['Approved', 'Rejected', 'Released', 'Completed'].includes(w.status))
-    return items
-  }, [items, widget])
+    if (widget === 'turnaround') return listItems.filter((w) => ['Approved', 'Rejected', 'Released', 'Completed'].includes(w.status))
+    return listItems
+  }, [listItems, widget])
 
   const load = useCallback(() => {
     setLoading(true)
     setError('')
-    withdrawalApi
-      .list()
-      .then(({ data }) => setItems(data))
-      .catch(() => setError('Failed to load issued ATW records.'))
+    Promise.all([withdrawalApi.list(), withdrawalApi.awaitingCy()])
+      .then(([all, cy]) => {
+        setItems(all.data)
+        setAwaitingCy(cy.data)
+      })
+      .catch(() => setError('Failed to load ATW records.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -94,11 +115,12 @@ export default function EvaluatorAtwPage() {
 
   const summary = useMemo(
     () => ({
-      issued: items.filter((i) => i.status === 'Issued').length,
+      awaitingCy: awaitingCy.length,
+      issued: items.filter((i) => i.status === 'Issued' || (i.status === 'CyAssigned' && !i.bookedAt)).length,
       pending: items.filter((i) => ['Submitted', 'UnderReview'].includes(i.status)).length,
       approved: items.filter((i) => ['Approved', 'Released', 'Completed'].includes(i.status)).length,
     }),
-    [items],
+    [items, awaitingCy],
   )
 
   if (user?.role !== 'ShippingLineEvaluator') {
@@ -132,10 +154,10 @@ export default function EvaluatorAtwPage() {
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              Issue ATW
+              ATW &amp; ICS bookings
             </Typography>
             <Typography sx={{ opacity: 0.9, mt: 0.5 }}>
-              Issue Authority to Withdraw for authorized truckers at your shipping line.
+              Assign CY to trucker bookings, or issue ATW for the legacy flow.
             </Typography>
           </Box>
           <Button
@@ -150,7 +172,15 @@ export default function EvaluatorAtwPage() {
         </Box>
       </Paper>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+            Awaiting CY
+          </Typography>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: '#ED6C02', mt: 0.5 }}>
+            {summary.awaitingCy}
+          </Typography>
+        </Paper>
         <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
             Awaiting trucker
@@ -177,6 +207,15 @@ export default function EvaluatorAtwPage() {
         </Paper>
       </Box>
 
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setSearchParams(v === 'all' ? {} : { tab: v })}
+        sx={{ mb: 2 }}
+      >
+        <Tab value="awaiting-cy" label={`Awaiting CY (${summary.awaitingCy})`} />
+        <Tab value="all" label="All records" />
+      </Tabs>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {error}
@@ -196,9 +235,7 @@ export default function EvaluatorAtwPage() {
       )}
 
       {loading ? (
-        <Paper elevation={0} sx={{ py: 8, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <CircularProgress sx={{ color: primaryDark }} />
-        </Paper>
+        <ListLoadingState />
       ) : filteredItems.length === 0 ? (
         <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
@@ -215,7 +252,7 @@ export default function EvaluatorAtwPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Reference</TableCell>
+                    <TableCell>Booking</TableCell>
                     <TableCell>ATW</TableCell>
                     <TableCell>Trucker</TableCell>
                     <TableCell>Containers</TableCell>
@@ -226,8 +263,18 @@ export default function EvaluatorAtwPage() {
                 </TableHead>
                 <TableBody>
                   {filteredItems.map((row) => (
-                    <TableRow key={row.id} hover>
-                      <TableCell sx={{ fontWeight: 600 }}>{row.referenceNo}</TableCell>
+                    <TableRow
+                      key={row.id}
+                      hover
+                      sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}
+                      onClick={() => navigate(`/evaluations/atw/${row.id}${tab === 'awaiting-cy' ? '?tab=awaiting-cy' : ''}`)}
+                    >
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {row.bookingNumber ?? row.referenceNo}
+                        <Typography variant="caption" sx={{ display: 'block' }} color="text.secondary">
+                          {row.referenceNo}
+                        </Typography>
+                      </TableCell>
                       <TableCell>{row.atwNumber}</TableCell>
                       <TableCell>{row.truckerName}</TableCell>
                       <TableCell>
@@ -238,16 +285,29 @@ export default function EvaluatorAtwPage() {
                       </TableCell>
                       <TableCell>{row.currentDepotName}</TableCell>
                       <TableCell>
-                        <Chip label={statusLabel(row.status)} size="small" color={statusColor[row.status] ?? 'default'} />
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                          <Chip label={statusLabel(row.status)} size="small" color={statusColor[row.status] ?? 'default'} />
+                          <ReleaseProgressBadge item={row} />
+                        </Box>
                       </TableCell>
-                      <TableCell align="right">
-                        <Button
-                          size="small"
-                          endIcon={<OpenInNewIcon />}
-                          onClick={() => navigate(`/evaluations/atw/${row.id}`)}
-                        >
-                          View
-                        </Button>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        {row.status === 'Booked' ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => navigate(`/evaluations/atw/${row.id}?tab=awaiting-cy`)}
+                          >
+                            Review &amp; assign
+                          </Button>
+                        ) : (
+                          <Button
+                            size="small"
+                            endIcon={<OpenInNewIcon />}
+                            onClick={() => navigate(`/evaluations/atw/${row.id}${tab === 'awaiting-cy' ? '?tab=awaiting-cy' : ''}`)}
+                          >
+                            View
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -258,13 +318,17 @@ export default function EvaluatorAtwPage() {
 
           <ListMobileOnly>
             {filteredItems.map((row) => (
-              <ListMobileCard key={row.id} onClick={() => navigate(`/evaluations/atw/${row.id}`)}>
+              <ListMobileCard
+                key={row.id}
+                onClick={() => navigate(`/evaluations/atw/${row.id}${tab === 'awaiting-cy' ? '?tab=awaiting-cy' : ''}`)}
+              >
                 <ListMobileTitle>{row.referenceNo}</ListMobileTitle>
                 <ListMobileMeta>ATW {row.atwNumber} · {row.truckerName}</ListMobileMeta>
                 <ListMobileMeta>{row.containerCount} container{row.containerCount === 1 ? '' : 's'} · {row.containerSummary}</ListMobileMeta>
                 <ListMobileMeta>{row.currentDepotName}</ListMobileMeta>
                 <ListMobileChipRow>
                   <Chip label={statusLabel(row.status)} size="small" color={statusColor[row.status] ?? 'default'} />
+                  <ReleaseProgressBadge item={row} />
                 </ListMobileChipRow>
               </ListMobileCard>
             ))}

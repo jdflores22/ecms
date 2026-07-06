@@ -52,6 +52,43 @@ namespace ECMS.Persistence.Migrations
                     b.ToTable("AuditLogsSet");
                 });
 
+            modelBuilder.Entity("ECMS.Domain.Entities.CertificateTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LayoutJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<int>("ShippingLineId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShippingLineId", "DocumentType", "IsActive");
+
+                    b.ToTable("CertificateTemplatesSet");
+                });
+
             modelBuilder.Entity("ECMS.Domain.Entities.Container", b =>
                 {
                     b.Property<int>("Id")
@@ -405,6 +442,10 @@ namespace ECMS.Persistence.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("ProofReferenceNo")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("ProofPaymentId")
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
 
@@ -878,6 +919,17 @@ namespace ECMS.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.CertificateTemplate", b =>
+                {
+                    b.HasOne("ECMS.Domain.Entities.ShippingLine", "ShippingLine")
+                        .WithMany()
+                        .HasForeignKey("ShippingLineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShippingLine");
                 });
 
             modelBuilder.Entity("ECMS.Domain.Entities.Container", b =>

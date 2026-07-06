@@ -6,6 +6,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import ReportFiltersBar from '../../components/reports/ReportFiltersBar'
 import ReportStatusSummary from '../../components/reports/ReportStatusSummary'
 import ReportStatusTable from '../../components/reports/ReportStatusTable'
+import { StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
 import { heroMutedChipSx, heroPaperSx } from '../../components/layout/DetailPagePrimitives'
 import { listHeroActionSx, listPageRootSx } from '../../components/layout/ListPagePrimitives'
 import {
@@ -347,8 +348,12 @@ export default function RoleReportsPage() {
         onRefresh={load}
       />
 
-      {!loading && tableRows.length > 0 && (
-        <ReportStatusSummary periodLabel={periodLabel} rows={tableRows} />
+      {loading ? (
+        <Box sx={{ mb: 2.5 }}>
+          <StatCardsSkeleton count={4} />
+        </Box>
+      ) : (
+        tableRows.length > 0 && <ReportStatusSummary periodLabel={periodLabel} rows={tableRows} />
       )}
 
       <ReportStatusTable

@@ -1,22 +1,6 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  Tabs,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
+import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import DownloadIcon from '@mui/icons-material/Download'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
@@ -454,13 +438,17 @@ export default function AdminTransactionReportsPage() {
             </Alert>
           )}
 
-          {txReport && !txLoading && (
-            <TransactionSummaryCards
-              paidCount={txReport.paidCount}
-              paidAmount={txReport.paidAmount}
-              pendingCount={txReport.pendingCount}
-              rejectedCount={txReport.rejectedCount}
-            />
+          {txLoading ? (
+            <StatCardsSkeleton count={4} />
+          ) : (
+            txReport && (
+              <TransactionSummaryCards
+                paidCount={txReport.paidCount}
+                paidAmount={txReport.paidAmount}
+                pendingCount={txReport.pendingCount}
+                rejectedCount={txReport.rejectedCount}
+              />
+            )
           )}
 
           <Paper
@@ -498,9 +486,7 @@ export default function AdminTransactionReportsPage() {
             </Box>
 
             {txLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress sx={{ color: primaryDark }} />
-              </Box>
+              <ListLoadingState rows={6} />
             ) : txReport && txReport.total > 0 ? (
               <>
                 <ListDesktopOnly>
@@ -640,13 +626,17 @@ export default function AdminTransactionReportsPage() {
             </Alert>
           )}
 
-          {shippingOverview && !shippingLoading && (
-            <TransactionSummaryCards
-              paidCount={shippingOverview.paidCount}
-              paidAmount={shippingOverview.paidAmount}
-              pendingCount={shippingOverview.pendingCount}
-              rejectedCount={shippingOverview.rejectedCount}
-            />
+          {shippingLoading ? (
+            <StatCardsSkeleton count={4} />
+          ) : (
+            shippingOverview && (
+              <TransactionSummaryCards
+                paidCount={shippingOverview.paidCount}
+                paidAmount={shippingOverview.paidAmount}
+                pendingCount={shippingOverview.pendingCount}
+                rejectedCount={shippingOverview.rejectedCount}
+              />
+            )
           )}
 
           <Paper
@@ -685,9 +675,7 @@ export default function AdminTransactionReportsPage() {
             </Box>
 
             {shippingLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress sx={{ color: primaryDark }} />
-              </Box>
+              <ListLoadingState rows={6} />
             ) : shippingOverview && shippingOverview.rows.length > 0 ? (
               <>
                 <ListMobileOnly>
@@ -805,13 +793,17 @@ export default function AdminTransactionReportsPage() {
             </Alert>
           )}
 
-          {depotOverview && !depotLoading && (
-            <TransactionSummaryCards
-              paidCount={depotOverview.paidCount}
-              paidAmount={depotOverview.paidAmount}
-              pendingCount={depotOverview.pendingCount}
-              rejectedCount={depotOverview.rejectedCount}
-            />
+          {depotLoading ? (
+            <StatCardsSkeleton count={4} />
+          ) : (
+            depotOverview && (
+              <TransactionSummaryCards
+                paidCount={depotOverview.paidCount}
+                paidAmount={depotOverview.paidAmount}
+                pendingCount={depotOverview.pendingCount}
+                rejectedCount={depotOverview.rejectedCount}
+              />
+            )
           )}
 
           <Paper
@@ -850,9 +842,7 @@ export default function AdminTransactionReportsPage() {
             </Box>
 
             {depotLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress sx={{ color: primaryDark }} />
-              </Box>
+              <ListLoadingState rows={6} />
             ) : depotOverview && depotOverview.rows.length > 0 ? (
               <>
                 <ListMobileOnly>

@@ -37,7 +37,8 @@ private fun withdrawalStepIndex(status: String): Int {
 @Composable
 fun WithdrawalStatusTimeline(
     status: String,
-    issuedByShippingLine: Boolean = status.equals("Issued", true),
+    issuedByShippingLine: Boolean = status.equals("Issued", true) ||
+        (status.equals("CyAssigned", true)),
     modifier: Modifier = Modifier,
 ) {
     val current = withdrawalStepIndex(status)

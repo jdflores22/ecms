@@ -116,7 +116,13 @@ class TruckerRepository(
     suspend fun getMyPayments() = api.getMyPayments()
 
     suspend fun getPaymentSettings() = api.getPaymentSettings()
-    suspend fun getPaymentBySchedule(scheduleId: Int) = api.getPaymentBySchedule(scheduleId)
+    suspend fun getPaymentBySchedule(scheduleId: Int): PaymentDto? = runCatching {
+        api.getPaymentBySchedule(scheduleId)
+    }.getOrNull()
+
+    suspend fun getPreAdviceOrNull(id: Int): PreAdviceDto? = runCatching {
+        api.getPreAdvice(id)
+    }.getOrNull()
 
     suspend fun uploadPaymentProof(
         scheduleId: Int,

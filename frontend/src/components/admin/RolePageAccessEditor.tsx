@@ -1,11 +1,4 @@
-import {
-  Box,
-  Checkbox,
-  FormControlLabel,
-  FormGroup,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { Box, Checkbox, FormControlLabel, FormGroup, Paper, Typography } from '@mui/material'
 import {
   APP_PAGES,
   REQUIRED_PAGE_KEYS,

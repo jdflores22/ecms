@@ -1,11 +1,4 @@
-import {
-  Box,
-  Button,
-  Chip,
-  LinearProgress,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { Box, Button, Chip, LinearProgress, Paper, Typography } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { Link as RouterLink } from 'react-router-dom'

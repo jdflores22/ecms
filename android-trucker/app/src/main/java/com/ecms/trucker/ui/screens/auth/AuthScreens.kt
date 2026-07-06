@@ -1,46 +1,19 @@
 package com.ecms.trucker.ui.screens.auth
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ecms.trucker.R
 import com.ecms.trucker.data.repository.AuthRepository
 import com.ecms.trucker.ui.components.IcsAuthCard
 import com.ecms.trucker.ui.components.IcsAuthScreenLayout
+import com.ecms.trucker.ui.components.IcsOutlinedField
 import com.ecms.trucker.ui.components.IcsPrimaryButton
 import com.ecms.trucker.ui.theme.IcsColors
-
-@Composable
-private fun IcsOutlinedField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    password: Boolean = false,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = modifier.fillMaxWidth(),
-        singleLine = true,
-        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = if (password) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
-        shape = MaterialTheme.shapes.medium,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = IcsColors.Primary,
-            focusedLabelColor = IcsColors.Primary,
-            cursorColor = IcsColors.Primary,
-        ),
-    )
-}
 
 @Composable
 fun LoginScreen(

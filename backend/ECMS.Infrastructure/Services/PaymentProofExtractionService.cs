@@ -22,19 +22,19 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
         _logger = logger;
     }
 
-    public async Task<(string? ReferenceNo, string? QrphInvoiceNo, DateTime? TransactionAt, string? Provider)> ExtractFromImageAsync(
+    public async Task<(string? ReferenceNo, string? PaymentId, string? QrphInvoiceNo, DateTime? TransactionAt, string? Provider)> ExtractFromImageAsync(
         string absoluteFilePath,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(absoluteFilePath))
         {
             _logger.LogWarning("Payment proof file not found: {FilePath}", absoluteFilePath);
-            return (null, null, null, null);
+            return (null, null, null, null, null);
         }
 
         var extension = Path.GetExtension(absoluteFilePath);
         if (!ImageExtensions.Contains(extension) && !extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-            return (null, null, null, null);
+            return (null, null, null, null, null);
 
         try
         {
@@ -53,7 +53,7 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
             if (passes.Count == 0)
             {
                 _logger.LogWarning("Payment proof OCR returned no text for {FilePath}", absoluteFilePath);
-                return (null, null, null, null);
+                return (null, null, null, null, null);
             }
 
             _logger.LogInformation(
@@ -62,15 +62,15 @@ public class PaymentProofExtractionService : IPaymentProofExtractionService
                 absoluteFilePath);
 
             var parsed = PaymentProofTextParser.ParseTexts(passes);
-            if (parsed.ReferenceNo is null && parsed.QrphInvoiceNo is null && parsed.TransactionAt is null && parsed.Provider is null)
+            if (parsed.ReferenceNo is null && parsed.PaymentId is null && parsed.QrphInvoiceNo is null && parsed.TransactionAt is null && parsed.Provider is null)
                 _logger.LogInformation("Payment proof OCR text had no parseable metadata for {FilePath}", absoluteFilePath);
 
-            return (parsed.ReferenceNo, parsed.QrphInvoiceNo, parsed.TransactionAt, parsed.Provider);
+            return (parsed.ReferenceNo, parsed.PaymentId, parsed.QrphInvoiceNo, parsed.TransactionAt, parsed.Provider);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Payment proof OCR failed for {FilePath}", absoluteFilePath);
-            return (null, null, null, null);
+            return (null, null, null, null, null);
         }
     }
 

@@ -6,6 +6,7 @@ export function mergeProofMetadataPasses(
 ): PaymentProofMetadata {
   const merged: PaymentProofMetadata = {
     referenceNo: null,
+    paymentId: null,
     qrphInvoiceNo: null,
     transactionAt: null,
     provider: null,
@@ -14,6 +15,7 @@ export function mergeProofMetadataPasses(
   for (const layer of layers) {
     if (!layer) continue
     if (!merged.referenceNo && layer.referenceNo) merged.referenceNo = layer.referenceNo
+    if (!merged.paymentId && layer.paymentId) merged.paymentId = layer.paymentId
     if (!merged.qrphInvoiceNo && layer.qrphInvoiceNo) merged.qrphInvoiceNo = layer.qrphInvoiceNo
     if (!merged.transactionAt && layer.transactionAt) merged.transactionAt = layer.transactionAt
     if (!merged.provider && layer.provider && layer.provider !== 'unknown') {

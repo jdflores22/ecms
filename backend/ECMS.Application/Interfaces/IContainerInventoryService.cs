@@ -10,6 +10,7 @@ public interface IContainerInventoryService
         int? depotId,
         int? shippingLineId,
         string? complianceStatus,
+        string? yardStatus,
         CancellationToken cancellationToken = default);
 
     Task<ManualYardInventoryEntryDto> CreateManualEntryAsync(
@@ -28,5 +29,17 @@ public interface IContainerInventoryService
         int id,
         int userId,
         string role,
+        CancellationToken cancellationToken = default);
+
+    Task ApplyYardReleaseAsync(
+        int shippingLineId,
+        int depotId,
+        string containerNoNormalized,
+        int containerSizeId,
+        int containerTypeId,
+        int withdrawalRequestId,
+        int withdrawalLineId,
+        string withdrawalReferenceNo,
+        int userId,
         CancellationToken cancellationToken = default);
 }

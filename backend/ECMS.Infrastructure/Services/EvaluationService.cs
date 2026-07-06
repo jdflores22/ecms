@@ -42,6 +42,26 @@ public class EvaluationService : IEvaluationService
         return items.Select(MapToDto).ToList();
     }
 
+    public async Task<int> GetPendingCountAsync(int userId, string role, CancellationToken cancellationToken = default)
+    {
+        if (role != RoleNames.ShippingLineEvaluator)
+            return 0;
+
+        var shippingLineId = await _db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.ShippingLineId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!shippingLineId.HasValue)
+            return 0;
+
+        return await _db.PreAdvices.CountAsync(
+            p => p.ShippingLineId == shippingLineId.Value
+                && (p.Status == PreAdviceStatus.Submitted
+                    || p.Status == PreAdviceStatus.UnderEvaluation
+                    || p.Status == PreAdviceStatus.ForCompliance),
+            cancellationToken);
+    }
+
     public async Task<bool> CanAccessPreAdviceAsync(
         int preAdviceId,
         int userId,

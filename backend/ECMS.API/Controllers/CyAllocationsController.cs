@@ -45,20 +45,4 @@ public class CyAllocationsController : ControllerBase
         var item = await _service.GetForApprovalAsync(preAdviceId, UserId, Role, cancellationToken);
         return item is null ? NotFound() : Ok(item);
     }
-
-    [HttpPut("contracts/{contractId:int}")]
-    public async Task<ActionResult<CyAllocationDto>> UpdateContract(
-        int contractId,
-        [FromBody] UpdateShippingLineDepotContractRequest request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _service.UpdateContractAsync(contractId, request, UserId, Role, cancellationToken));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
 }

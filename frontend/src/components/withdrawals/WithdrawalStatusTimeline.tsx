@@ -1,7 +1,15 @@
 import { Box, Chip, Typography } from '@mui/material'
 import { ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 
-const steps = [
+const bookFirstSteps = [
+  { key: 'Booked', label: 'Booked' },
+  { key: 'CyAssigned', label: 'CY assigned' },
+  { key: 'Scheduled', label: 'Scheduled' },
+  { key: 'Approved', label: 'Approved' },
+  { key: 'Released', label: 'Released' },
+] as const
+
+const legacySteps = [
   { key: 'Draft', label: 'Draft' },
   { key: 'Issued', label: 'Issued' },
   { key: 'Submitted', label: 'Submitted' },
@@ -10,9 +18,10 @@ const steps = [
   { key: 'Released', label: 'Released' },
 ] as const
 
-function stepIndex(status: string): number {
-  if (status === 'Completed') return steps.length
+function stepIndex(status: string, bookFirst: boolean): number {
+  if (status === 'Completed') return bookFirst ? bookFirstSteps.length : legacySteps.length
   if (status === 'Rejected' || status === 'Cancelled') return -1
+  const steps = bookFirst ? bookFirstSteps : legacySteps
   const idx = steps.findIndex((s) => s.key === status)
   return idx >= 0 ? idx : 0
 }
@@ -20,10 +29,16 @@ function stepIndex(status: string): number {
 interface WithdrawalStatusTimelineProps {
   status: string
   issuedByShippingLine?: boolean
+  bookFirst?: boolean
 }
 
-export default function WithdrawalStatusTimeline({ status, issuedByShippingLine }: WithdrawalStatusTimelineProps) {
-  const current = stepIndex(status)
+export default function WithdrawalStatusTimeline({
+  status,
+  issuedByShippingLine,
+  bookFirst = false,
+}: WithdrawalStatusTimelineProps) {
+  const steps = bookFirst ? bookFirstSteps : legacySteps
+  const current = stepIndex(status, bookFirst)
   const terminal = status === 'Rejected' || status === 'Cancelled'
 
   return (

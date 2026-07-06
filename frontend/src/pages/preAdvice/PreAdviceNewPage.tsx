@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
@@ -176,9 +177,7 @@ export default function PreAdviceNewPage() {
           </Box>
 
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-              <CircularProgress sx={{ color: primaryDark }} />
-            </Box>
+            <FormWizardSkeleton />
           ) : lookups ? (
             <PreAdviceForm
               lookups={lookups}

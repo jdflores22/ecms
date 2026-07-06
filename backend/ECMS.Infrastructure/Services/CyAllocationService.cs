@@ -248,18 +248,24 @@ public class CyAllocationService : ICyAllocationService
         var teuByLabel = await GetTeuByLabelAsync(cancellationToken);
         var catalogSizes = await GetActiveSizesAsync(cancellationToken);
         var catalogTypes = await GetActiveTypesAsync(cancellationToken);
-        var preAdvisedByDepot = await GetPreAdvisedUsageByDepotAsync(shippingLineId, depotIds, teuByLabel, cancellationToken);
+        var releasedDetails = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(_db, shippingLineId, cancellationToken);
+        var preAdvisedByDepot = await GetPreAdvisedUsageByDepotAsync(
+            shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
+        var manualByDepot = await GetManualYardUsageByDepotAsync(
+            shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
         var bookingByDepot = await GetBookingUsageByDepotAsync(shippingLineId, depotIds, teuByLabel, cancellationToken);
 
         return contracts.Select(contract =>
         {
-            var preAdvised = preAdvisedByDepot.GetValueOrDefault(contract.DepotId);
+            var yardUsage = MergeDepotUsage(
+                preAdvisedByDepot.GetValueOrDefault(contract.DepotId),
+                manualByDepot.GetValueOrDefault(contract.DepotId));
             var booking = bookingByDepot.GetValueOrDefault(contract.DepotId);
-            var breakdown = BuildBreakdown(contract, preAdvised, booking, catalogSizes, catalogTypes);
+            var breakdown = BuildBreakdown(contract, yardUsage, booking, catalogSizes, catalogTypes);
 
-            var preAdvisedTeu = preAdvised?.UsedTeu ?? 0m;
+            var preAdvisedTeu = yardUsage?.UsedTeu ?? 0m;
             var bookingTeu = booking?.UsedTeu ?? 0m;
-            var preAdvisedCount = preAdvised?.Count ?? 0;
+            var preAdvisedCount = yardUsage?.Count ?? 0;
             var bookingCount = booking?.Count ?? 0;
             var contractTeu = contract.ContractTeu;
             var availableTeu = Math.Max(0m, contractTeu - preAdvisedTeu);
@@ -402,6 +408,7 @@ public class CyAllocationService : ICyAllocationService
         int shippingLineId,
         IReadOnlyList<int> depotIds,
         IReadOnlyDictionary<string, decimal> teuByLabel,
+        IReadOnlyDictionary<string, ReleasedYardDetail> releasedDetails,
         CancellationToken cancellationToken)
     {
         var preAdvices = await _db.PreAdvices
@@ -423,10 +430,76 @@ public class CyAllocationService : ICyAllocationService
             if (!depotId.HasValue)
                 continue;
 
+            var releaseKey = YardInventoryReleaseHelper.BuildKey(
+                depotId.Value,
+                preAdvice.ContainerNoNormalized,
+                preAdvice.ContainerSizeId,
+                preAdvice.ContainerTypeId);
+            if (releasedDetails.ContainsKey(releaseKey))
+                continue;
+
             AddUsage(result, depotId.Value, preAdvice.Container.Size, preAdvice.Container.Type, teuByLabel);
         }
 
         return result;
+    }
+
+    private async Task<Dictionary<int, DepotUsage>> GetManualYardUsageByDepotAsync(
+        int shippingLineId,
+        IReadOnlyList<int> depotIds,
+        IReadOnlyDictionary<string, decimal> teuByLabel,
+        IReadOnlyDictionary<string, ReleasedYardDetail> releasedDetails,
+        CancellationToken cancellationToken)
+    {
+        var entries = await _db.ManualYardInventoryEntries
+            .Include(e => e.ContainerSize)
+            .Include(e => e.ContainerType)
+            .Where(e => e.ShippingLineId == shippingLineId && depotIds.Contains(e.DepotId))
+            .Where(e => e.YardStatus == YardInventoryStatus.AtYard)
+            .ToListAsync(cancellationToken);
+
+        var result = new Dictionary<int, DepotUsage>();
+        foreach (var entry in entries)
+        {
+            var releaseKey = YardInventoryReleaseHelper.BuildKey(
+                entry.DepotId,
+                entry.ContainerNo,
+                entry.ContainerSizeId,
+                entry.ContainerTypeId);
+            if (releasedDetails.ContainsKey(releaseKey))
+                continue;
+
+            AddUsage(result, entry.DepotId, entry.ContainerSize.Label, entry.ContainerType.Code, teuByLabel);
+        }
+
+        return result;
+    }
+
+    private static DepotUsage? MergeDepotUsage(DepotUsage? primary, DepotUsage? secondary)
+    {
+        if (primary is null)
+            return secondary;
+        if (secondary is null)
+            return primary;
+
+        var merged = new DepotUsage
+        {
+            UsedTeu = primary.UsedTeu + secondary.UsedTeu,
+            Count = primary.Count + secondary.Count,
+        };
+
+        foreach (var (key, value) in primary.Cells)
+            merged.Cells[key] = value;
+
+        foreach (var (key, value) in secondary.Cells)
+        {
+            if (merged.Cells.TryGetValue(key, out var existing))
+                merged.Cells[key] = (existing.Count + value.Count, existing.UsedTeu + value.UsedTeu);
+            else
+                merged.Cells[key] = value;
+        }
+
+        return merged;
     }
 
     private Task<Dictionary<int, DepotUsage>> GetBookingUsageByDepotAsync(

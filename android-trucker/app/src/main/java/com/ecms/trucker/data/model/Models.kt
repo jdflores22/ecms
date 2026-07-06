@@ -193,6 +193,7 @@ data class ScheduleDto(
     val status: String,
     val truckerId: Int? = null,
     val truckerName: String? = null,
+    val depotRemarks: String? = null,
 )
 
 @Serializable
@@ -204,7 +205,10 @@ data class PaymentDto(
     val amount: Double,
     val proofFile: String? = null,
     val proofReferenceNo: String? = null,
+    val proofPaymentId: String? = null,
+    val proofQrphInvoiceNo: String? = null,
     val proofTransactionAt: String? = null,
+    val proofProvider: String? = null,
     val status: String,
     val paidAt: String? = null,
 )
@@ -272,6 +276,11 @@ data class WithdrawalDto(
     val containerCount: Int = 0,
     val containerSummary: String = "",
     val lines: List<WithdrawalLineDto> = emptyList(),
+    val bookingNumber: String? = null,
+    val bookedAt: String? = null,
+    val assignedDepotId: Int? = null,
+    val assignedDepotName: String? = null,
+    val cyAssignedAt: String? = null,
 )
 
 @Serializable

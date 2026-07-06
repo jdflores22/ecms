@@ -1,29 +1,4 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  LinearProgress,
-  MenuItem,
-  Paper,
-  Select,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Chip, FormControl, IconButton, InputAdornment, InputLabel, LinearProgress, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Tooltip, Typography } from '@mui/material'
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
@@ -51,10 +26,12 @@ import {
   type ContainerDwellCompliance,
   type ContainerInventoryItem,
   type ContainerInventoryResponse,
+  type ContainerYardStatus,
 } from '../../services/api'
 import { cyUtilizationPctUncapped, getAllocationSizeLabel, progressBarColor } from '../../utils/cyAllocation'
 import { formatDisplayDate } from '../../utils/datetime'
 import { getShippingLineDisplayCode, getShippingLineFullName } from '../../utils/shippingLine'
+import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
 import {
   ECMS_INVENTORY_TYPE_CODES,
   INVENTORY_SOURCE_LABELS,
@@ -62,14 +39,21 @@ import {
   formatInventorySizeLabel,
   sumInventorySummaryRows,
 } from '../../utils/inventorySummary'
+import { inventoryRowKey } from '../../utils/atwInventoryLines'
 
 const primaryDark = ICS_PRIMARY
 
-type InventoryTab = 'inventory' | 'summary'
+const DEFAULT_ROWS_PER_PAGE = 25
 
-function rowKey(row: ContainerInventoryItem) {
-  return row.scheduleId ?? row.manualEntryId ?? row.containerNo
+function depotAtYardCount(d: ContainerInventoryResponse['summary']['byDepot'][number]) {
+  return d.atYardCount ?? d.count ?? 0
 }
+
+function depotReleasedCount(d: ContainerInventoryResponse['summary']['byDepot'][number]) {
+  return d.releasedCount ?? 0
+}
+
+type InventoryTab = 'inventory' | 'summary'
 
 function formatSlotTime(value: string | null): string {
   if (!value) return '—'
@@ -108,6 +92,13 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
       </Typography>
     </Paper>
   )
+}
+
+function YardStatusChip({ status }: { status: ContainerInventoryItem['yardStatus'] }) {
+  if (status === 'Released') {
+    return <Chip label="Released" size="small" color="info" sx={{ fontWeight: 600 }} />
+  }
+  return <Chip label="At yard" size="small" color="success" variant="outlined" sx={{ fontWeight: 600 }} />
 }
 
 function SourceChip({ source }: { source: ContainerInventoryItem['source'] }) {
@@ -164,6 +155,9 @@ function InventoryTableRow({
       <TableCell>{formatInventorySizeLabel(row.containerSize)}</TableCell>
       <TableCell>{row.containerType}</TableCell>
       <TableCell>
+        <YardStatusChip status={row.yardStatus} />
+      </TableCell>
+      <TableCell>
         <SourceChip source={row.source} />
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -180,6 +174,24 @@ function InventoryTableRow({
           '—'
         )}
       </TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+        {row.yardStatus === 'Released' && row.releaseReferenceNo ? (
+          row.releaseWithdrawalId ? (
+            <Typography
+              component={RouterLink}
+              to={`/evaluations/atw/${row.releaseWithdrawalId}`}
+              variant="body2"
+              sx={{ fontWeight: 600, color: primaryDark }}
+            >
+              {row.releaseReferenceNo}
+            </Typography>
+          ) : (
+            row.releaseReferenceNo
+          )
+        ) : (
+          '—'
+        )}
+      </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.depotName}</TableCell>
       <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {na(row.truckerName)}
@@ -191,7 +203,7 @@ function InventoryTableRow({
         {na(row.remarks)}
       </TableCell>
       <TableCell align="right" sx={{ width: 48 }}>
-        {row.source === 'Manual' && row.manualEntryId ? (
+        {row.source === 'Manual' && row.manualEntryId && row.yardStatus === 'AtYard' ? (
           <Tooltip title="Remove manual entry">
             <IconButton
               size="small"
@@ -216,18 +228,21 @@ function InventoryMobileCard({
   onDeleteManual: (id: number) => void
 }) {
   return (
-    <ListMobileCard key={rowKey(row)}>
+    <ListMobileCard>
       <ListMobileTitle>{row.containerNo}</ListMobileTitle>
       <ListMobileMeta>
         {row.depotName} · {formatInventorySizeLabel(row.containerSize)} {row.containerType}
       </ListMobileMeta>
       <ListMobileMeta>
-        <SourceChip source={row.source} />
+        <YardStatusChip status={row.yardStatus} /> · <SourceChip source={row.source} />
       </ListMobileMeta>
       <Typography variant="body2" sx={{ mt: 1 }}>
         Yard-in: <strong>{formatDisplayDate(row.yardInDate)}</strong> · Dwell time:{' '}
         <strong>{dwellLabel(row.dwellDays)}</strong>
       </Typography>
+      {row.yardStatus === 'Released' && row.releaseReferenceNo ? (
+        <ListMobileMeta>Released under {row.releaseReferenceNo}</ListMobileMeta>
+      ) : null}
       {row.source === 'Workflow' && row.preAdviceId ? (
         <Typography
           component={RouterLink}
@@ -237,7 +252,7 @@ function InventoryMobileCard({
         >
           View pre-forecast {row.referenceNo} →
         </Typography>
-      ) : row.manualEntryId ? (
+      ) : row.manualEntryId && row.yardStatus === 'AtYard' ? (
         <Button
           size="small"
           color="error"
@@ -258,8 +273,10 @@ const TABLE_HEADERS = [
   'Line',
   'Size',
   'Type',
+  'Yard status',
   'Source',
   'Pre-forecast',
+  'Release ref.',
   'Container yard',
   'Trucker',
   'Yard-in',
@@ -273,12 +290,15 @@ export default function ContainerInventoryPage() {
   const [activeTab, setActiveTab] = useState<InventoryTab>('inventory')
   const [depotFilter, setDepotFilter] = useState<number | ''>('')
   const [complianceFilter, setComplianceFilter] = useState<ContainerDwellCompliance | ''>('')
+  const [yardStatusFilter, setYardStatusFilter] = useState<ContainerYardStatus | ''>('')
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<ContainerInventoryItem[]>([])
   const [summary, setSummary] = useState<ContainerInventoryResponse['summary'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -287,6 +307,7 @@ export default function ContainerInventoryPage() {
       .list({
         depotId: depotFilter === '' ? undefined : depotFilter,
         compliance: complianceFilter === '' ? undefined : complianceFilter,
+        yardStatus: yardStatusFilter === '' ? undefined : yardStatusFilter,
       })
       .then(({ data }) => {
         setItems(data.items)
@@ -294,11 +315,26 @@ export default function ContainerInventoryPage() {
       })
       .catch(() => setError('Failed to load container yard inventory.'))
       .finally(() => setLoading(false))
-  }, [depotFilter, complianceFilter])
+  }, [depotFilter, complianceFilter, yardStatusFilter])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const shippingLineDisplay = useMemo(() => {
+    if (summary?.shippingLineCode || summary?.shippingLineName) {
+      return {
+        code: getShippingLineDisplayCode(summary.shippingLineCode, summary.shippingLineName),
+        fullName: getShippingLineFullName(summary.shippingLineCode, summary.shippingLineName),
+      }
+    }
+    const first = items[0]
+    if (!first) return null
+    return {
+      code: getShippingLineDisplayCode(first.shippingLineCode, first.shippingLineName),
+      fullName: getShippingLineFullName(first.shippingLineCode, first.shippingLineName),
+    }
+  }, [summary, items])
 
   const depotOptions = useMemo(() => summary?.byDepot ?? [], [summary])
 
@@ -323,6 +359,19 @@ export default function ContainerInventoryPage() {
       return haystack.includes(q)
     })
   }, [items, search])
+
+  useEffect(() => {
+    setPage(0)
+  }, [search, depotFilter, complianceFilter, yardStatusFilter])
+
+  const totalFiltered = filteredItems.length
+  const maxPage = Math.max(0, Math.ceil(totalFiltered / rowsPerPage) - 1)
+  const safePage = Math.min(page, maxPage)
+
+  const paginatedItems = useMemo(() => {
+    const start = safePage * rowsPerPage
+    return filteredItems.slice(start, start + rowsPerPage)
+  }, [filteredItems, safePage, rowsPerPage])
 
   const teuPct = useMemo(() => {
     if (!summary) return 0
@@ -355,6 +404,7 @@ export default function ContainerInventoryPage() {
         'TEUs',
         'Units',
         'Overstay',
+        'Released',
         'Yard-in (Today)',
       ]
       const mapRow = (row: (typeof summaryRows)[number]) => [
@@ -368,6 +418,7 @@ export default function ContainerInventoryPage() {
         row.teus,
         row.units,
         row.overstayCount || '',
+        row.releasedCount || '',
         row.yardInToday || '',
       ]
       const rows = summaryRows.map(mapRow)
@@ -391,8 +442,10 @@ export default function ContainerInventoryPage() {
       getShippingLineDisplayCode(row.shippingLineCode, row.shippingLineName),
       formatInventorySizeLabel(row.containerSize),
       row.containerType,
+      row.yardStatus === 'Released' ? 'Released' : 'At yard',
       INVENTORY_SOURCE_LABELS[row.source],
       row.source === 'Workflow' ? row.referenceNo : '',
+      row.releaseReferenceNo ?? '',
       row.depotName,
       na(row.truckerName),
       formatDisplayDate(row.yardInDate),
@@ -450,11 +503,12 @@ export default function ContainerInventoryPage() {
             </Box>
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                CY container inventory
+                {shippingLineDisplay ? `${shippingLineDisplay.code} — CY inventory` : 'CY container inventory'}
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-                Full visibility of containers at your contracted yards — from approved pre-forecast returns and manual
-                registrations. Dwell time is calculated from the yard-in date.
+                {shippingLineDisplay
+                  ? `Shipping line yard inventory for ${shippingLineDisplay.fullName}. Containers released at the depot appear here with Released status and an ATW reference.`
+                  : 'Full visibility of containers at your contracted yards — from approved pre-forecast returns and manual registrations. Dwell time is calculated from the yard-in date.'}
               </Typography>
             </Box>
           </Box>
@@ -479,12 +533,13 @@ export default function ContainerInventoryPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, 1fr)' },
+            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(5, 1fr)' },
             gap: { xs: 1.5, sm: 2 },
             mb: 2,
           }}
         >
           <SummaryCard label="At yard" value={summary.totalAtYard} color={primaryDark} />
+          <SummaryCard label="Released" value={summary.releasedCount} color="#0288D1" />
           <SummaryCard label="Within limit" value={summary.withinLimitCount} color="#2E7D32" />
           <SummaryCard label="Approaching 90 days" value={summary.approachingLimitCount} color="#ED6C02" />
           <SummaryCard label="Overstay (90+ days)" value={summary.overstayCount} color="#D32F2F" />
@@ -553,7 +608,7 @@ export default function ContainerInventoryPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1.4fr auto' },
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(5, minmax(0, 1fr)) auto' },
             gap: 1.5,
             alignItems: 'center',
           }}
@@ -568,7 +623,8 @@ export default function ContainerInventoryPage() {
               <MenuItem value="">All yards</MenuItem>
               {depotOptions.map((d) => (
                 <MenuItem key={d.depotId} value={d.depotId}>
-                  {d.depotName} ({d.count})
+                  {d.depotName} ({depotAtYardCount(d)} at yard
+                  {depotReleasedCount(d) > 0 ? `, ${depotReleasedCount(d)} released` : ''})
                 </MenuItem>
               ))}
             </Select>
@@ -584,6 +640,18 @@ export default function ContainerInventoryPage() {
               <MenuItem value="WithinLimit">Within limit</MenuItem>
               <MenuItem value="ApproachingLimit">Approaching 90 days</MenuItem>
               <MenuItem value="Overstay">Overstay (90+ days)</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" fullWidth>
+            <InputLabel>Yard status</InputLabel>
+            <Select
+              label="Yard status"
+              value={yardStatusFilter}
+              onChange={(e) => setYardStatusFilter(e.target.value as ContainerYardStatus | '')}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="AtYard">At yard</MenuItem>
+              <MenuItem value="Released">Released</MenuItem>
             </Select>
           </FormControl>
           {activeTab === 'inventory' && (
@@ -634,9 +702,7 @@ export default function ContainerInventoryPage() {
         </Tabs>
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress sx={{ color: primaryDark }} />
-          </Box>
+          <ListLoadingState />
         ) : activeTab === 'summary' ? (
           <ContainerInventorySummaryTable rows={summaryRows} />
         ) : filteredItems.length === 0 ? (
@@ -652,8 +718,8 @@ export default function ContainerInventoryPage() {
         ) : (
           <>
             <ListMobileOnly>
-              {filteredItems.map((row) => (
-                <InventoryMobileCard key={rowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
+              {paginatedItems.map((row) => (
+                <InventoryMobileCard key={inventoryRowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
               ))}
             </ListMobileOnly>
             <ListDesktopOnly>
@@ -666,21 +732,39 @@ export default function ContainerInventoryPage() {
                         '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                       }}
                     >
-                      {TABLE_HEADERS.map((header) => (
-                        <TableCell key={header || 'actions'} align={header === '' ? 'right' : 'left'}>
+                      {TABLE_HEADERS.map((header, index) => (
+                        <TableCell key={header || `col-${index}`} align={header === '' ? 'right' : 'left'}>
                           {header}
                         </TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredItems.map((row) => (
-                      <InventoryTableRow key={rowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
+                    {paginatedItems.map((row) => (
+                      <InventoryTableRow key={inventoryRowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
                     ))}
                   </TableBody>
                 </Table>
               </TableContainer>
             </ListDesktopOnly>
+            <TablePagination
+              component="div"
+              count={totalFiltered}
+              page={safePage}
+              onPageChange={(_, nextPage) => setPage(nextPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10))
+                setPage(0)
+              }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} of ${count}`}
+              sx={{
+                borderTop: '1px solid',
+                borderColor: 'divider',
+                '& .MuiTablePagination-select': { borderRadius: 1 },
+              }}
+            />
           </>
         )}
       </Paper>

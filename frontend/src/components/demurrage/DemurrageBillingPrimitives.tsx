@@ -1,14 +1,4 @@
-import {
-  Box,
-  Chip,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material'
+import { Box, Chip, Paper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { LIST_PRIMARY } from '../layout/ListPagePrimitives'
 import type { DemurrageBilling } from '../../services/api'

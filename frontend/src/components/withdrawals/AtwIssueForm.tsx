@@ -1,20 +1,11 @@
-import {
-  Box,
-  Button,
-  Chip,
-  FormControl,
-  FormHelperText,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material'
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { EvaluatorAtwLookups } from '../../services/api'
 import { infoGridSx } from '../layout/DetailPagePrimitives'
-import WithdrawalLineGrid, {
+import { formatDisplayDate } from '../../utils/datetime'
+import AtwInventoryLinePicker from './AtwInventoryLinePicker'
+import {
   type WithdrawalLineFormValue,
   toLineSubmitValues,
 } from './WithdrawalLineGrid'
@@ -56,30 +47,38 @@ export interface AtwIssueSubmitValues {
 
 interface AtwIssueFormProps {
   lookups: EvaluatorAtwLookups
-  initial: AtwIssueFormValues
+  values: AtwIssueFormValues
+  onChange: (values: AtwIssueFormValues) => void
   onSubmit: (values: AtwIssueSubmitValues) => void
   onCancel?: () => void
+  onBulkSelect?: (values: AtwIssueFormValues) => void
   submitting?: boolean
 }
 
 export default function AtwIssueForm({
   lookups,
-  initial,
+  values,
+  onChange,
   onSubmit,
   onCancel,
+  onBulkSelect,
   submitting = false,
 }: AtwIssueFormProps) {
-  const [values, setValues] = useState(initial)
-
-  useEffect(() => {
-    setValues(initial)
-  }, [initial])
+  const [linesBlocked, setLinesBlocked] = useState(false)
+  const [pendingSubmit, setPendingSubmit] = useState<AtwIssueSubmitValues | null>(null)
 
   const setField = <K extends keyof AtwIssueFormValues>(key: K, value: AtwIssueFormValues[K]) =>
-    setValues((prev) => ({ ...prev, [key]: value }))
+    onChange({ ...values, [key]: value })
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const setCurrentDepotId = (depotId: number | '') => {
+    onChange({
+      ...values,
+      currentDepotId: depotId,
+      lines: values.currentDepotId === depotId ? values.lines : [],
+    })
+  }
+
+  const buildSubmitValues = (): AtwIssueSubmitValues | null => {
     const lineValues = toLineSubmitValues(values.lines)
     if (
       !values.atwNumber.trim() ||
@@ -90,10 +89,10 @@ export default function AtwIssueForm({
       !values.issueDate ||
       !values.expirationDate
     ) {
-      return
+      return null
     }
 
-    onSubmit({
+    return {
       atwNumber: values.atwNumber.trim().toUpperCase(),
       authorizedTruckerId: values.authorizedTruckerId,
       lines: lineValues,
@@ -102,8 +101,32 @@ export default function AtwIssueForm({
       issueDate: values.issueDate,
       expirationDate: values.expirationDate,
       remarks: values.remarks.trim() || undefined,
-    })
+    }
   }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const submitValues = buildSubmitValues()
+    if (!submitValues) return
+    setPendingSubmit(submitValues)
+  }
+
+  const confirmIssue = () => {
+    if (!pendingSubmit || submitting) return
+    onSubmit(pendingSubmit)
+  }
+
+  const pendingTruckerName =
+    pendingSubmit &&
+    lookups.truckers.find((trucker) => trucker.id === pendingSubmit.authorizedTruckerId)?.name
+  const pendingDepotName =
+    pendingSubmit && lookups.depots.find((depot) => depot.id === pendingSubmit.currentDepotId)?.name
+  const pendingContainerSummary = (() => {
+    if (!pendingSubmit) return ''
+    const nos = pendingSubmit.lines.map((line) => line.containerNo)
+    if (nos.length <= 4) return nos.join(', ')
+    return `${nos.slice(0, 4).join(', ')} +${nos.length - 4} more`
+  })()
 
   const lineValues = toLineSubmitValues(values.lines)
   const canSubmit =
@@ -113,7 +136,8 @@ export default function AtwIssueForm({
     values.currentDepotId !== '' &&
     values.destination.trim() &&
     values.issueDate &&
-    values.expirationDate
+    values.expirationDate &&
+    !linesBlocked
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -217,7 +241,7 @@ export default function AtwIssueForm({
             <Select
               label="Current CY"
               value={values.currentDepotId}
-              onChange={(e) => setField('currentDepotId', e.target.value as number)}
+              onChange={(e) => setCurrentDepotId(e.target.value as number)}
             >
               {lookups.depots.map((depot) => (
                 <MenuItem key={depot.id} value={depot.id}>
@@ -238,18 +262,38 @@ export default function AtwIssueForm({
           />
         </Box>
         <FormHelperText sx={{ mt: 1 }}>
-          The authorized trucker submits one withdrawal request with the ATW certificate for all containers listed below.
+          Containers must be physically at this yard in CY inventory. The trucker submits one withdrawal request with the
+          ATW certificate for all units you authorize below.
         </FormHelperText>
       </Box>
 
       <Box>
-        <WithdrawalLineGrid
-          compact
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+          <Typography component="span" variant="caption" sx={{ ...sectionCaptionSx, mb: 0 }}>
+            Containers at CY
+          </Typography>
+          {onBulkSelect && (
+            <Button
+              type="button"
+              variant="outlined"
+              size="small"
+              disabled={values.currentDepotId === '' || submitting}
+              onClick={() => onBulkSelect(values)}
+              sx={{ fontWeight: 600, borderRadius: 2 }}
+            >
+              Bulk select
+            </Button>
+          )}
+        </Box>
+        <AtwInventoryLinePicker
           lines={values.lines}
           onChange={(lines) => setField('lines', lines)}
           containerSizes={lookups.containerSizes}
           containerTypes={lookups.containerTypes}
           currentDepotId={values.currentDepotId}
+          shippingLineId={lookups.shippingLine.id}
+          onBlockersChange={setLinesBlocked}
+          hideSectionCaption
         />
       </Box>
 
@@ -296,6 +340,65 @@ export default function AtwIssueForm({
           {submitting ? 'Issuing…' : 'Issue ATW'}
         </Button>
       </Box>
+
+      <Dialog
+        open={pendingSubmit !== null}
+        onClose={() => {
+          if (!submitting) setPendingSubmit(null)
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Issue this ATW?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            An official ATW PDF will be generated from your shipping line template. The authorized trucker will be
+            notified to view the certificate and submit a withdrawal request for these containers.
+          </Typography>
+          {pendingSubmit && (
+            <Box sx={{ display: 'grid', gap: 1 }}>
+              <Typography variant="body2">
+                <strong>ATW:</strong>{' '}
+                <Box component="span" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                  {pendingSubmit.atwNumber}
+                </Box>
+              </Typography>
+              <Typography variant="body2">
+                <strong>Trucker:</strong> {pendingTruckerName ?? '—'}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Current CY:</strong> {pendingDepotName ?? '—'}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Destination:</strong> {pendingSubmit.destination}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Valid:</strong> {formatDisplayDate(pendingSubmit.issueDate)} –{' '}
+                {formatDisplayDate(pendingSubmit.expirationDate)}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Containers ({pendingSubmit.lines.length}):</strong>{' '}
+                <Box component="span" sx={{ fontFamily: 'monospace' }}>
+                  {pendingContainerSummary}
+                </Box>
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPendingSubmit(null)} disabled={submitting} sx={{ fontWeight: 600 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={confirmIssue}
+            disabled={submitting}
+            sx={{ fontWeight: 700, borderRadius: 2, minWidth: 120 }}
+          >
+            {submitting ? 'Issuing…' : 'Issue ATW'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

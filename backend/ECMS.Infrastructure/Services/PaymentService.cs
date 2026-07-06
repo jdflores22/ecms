@@ -58,9 +58,11 @@ public class PaymentService : IPaymentService
             request.ProofReferenceNo,
             request.ProofTransactionAt,
             request.ProofProvider,
-            request.ProofQrphInvoiceNo);
+            request.ProofQrphInvoiceNo,
+            request.ProofPaymentId);
 
         if (payment.ProofReferenceNo is null
+            && payment.ProofPaymentId is null
             && payment.ProofTransactionAt is null
             && payment.ProofProvider is null
             && payment.ProofQrphInvoiceNo is null
@@ -69,6 +71,7 @@ public class PaymentService : IPaymentService
             var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
             var parsed = new PaymentProofMetadata(
                 extracted.ReferenceNo,
+                extracted.PaymentId,
                 extracted.QrphInvoiceNo,
                 extracted.TransactionAt,
                 extracted.Provider);
@@ -78,7 +81,8 @@ public class PaymentService : IPaymentService
                 extracted.ReferenceNo,
                 transactionAt,
                 extracted.Provider,
-                extracted.QrphInvoiceNo);
+                extracted.QrphInvoiceNo,
+                extracted.PaymentId);
         }
 
         if (payment.Id == 0)
@@ -145,6 +149,7 @@ public class PaymentService : IPaymentService
         if (payment is null) return null;
 
         payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
+        payment.ProofPaymentId = PaymentProofTextParser.NormalizePaymentId(request.ProofPaymentId);
         payment.ProofTransactionAt = request.ProofTransactionAt;
         payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(request.ProofQrphInvoiceNo);
         if (request.ProofProvider is not null)
@@ -201,6 +206,7 @@ public class PaymentService : IPaymentService
         if (payment is null) return null;
 
         payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
+        payment.ProofPaymentId = PaymentProofTextParser.NormalizePaymentId(request.ProofPaymentId);
         payment.ProofTransactionAt = request.ProofTransactionAt;
         payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(request.ProofQrphInvoiceNo);
         if (request.ProofProvider is not null)
@@ -238,6 +244,7 @@ public class PaymentService : IPaymentService
         var extracted = await _proofExtraction.ExtractFromImageAsync(absoluteProofPath, cancellationToken);
         var parsed = new PaymentProofMetadata(
             extracted.ReferenceNo,
+            extracted.PaymentId,
             extracted.QrphInvoiceNo,
             extracted.TransactionAt,
             extracted.Provider);
@@ -247,7 +254,8 @@ public class PaymentService : IPaymentService
             extracted.ReferenceNo,
             transactionAt,
             extracted.Provider,
-            extracted.QrphInvoiceNo);
+            extracted.QrphInvoiceNo,
+            extracted.PaymentId);
         _db.Update(payment);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -381,10 +389,14 @@ public class PaymentService : IPaymentService
         string? referenceNo,
         DateTime? transactionAt,
         string? provider = null,
-        string? qrphInvoiceNo = null)
+        string? qrphInvoiceNo = null,
+        string? paymentId = null)
     {
         if (referenceNo is not null)
             payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(referenceNo);
+
+        if (paymentId is not null)
+            payment.ProofPaymentId = PaymentProofTextParser.NormalizePaymentId(paymentId);
 
         if (qrphInvoiceNo is not null)
             payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(qrphInvoiceNo);
@@ -427,6 +439,7 @@ public class PaymentService : IPaymentService
         p.Amount,
         p.ProofFile,
         p.ProofReferenceNo,
+        p.ProofPaymentId,
         p.ProofQrphInvoiceNo,
         p.ProofTransactionAt,
         p.ProofProvider,
