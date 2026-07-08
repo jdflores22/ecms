@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import { ListLoadingState, LIST_PRIMARY, listPageRootSx } from '../../components/layout/ListPagePrimitives'
+import { useAssetUrlState } from '../../hooks/useAssetUrl'
 import { truckerNewsApi, type TruckerNewsAdmin } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatDateTime } from '../../utils/datetime'
@@ -23,11 +24,24 @@ import { formatDateTime } from '../../utils/datetime'
 const primaryDark = LIST_PRIMARY
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
-function resolveImageUrl(path?: string | null) {
-  if (!path) return null
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
-  const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/api$/, '')
-  return `${base}${path.startsWith('/') ? path : `/${path}`}`
+function NewsCoverPreview({ imagePath }: { imagePath?: string | null }) {
+  const { url, loading } = useAssetUrlState(imagePath)
+  return (
+    <Box
+      sx={{
+        width: { xs: '100%', sm: 120 },
+        height: 180,
+        borderRadius: 3,
+        overflow: 'hidden',
+        bgcolor: hexToRgba(primaryDark, 0.08),
+        flexShrink: 0,
+        backgroundImage: url ? `url(${url})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        opacity: loading ? 0.6 : 1,
+      }}
+    />
+  )
 }
 
 export default function TruckerNewsPage() {
@@ -188,24 +202,10 @@ export default function TruckerNewsPage() {
         <Typography color="text.secondary">No news items yet.</Typography>
       ) : (
         <Stack spacing={2}>
-          {items.map((item) => {
-            const imageUrl = resolveImageUrl(item.imagePath)
-            return (
+          {items.map((item) => (
               <Paper key={item.id} sx={{ p: 2.5, borderRadius: 3 }}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                  <Box
-                    sx={{
-                      width: { xs: '100%', sm: 120 },
-                      height: 180,
-                      borderRadius: 3,
-                      overflow: 'hidden',
-                      bgcolor: hexToRgba(primaryDark, 0.08),
-                      flexShrink: 0,
-                      backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                    }}
-                  />
+                  <NewsCoverPreview imagePath={item.imagePath} />
                   <Stack spacing={1} sx={{ flex: 1 }}>
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -247,8 +247,7 @@ export default function TruckerNewsPage() {
                   </Stack>
                 </Stack>
               </Paper>
-            )
-          })}
+          ))}
         </Stack>
       )}
 
