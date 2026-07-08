@@ -1287,6 +1287,8 @@ export const truckerNewsApi = {
   list: () => api.get<TruckerNewsAdmin[]>('/trucker-news'),
   create: (payload: { title: string; body: string }) =>
     api.post<TruckerNewsAdmin>('/trucker-news', payload),
+  update: (id: number, payload: { title: string; body: string }) =>
+    api.put<TruckerNewsAdmin>(`/trucker-news/${id}`, payload),
   publish: (id: number) => api.post<TruckerNewsAdmin>(`/trucker-news/${id}/publish`),
   uploadImage: (id: number, file: File) => {
     const form = new FormData()

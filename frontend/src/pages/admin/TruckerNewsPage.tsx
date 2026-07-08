@@ -1,11 +1,13 @@
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import PublishOutlinedIcon from '@mui/icons-material/PublishOutlined'
 import {
   Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
   Paper,
   Stack,
@@ -51,7 +53,12 @@ export default function TruckerNewsPage() {
   const [items, setItems] = useState<TruckerNewsAdmin[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [updatingId, setUpdatingId] = useState<number | null>(null)
+  const [publishingId, setPublishingId] = useState<number | null>(null)
   const [uploadingId, setUploadingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editBody, setEditBody] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -94,6 +101,7 @@ export default function TruckerNewsPage() {
   const handlePublish = async (id: number) => {
     setError('')
     setSuccess('')
+    setPublishingId(id)
     try {
       await truckerNewsApi.publish(id)
       setSuccess('News published to trucker home carousel.')
@@ -103,6 +111,41 @@ export default function TruckerNewsPage() {
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         'Unable to publish. Upload a cover image first.'
       setError(message)
+    } finally {
+      setPublishingId(null)
+    }
+  }
+
+  const handleStartEdit = (item: TruckerNewsAdmin) => {
+    setEditingId(item.id)
+    setEditTitle(item.title)
+    setEditBody(item.body)
+    setError('')
+    setSuccess('')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditTitle('')
+    setEditBody('')
+  }
+
+  const handleSaveEdit = async (id: number) => {
+    setError('')
+    setSuccess('')
+    setUpdatingId(id)
+    try {
+      await truckerNewsApi.update(id, { title: editTitle, body: editBody })
+      setSuccess('News story updated.')
+      handleCancelEdit()
+      loadItems()
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Unable to update news story.'
+      setError(message)
+    } finally {
+      setUpdatingId(null)
     }
   }
 
@@ -217,30 +260,93 @@ export default function TruckerNewsPage() {
                         color={item.isPublished ? 'success' : 'default'}
                       />
                     </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {item.body.length > 180 ? `${item.body.slice(0, 180)}…` : item.body}
-                    </Typography>
+                    {editingId === item.id ? (
+                      <Stack spacing={1}>
+                        <TextField
+                          label="Title"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          fullWidth
+                          sx={fieldSx}
+                        />
+                        <TextField
+                          label="Body"
+                          value={editBody}
+                          onChange={(e) => setEditBody(e.target.value)}
+                          fullWidth
+                          multiline
+                          minRows={3}
+                          sx={fieldSx}
+                        />
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {item.body.length > 180 ? `${item.body.slice(0, 180)}…` : item.body}
+                      </Typography>
+                    )}
                     <Typography variant="caption" color="text.secondary">
                       {item.createdByName} · {formatDateTime(item.createdAt)}
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<CloudUploadOutlinedIcon />}
-                        onClick={() => handlePickImage(item.id)}
-                        disabled={uploadingId === item.id}
-                      >
-                        {uploadingId === item.id ? 'Uploading…' : 'Cover image'}
-                      </Button>
-                      {!item.isPublished && (
+                      {editingId === item.id ? (
+                        <>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => handleSaveEdit(item.id)}
+                            disabled={updatingId === item.id || !editTitle.trim() || !editBody.trim()}
+                            startIcon={
+                              updatingId === item.id ? <CircularProgress size={14} color="inherit" /> : undefined
+                            }
+                          >
+                            {updatingId === item.id ? 'Saving…' : 'Save changes'}
+                          </Button>
+                          <Button size="small" variant="text" onClick={handleCancelEdit} disabled={updatingId === item.id}>
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={
+                              uploadingId === item.id ? (
+                                <CircularProgress size={14} color="inherit" />
+                              ) : (
+                                <CloudUploadOutlinedIcon />
+                              )
+                            }
+                            onClick={() => handlePickImage(item.id)}
+                            disabled={uploadingId === item.id}
+                          >
+                            {uploadingId === item.id ? 'Uploading…' : 'Cover image'}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<EditOutlinedIcon />}
+                            onClick={() => handleStartEdit(item)}
+                          >
+                            Edit
+                          </Button>
+                        </>
+                      )}
+                      {!item.isPublished && editingId !== item.id && (
                         <Button
                           size="small"
                           variant="contained"
-                          startIcon={<PublishOutlinedIcon />}
+                          startIcon={
+                            publishingId === item.id ? (
+                              <CircularProgress size={14} color="inherit" />
+                            ) : (
+                              <PublishOutlinedIcon />
+                            )
+                          }
                           onClick={() => handlePublish(item.id)}
+                          disabled={publishingId === item.id}
                         >
-                          Publish
+                          {publishingId === item.id ? 'Publishing…' : 'Publish'}
                         </Button>
                       )}
                     </Stack>
