@@ -56,6 +56,8 @@ public static class ProductionSchemaRepair
 
         await EnsureDepotBroadcastsTableAsync(db, logger, cancellationToken);
 
+        await EnsureTruckerNewsTableAsync(db, logger, cancellationToken);
+
         await EnsureYardInventoryReleaseStatusAsync(db, logger, cancellationToken);
     }
 
@@ -375,6 +377,53 @@ public static class ProductionSchemaRepair
             """
             INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
             VALUES ('20260707040000_AddDepotBroadcasts', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureTruckerNewsTableAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (await TableExistsAsync(db, "TruckerNewsSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20260708143000_AddTruckerNews', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table TruckerNewsSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `TruckerNewsSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Title` varchar(128) CHARACTER SET utf8mb4 NOT NULL,
+                `Body` varchar(4000) CHARACTER SET utf8mb4 NOT NULL,
+                `ImagePath` varchar(512) CHARACTER SET utf8mb4 NULL,
+                `ImageFileName` varchar(256) CHARACTER SET utf8mb4 NULL,
+                `ImageContentType` varchar(128) CHARACTER SET utf8mb4 NULL,
+                `ImageFileSize` bigint NULL,
+                `IsPublished` tinyint(1) NOT NULL,
+                `PublishedAt` datetime(6) NULL,
+                `CreatedByUserId` int NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_TruckerNewsSet_IsPublished_PublishedAt` (`IsPublished`, `PublishedAt`),
+                CONSTRAINT `FK_TruckerNews_CreatedByUserId`
+                    FOREIGN KEY (`CreatedByUserId`) REFERENCES `UsersSet` (`Id`) ON DELETE RESTRICT
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20260708143000_AddTruckerNews', '7.0.20')
             """,
             cancellationToken);
     }
