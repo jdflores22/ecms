@@ -14,6 +14,7 @@ import { notificationApi, type Notification } from '../services/api'
 import { useAppSelector } from '../store/hooks'
 import { formatRelativeTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
+import { setupActivePolling } from '../utils/polling'
 
 const primaryDark = '#0B3D91'
 
@@ -63,10 +64,10 @@ export default function TruckerBroadcastModal() {
     }
 
     const cancelDeferred = scheduleNonCritical(poll)
-    const interval = setInterval(poll, 20_000)
+    const stopPolling = setupActivePolling(poll, 20_000)
     return () => {
       cancelDeferred()
-      clearInterval(interval)
+      stopPolling()
     }
   }, [role, poll])
 

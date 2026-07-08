@@ -32,6 +32,7 @@ import com.ecms.trucker.ui.navigation.Routes
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.theme.icsHexAlpha
 import com.ecms.trucker.ui.util.rememberScreenLoadState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private data class DashboardCacheEntry(
@@ -107,6 +108,14 @@ fun DashboardScreen(
     }
 
     LaunchedEffect(Unit) { load(force = cachedDashboard == null) }
+
+    // Keep news/feed fresh even while user stays on Home.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            runCatching { newsFeed = repository.getNewsFeed() }
+        }
+    }
 
     IcsScreenScaffold(
         title = "",

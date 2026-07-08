@@ -18,6 +18,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { notificationApi, type Notification } from '../services/api'
 import { formatDateTime, formatRelativeTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
+import { setupActivePolling } from '../utils/polling'
 import { InlineLoadingSkeleton } from './layout/SkeletonPrimitives'
 import { useAppSelector } from '../store/hooks'
 
@@ -63,10 +64,10 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const cancelDeferred = scheduleNonCritical(load)
-    const interval = setInterval(load, 30_000)
+    const stopPolling = setupActivePolling(load, 30_000)
     return () => {
       cancelDeferred()
-      clearInterval(interval)
+      stopPolling()
     }
   }, [load])
 

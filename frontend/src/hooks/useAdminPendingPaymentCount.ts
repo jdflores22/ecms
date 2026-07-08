@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
 import { paymentApi } from '../services/api'
 import { scheduleNonCritical } from '../utils/deferWork'
+import { setupActivePolling } from '../utils/polling'
 
 export function useAdminPendingPaymentCount(
   role: string | undefined,
@@ -30,10 +31,10 @@ export function useAdminPendingPaymentCount(
       return undefined
     }
     const cancelDeferred = scheduleNonCritical(load)
-    const interval = setInterval(load, 30_000)
+    const stopPolling = setupActivePolling(load, 30_000)
     return () => {
       cancelDeferred()
-      clearInterval(interval)
+      stopPolling()
     }
   }, [load, enabled])
 
