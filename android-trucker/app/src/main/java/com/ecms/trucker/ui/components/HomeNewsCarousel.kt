@@ -24,8 +24,9 @@ import com.ecms.trucker.data.model.TruckerNewsFeedItemDto
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.util.buildAuthedImageRequest
 
-private val StoryCardWidth = 118.dp
+private val StoryCardWidth = 134.dp
 private val StoryCardHeight = 210.dp
+private val ImageDimAlpha = 0.28f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,8 +52,8 @@ fun HomeNewsCarousel(
                 .fillMaxWidth()
                 .height(StoryCardHeight),
             preferredItemWidth = StoryCardWidth,
-            itemSpacing = 10.dp,
-            contentPadding = PaddingValues(horizontal = 2.dp),
+            itemSpacing = 12.dp,
+            contentPadding = PaddingValues(horizontal = 4.dp),
         ) { index ->
             val item = items[index]
             HomeNewsStoryCard(
@@ -97,11 +98,17 @@ private fun HomeNewsStoryCard(
 
         Box(
             modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = ImageDimAlpha)),
+        )
+
+        Box(
+            modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f)),
                     ),
                 )
                 .padding(horizontal = 10.dp, vertical = 12.dp),

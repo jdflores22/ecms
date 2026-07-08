@@ -183,6 +183,17 @@ public class NotificationService : INotificationService
             .ToListAsync(cancellationToken);
     }
 
+    public static async Task<List<int>> TruckerIdsAsync(
+        IEcmsDbContext db,
+        CancellationToken cancellationToken = default)
+    {
+        return await db.Users
+            .Include(u => u.Role)
+            .Where(u => u.Status == UserStatus.Active && u.Role.Name == RoleNames.Trucker)
+            .Select(u => u.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public static async Task<List<int>> TruckerIdsForDepotAsync(
         IEcmsDbContext db,
         int depotId,

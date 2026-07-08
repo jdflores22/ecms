@@ -212,6 +212,7 @@
     <string name="notifications_mark_all_read">Mark all read</string>
     <string name="broadcast_modal_got_it">Got it</string>
     <string name="broadcast_modal_closing">Closing…</string>
+    <string name="news_modal_read_story">Read story</string>
     <string name="release_certificates_title">Release certificates</string>
     <string name="release_cert_summary_both">%1$d CY release(s) and ATW release certificate</string>
     <string name="release_cert_summary_atw">ATW release certificate</string>

@@ -28,11 +28,20 @@ object NotificationNavigator {
             }
             path == "/trucker/withdrawals/schedule" -> navController.navigate(Routes.WITHDRAWAL_SCHEDULE)
             path == "/trucker/withdrawals" -> navController.navigate(Routes.MAIN)
+            path.matches(Regex("/trucker/news/\\d+")) -> {
+                val id = path.substringAfterLast('/').toIntOrNull()
+                if (id != null) navController.navigate(Routes.newsDetail(id))
+            }
             path == "/trucker/notifications" || category == "DepotBroadcast" -> {
                 navController.navigate(Routes.NOTIFICATIONS)
             }
             path.isNotBlank() -> navController.navigate(Routes.NOTIFICATIONS)
             category == "DepotBroadcast" -> navController.navigate(Routes.NOTIFICATIONS)
+            category == "TruckerNews" -> {
+                val id = path.substringAfterLast('/').toIntOrNull()
+                if (id != null) navController.navigate(Routes.newsDetail(id))
+                else navController.navigate(Routes.MAIN)
+            }
             else -> navController.navigate(Routes.NOTIFICATIONS)
         }
     }

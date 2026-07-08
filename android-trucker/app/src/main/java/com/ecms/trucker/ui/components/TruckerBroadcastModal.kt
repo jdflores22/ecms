@@ -2,6 +2,7 @@ package com.ecms.trucker.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,13 +23,24 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val DEPOT_BROADCAST_CATEGORY = "DepotBroadcast"
+private const val TRUCKER_NEWS_CATEGORY = "TruckerNews"
 
-private fun isDepotBroadcast(notification: NotificationDto): Boolean {
+private fun isInAppAlert(notification: NotificationDto): Boolean {
     return notification.category.equals(DEPOT_BROADCAST_CATEGORY, ignoreCase = true)
+        || notification.category.equals(TRUCKER_NEWS_CATEGORY, ignoreCase = true)
+}
+
+private fun newsIdFromLink(linkPath: String?): Int? {
+    val path = linkPath?.trim().orEmpty()
+    val match = Regex("/trucker/news/(\\d+)").find(path) ?: return null
+    return match.groupValues[1].toIntOrNull()
 }
 
 @Composable
-fun TruckerBroadcastModal(repository: TruckerRepository) {
+fun TruckerBroadcastModal(
+    repository: TruckerRepository,
+    onOpenNews: (Int) -> Unit = {},
+) {
     var active by remember { mutableStateOf<NotificationDto?>(null) }
     var dismissing by remember { mutableStateOf(false) }
     val presented = remember { mutableStateListOf<Int>() }
@@ -36,7 +48,7 @@ fun TruckerBroadcastModal(repository: TruckerRepository) {
 
     fun pickNext(items: List<NotificationDto>): NotificationDto? {
         return items
-            .filter { isDepotBroadcast(it) && !it.isRead && it.id !in presented }
+            .filter { isInAppAlert(it) && !it.isRead && it.id !in presented }
             .maxByOrNull { it.createdAt }
     }
 
@@ -76,7 +88,9 @@ fun TruckerBroadcastModal(repository: TruckerRepository) {
         }
     }
 
-    val broadcast = active ?: return
+    val alert = active ?: return
+    val isNews = alert.category.equals(TRUCKER_NEWS_CATEGORY, ignoreCase = true)
+    val newsId = if (isNews) newsIdFromLink(alert.linkPath) else null
 
     Dialog(
         onDismissRequest = { dismissCurrent() },
@@ -97,7 +111,7 @@ fun TruckerBroadcastModal(repository: TruckerRepository) {
                         color = icsHexAlpha(IcsColors.Primary, 0.1f),
                     ) {
                         Icon(
-                            Icons.Outlined.Campaign,
+                            if (isNews) Icons.Outlined.Article else Icons.Outlined.Campaign,
                             contentDescription = null,
                             tint = IcsColors.Primary,
                             modifier = Modifier.padding(10.dp),
@@ -105,12 +119,16 @@ fun TruckerBroadcastModal(repository: TruckerRepository) {
                     }
                     Column {
                         Text(
-                            stringResource(R.string.notifications_title),
+                            if (isNews) {
+                                stringResource(R.string.home_news_feed)
+                            } else {
+                                stringResource(R.string.notifications_title)
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = IcsColors.TextSecondary,
                         )
                         Text(
-                            broadcast.title,
+                            alert.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
@@ -122,31 +140,48 @@ fun TruckerBroadcastModal(repository: TruckerRepository) {
                 Spacer(Modifier.height(16.dp))
 
                 Text(
-                    broadcast.message,
+                    alert.message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = IcsColors.TextSecondary,
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    formatRelativeTime(broadcast.createdAt),
+                    formatRelativeTime(alert.createdAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = IcsColors.TextSecondary.copy(alpha = 0.7f),
                 )
 
                 Spacer(Modifier.height(20.dp))
-                Button(
-                    onClick = { dismissCurrent() },
-                    enabled = !dismissing,
-                    modifier = Modifier.align(Alignment.End),
-                    colors = ButtonDefaults.buttonColors(containerColor = IcsColors.Primary),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        if (dismissing) {
-                            stringResource(R.string.broadcast_modal_closing)
-                        } else {
-                            stringResource(R.string.broadcast_modal_got_it)
-                        },
-                    )
+                    if (isNews && newsId != null) {
+                        TextButton(
+                            onClick = {
+                                dismissCurrent()
+                                onOpenNews(newsId)
+                            },
+                            enabled = !dismissing,
+                        ) {
+                            Text(stringResource(R.string.news_modal_read_story))
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Button(
+                        onClick = { dismissCurrent() },
+                        enabled = !dismissing,
+                        colors = ButtonDefaults.buttonColors(containerColor = IcsColors.Primary),
+                    ) {
+                        Text(
+                            if (dismissing) {
+                                stringResource(R.string.broadcast_modal_closing)
+                            } else {
+                                stringResource(R.string.broadcast_modal_got_it)
+                            },
+                        )
+                    }
                 }
             }
         }

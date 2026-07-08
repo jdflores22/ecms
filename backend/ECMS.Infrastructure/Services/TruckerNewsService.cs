@@ -8,13 +8,20 @@ namespace ECMS.Infrastructure.Services;
 
 public class TruckerNewsService : ITruckerNewsService
 {
+    public const string NotificationCategory = "TruckerNews";
+
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _audit;
+    private readonly INotificationService _notifications;
 
-    public TruckerNewsService(IEcmsDbContext db, IAuditService audit)
+    public TruckerNewsService(
+        IEcmsDbContext db,
+        IAuditService audit,
+        INotificationService notifications)
     {
         _db = db;
         _audit = audit;
+        _notifications = notifications;
     }
 
     public async Task<IReadOnlyList<TruckerNewsFeedItemDto>> GetPublishedFeedAsync(
@@ -85,9 +92,12 @@ public class TruckerNewsService : ITruckerNewsService
         var item = await _db.TruckerNews.FirstOrDefaultAsync(n => n.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("News item not found.");
         var (title, body) = ValidateContent(request.Title, request.Body);
+        var wasPublished = item.IsPublished;
         item.Title = title;
         item.Body = body;
         await _db.SaveChangesAsync(cancellationToken);
+        if (wasPublished)
+            await NotifyTruckersAsync(item, isUpdate: true, actorUserId: null, cancellationToken);
         return await GetAdminDtoAsync(id, cancellationToken);
     }
 
@@ -100,11 +110,14 @@ public class TruckerNewsService : ITruckerNewsService
             ?? throw new InvalidOperationException("News item not found.");
         if (string.IsNullOrWhiteSpace(item.ImagePath))
             throw new InvalidOperationException("Upload a cover image before publishing.");
+        var wasPublished = item.IsPublished;
         item.IsPublished = true;
         item.PublishedAt ??= DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         _audit.QueueLog(actorUserId, "PublishTruckerNews", "TruckerNews", item.Title);
         await _db.SaveChangesAsync(cancellationToken);
+        if (!wasPublished)
+            await NotifyTruckersAsync(item, isUpdate: false, actorUserId, cancellationToken);
         return await GetAdminDtoAsync(id, cancellationToken);
     }
 
@@ -156,6 +169,30 @@ public class TruckerNewsService : ITruckerNewsService
         if (b.Length > 4000)
             throw new InvalidOperationException("Body must be 4000 characters or fewer.");
         return (t, b);
+    }
+
+    private async Task NotifyTruckersAsync(
+        TruckerNews item,
+        bool isUpdate,
+        int? actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var truckers = await NotificationService.TruckerIdsAsync(_db, cancellationToken);
+        if (truckers.Count == 0)
+            return;
+
+        var title = isUpdate ? $"Update: {item.Title}" : item.Title;
+        var preview = item.Body.Length > 200 ? $"{item.Body[..200]}…" : item.Body;
+        var linkPath = $"/trucker/news/{item.Id}";
+
+        await _notifications.NotifyUsersAsync(
+            truckers,
+            title,
+            preview,
+            NotificationCategory,
+            linkPath,
+            actorUserId,
+            cancellationToken: cancellationToken);
     }
 
     private static TruckerNewsDetailDto ToDetailDto(TruckerNews item)

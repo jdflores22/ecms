@@ -151,7 +151,10 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        TruckerBroadcastModal(repository = container.truckerRepository)
+                        TruckerBroadcastModal(
+                            repository = container.truckerRepository,
+                            onOpenNews = { id -> navController.navigate(Routes.newsDetail(id)) },
+                        )
 
                         NavHost(navController = navController, startDestination = Routes.MAIN) {
                             composable(Routes.MAIN) {
