@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IDepotBroadcastService, DepotBroadcastService>();
+        services.AddScoped<ITruckerNewsService, TruckerNewsService>();
         services.AddScoped<IShippingLineService, ShippingLineService>();
         services.AddScoped<IContainerService, ContainerService>();
         services.AddScoped<IContainerSizeService, ContainerSizeService>();

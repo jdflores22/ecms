@@ -266,6 +266,13 @@ interface EcmsApiService {
     @HTTP(method = "DELETE", path = "notifications/push-token", hasBody = true)
     suspend fun unregisterPushToken(@Body body: UnregisterPushTokenRequest)
 
+    // News feed
+    @GET("trucker-news/feed")
+    suspend fun getNewsFeed(): List<TruckerNewsFeedItemDto>
+
+    @GET("trucker-news/{id}")
+    suspend fun getNewsDetail(@Path("id") id: Int): TruckerNewsDetailDto
+
     // Roles
     @GET("roles/access")
     suspend fun getAllowedPages(): AllowedPagesResponse

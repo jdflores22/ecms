@@ -15,6 +15,7 @@ import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.util.isWaitingSchedule
 import com.ecms.trucker.ui.util.scheduleListSubtitle
+import com.ecms.trucker.ui.util.rememberScreenLoadState
 import kotlinx.coroutines.launch
 
 private data class ReturnsListCacheEntry(
@@ -37,20 +38,20 @@ fun ReturnsListScreen(
         ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= RETURNS_LIST_CACHE_TTL_MS }
         ?.items
         ?: emptyList()
+    val loadState = rememberScreenLoadState(initiallyLoading = cachedSchedules.isEmpty())
     var schedules by remember { mutableStateOf(cachedSchedules) }
-    var loading by remember { mutableStateOf(cachedSchedules.isEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load(force: Boolean = false) {
         scope.launch {
-            if (schedules.isEmpty()) loading = true
+            loadState.begin(schedules.isNotEmpty())
             if (!force) {
                 ReturnsListCache
                     ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= RETURNS_LIST_CACHE_TTL_MS }
                     ?.let { entry ->
                         schedules = entry.items
-                        loading = false
+                        loadState.end()
                         return@launch
                     }
             }
@@ -63,7 +64,7 @@ fun ReturnsListScreen(
                     )
                 }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load(force = cachedSchedules.isEmpty()) }
@@ -73,11 +74,11 @@ fun ReturnsListScreen(
         branded = true,
         onNotificationClick = onOpenNotifications,
         notificationUnreadCount = notificationUnreadCount,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load(force = true) },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             schedules.isEmpty() -> EmptyState(stringResource(R.string.returns_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -103,17 +104,17 @@ fun ReturnDetailScreen(
     onUploadPayment: (Int) -> Unit,
     onViewQr: (Int) -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var schedule by remember { mutableStateOf<ScheduleDto?>(null) }
     var preAdvice by remember { mutableStateOf<PreAdviceDto?>(null) }
     var payment by remember { mutableStateOf<PaymentDto?>(null) }
     var qr by remember { mutableStateOf<QrBookingDto?>(null) }
-    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(schedule != null)
             error = null
             preAdvice = null
             payment = null
@@ -125,14 +126,14 @@ fun ReturnDetailScreen(
 
             schedule = loadedSchedule
             if (loadedSchedule == null) {
-                loading = false
+                loadState.end()
                 return@launch
             }
 
             preAdvice = repository.getPreAdviceOrNull(loadedSchedule.preAdviceId)
             payment = repository.getPaymentBySchedule(scheduleId)
             qr = runCatching { repository.getQrBySchedule(scheduleId) }.getOrNull()
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(scheduleId) { load() }
@@ -140,11 +141,11 @@ fun ReturnDetailScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.return_detail_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading && schedule == null -> LoadingBox(Modifier.padding(padding))
             error != null && schedule == null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             schedule != null -> {
                 val s = schedule!!

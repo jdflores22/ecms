@@ -1,21 +1,18 @@
 package com.ecms.trucker.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,7 +27,7 @@ import com.ecms.trucker.ui.theme.icsHexAlpha
 import com.ecms.trucker.ui.util.formatScheduleStatus
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IcsScreenScaffold(
     title: String,
@@ -52,13 +49,8 @@ fun IcsScreenScaffold(
 ) {
     val scaffoldSnackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var pullRefreshTriggeredByUser by remember { mutableStateOf(false) }
     val resolvedRefreshFeedbackMessage =
         refreshFeedbackMessage ?: stringResource(R.string.refresh_feedback_page_updated)
-
-    LaunchedEffect(refreshing) {
-        if (!refreshing) pullRefreshTriggeredByUser = false
-    }
 
     Scaffold(
         containerColor = IcsColors.Background,
@@ -67,33 +59,30 @@ fun IcsScreenScaffold(
         floatingActionButton = floatingActionButton,
         content = { padding ->
             if (onRefresh != null) {
-                val pullRefreshState = rememberPullRefreshState(
-                    refreshing = refreshing,
+                val pullToRefreshState = rememberPullToRefreshState()
+                PullToRefreshBox(
+                    isRefreshing = refreshing,
                     onRefresh = {
-                        pullRefreshTriggeredByUser = true
                         onRefresh.invoke()
                         if (showRefreshFeedback && resolvedRefreshFeedbackMessage.isNotBlank()) {
                             scope.launch {
                                 scaffoldSnackbarHostState.showSnackbar(resolvedRefreshFeedbackMessage)
                             }
                         }
-                    }
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pullRefresh(pullRefreshState),
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    state = pullToRefreshState,
+                    indicator = {
+                        PullToRefreshDefaults.Indicator(
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            isRefreshing = refreshing,
+                            state = pullToRefreshState,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    },
                 ) {
                     content(padding)
-                    if (pullRefreshState.progress > 0f && pullRefreshTriggeredByUser) {
-                        PullRefreshIndicator(
-                            refreshing = false,
-                            state = pullRefreshState,
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = padding.calculateTopPadding()),
-                        )
-                    }
                 }
             } else {
                 content(padding)
@@ -103,9 +92,37 @@ fun IcsScreenScaffold(
 }
 
 @Composable
+fun RefreshableScrollSurface(
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable (minHeight: androidx.compose.ui.unit.Dp) -> Unit,
+) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val minHeight = maxHeight
+        val scrollState = rememberScrollState()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = minHeight)
+                .verticalScroll(scrollState),
+            contentAlignment = contentAlignment,
+        ) {
+            content(minHeight)
+        }
+    }
+}
+
+@Composable
 fun LoadingBox(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = IcsColors.Primary)
+    RefreshableScrollSurface(modifier, contentAlignment = Alignment.Center) { minHeight ->
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = minHeight),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(color = IcsColors.Primary)
+        }
     }
 }
 
@@ -115,18 +132,23 @@ fun ErrorMessage(
     onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(message, color = IcsColors.Error, textAlign = TextAlign.Center)
-        if (onRetry != null) {
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = IcsColors.Primary),
-            ) {
-                Text(stringResource(R.string.action_retry))
+    RefreshableScrollSurface(modifier, contentAlignment = Alignment.Center) { minHeight ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = minHeight)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        ) {
+            Text(message, color = IcsColors.Error, textAlign = TextAlign.Center)
+            if (onRetry != null) {
+                Button(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.buttonColors(containerColor = IcsColors.Primary),
+                ) {
+                    Text(stringResource(R.string.action_retry))
+                }
             }
         }
     }
@@ -156,14 +178,21 @@ fun StatusChip(status: String) {
 
 @Composable
 fun EmptyState(message: String, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = IcsColors.TextSecondary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(24.dp),
-        )
+    RefreshableScrollSurface(modifier, contentAlignment = Alignment.Center) { minHeight ->
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = minHeight),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyLarge,
+                color = IcsColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(24.dp),
+            )
+        }
     }
 }
 

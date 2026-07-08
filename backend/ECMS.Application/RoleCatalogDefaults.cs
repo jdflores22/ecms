@@ -35,6 +35,7 @@ public static class RolePageKeys
     public const string AdminAudit = "adminAudit";
     public const string AdminVersion = "adminVersion";
     public const string AdminRevenue = "adminRevenue";
+    public const string AdminTruckerNews = "adminTruckerNews";
 
     public static readonly string[] Required = { Dashboard, Profile };
 
@@ -46,13 +47,13 @@ public static class RolePageKeys
         AdminPayments,
         TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
         EvaluatorAtw, DepotWithdrawals, DepotBroadcasts, TruckerNotifications,
-        AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue,
+        AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue, AdminTruckerNews,
     };
 
     public static readonly string[] AdministratorPages =
     {
         Dashboard, Profile, AdminReports,
-        AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue,
+        AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue, AdminTruckerNews,
     };
 
     /// <summary>Legacy RBAC page key mapped to the role-specific reports page.</summary>

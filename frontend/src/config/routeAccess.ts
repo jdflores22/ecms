@@ -29,6 +29,7 @@ export type AppPageKey =
   | 'adminRoles'
   | 'adminMasterData'
   | 'adminCertificateTemplates'
+  | 'adminTruckerNews'
   | 'adminAudit'
   | 'adminVersion'
   | 'adminRevenue'
@@ -269,6 +270,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'ATW and other certificate layout templates per shipping line',
     showInNav: true,
   },
+  adminTruckerNews: {
+    key: 'adminTruckerNews',
+    label: 'Trucker news',
+    path: '/admin/trucker-news',
+    group: 'Admin',
+    description: 'Publish cover stories for the trucker app home carousel',
+    showInNav: true,
+  },
   adminAudit: {
     key: 'adminAudit',
     label: 'Audit log',
@@ -307,6 +316,7 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'adminRoles',
   'adminMasterData',
   'adminCertificateTemplates',
+  'adminTruckerNews',
   'adminAudit',
   'adminVersion',
   'adminRevenue',
@@ -371,6 +381,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'adminRoles',
   'adminMasterData',
   'adminCertificateTemplates',
+  'adminTruckerNews',
   'adminAudit',
   'adminVersion',
   'adminRevenue',
@@ -537,6 +548,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'adminRoles',
   'adminMasterData',
   'adminCertificateTemplates',
+  'adminTruckerNews',
   'adminRevenue',
   'adminPayments',
   'adminAudit',

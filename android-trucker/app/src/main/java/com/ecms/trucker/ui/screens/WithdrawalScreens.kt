@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -28,6 +30,7 @@ import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.theme.icsHexAlpha
 import com.ecms.trucker.ui.util.formatScheduleDate
 import com.ecms.trucker.ui.util.formatScheduleTime
+import com.ecms.trucker.ui.util.rememberScreenLoadState
 import com.ecms.trucker.util.QrCodeGenerator
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -54,20 +57,20 @@ fun WithdrawalsListScreen(
         ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= WITHDRAWALS_LIST_CACHE_TTL_MS }
         ?.items
         ?: emptyList()
+    val loadState = rememberScreenLoadState(initiallyLoading = cachedItems.isEmpty())
     var items by remember { mutableStateOf(cachedItems) }
-    var loading by remember { mutableStateOf(cachedItems.isEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load(force: Boolean = false) {
         scope.launch {
-            if (items.isEmpty()) loading = true
+            loadState.begin(items.isNotEmpty())
             if (!force) {
                 WithdrawalsListCache
                     ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= WITHDRAWALS_LIST_CACHE_TTL_MS }
                     ?.let { entry ->
                         items = entry.items
-                        loading = false
+                        loadState.end()
                         return@launch
                     }
             }
@@ -80,7 +83,7 @@ fun WithdrawalsListScreen(
                     )
                 }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load(force = cachedItems.isEmpty()) }
@@ -103,7 +106,7 @@ fun WithdrawalsListScreen(
         branded = true,
         onNotificationClick = onOpenNotifications,
         notificationUnreadCount = notificationUnreadCount,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load(force = true) },
         actions = {
             TextButton(onClick = onScheduleClick) {
@@ -117,7 +120,7 @@ fun WithdrawalsListScreen(
         },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             items.isEmpty() -> EmptyState(stringResource(R.string.withdrawal_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -145,10 +148,10 @@ fun WithdrawalDetailScreen(
     tokenStore: TokenStore,
     onBack: () -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var withdrawal by remember { mutableStateOf<WithdrawalDto?>(null) }
     var documents by remember { mutableStateOf<List<WithdrawalDocumentDto>>(emptyList()) }
     var gatePass by remember { mutableStateOf<WithdrawalGatePassDto?>(null) }
-    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var actionLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -166,7 +169,7 @@ fun WithdrawalDetailScreen(
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(withdrawal != null)
             runCatching {
                 withdrawal = repository.getWithdrawal(id)
                 documents = runCatching { repository.getWithdrawalDocuments(id) }.getOrDefault(emptyList())
@@ -179,7 +182,7 @@ fun WithdrawalDetailScreen(
                     gatePass = null
                 }
             }.onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(id) { load() }
@@ -187,11 +190,11 @@ fun WithdrawalDetailScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.withdrawal_detail_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading && withdrawal == null -> LoadingBox(Modifier.padding(padding))
             error != null && withdrawal == null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             withdrawal != null -> {
                 val w = withdrawal!!
@@ -415,17 +418,17 @@ fun WithdrawalScheduleScreen(
     onBack: () -> Unit,
     onItemClick: (Int) -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var items by remember { mutableStateOf<List<WithdrawalScheduleDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(items.isNotEmpty())
             runCatching { items = repository.getMyWithdrawalSchedules() }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load() }
@@ -436,11 +439,11 @@ fun WithdrawalScheduleScreen(
         title = stringResource(R.string.withdrawal_schedule_title),
         subtitle = stringResource(R.string.withdrawal_schedule_subtitle),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             items.isEmpty() -> EmptyState(stringResource(R.string.withdrawal_schedule_empty), Modifier.padding(padding))
             else -> LazyColumn(
@@ -484,6 +487,7 @@ fun WithdrawalNewScreen(
     onCreated: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var config by remember { mutableStateOf<WithdrawalFormConfigDto?>(null) }
     var atwNumber by remember { mutableStateOf("") }
     var shippingLineId by remember { mutableIntStateOf(0) }
@@ -493,7 +497,6 @@ fun WithdrawalNewScreen(
     var sizeId by remember { mutableIntStateOf(0) }
     var typeId by remember { mutableIntStateOf(0) }
     var remarks by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -504,10 +507,10 @@ fun WithdrawalNewScreen(
 
     fun loadFormConfig() {
         scope.launch {
-            loading = true
+            loadState.begin(config != null)
             runCatching { config = repository.getWithdrawalFormConfig() }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
 
@@ -520,15 +523,22 @@ fun WithdrawalNewScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.withdrawal_new_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { refreshFormConfig() },
         showRefreshFeedback = false,
         snackbarHost = { _ -> SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
-        if (loading) {
+        if (loadState.loading) {
             LoadingBox(Modifier.padding(padding))
         } else {
-            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier
+                    .padding(padding)
+                    .padding(16.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     atwNumber,
                     { atwNumber = it },

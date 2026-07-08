@@ -203,6 +203,7 @@ class MainActivity : ComponentActivity() {
                                                     when (route) {
                                                         "returns" -> tabNav.navigate(MainTab.Returns.route)
                                                         "payments" -> tabNav.navigate(MainTab.Payments.route)
+                                                        "withdrawals" -> tabNav.navigate(MainTab.Withdrawals.route)
                                                         else -> navController.navigate(route)
                                                     }
                                                 },
@@ -381,6 +382,16 @@ class MainActivity : ComponentActivity() {
                                     repository = container.truckerRepository,
                                     onBack = { navController.popBackStack() },
                                     onUnreadCountChanged = { notificationBadge = it },
+                                )
+                            }
+                            composable(
+                                Routes.NEWS_DETAIL,
+                                arguments = listOf(navArgument("id") { type = NavType.IntType }),
+                            ) { entry ->
+                                NewsDetailScreen(
+                                    newsId = entry.arguments?.getInt("id") ?: 0,
+                                    repository = container.truckerRepository,
+                                    onBack = { navController.popBackStack() },
                                 )
                             }
                         }

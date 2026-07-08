@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -23,6 +25,7 @@ import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.theme.icsHexAlpha
 import com.ecms.trucker.ui.util.formatRelativeTime
+import com.ecms.trucker.ui.util.rememberScreenLoadState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,18 +35,18 @@ fun DemurrageListScreen(
     onItemClick: (Int) -> Unit,
     onBack: (() -> Unit)? = null,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var items by remember { mutableStateOf<List<DemurrageBillingDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(items.isNotEmpty())
             runCatching { repository.listDemurrageBillings() }
                 .onSuccess { items = it }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load() }
@@ -51,11 +54,11 @@ fun DemurrageListScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.demurrage_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             items.isEmpty() -> EmptyState(stringResource(R.string.demurrage_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -85,8 +88,8 @@ fun DemurrageDetailScreen(
     repository: TruckerRepository,
     onBack: () -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var billing by remember { mutableStateOf<DemurrageBillingDto?>(null) }
-    var loading by remember { mutableStateOf(true) }
     var uploading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
@@ -96,10 +99,10 @@ fun DemurrageDetailScreen(
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(billing != null)
             runCatching { billing = repository.getDemurrageBilling(id) }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(id) { load() }
@@ -107,15 +110,22 @@ fun DemurrageDetailScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.demurrage_detail_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading && billing == null -> LoadingBox(Modifier.padding(padding))
             error != null && billing == null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             billing != null -> {
                 val b = billing!!
-                Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    Modifier
+                        .padding(padding)
+                        .padding(16.dp)
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text(b.referenceNo, style = MaterialTheme.typography.headlineSmall)
                     StatusChip(b.status)
                     DRow(stringResource(R.string.field_container), b.containerNo)
@@ -164,15 +174,15 @@ fun ReportsScreen(
     onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val loadState = rememberScreenLoadState(initiallyLoading = false)
     var tab by remember { mutableIntStateOf(0) }
     var daily by remember { mutableStateOf<String?>(null) }
     var monthly by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun loadReport() {
         scope.launch {
-            loading = true
+            loadState.begin(daily != null || monthly != null)
             if (tab == 0) {
                 runCatching { repository.getDailyReturnsReport(null, null) }
                     .onSuccess { daily = context.getString(R.string.reports_summary, it.totalScheduled, it.totalCompleted) }
@@ -180,7 +190,7 @@ fun ReportsScreen(
                 runCatching { repository.getMonthlyReturnsReport(null) }
                     .onSuccess { monthly = context.getString(R.string.reports_summary, it.totalScheduled, it.totalCompleted) }
             }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(tab) { loadReport() }
@@ -188,16 +198,22 @@ fun ReportsScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.reports_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { loadReport() },
     ) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp)) {
+        Column(
+            Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+        ) {
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.reports_daily_tab)) })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.reports_monthly_tab)) })
             }
             Spacer(Modifier.height(16.dp))
-            if (loading) CircularProgressIndicator() else {
+            if (loadState.loading) CircularProgressIndicator() else {
                 Text(if (tab == 0) daily ?: stringResource(R.string.reports_no_data) else monthly ?: stringResource(R.string.reports_no_data))
             }
         }
@@ -212,8 +228,8 @@ fun ProfileScreen(
     onBack: (() -> Unit)? = null,
     onLogout: () -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var profile by remember { mutableStateOf<com.ecms.trucker.data.model.ProfileDto?>(null) }
-    var loading by remember { mutableStateOf(true) }
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var currentPassword by remember { mutableStateOf("") }
@@ -225,10 +241,10 @@ fun ProfileScreen(
 
     fun loadProfile() {
         scope.launch {
-            loading = true
+            loadState.begin(profile != null)
             runCatching { repository.getProfile() }
                 .onSuccess { profile = it; fullName = it.fullName; email = it.email }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { loadProfile() }
@@ -236,11 +252,18 @@ fun ProfileScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.profile_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { loadProfile() },
     ) { padding ->
-        if (loading) LoadingBox(Modifier.padding(padding)) else {
-            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (loadState.loading) LoadingBox(Modifier.padding(padding)) else {
+            Column(
+                Modifier
+                    .padding(padding)
+                    .padding(16.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 profile?.let { Text("@${it.username}", style = MaterialTheme.typography.titleMedium) }
                 OutlinedTextField(fullName, { fullName = it }, label = { Text(stringResource(R.string.auth_full_name)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.auth_email)) }, modifier = Modifier.fillMaxWidth())
@@ -282,19 +305,19 @@ fun NotificationsScreen(
     onBack: () -> Unit,
     onUnreadCountChanged: (Int) -> Unit = {},
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var items by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
     fun loadNotifications() {
         scope.launch {
-            loading = true
+            loadState.begin(items.isNotEmpty())
             runCatching {
                 val page = repository.getNotifications(page = 1, pageSize = 50)
                 items = page.items
                 onUnreadCountChanged(page.unreadCount)
             }
-            loading = false
+            loadState.end()
         }
     }
 
@@ -321,7 +344,7 @@ fun NotificationsScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.notifications_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { loadNotifications() },
         actions = {
             if (hasUnread) {
@@ -332,7 +355,7 @@ fun NotificationsScreen(
         },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             items.isEmpty() -> EmptyState(stringResource(R.string.notifications_empty), Modifier.padding(padding))
             else -> LazyColumn(
                 Modifier.padding(padding),

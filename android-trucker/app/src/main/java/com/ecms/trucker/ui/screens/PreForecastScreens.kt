@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,7 @@ import com.ecms.trucker.data.model.*
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
+import com.ecms.trucker.ui.util.rememberScreenLoadState
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
@@ -54,21 +57,22 @@ fun PreForecastListScreen(
         ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= PREFORECAST_LIST_CACHE_TTL_MS }
         ?.items
         ?: emptyList()
+    val loadState = rememberScreenLoadState(initiallyLoading = cachedItems.isEmpty())
     var items by remember { mutableStateOf(cachedItems) }
     var photoProgressById by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
-    var loading by remember { mutableStateOf(cachedItems.isEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load(force: Boolean = false) {
         scope.launch {
-            if (items.isEmpty()) loading = true
+            loadState.begin(items.isNotEmpty())
             if (!force) {
                 PreForecastListCache
                     ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= PREFORECAST_LIST_CACHE_TTL_MS }
                     ?.let { entry ->
                         items = entry.items
-                        loading = false
+                        loadState.end()
+                        return@launch
                     }
             }
             runCatching { repository.listPreAdvices() }
@@ -103,7 +107,7 @@ fun PreForecastListScreen(
                     }
                 }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load(force = cachedItems.isEmpty()) }
@@ -111,7 +115,7 @@ fun PreForecastListScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.home_preforecast),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load(force = true) },
         floatingActionButton = {
             IcsFab(onClick = onNewClick) {
@@ -120,7 +124,7 @@ fun PreForecastListScreen(
         },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             items.isEmpty() -> EmptyState(stringResource(R.string.preforecast_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -151,9 +155,9 @@ fun PreForecastDetailScreen(
     val app = context.applicationContext as EcmsTruckerApp
     val authState by app.container.tokenStore.authState.collectAsState(initial = AuthState())
     val accessToken = authState.accessToken
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var item by remember { mutableStateOf<PreAdviceDto?>(null) }
     var docs by remember { mutableStateOf<List<PreAdviceDocumentDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var actionLoading by remember { mutableStateOf(false) }
     var uploadCategory by remember { mutableStateOf<ContainerPhotoCategory?>(null) }
@@ -201,12 +205,12 @@ fun PreForecastDetailScreen(
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(item != null)
             runCatching {
                 item = repository.getPreAdvice(id)
                 docs = repository.getPreAdviceDocuments(id)
             }.onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(id) { load() }
@@ -214,12 +218,12 @@ fun PreForecastDetailScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.preforecast_detail_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
         snackbarHost = { _ -> SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading && item == null -> LoadingBox(Modifier.padding(padding))
             error != null && item == null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             item != null -> {
                 val p = item!!
@@ -626,13 +630,13 @@ fun PreForecastNewScreen(
     onCreated: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var lookups by remember { mutableStateOf<PreAdviceLookupsDto?>(null) }
     var containerNo by remember { mutableStateOf("") }
     var shippingLineId by remember { mutableIntStateOf(0) }
     var sizeId by remember { mutableIntStateOf(0) }
     var typeId by remember { mutableIntStateOf(0) }
     var remarks by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -641,10 +645,10 @@ fun PreForecastNewScreen(
 
     fun loadLookups() {
         scope.launch {
-            loading = true
+            loadState.begin(lookups != null)
             runCatching { lookups = repository.getPreAdviceLookups() }
                 .onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
 
@@ -657,15 +661,22 @@ fun PreForecastNewScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.preforecast_new_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { refreshLookups() },
         showRefreshFeedback = false,
         snackbarHost = { _ -> SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
-        if (loading) {
+        if (loadState.loading) {
             LoadingBox(Modifier.padding(padding))
         } else {
-            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier
+                    .padding(padding)
+                    .padding(16.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     containerNo,
                     { containerNo = it.uppercase() },

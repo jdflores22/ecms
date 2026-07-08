@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -18,6 +20,7 @@ import com.ecms.trucker.data.model.QrBookingDto
 import com.ecms.trucker.data.model.ScheduleDto
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
+import com.ecms.trucker.ui.util.rememberScreenLoadState
 import com.ecms.trucker.util.QrCodeGenerator
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -40,22 +43,22 @@ fun QrListScreen(
 ) {
     val cached = QrListCache
         ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= QR_LIST_CACHE_TTL_MS }
+    val loadState = rememberScreenLoadState(initiallyLoading = cached == null)
     var schedules by remember { mutableStateOf(cached?.schedules ?: emptyList()) }
     var qrMap by remember { mutableStateOf(cached?.qrMap ?: emptyMap()) }
-    var loading by remember { mutableStateOf(cached == null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load(force: Boolean = false) {
         scope.launch {
-            if (schedules.isEmpty()) loading = true
+            loadState.begin(schedules.isNotEmpty())
             if (!force) {
                 QrListCache
                     ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= QR_LIST_CACHE_TTL_MS }
                     ?.let { entry ->
                         schedules = entry.schedules
                         qrMap = entry.qrMap
-                        loading = false
+                        loadState.end()
                     }
             }
             runCatching {
@@ -74,7 +77,7 @@ fun QrListScreen(
                     updatedAtMs = System.currentTimeMillis(),
                 )
             }.onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load(force = cached == null) }
@@ -82,11 +85,11 @@ fun QrListScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.qr_passes_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load(force = true) },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             schedules.isEmpty() -> EmptyState(stringResource(R.string.qr_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -111,9 +114,9 @@ fun QrDetailScreen(
     repository: TruckerRepository,
     onBack: () -> Unit,
 ) {
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var qr by remember { mutableStateOf<QrBookingDto?>(null) }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var loading by remember { mutableStateOf(true) }
     var booking by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -121,12 +124,12 @@ fun QrDetailScreen(
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(qr != null)
             runCatching {
                 qr = repository.getQrBooking(bookingId)
                 bitmap = QrCodeGenerator.generate(qr!!.qrCode, 512)
             }.onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(bookingId) { load() }
@@ -134,16 +137,20 @@ fun QrDetailScreen(
     IcsScreenScaffold(
         title = stringResource(R.string.qr_pass_title),
         onBack = onBack,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load() },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading && qr == null -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, modifier = Modifier.padding(padding))
             qr != null -> {
                 val q = qr!!
                 Column(
-                    Modifier.padding(padding).padding(16.dp).fillMaxWidth(),
+                    Modifier
+                        .padding(padding)
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {

@@ -29,6 +29,7 @@ import com.ecms.trucker.data.model.ScheduleDto
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
+import com.ecms.trucker.ui.util.rememberScreenLoadState
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
@@ -68,17 +69,17 @@ fun PaymentsListScreen(
 ) {
     val cached = PaymentsCache
         ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= PAYMENTS_CACHE_TTL_MS }
+    val loadState = rememberScreenLoadState(initiallyLoading = cached == null)
     var payments by remember { mutableStateOf(cached?.payments ?: emptyList()) }
     var schedules by remember { mutableStateOf(cached?.schedules ?: emptyList()) }
     var fee by remember { mutableStateOf(cached?.fee ?: 0.0) }
-    var loading by remember { mutableStateOf(cached == null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val currencySymbol = "\u20B1"
 
     fun load(force: Boolean = false) {
         scope.launch {
-            if (payments.isEmpty() && schedules.isEmpty()) loading = true
+            loadState.begin(payments.isNotEmpty() || schedules.isNotEmpty())
             if (!force) {
                 PaymentsCache
                     ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= PAYMENTS_CACHE_TTL_MS }
@@ -86,7 +87,7 @@ fun PaymentsListScreen(
                         payments = entry.payments
                         schedules = entry.schedules
                         fee = entry.fee
-                        loading = false
+                        loadState.end()
                         return@launch
                     }
             }
@@ -104,7 +105,7 @@ fun PaymentsListScreen(
                     updatedAtMs = System.currentTimeMillis(),
                 )
             }.onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
     LaunchedEffect(Unit) { load(force = cached == null) }
@@ -123,11 +124,11 @@ fun PaymentsListScreen(
         branded = true,
         onNotificationClick = onOpenNotifications,
         notificationUnreadCount = notificationUnreadCount,
-        refreshing = loading,
+        refreshing = loadState.refreshing,
         onRefresh = { load(force = true) },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             else -> LazyColumn(
                 modifier = Modifier
@@ -288,10 +289,10 @@ fun PaymentUploadScreen(
     val authState by app.container.tokenStore.authState.collectAsState(initial = AuthState())
     val accessToken = authState.accessToken
 
+    val loadState = rememberScreenLoadState(initiallyLoading = true)
     var schedule by remember { mutableStateOf<ScheduleDto?>(null) }
     var payment by remember { mutableStateOf<PaymentDto?>(null) }
     var fee by remember { mutableStateOf(0.0) }
-    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
     var referenceNo by remember { mutableStateOf("") }
@@ -311,7 +312,7 @@ fun PaymentUploadScreen(
 
     fun load() {
         scope.launch {
-            loading = true
+            loadState.begin(schedule != null)
             error = null
             runCatching {
                 val scheduleDeferred = async { repository.getSchedule(scheduleId) }
@@ -321,7 +322,7 @@ fun PaymentUploadScreen(
                 payment = paymentDeferred.await()
                 fee = settingsDeferred.await().returnFeeAmount
             }.onFailure { error = it.message }
-            loading = false
+            loadState.end()
         }
     }
 
@@ -350,7 +351,7 @@ fun PaymentUploadScreen(
     IcsScreenScaffold(
         title = screenTitle,
         onBack = onBack,
-        refreshing = refreshing || loading,
+        refreshing = refreshing || loadState.refreshing,
         onRefresh = {
             if (uploadNeeded) resetUploadForm() else load()
         },
@@ -358,7 +359,7 @@ fun PaymentUploadScreen(
         snackbarHost = { _ -> SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loadState.loading && currentSchedule == null -> LoadingBox(Modifier.padding(padding))
             error != null && currentSchedule == null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             currentSchedule == null -> ErrorMessage(
                 error ?: "Schedule not found",

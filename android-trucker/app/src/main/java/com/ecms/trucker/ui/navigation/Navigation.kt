@@ -56,6 +56,7 @@ object Routes {
     const val REPORTS = "reports"
     const val PROFILE = "profile"
     const val NOTIFICATIONS = "notifications"
+    const val NEWS_DETAIL = "news/{id}"
 
     fun preForecastDetail(id: Int) = "preforecast/$id"
     fun returnDetail(id: Int) = "returns/$id"
@@ -63,6 +64,7 @@ object Routes {
     fun qrDetail(bookingId: Int) = "qr/$bookingId"
     fun withdrawalDetail(id: Int) = "withdrawals/$id"
     fun demurrageDetail(id: Int) = "demurrage/$id"
+    fun newsDetail(id: Int) = "news/$id"
 }
 
 @Composable

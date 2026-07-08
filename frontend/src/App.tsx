@@ -37,6 +37,7 @@ import {
   MasterDataPage,
   CertificateTemplatesPage,
   CertificateTemplatePreviewPage,
+  TruckerNewsPage,
   PreAdviceDetailPage,
   PreAdviceNewPage,
   PreAdvicePage,
@@ -450,6 +451,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <MasterDataPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="admin/trucker-news"
+          element={
+            <RoleRouteGuard>
+              <TruckerNewsPage />
             </RoleRouteGuard>
           }
         />

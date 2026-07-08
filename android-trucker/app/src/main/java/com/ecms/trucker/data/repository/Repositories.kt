@@ -86,6 +86,9 @@ class TruckerRepository(
 ) {
     suspend fun getDashboard(): TruckerDashboardDto = api.getTruckerDashboard()
 
+    suspend fun getNewsFeed() = api.getNewsFeed()
+    suspend fun getNewsDetail(id: Int) = api.getNewsDetail(id)
+
     suspend fun listPreAdvices() = api.listPreAdvices()
     suspend fun getPreAdvice(id: Int) = api.getPreAdvice(id)
     suspend fun getPreAdviceLookups() = api.getPreAdviceLookups()

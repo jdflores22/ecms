@@ -15,6 +15,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import DescriptionIcon from '@mui/icons-material/Description'
 import CalendarViewDayIcon from '@mui/icons-material/CalendarViewDay'
@@ -121,6 +122,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
   adminMasterData: <WarehouseIcon fontSize="small" />,
   adminCertificateTemplates: <DescriptionIcon fontSize="small" />,
+  adminTruckerNews: <ArticleOutlinedIcon fontSize="small" />,
   adminAudit: <HistoryIcon fontSize="small" />,
   adminVersion: <SystemUpdateAltOutlinedIcon fontSize="small" />,
   adminRevenue: <TrendingUpIcon fontSize="small" />,

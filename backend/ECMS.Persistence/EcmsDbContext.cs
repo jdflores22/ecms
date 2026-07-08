@@ -38,6 +38,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<CertificateTemplate> CertificateTemplatesSet => Set<CertificateTemplate>();
     public DbSet<CertificateVerification> CertificateVerificationsSet => Set<CertificateVerification>();
     public DbSet<DepotBroadcast> DepotBroadcastsSet => Set<DepotBroadcast>();
+    public DbSet<TruckerNews> TruckerNewsSet => Set<TruckerNews>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -69,6 +70,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<CertificateTemplate> IEcmsDbContext.CertificateTemplates => CertificateTemplatesSet;
     IQueryable<CertificateVerification> IEcmsDbContext.CertificateVerifications => CertificateVerificationsSet;
     IQueryable<DepotBroadcast> IEcmsDbContext.DepotBroadcasts => DepotBroadcastsSet;
+    IQueryable<TruckerNews> IEcmsDbContext.TruckerNews => TruckerNewsSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -349,6 +351,17 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.Subject).HasMaxLength(128);
             e.Property(x => x.Message).HasMaxLength(4000);
             e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TruckerNews>(e =>
+        {
+            e.HasIndex(x => new { x.IsPublished, x.PublishedAt });
+            e.Property(x => x.Title).HasMaxLength(128);
+            e.Property(x => x.Body).HasMaxLength(4000);
+            e.Property(x => x.ImagePath).HasMaxLength(512);
+            e.Property(x => x.ImageFileName).HasMaxLength(256);
+            e.Property(x => x.ImageContentType).HasMaxLength(128);
             e.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
     }

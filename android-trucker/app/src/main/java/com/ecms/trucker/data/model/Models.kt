@@ -509,3 +509,23 @@ data class UnregisterPushTokenRequest(val token: String)
 
 @Serializable
 data class AllowedPagesResponse(val allowedPages: List<String>)
+
+@Serializable
+data class TruckerNewsFeedItemDto(
+    val id: Int,
+    val title: String,
+    val imagePath: String? = null,
+    val publishedAt: String? = null,
+)
+
+@Serializable
+data class TruckerNewsDetailDto(
+    val id: Int,
+    val title: String,
+    val body: String,
+    val imagePath: String? = null,
+    val isPublished: Boolean = false,
+    val publishedAt: String? = null,
+    val createdByName: String,
+    val createdAt: String,
+)

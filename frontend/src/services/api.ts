@@ -1272,6 +1272,31 @@ export const depotBroadcastApi = {
     api.post<DepotBroadcast>('/depot/broadcasts', payload),
 }
 
+export interface TruckerNewsAdmin {
+  id: number
+  title: string
+  body: string
+  imagePath: string | null
+  isPublished: boolean
+  publishedAt: string | null
+  createdByName: string
+  createdAt: string
+}
+
+export const truckerNewsApi = {
+  list: () => api.get<TruckerNewsAdmin[]>('/trucker-news'),
+  create: (payload: { title: string; body: string }) =>
+    api.post<TruckerNewsAdmin>('/trucker-news', payload),
+  publish: (id: number) => api.post<TruckerNewsAdmin>(`/trucker-news/${id}/publish`),
+  uploadImage: (id: number, file: File) => {
+    const form = new FormData()
+    form.append('image', file)
+    return api.post<TruckerNewsAdmin>(`/trucker-news/${id}/image`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+}
+
 export interface DailyReturnReportRow {
   date: string
   scheduled: number

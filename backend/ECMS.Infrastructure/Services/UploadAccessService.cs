@@ -26,6 +26,9 @@ public class UploadAccessService : IUploadAccessService
         if (path.StartsWith("/uploads/certificate-templates/", StringComparison.OrdinalIgnoreCase))
             return role == RoleNames.Administrator;
 
+        if (path.StartsWith("/uploads/trucker-news/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
         if (await _db.Users.AsNoTracking().AnyAsync(
                 u => u.ProfilePhoto == path && (u.Id == userId || role == RoleNames.Administrator),
                 cancellationToken))
