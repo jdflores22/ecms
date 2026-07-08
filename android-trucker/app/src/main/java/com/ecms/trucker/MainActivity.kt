@@ -11,12 +11,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ecms.trucker.data.local.AuthState
@@ -156,39 +156,52 @@ class MainActivity : ComponentActivity() {
                             onOpenNews = { id -> navController.navigate(Routes.newsDetail(id)) },
                         )
 
-                        NavHost(navController = navController, startDestination = Routes.MAIN) {
-                            composable(Routes.MAIN) {
-                                val tabNav = rememberNavController()
-                                val backStack by tabNav.currentBackStackEntryAsState()
-                                val currentRoute = backStack?.destination?.route ?: MainTab.Home.route
+                        var selectedTabRoute by rememberSaveable { mutableStateOf(MainTab.Home.route) }
 
-                                Scaffold(
-                                    containerColor = com.ecms.trucker.ui.theme.IcsColors.Background,
-                                    contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-                                    bottomBar = {
-                                        if (MainTab.tabs.any { it.route == currentRoute }) {
-                                            MainBottomBar(
-                                                currentRoute = currentRoute,
-                                                onTabSelected = { tab ->
-                                                    tabNav.navigate(tab.route) {
-                                                        popUpTo(tabNav.graph.startDestinationId) {
-                                                            saveState = true
-                                                        }
-                                                        launchSingleTop = true
-                                                        restoreState = true
-                                                    }
-                                                },
-                                                paymentBadge = paymentBadge,
-                                                withdrawalBadge = withdrawalBadge,
-                                            )
+                        Scaffold(
+                            containerColor = com.ecms.trucker.ui.theme.IcsColors.Background,
+                            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+                            bottomBar = {
+                                MainBottomBar(
+                                    currentRoute = selectedTabRoute,
+                                    onTabSelected = { tab ->
+                                        selectedTabRoute = tab.route
+                                        if (navController.currentDestination?.route != Routes.MAIN) {
+                                            if (!navController.popBackStack(Routes.MAIN, inclusive = false)) {
+                                                navController.navigate(Routes.MAIN) {
+                                                    launchSingleTop = true
+                                                }
+                                            }
                                         }
                                     },
-                                ) { padding ->
-                                    NavHost(
-                                        navController = tabNav,
-                                        startDestination = MainTab.Home.route,
-                                        modifier = Modifier.padding(padding),
-                                    ) {
+                                    paymentBadge = paymentBadge,
+                                    withdrawalBadge = withdrawalBadge,
+                                )
+                            },
+                        ) { padding ->
+                        NavHost(
+                            navController = navController,
+                            startDestination = Routes.MAIN,
+                            modifier = Modifier.padding(padding),
+                        ) {
+                            composable(Routes.MAIN) {
+                                val tabNav = rememberNavController()
+
+                                LaunchedEffect(selectedTabRoute) {
+                                    if (tabNav.currentDestination?.route == selectedTabRoute) return@LaunchedEffect
+                                    tabNav.navigate(selectedTabRoute) {
+                                        popUpTo(tabNav.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+
+                                NavHost(
+                                    navController = tabNav,
+                                    startDestination = MainTab.Home.route,
+                                ) {
                                         composable(MainTab.Home.route) {
                                             val displayName = authState.user?.fullName
                                                 ?.trim()
@@ -204,9 +217,9 @@ class MainActivity : ComponentActivity() {
                                                 notificationUnreadCount = notificationBadge,
                                                 onNavigate = { route ->
                                                     when (route) {
-                                                        "returns" -> tabNav.navigate(MainTab.Returns.route)
-                                                        "payments" -> tabNav.navigate(MainTab.Payments.route)
-                                                        "withdrawals" -> tabNav.navigate(MainTab.Withdrawals.route)
+                                                        "returns" -> selectedTabRoute = MainTab.Returns.route
+                                                        "payments" -> selectedTabRoute = MainTab.Payments.route
+                                                        "withdrawals" -> selectedTabRoute = MainTab.Withdrawals.route
                                                         else -> navController.navigate(route)
                                                     }
                                                 },
@@ -397,6 +410,7 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                 )
                             }
+                        }
                         }
                     }
                 }
