@@ -123,10 +123,10 @@ export default function TruckerNewsPage() {
   return (
     <Box sx={listPageRootSx}>
       <Stack spacing={2} sx={{ mb: 3 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           <ArticleOutlinedIcon sx={{ color: primaryDark, fontSize: 32 }} />
           <Box>
-            <Typography variant="h5" fontWeight={700}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
               Trucker news feed
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -137,7 +137,7 @@ export default function TruckerNewsPage() {
       </Stack>
 
       <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-        <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
           New story
         </Typography>
         <Stack spacing={2}>
@@ -179,7 +179,7 @@ export default function TruckerNewsPage() {
         onChange={handleImageSelected}
       />
 
-      <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5 }}>
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
         Stories
       </Typography>
       {loading ? (
@@ -206,9 +206,9 @@ export default function TruckerNewsPage() {
                       backgroundPosition: 'center',
                     }}
                   />
-                  <Stack spacing={1} flex={1}>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      <Typography variant="subtitle1" fontWeight={700}>
+                  <Stack spacing={1} sx={{ flex: 1 }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                         {item.title}
                       </Typography>
                       <Chip
@@ -223,7 +223,7 @@ export default function TruckerNewsPage() {
                     <Typography variant="caption" color="text.secondary">
                       {item.createdByName} · {formatDateTime(item.createdAt)}
                     </Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                       <Button
                         size="small"
                         variant="outlined"
