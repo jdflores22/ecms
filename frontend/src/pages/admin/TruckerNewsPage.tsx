@@ -144,7 +144,7 @@ export default function TruckerNewsPage() {
               Trucker news feed
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Publish stories with cover images for the trucker app home carousel.
+              Publish stories with cover images for the trucker app home carousel. Each published story stays in the feed — swipe horizontally in the app to see older stories.
             </Typography>
           </Box>
         </Stack>

@@ -117,6 +117,7 @@
     <string name="auth_email_or_username">Email or username</string>
     <string name="auth_send_reset_link">Send reset link</string>
     <string name="home_news_feed">News &amp; updates</string>
+    <string name="home_news_count">%1$d stories</string>
     <string name="news_detail_title">News</string>
     <string name="news_detail_meta">%1$s · %2$s</string>
     <string name="home_title">Home</string>

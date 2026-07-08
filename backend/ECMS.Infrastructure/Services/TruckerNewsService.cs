@@ -112,7 +112,7 @@ public class TruckerNewsService : ITruckerNewsService
             throw new InvalidOperationException("Upload a cover image before publishing.");
         var wasPublished = item.IsPublished;
         item.IsPublished = true;
-        item.PublishedAt ??= DateTime.UtcNow;
+        item.PublishedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         _audit.QueueLog(actorUserId, "PublishTruckerNews", "TruckerNews", item.Title);
         await _db.SaveChangesAsync(cancellationToken);

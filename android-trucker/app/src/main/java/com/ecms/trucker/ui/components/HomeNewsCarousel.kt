@@ -3,9 +3,9 @@ package com.ecms.trucker.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
-import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,7 +28,6 @@ private val StoryCardWidth = 134.dp
 private val StoryCardHeight = 210.dp
 private val ImageDimAlpha = 0.28f
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeNewsCarousel(
     items: List<TruckerNewsFeedItemDto>,
@@ -39,28 +38,42 @@ fun HomeNewsCarousel(
     if (items.isEmpty()) return
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.home_news_feed),
-            style = MaterialTheme.typography.titleSmall,
-            color = IcsColors.Primary,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-        HorizontalMultiBrowseCarousel(
-            state = rememberCarouselState { items.size },
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.home_news_feed),
+                style = MaterialTheme.typography.titleSmall,
+                color = IcsColors.Primary,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (items.size > 1) {
+                Text(
+                    text = stringResource(R.string.home_news_count, items.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IcsColors.TextSecondary,
+                )
+            }
+        }
+
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(StoryCardHeight),
-            preferredItemWidth = StoryCardWidth,
-            itemSpacing = 12.dp,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 4.dp),
-        ) { index ->
-            val item = items[index]
-            HomeNewsStoryCard(
-                item = item,
-                accessToken = accessToken,
-                onClick = { onItemClick(item.id) },
-            )
+        ) {
+            items(items, key = { it.id }) { item ->
+                HomeNewsStoryCard(
+                    item = item,
+                    accessToken = accessToken,
+                    onClick = { onItemClick(item.id) },
+                )
+            }
         }
     }
 }

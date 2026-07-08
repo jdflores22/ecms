@@ -83,24 +83,24 @@ fun DashboardScreen(
         scope.launch {
             loadState.begin(dashboard != null)
             error = null
-            if (!force) {
-                DashboardCache
-                    ?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= DASHBOARD_CACHE_TTL_MS }
-                    ?.let { entry ->
-                        dashboard = entry.data
-                        loadState.end()
-                        return@launch
-                    }
+            val cached = if (!force) {
+                DashboardCache?.takeIf { System.currentTimeMillis() - it.updatedAtMs <= DASHBOARD_CACHE_TTL_MS }
+            } else {
+                null
             }
-            runCatching { repository.getDashboard() }
-                .onSuccess {
-                    dashboard = it
-                    DashboardCache = DashboardCacheEntry(
-                        data = it,
-                        updatedAtMs = System.currentTimeMillis(),
-                    )
-                }
-                .onFailure { error = it.message }
+            if (cached != null) {
+                dashboard = cached.data
+            } else {
+                runCatching { repository.getDashboard() }
+                    .onSuccess {
+                        dashboard = it
+                        DashboardCache = DashboardCacheEntry(
+                            data = it,
+                            updatedAtMs = System.currentTimeMillis(),
+                        )
+                    }
+                    .onFailure { error = it.message }
+            }
             runCatching { newsFeed = repository.getNewsFeed() }
             loadState.end()
         }
