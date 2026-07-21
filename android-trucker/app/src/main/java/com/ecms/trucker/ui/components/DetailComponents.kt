@@ -102,22 +102,25 @@ fun IcsInfoTile(
     value: String,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = IcsColors.SurfaceMuted,
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = IcsColors.TextSecondary,
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = IcsColors.TextSecondary,
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = IcsColors.OnSurface,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 
@@ -126,7 +129,7 @@ fun IcsInfoTileGrid(
     tiles: List<Pair<String, String>>,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (label, value) ->
@@ -145,13 +148,31 @@ fun IcsDetailHeader(
     modifier: Modifier = Modifier,
     belowStatus: @Composable (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(referenceNo, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        StatusChip(status)
-        belowStatus?.let {
-            Spacer(Modifier.height(12.dp))
-            it()
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = icsHexAlpha(IcsColors.Primary, 0.06f),
+        border = BorderStroke(1.dp, icsHexAlpha(IcsColors.Primary, 0.15f)),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                stringResource(R.string.field_reference).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = IcsColors.TextSecondary,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                referenceNo,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = IcsColors.Primary,
+            )
+            Spacer(Modifier.height(10.dp))
+            StatusChip(status)
+            belowStatus?.let {
+                Spacer(Modifier.height(14.dp))
+                it()
+            }
         }
     }
 }

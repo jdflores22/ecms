@@ -32,6 +32,7 @@ import com.ecms.trucker.ui.screens.auth.ForgotPasswordScreen
 import com.ecms.trucker.ui.screens.auth.LoginScreen
 import com.ecms.trucker.ui.screens.auth.SignUpScreen
 import com.ecms.trucker.ui.theme.EcmsTruckerTheme
+import com.ecms.trucker.ui.util.clearAllTruckerScreenCaches
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -70,6 +71,7 @@ class MainActivity : ComponentActivity() {
                 suspend fun logout() {
                     PushTokenRegistrar.unregister(context, container.api)
                     container.authRepository.logout()
+                    clearAllTruckerScreenCaches()
                 }
 
                 suspend fun refreshBadges() {
@@ -108,6 +110,7 @@ class MainActivity : ComponentActivity() {
                         paymentBadge = 0
                         withdrawalBadge = 0
                         notificationBadge = 0
+                        clearAllTruckerScreenCaches()
                     }
                 }
 
@@ -117,11 +120,21 @@ class MainActivity : ComponentActivity() {
 
                 key(authState.isLoggedIn) {
                     val navController = rememberNavController()
+                    var selectedTabRoute by rememberSaveable { mutableStateOf(MainTab.Home.route) }
+
+                    fun navigateFromNotification(linkPath: String?, category: String) {
+                        NotificationNavigator.navigate(
+                            navController = navController,
+                            linkPath = linkPath,
+                            category = category,
+                            onTabSelected = { selectedTabRoute = it },
+                        )
+                    }
 
                     LaunchedEffect(authState.isLoggedIn, pushNavigation) {
                         val target = pushNavigation ?: return@LaunchedEffect
                         if (!authState.isLoggedIn) return@LaunchedEffect
-                        NotificationNavigator.navigate(navController, target.linkPath, target.category)
+                        navigateFromNotification(target.linkPath, target.category.orEmpty())
                         pushNavigation = null
                         pendingPushNavigation = null
                     }
@@ -153,10 +166,10 @@ class MainActivity : ComponentActivity() {
                     } else {
                         TruckerBroadcastModal(
                             repository = container.truckerRepository,
-                            onOpenNews = { id -> navController.navigate(Routes.newsDetail(id)) },
+                            onNavigate = { linkPath, category ->
+                                navigateFromNotification(linkPath, category)
+                            },
                         )
-
-                        var selectedTabRoute by rememberSaveable { mutableStateOf(MainTab.Home.route) }
 
                         Scaffold(
                             containerColor = com.ecms.trucker.ui.theme.IcsColors.Background,
@@ -262,9 +275,8 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
-                            }
 
-                            composable(Routes.PREFORECAST_LIST) {
+                                composable(Routes.PREFORECAST_LIST) {
                                 PreForecastListScreen(
                                     repository = container.truckerRepository,
                                     onItemClick = { navController.navigate(Routes.preForecastDetail(it)) },
@@ -398,6 +410,9 @@ class MainActivity : ComponentActivity() {
                                     repository = container.truckerRepository,
                                     onBack = { navController.popBackStack() },
                                     onUnreadCountChanged = { notificationBadge = it },
+                                    onNavigate = { linkPath, category ->
+                                        navigateFromNotification(linkPath, category)
+                                    },
                                 )
                             }
                             composable(
@@ -435,8 +450,7 @@ class MainActivity : ComponentActivity() {
         }
         return PushNavigation(
             linkPath = linkPath?.takeIf { it.isNotBlank() },
-            category = category?.takeIf { it.isNotBlank() }
-                ?: if (openNotifications) "DepotBroadcast" else null,
+            category = category?.takeIf { it.isNotBlank() },
         )
     }
 }

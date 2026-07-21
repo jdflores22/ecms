@@ -297,7 +297,7 @@ public class DemurrageBillingService : IDemurrageBillingService
                 "Demurrage billing created",
                 $"{preAdvice.ReferenceNo} — ₱{total:N0} demurrage charges are due.",
                 "DemurrageBilling",
-                "/trucker/demurrage-billing",
+                $"/trucker/demurrage-billing/{billing.Id}",
                 userId,
                 billing.ReferenceNo,
                 cancellationToken);
@@ -361,7 +361,7 @@ public class DemurrageBillingService : IDemurrageBillingService
                 "Demurrage billing updated",
                 $"{billing.PreAdvice.ReferenceNo} — updated total ₱{total:N0}. Review and pay if due.",
                 "DemurrageBilling",
-                "/trucker/demurrage-billing",
+                $"/trucker/demurrage-billing/{billing.Id}",
                 userId,
                 billing.ReferenceNo,
                 cancellationToken);
@@ -513,7 +513,7 @@ public class DemurrageBillingService : IDemurrageBillingService
                     ? $"{billing.PreAdvice.ReferenceNo} demurrage charges verified. You may submit a new pre-forecast for this container."
                     : $"{billing.PreAdvice.ReferenceNo} demurrage payment was rejected. Upload a new proof.",
                 "DemurrageBilling",
-                "/trucker/demurrage-billing",
+                $"/trucker/demurrage-billing/{billing.Id}",
                 actorUserId,
                 billing.ReferenceNo,
                 cancellationToken);

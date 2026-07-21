@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ecms.trucker.R
@@ -98,7 +99,11 @@ fun MainBottomBar(
                                     containerColor = IcsColors.Error,
                                     contentColor = Color.White,
                                 ) {
-                                    Text(if (badge > 99) "99+" else "$badge")
+                                    Text(
+                                        if (badge > 99) "99+" else "$badge",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Color.White),
+                                        fontWeight = FontWeight.Bold,
+                                    )
                                 }
                             },
                         ) {

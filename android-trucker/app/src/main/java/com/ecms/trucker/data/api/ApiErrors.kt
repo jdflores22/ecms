@@ -1,19 +1,32 @@
 package com.ecms.trucker.data.api
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.HttpException
 
 private val errorJson = Json { ignoreUnknownKeys = true }
 
+private fun parseApiErrorMessage(body: String): String? {
+    val root = runCatching { errorJson.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
+    root["message"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let { return it }
+    val errors = root["errors"]?.jsonObject ?: return null
+    return errors.values
+        .flatMap { element ->
+            when {
+                element.jsonPrimitive.isString -> listOf(element.jsonPrimitive.content)
+                else -> element.jsonArray.mapNotNull { it.jsonPrimitive.content.takeIf { msg -> msg.isNotBlank() } }
+            }
+        }
+        .firstOrNull { it.isNotBlank() }
+}
+
 fun Throwable.userMessage(fallback: String): String {
     if (this is HttpException) {
         val body = response()?.errorBody()?.string()
         if (!body.isNullOrBlank()) {
-            runCatching {
-                errorJson.parseToJsonElement(body).jsonObject["message"]?.jsonPrimitive?.content
-            }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
+            parseApiErrorMessage(body)?.let { return it }
         }
         when (code()) {
             401 -> return "Invalid username or password."

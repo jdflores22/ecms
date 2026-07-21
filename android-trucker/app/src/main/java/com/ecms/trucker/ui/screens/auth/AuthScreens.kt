@@ -99,7 +99,7 @@ fun SignUpScreen(
             Spacer(Modifier.height(8.dp))
             IcsOutlinedField(fullName, { fullName = it }, stringResource(R.string.auth_full_name))
             Spacer(Modifier.height(8.dp))
-            IcsOutlinedField(password, { password = it }, stringResource(R.string.auth_password_min_6), password = true)
+            IcsOutlinedField(password, { password = it }, stringResource(R.string.auth_password_min_8), password = true)
             error?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(it, color = IcsColors.Error, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
@@ -108,7 +108,7 @@ fun SignUpScreen(
             IcsPrimaryButton(
                 text = stringResource(R.string.auth_sign_up),
                 onClick = { loading = true },
-                enabled = username.isNotBlank() && email.isNotBlank() && fullName.isNotBlank() && password.length >= 6,
+                enabled = username.isNotBlank() && email.isNotBlank() && fullName.isNotBlank() && password.length >= 8,
                 loading = loading,
             )
         }

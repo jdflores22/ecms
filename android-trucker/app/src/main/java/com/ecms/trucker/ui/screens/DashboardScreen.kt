@@ -6,13 +6,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PostAdd
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -21,6 +32,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ecms.trucker.BuildConfig
 import com.ecms.trucker.R
 import com.ecms.trucker.data.local.AuthState
 import com.ecms.trucker.data.model.TruckerDashboardDto
@@ -42,6 +54,10 @@ private data class DashboardCacheEntry(
 
 private const val DASHBOARD_CACHE_TTL_MS = 60_000L
 private var DashboardCache: DashboardCacheEntry? = null
+
+internal fun clearDashboardScreenCache() {
+    DashboardCache = null
+}
 
 private data class AttentionItem(
     val title: String,
@@ -298,8 +314,12 @@ private fun HomeAttentionRow(item: AttentionItem) {
             }
         },
         trailingContent = {
-            Badge(containerColor = item.tint) {
-                Text("${item.count}")
+            Badge(containerColor = item.tint, contentColor = androidx.compose.ui.graphics.Color.White) {
+                Text(
+                    "${item.count}",
+                    style = MaterialTheme.typography.labelSmall.copy(color = androidx.compose.ui.graphics.Color.White),
+                    fontWeight = FontWeight.Bold,
+                )
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
@@ -520,6 +540,7 @@ fun MenuScreen(
 ) {
     var unread by remember { mutableIntStateOf(notificationUnreadCount) }
     var refreshing by remember { mutableStateOf(false) }
+    var signingOut by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun loadUnread() {
@@ -546,33 +567,163 @@ fun MenuScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp),
         ) {
             item {
                 IcsSectionCard(title = stringResource(R.string.menu_title)) {
-                    IcsQuickActionRow(stringResource(R.string.home_preforecast), stringResource(R.string.menu_preforecast_subtitle), { onNavigate(Routes.PREFORECAST_LIST) })
-                    HorizontalDivider(color = IcsColors.Divider)
-                    IcsQuickActionRow(stringResource(R.string.home_qr_passes), stringResource(R.string.menu_qr_subtitle), { onNavigate(Routes.QR_LIST) })
-                    HorizontalDivider(color = IcsColors.Divider)
-                    IcsQuickActionRow(stringResource(R.string.menu_demurrage_title), stringResource(R.string.menu_demurrage_subtitle), { onNavigate(Routes.DEMURRAGE_LIST) })
-                    HorizontalDivider(color = IcsColors.Divider)
-                    IcsQuickActionRow(stringResource(R.string.menu_reports_title), stringResource(R.string.menu_reports_subtitle), { onNavigate(Routes.REPORTS) })
-                    HorizontalDivider(color = IcsColors.Divider)
-                    IcsQuickActionRow(stringResource(R.string.menu_notifications_title), stringResource(R.string.menu_unread_count, unread), { onNavigate(Routes.NOTIFICATIONS) })
-                    HorizontalDivider(color = IcsColors.Divider)
-                    IcsQuickActionRow(stringResource(R.string.menu_profile_title), stringResource(R.string.menu_profile_subtitle), { onNavigate(Routes.PROFILE) })
+                    MenuActionRow(
+                        icon = Icons.Default.PostAdd,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.home_preforecast),
+                        subtitle = stringResource(R.string.menu_preforecast_subtitle),
+                        onClick = { onNavigate(Routes.PREFORECAST_LIST) },
+                    )
+                    MenuRowDivider()
+                    MenuActionRow(
+                        icon = Icons.Default.QrCode2,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.home_qr_passes),
+                        subtitle = stringResource(R.string.menu_qr_subtitle),
+                        onClick = { onNavigate(Routes.QR_LIST) },
+                    )
+                    MenuRowDivider()
+                    MenuActionRow(
+                        icon = Icons.Default.WarningAmber,
+                        tint = IcsColors.Warning,
+                        title = stringResource(R.string.menu_demurrage_title),
+                        subtitle = stringResource(R.string.menu_demurrage_subtitle),
+                        onClick = { onNavigate(Routes.DEMURRAGE_LIST) },
+                    )
+                    MenuRowDivider()
+                    MenuActionRow(
+                        icon = Icons.Outlined.Assessment,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.menu_reports_title),
+                        subtitle = stringResource(R.string.menu_reports_subtitle),
+                        onClick = { onNavigate(Routes.REPORTS) },
+                    )
+                }
+            }
+            item {
+                IcsSectionCard(title = stringResource(R.string.menu_account_title)) {
+                    MenuActionRow(
+                        icon = Icons.Outlined.Notifications,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.menu_notifications_title),
+                        subtitle = stringResource(R.string.menu_unread_count, unread),
+                        badgeCount = unread,
+                        onClick = { onNavigate(Routes.NOTIFICATIONS) },
+                    )
+                    MenuRowDivider()
+                    MenuActionRow(
+                        icon = Icons.Outlined.Person,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.menu_profile_title),
+                        subtitle = stringResource(R.string.menu_profile_subtitle),
+                        onClick = { onNavigate(Routes.PROFILE) },
+                    )
                 }
             }
             item {
                 OutlinedButton(
-                    onClick = onLogout,
-                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (!signingOut) {
+                            signingOut = true
+                            onLogout()
+                        }
+                    },
+                    enabled = !signingOut,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = IcsColors.Error),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, icsHexAlpha(IcsColors.Error, 0.4f)),
                 ) {
-                    Text(stringResource(R.string.action_sign_out))
+                    if (signingOut) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = IcsColors.Error,
+                        )
+                    } else {
+                        Text(stringResource(R.string.action_sign_out), fontWeight = FontWeight.SemiBold)
+                    }
                 }
+            }
+            item {
+                Text(
+                    stringResource(
+                        R.string.app_version,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE,
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IcsColors.TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                )
             }
         }
     }
+}
+
+@Composable
+private fun MenuRowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 64.dp),
+        color = IcsColors.Divider,
+    )
+}
+
+@Composable
+private fun MenuActionRow(
+    icon: ImageVector,
+    tint: androidx.compose.ui.graphics.Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    badgeCount: Int = 0,
+) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(icsHexAlpha(tint, 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            }
+        },
+        headlineContent = {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        },
+        supportingContent = {
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = IcsColors.TextSecondary)
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (badgeCount > 0) {
+                    Badge(containerColor = IcsColors.Error, contentColor = Color.White) {
+                        Text(
+                            if (badgeCount > 99) "99+" else "$badgeCount",
+                            style = MaterialTheme.typography.labelSmall.copy(color = Color.White),
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = IcsColors.TextSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
 }

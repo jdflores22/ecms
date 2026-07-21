@@ -34,6 +34,10 @@ private data class QrListCacheEntry(
 private const val QR_LIST_CACHE_TTL_MS = 60_000L
 private var QrListCache: QrListCacheEntry? = null
 
+internal fun clearQrScreenCache() {
+    QrListCache = null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QrListScreen(

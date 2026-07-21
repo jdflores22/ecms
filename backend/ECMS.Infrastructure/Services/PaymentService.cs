@@ -176,7 +176,9 @@ public class PaymentService : IPaymentService
 
         if (payment.TruckerId > 0)
         {
-            var paymentLink = $"/trucker/payments/{payment.ScheduleId}";
+            var paymentLink = request.Approved
+                ? $"/trucker/returns/{payment.ScheduleId}"
+                : $"/trucker/payments/{payment.ScheduleId}";
             await _notifications.NotifyUsersAsync(
                 new[] { payment.TruckerId },
                 request.Approved ? "Payment approved — return confirmed" : "Payment rejected",

@@ -3,15 +3,18 @@ package com.ecms.trucker.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
@@ -20,6 +23,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ecms.trucker.R
 import com.ecms.trucker.data.local.TokenStore
@@ -42,6 +46,10 @@ private data class WithdrawalsListCacheEntry(
 
 private const val WITHDRAWALS_LIST_CACHE_TTL_MS = 60_000L
 private var WithdrawalsListCache: WithdrawalsListCacheEntry? = null
+
+internal fun clearWithdrawalsScreenCache() {
+    WithdrawalsListCache = null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,8 +117,11 @@ fun WithdrawalsListScreen(
         refreshing = loadState.refreshing,
         onRefresh = { load(force = true) },
         actions = {
-            TextButton(onClick = onScheduleClick) {
-                Text(stringResource(R.string.withdrawal_pickup_schedule_btn))
+            IconButton(onClick = onScheduleClick) {
+                Icon(
+                    Icons.Outlined.CalendarMonth,
+                    contentDescription = stringResource(R.string.withdrawal_pickup_schedule_btn),
+                )
             }
         },
         floatingActionButton = {
@@ -128,12 +139,7 @@ fun WithdrawalsListScreen(
                     WithdrawalSummaryGrid(summary, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
                 items(items) { w ->
-                    IcsListItemCard(
-                        title = w.referenceNo,
-                        subtitle = "${w.atwNumber} · ${w.containerSummary}",
-                        status = w.status,
-                        onClick = { onItemClick(w.id) },
-                    )
+                    WithdrawalListCard(w = w, onClick = { onItemClick(w.id) })
                 }
             }
         }
@@ -351,6 +357,95 @@ private data class WithdrawalListSummary(
     val scheduled: Int,
     val approved: Int,
 )
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WithdrawalListCard(w: WithdrawalDto, onClick: () -> Unit) {
+    val maxVisible = 5
+    val totalContainers = maxOf(w.containerCount, w.lines.size)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 5.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = IcsColors.Surface,
+        shadowElevation = 1.dp,
+        border = BorderStroke(1.dp, IcsColors.Divider),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        w.referenceNo,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        w.atwNumber,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IcsColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                StatusChip(w.status)
+            }
+
+            if (w.lines.isNotEmpty()) {
+                val visible = w.lines.take(maxVisible)
+                val remaining = w.lines.size - visible.size
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    visible.forEach { line ->
+                        WithdrawalContainerChip(text = line.containerNo)
+                    }
+                    if (remaining > 0) {
+                        WithdrawalContainerChip(text = "+$remaining more", emphasized = true)
+                    }
+                }
+            } else if (w.containerSummary.isNotBlank() && w.containerSummary != "—") {
+                Text(
+                    w.containerSummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IcsColors.TextSecondary,
+                )
+            }
+
+            if (totalContainers > 0) {
+                Text(
+                    text = if (totalContainers == 1) "1 container" else "$totalContainers containers",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IcsColors.TextSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WithdrawalContainerChip(text: String, emphasized: Boolean = false) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (emphasized) icsHexAlpha(IcsColors.Primary, 0.12f) else IcsColors.SurfaceMuted,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (emphasized) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (emphasized) IcsColors.Primary else IcsColors.OnSurface,
+        )
+    }
+}
 
 @Composable
 private fun WithdrawalSummaryGrid(summary: WithdrawalListSummary, modifier: Modifier = Modifier) {

@@ -74,7 +74,8 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> SignUpAsync(SignUpRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.Role is not RoleNames.Trucker)
+        var role = string.IsNullOrWhiteSpace(request.Role) ? RoleNames.Trucker : request.Role.Trim();
+        if (role is not RoleNames.Trucker)
             throw new InvalidOperationException("Self-service sign-up is only available for trucker accounts.");
 
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.FullName))
@@ -89,7 +90,7 @@ public class AuthService : IAuthService
                 request.Email.Trim(),
                 request.Password,
                 request.FullName.Trim(),
-                request.Role),
+                role),
             cancellationToken);
     }
 

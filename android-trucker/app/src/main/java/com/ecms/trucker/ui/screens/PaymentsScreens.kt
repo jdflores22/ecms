@@ -31,6 +31,7 @@ import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.util.rememberScreenLoadState
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 private data class PaymentsCacheEntry(
@@ -42,6 +43,10 @@ private data class PaymentsCacheEntry(
 
 private const val PAYMENTS_CACHE_TTL_MS = 60_000L
 private var PaymentsCache: PaymentsCacheEntry? = null
+
+internal fun clearPaymentsScreenCache() {
+    PaymentsCache = null
+}
 
 private fun paymentFor(payments: List<PaymentDto>, scheduleId: Int): PaymentDto? =
     payments.find { it.scheduleId == scheduleId }
@@ -92,12 +97,14 @@ fun PaymentsListScreen(
                     }
             }
             runCatching {
-                val paymentsDeferred = async { repository.getMyPayments() }
-                val schedulesDeferred = async { repository.listSchedules() }
-                val settingsDeferred = async { repository.getPaymentSettings() }
-                payments = paymentsDeferred.await()
-                schedules = schedulesDeferred.await()
-                fee = settingsDeferred.await().returnFeeAmount
+                coroutineScope {
+                    val paymentsDeferred = async { repository.getMyPayments() }
+                    val schedulesDeferred = async { repository.listSchedules() }
+                    val settingsDeferred = async { repository.getPaymentSettings() }
+                    payments = paymentsDeferred.await()
+                    schedules = schedulesDeferred.await()
+                    fee = settingsDeferred.await().returnFeeAmount
+                }
                 PaymentsCache = PaymentsCacheEntry(
                     payments = payments,
                     schedules = schedules,
@@ -315,12 +322,14 @@ fun PaymentUploadScreen(
             loadState.begin(schedule != null)
             error = null
             runCatching {
-                val scheduleDeferred = async { repository.getSchedule(scheduleId) }
-                val paymentDeferred = async { repository.getPaymentBySchedule(scheduleId) }
-                val settingsDeferred = async { repository.getPaymentSettings() }
-                schedule = scheduleDeferred.await()
-                payment = paymentDeferred.await()
-                fee = settingsDeferred.await().returnFeeAmount
+                coroutineScope {
+                    val scheduleDeferred = async { repository.getSchedule(scheduleId) }
+                    val paymentDeferred = async { repository.getPaymentBySchedule(scheduleId) }
+                    val settingsDeferred = async { repository.getPaymentSettings() }
+                    schedule = scheduleDeferred.await()
+                    payment = paymentDeferred.await()
+                    fee = settingsDeferred.await().returnFeeAmount
+                }
             }.onFailure { error = it.message }
             loadState.end()
         }

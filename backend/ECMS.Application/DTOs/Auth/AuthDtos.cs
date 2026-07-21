@@ -16,7 +16,7 @@ public record SignUpRequest(
     string Email,
     string Password,
     string FullName,
-    string Role);
+    string? Role = null);
 
 public record AuthResponse(
     string AccessToken,

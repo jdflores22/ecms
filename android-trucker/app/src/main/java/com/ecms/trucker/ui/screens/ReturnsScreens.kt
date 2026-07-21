@@ -26,6 +26,10 @@ private data class ReturnsListCacheEntry(
 private const val RETURNS_LIST_CACHE_TTL_MS = 60_000L
 private var ReturnsListCache: ReturnsListCacheEntry? = null
 
+internal fun clearReturnsScreenCache() {
+    ReturnsListCache = null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReturnsListScreen(

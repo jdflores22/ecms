@@ -7,12 +7,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -124,46 +127,77 @@ fun DemurrageDetailScreen(
                         .padding(16.dp)
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(b.referenceNo, style = MaterialTheme.typography.headlineSmall)
-                    StatusChip(b.status)
-                    DRow(stringResource(R.string.field_container), b.containerNo)
-                    DRow(stringResource(R.string.section_preforecast), b.preAdviceReferenceNo)
-                    DRow(stringResource(R.string.field_total), "\u20B1${b.totalAmount}")
-                    DRow(stringResource(R.string.field_days_overdue), "${b.daysOverdue}")
-                    b.feeLines.forEach { DRow(it.description, "\u20B1${it.amount}") }
-                    if (!b.status.equals("Paid", true)) {
-                        OutlinedButton(onClick = { picker.launch("*/*") }, modifier = Modifier.fillMaxWidth()) {
-                            Text(selectedUri?.lastPathSegment ?: stringResource(R.string.demurrage_select_payment_proof))
-                        }
-                        Button(
-                            onClick = {
-                                val uri = selectedUri ?: return@Button
-                                uploading = true
-                                scope.launch {
-                                    runCatching { repository.uploadDemurrageProof(id, uri, null, null) }
-                                        .onSuccess { load() }
-                                        .onFailure { error = it.message }
-                                    uploading = false
-                                }
-                            },
-                            enabled = !uploading && selectedUri != null,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(stringResource(R.string.demurrage_upload_proof)) }
+                    IcsDetailHeader(referenceNo = b.referenceNo, status = b.status)
+
+                    IcsSectionCard(title = stringResource(R.string.demurrage_detail_title)) {
+                        IcsInfoTileGrid(
+                            tiles = listOf(
+                                stringResource(R.string.field_container) to b.containerNo,
+                                stringResource(R.string.section_preforecast) to b.preAdviceReferenceNo,
+                                stringResource(R.string.field_total) to "\u20B1${b.totalAmount}",
+                                stringResource(R.string.field_days_overdue) to "${b.daysOverdue}",
+                            ),
+                        )
                     }
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+                    if (b.feeLines.isNotEmpty()) {
+                        IcsSectionCard(title = stringResource(R.string.demurrage_charges_title)) {
+                            Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                                b.feeLines.forEachIndexed { index, line ->
+                                    if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp), color = IcsColors.Divider)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(
+                                            line.description,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = IcsColors.TextSecondary,
+                                        )
+                                        Text(
+                                            "\u20B1${line.amount}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!b.status.equals("Paid", true)) {
+                        IcsSectionCard(title = stringResource(R.string.demurrage_upload_proof)) {
+                            Column(
+                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                IcsSecondaryButton(
+                                    text = selectedUri?.lastPathSegment
+                                        ?: stringResource(R.string.demurrage_select_payment_proof),
+                                    onClick = { picker.launch("*/*") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                IcsPrimaryButton(
+                                    text = stringResource(R.string.demurrage_upload_proof),
+                                    onClick = {
+                                        val uri = selectedUri ?: return@IcsPrimaryButton
+                                        uploading = true
+                                        scope.launch {
+                                            runCatching { repository.uploadDemurrageProof(id, uri, null, null) }
+                                                .onSuccess { load() }
+                                                .onFailure { error = it.message }
+                                            uploading = false
+                                        }
+                                    },
+                                    enabled = !uploading && selectedUri != null,
+                                    loading = uploading,
+                                )
+                            }
+                        }
+                    }
+                    error?.let { Text(it, color = IcsColors.Error, style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun DRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        Text(value)
     }
 }
 
@@ -262,37 +296,128 @@ fun ProfileScreen(
                     .padding(16.dp)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                profile?.let { Text("@${it.username}", style = MaterialTheme.typography.titleMedium) }
-                OutlinedTextField(fullName, { fullName = it }, label = { Text(stringResource(R.string.auth_full_name)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.auth_email)) }, modifier = Modifier.fillMaxWidth())
-                Button(
-                    onClick = {
-                        scope.launch {
-                            runCatching { repository.updateProfile(email, fullName) }
-                                .onSuccess { message = profileUpdatedMessage }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.profile_save)) }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                OutlinedTextField(currentPassword, { currentPassword = it }, label = { Text(stringResource(R.string.profile_current_password)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(newPassword, { newPassword = it }, label = { Text(stringResource(R.string.profile_new_password)) }, modifier = Modifier.fillMaxWidth())
+                ProfileHeaderCard(
+                    fullName = fullName.ifBlank { profile?.fullName ?: "" },
+                    username = profile?.username ?: "",
+                    email = email.ifBlank { profile?.email ?: "" },
+                )
+
+                IcsSectionCard(title = stringResource(R.string.profile_title)) {
+                    Column(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        IcsOutlinedField(fullName, { fullName = it }, stringResource(R.string.auth_full_name))
+                        IcsOutlinedField(email, { email = it }, stringResource(R.string.auth_email))
+                        IcsPrimaryButton(
+                            text = stringResource(R.string.profile_save),
+                            onClick = {
+                                scope.launch {
+                                    runCatching { repository.updateProfile(email, fullName) }
+                                        .onSuccess { message = profileUpdatedMessage }
+                                }
+                            },
+                        )
+                    }
+                }
+
+                IcsSectionCard(title = stringResource(R.string.profile_change_password)) {
+                    Column(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        IcsOutlinedField(currentPassword, { currentPassword = it }, stringResource(R.string.profile_current_password), password = true)
+                        IcsOutlinedField(newPassword, { newPassword = it }, stringResource(R.string.profile_new_password), password = true)
+                        IcsSecondaryButton(
+                            text = stringResource(R.string.profile_change_password),
+                            onClick = {
+                                scope.launch {
+                                    runCatching { repository.changePassword(currentPassword, newPassword) }
+                                        .onSuccess { message = passwordChangedMessage; currentPassword = ""; newPassword = "" }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                message?.let {
+                    Text(it, color = IcsColors.Success, style = MaterialTheme.typography.bodyMedium)
+                }
+
                 OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            runCatching { repository.changePassword(currentPassword, newPassword) }
-                                .onSuccess { message = passwordChangedMessage; currentPassword = ""; newPassword = "" }
-                        }
-                    },
+                    onClick = { scope.launch { authRepository.logout(); onLogout() } },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.profile_change_password)) }
-                message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = {
-                    scope.launch { authRepository.logout(); onLogout() }
-                }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_sign_out)) }
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = IcsColors.Error),
+                ) { Text(stringResource(R.string.action_sign_out)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileHeaderCard(
+    fullName: String,
+    username: String,
+    email: String,
+) {
+    val initials = remember(fullName, username) {
+        val source = fullName.ifBlank { username }
+        source.trim()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString("") { it.first().uppercase() }
+            .ifBlank { "?" }
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = icsHexAlpha(IcsColors.Primary, 0.06f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, icsHexAlpha(IcsColors.Primary, 0.15f)),
+    ) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(IcsColors.Primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    initials,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = androidx.compose.ui.graphics.Color.White,
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    fullName.ifBlank { username },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = IcsColors.OnSurface,
+                )
+                if (username.isNotBlank()) {
+                    Text(
+                        "@$username",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IcsColors.Primary,
+                    )
+                }
+                if (email.isNotBlank()) {
+                    Text(
+                        email,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IcsColors.TextSecondary,
+                    )
+                }
             }
         }
     }
@@ -304,6 +429,7 @@ fun NotificationsScreen(
     repository: TruckerRepository,
     onBack: () -> Unit,
     onUnreadCountChanged: (Int) -> Unit = {},
+    onNavigate: (linkPath: String?, category: String) -> Unit = { _, _ -> },
 ) {
     val loadState = rememberScreenLoadState(initiallyLoading = true)
     var items by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
@@ -371,7 +497,10 @@ fun NotificationsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(bg)
-                            .clickable(enabled = !n.isRead) { markRead(n.id) }
+                            .clickable {
+                                if (!n.isRead) markRead(n.id)
+                                onNavigate(n.linkPath, n.category)
+                            }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                     ) {
                         Text(

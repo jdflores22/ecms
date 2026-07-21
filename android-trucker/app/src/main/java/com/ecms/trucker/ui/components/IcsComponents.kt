@@ -297,12 +297,12 @@ fun IcsSectionCard(
         IcsScreenSectionTitle(title)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(16.dp),
             color = IcsColors.Surface,
-            tonalElevation = 1.dp,
+            shadowElevation = 1.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, IcsColors.Divider),
         ) {
-            Column(Modifier.padding(4.dp)) {
+            Column(Modifier.padding(vertical = 6.dp, horizontal = 4.dp)) {
                 content()
             }
         }
@@ -411,21 +411,37 @@ fun IcsListItemCard(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 5.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         color = IcsColors.Surface,
-        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, IcsColors.Divider),
     ) {
         ListItem(
             headlineContent = {
-                Text(title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             },
             supportingContent = {
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IcsColors.TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             },
-            trailingContent = { StatusChip(status) },
+            trailingContent = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    StatusChip(status)
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = IcsColors.TextSecondary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         )
     }

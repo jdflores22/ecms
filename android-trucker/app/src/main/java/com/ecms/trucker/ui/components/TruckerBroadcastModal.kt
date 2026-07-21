@@ -2,7 +2,7 @@ package com.ecms.trucker.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,7 +39,7 @@ private fun newsIdFromLink(linkPath: String?): Int? {
 @Composable
 fun TruckerBroadcastModal(
     repository: TruckerRepository,
-    onOpenNews: (Int) -> Unit = {},
+    onNavigate: (linkPath: String?, category: String) -> Unit = { _, _ -> },
 ) {
     var active by remember { mutableStateOf<NotificationDto?>(null) }
     var dismissing by remember { mutableStateOf(false) }
@@ -111,7 +111,7 @@ fun TruckerBroadcastModal(
                         color = icsHexAlpha(IcsColors.Primary, 0.1f),
                     ) {
                         Icon(
-                            if (isNews) Icons.Outlined.Article else Icons.Outlined.Campaign,
+                            if (isNews) Icons.AutoMirrored.Outlined.Article else Icons.Outlined.Campaign,
                             contentDescription = null,
                             tint = IcsColors.Primary,
                             modifier = Modifier.padding(10.dp),
@@ -161,7 +161,7 @@ fun TruckerBroadcastModal(
                         TextButton(
                             onClick = {
                                 dismissCurrent()
-                                onOpenNews(newsId)
+                                onNavigate(alert.linkPath, alert.category)
                             },
                             enabled = !dismissing,
                         ) {

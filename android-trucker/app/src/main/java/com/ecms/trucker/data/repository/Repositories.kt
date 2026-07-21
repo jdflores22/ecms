@@ -47,7 +47,15 @@ class AuthRepository(
         fullName: String,
     ): Result<UserDto> {
         return try {
-            val response = api.signUp(SignUpRequest(username, email, password, fullName))
+            val response = api.signUp(
+                SignUpRequest(
+                    username = username,
+                    email = email,
+                    password = password,
+                    fullName = fullName,
+                    role = "Trucker",
+                ),
+            )
             tokenStore.saveAuth(response.accessToken, response.refreshToken, response.user)
             authInterceptor.resetSession()
             Result.success(response.user)

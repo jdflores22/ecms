@@ -253,25 +253,37 @@ fun PreForecastDetailScreen(
                 )
                 LazyColumn(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
-                        Text(p.referenceNo, style = MaterialTheme.typography.headlineSmall)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            StatusChip(p.status)
-                            PhotoProgressChip(
-                                uploaded = uploadedRequired,
-                                total = photosTotal,
+                        IcsDetailHeader(
+                            referenceNo = p.referenceNo,
+                            status = p.status,
+                            belowStatus = {
+                                PhotoProgressChip(
+                                    uploaded = uploadedRequired,
+                                    total = photosTotal,
+                                )
+                            },
+                        )
+                    }
+                    item {
+                        IcsSectionCard(title = stringResource(R.string.preforecast_detail_title)) {
+                            IcsInfoTileGrid(
+                                tiles = listOf(
+                                    stringResource(R.string.field_container) to p.containerNo,
+                                    stringResource(R.string.field_size_type) to "${p.containerSize} / ${p.containerType}",
+                                    stringResource(R.string.field_shipping_line) to p.shippingLineName,
+                                    stringResource(R.string.field_created) to p.createdAt,
+                                ),
                             )
+                            p.remarks?.takeIf { it.isNotBlank() }?.let { r ->
+                                Spacer(Modifier.height(8.dp))
+                                IcsInfoTile(
+                                    stringResource(R.string.field_remarks),
+                                    r,
+                                    Modifier.padding(horizontal = 8.dp),
+                                )
+                            }
                         }
                     }
-                    item { DetailRow(stringResource(R.string.field_container), p.containerNo) }
-                    item { DetailRow(stringResource(R.string.field_size_type), "${p.containerSize} / ${p.containerType}") }
-                    item { DetailRow(stringResource(R.string.field_shipping_line), p.shippingLineName) }
-                    item { DetailRow(stringResource(R.string.field_created), p.createdAt) }
-                    p.remarks?.let { item { DetailRow(stringResource(R.string.field_remarks), it) } }
                     if (canSubmit) {
                         item {
                             val submitLabel = if (isForCompliance) {
@@ -696,18 +708,23 @@ fun PreForecastNewScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 IcsSectionCard(title = stringResource(R.string.preforecast_workflow_title)) {
-                    IcsInfoTile(
-                        label = "1",
-                        value = stringResource(R.string.preforecast_workflow_step_1),
-                    )
-                    IcsInfoTile(
-                        label = "2",
-                        value = stringResource(R.string.preforecast_workflow_step_2),
-                    )
-                    IcsInfoTile(
-                        label = "3",
-                        value = stringResource(R.string.preforecast_workflow_step_3),
-                    )
+                    Column(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        IcsInfoTile(
+                            label = "1",
+                            value = stringResource(R.string.preforecast_workflow_step_1),
+                        )
+                        IcsInfoTile(
+                            label = "2",
+                            value = stringResource(R.string.preforecast_workflow_step_2),
+                        )
+                        IcsInfoTile(
+                            label = "3",
+                            value = stringResource(R.string.preforecast_workflow_step_3),
+                        )
+                    }
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(
@@ -727,14 +744,6 @@ fun PreForecastNewScreen(
                 ) { Text(stringResource(R.string.action_create_draft)) }
             }
         }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -798,6 +807,11 @@ private const val PHOTO_PROGRESS_CACHE_TTL_MS = 60_000L
 private const val PREFORECAST_LIST_CACHE_TTL_MS = 60_000L
 private val PreForecastPhotoProgressCache = mutableMapOf<Int, PhotoProgressCacheEntry>()
 private var PreForecastListCache: PreForecastListCacheEntry? = null
+
+internal fun clearPreForecastScreenCache() {
+    PreForecastListCache = null
+    PreForecastPhotoProgressCache.clear()
+}
 
 @Composable
 private fun PreForecastListRowCard(

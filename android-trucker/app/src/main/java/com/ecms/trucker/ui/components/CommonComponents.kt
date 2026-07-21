@@ -1,7 +1,9 @@
 package com.ecms.trucker.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -15,12 +17,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ecms.trucker.R
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.theme.icsHexAlpha
@@ -58,34 +63,38 @@ fun IcsScreenScaffold(
         snackbarHost = { snackbarHost(scaffoldSnackbarHostState) },
         floatingActionButton = floatingActionButton,
         content = { padding ->
-            if (onRefresh != null) {
-                val pullToRefreshState = rememberPullToRefreshState()
-                PullToRefreshBox(
-                    isRefreshing = refreshing,
-                    onRefresh = {
-                        onRefresh.invoke()
-                        if (showRefreshFeedback && resolvedRefreshFeedbackMessage.isNotBlank()) {
-                            scope.launch {
-                                scaffoldSnackbarHostState.showSnackbar(resolvedRefreshFeedbackMessage)
+            Box(Modifier.padding(padding).fillMaxSize()) {
+                if (onRefresh != null) {
+                    val pullToRefreshState = rememberPullToRefreshState()
+                    PullToRefreshBox(
+                        isRefreshing = refreshing,
+                        onRefresh = {
+                            onRefresh.invoke()
+                            if (showRefreshFeedback && resolvedRefreshFeedbackMessage.isNotBlank()) {
+                                scope.launch {
+                                    scaffoldSnackbarHostState.showSnackbar(resolvedRefreshFeedbackMessage)
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                    state = pullToRefreshState,
-                    indicator = {
-                        PullToRefreshDefaults.Indicator(
-                            modifier = Modifier.align(Alignment.TopCenter),
-                            isRefreshing = refreshing,
-                            state = pullToRefreshState,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    },
-                ) {
-                    content(padding)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        state = pullToRefreshState,
+                        indicator = {
+                            PullToRefreshDefaults.Indicator(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 4.dp),
+                                isRefreshing = refreshing,
+                                state = pullToRefreshState,
+                                containerColor = IcsColors.Surface,
+                                color = IcsColors.Primary,
+                            )
+                        },
+                    ) {
+                        content(PaddingValues(0.dp))
+                    }
+                } else {
+                    content(PaddingValues(0.dp))
                 }
-            } else {
-                content(padding)
             }
         },
     )
@@ -95,7 +104,7 @@ fun IcsScreenScaffold(
 fun RefreshableScrollSurface(
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
-    content: @Composable (minHeight: androidx.compose.ui.unit.Dp) -> Unit,
+    content: @Composable (minHeight: Dp) -> Unit,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val minHeight = maxHeight
@@ -103,7 +112,7 @@ fun RefreshableScrollSurface(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = minHeight)
+                .then(if (minHeight.value < 10000f) Modifier.heightIn(min = minHeight) else Modifier)
                 .verticalScroll(scrollState),
             contentAlignment = contentAlignment,
         ) {
@@ -160,7 +169,8 @@ fun StatusChip(status: String) {
     val (bg, fg) = when (status.lowercase()) {
         "draft", "pending", "scheduled" -> icsHexAlpha(IcsColors.Primary, 0.12f) to IcsColors.Primary
         "waitingschedule" -> icsHexAlpha(IcsColors.Warning, 0.14f) to IcsColors.Warning
-        "approved", "confirmed", "paid", "completed", "released" -> icsHexAlpha(IcsColors.Success, 0.12f) to IcsColors.Success
+        "approved", "confirmed", "paid" -> icsHexAlpha(IcsColors.Success, 0.12f) to IcsColors.Success
+        "released", "completed" -> icsHexAlpha(IcsColors.Released, 0.14f) to IcsColors.Released
         "rejected", "cancelled", "noshow" -> icsHexAlpha(IcsColors.Error, 0.12f) to IcsColors.Error
         "submitted", "forverification", "issued" -> icsHexAlpha(IcsColors.Warning, 0.14f) to IcsColors.Warning
         else -> IcsColors.Divider to IcsColors.TextSecondary
@@ -298,7 +308,8 @@ fun EcmsTopBar(
                                 ) {
                                     Text(
                                         if (notificationUnreadCount > 99) "99+" else "$notificationUnreadCount",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Color.White),
+                                        fontWeight = FontWeight.Bold,
                                     )
                                 }
                             }
@@ -334,11 +345,24 @@ fun IcsFab(onClick: () -> Unit, content: @Composable () -> Unit) {
 
 @Composable
 fun IcsScreenSectionTitle(title: String, modifier: Modifier = Modifier) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        color = IcsColors.Primary,
-        fontWeight = FontWeight.SemiBold,
-        modifier = modifier.padding(vertical = 4.dp),
-    )
+    Row(
+        modifier = modifier.padding(start = 2.dp, top = 2.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .padding(end = 8.dp)
+                .width(3.dp)
+                .height(14.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(IcsColors.Primary),
+        )
+        Text(
+            title.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = IcsColors.Primary,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp,
+        )
+    }
 }

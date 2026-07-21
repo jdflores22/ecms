@@ -183,7 +183,7 @@ public class EvaluationService : IEvaluationService
             "Pre-forecast approved",
             $"{preAdvice.ReferenceNo} was approved. CY: {depot.Name}.",
             "Evaluation",
-            $"/preforecast/{preAdvice.Id}",
+            $"/trucker/preforecast/{preAdvice.Id}",
             evaluatorId,
             preAdvice.ReferenceNo,
             cancellationToken);
@@ -237,7 +237,7 @@ public class EvaluationService : IEvaluationService
             "Pre-forecast rejected",
             $"{preAdvice.ReferenceNo} was rejected.{(string.IsNullOrWhiteSpace(request.Remarks) ? "" : $" Remarks: {request.Remarks}")}",
             "Evaluation",
-            $"/preforecast/{preAdvice.Id}",
+            $"/trucker/preforecast/{preAdvice.Id}",
             evaluatorId,
             preAdvice.ReferenceNo,
             cancellationToken);
@@ -287,7 +287,7 @@ public class EvaluationService : IEvaluationService
             "Pre-forecast returned for compliance",
             $"{preAdvice.ReferenceNo} needs corrections before it can be approved. {request.Remarks.Trim()}",
             "Evaluation",
-            $"/preforecast/{preAdvice.Id}",
+            $"/trucker/preforecast/{preAdvice.Id}",
             evaluatorId,
             preAdvice.ReferenceNo,
             cancellationToken);

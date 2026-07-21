@@ -15,6 +15,7 @@ object IcsColors {
     val TextSecondary = Color(0xFF64748B)
     val Divider = Color(0xFFE2E8F0)
     val Success = Color(0xFF2E7D32)
+    val Released = Color(0xFF0D9488)
     val Warning = Color(0xFFED6C02)
     val Error = Color(0xFFC62828)
     val CardShadow = Color(0x0F0F172A)
