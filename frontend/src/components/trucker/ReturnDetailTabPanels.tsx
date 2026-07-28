@@ -67,6 +67,7 @@ type ReturnDetailTabPanelsProps = {
   onProofPreview: () => void
   onQrPreview: () => void
   onDownloadQr: () => void
+  onDownloadConfirmationPdf: () => void
   onPrintQr: (bookingId: number) => void
   onReloadDocuments: () => void
 }
@@ -87,6 +88,7 @@ export default function ReturnDetailTabPanels({
   onProofPreview,
   onQrPreview,
   onDownloadQr,
+  onDownloadConfirmationPdf,
   onPrintQr,
   onReloadDocuments,
 }: ReturnDetailTabPanelsProps) {
@@ -132,7 +134,19 @@ export default function ReturnDetailTabPanels({
       <DetailTabPanel value="payment" activeTab={activeTab}>
         {showPaymentSection ? (
           <>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 1, flexWrap: 'wrap' }}>
+              {paymentStatus === 'Paid' && qrBooking && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  startIcon={<PictureAsPdfOutlinedIcon />}
+                  onClick={onDownloadConfirmationPdf}
+                  sx={{ fontWeight: 700, borderRadius: 2 }}
+                >
+                  Booking confirmation PDF
+                </Button>
+              )}
               <Button
                 component={RouterLink}
                 to={truckerPaymentPath(schedule.id)}
@@ -333,7 +347,7 @@ export default function ReturnDetailTabPanels({
                     onClick={onDownloadQr}
                     sx={qrDetailButtonSx}
                   >
-                    Download
+                    Download QR
                   </Button>
                   <Button
                     variant="outlined"
@@ -346,6 +360,16 @@ export default function ReturnDetailTabPanels({
                     Print
                   </Button>
                 </Box>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="small"
+                  startIcon={<PictureAsPdfOutlinedIcon />}
+                  onClick={onDownloadConfirmationPdf}
+                  sx={qrDetailButtonSx}
+                >
+                  Booking confirmation PDF
+                </Button>
               </Box>
             </Box>
           </Box>

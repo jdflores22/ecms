@@ -48,7 +48,8 @@ import {
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
-import { paymentApi, demurrageBillingApi, type Payment, type DemurrageBilling } from '../../services/api'
+import { paymentApi, demurrageBillingApi, qrApi, type Payment, type DemurrageBilling } from '../../services/api'
+import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { isCrossOriginAssetUrl, resolveAssetUrl } from '../../utils/assetUrl'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
@@ -186,12 +187,14 @@ function PaymentActions({
   onViewProof,
   onApprove,
   onReject,
+  onDownloadConfirmation,
 }: {
   payment: Payment
   tab: PaymentTab
   onViewProof: (payment: Payment) => void
   onApprove: (payment: Payment) => void
   onReject: (payment: Payment) => void
+  onDownloadConfirmation: (payment: Payment) => void
 }) {
   return (
     <Box sx={listMobileActionsSx}>
@@ -216,6 +219,17 @@ function PaymentActions({
       >
         Schedule
       </Button>
+      {payment.status === 'Paid' && (
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<PictureAsPdfOutlinedIcon />}
+          onClick={() => onDownloadConfirmation(payment)}
+          sx={{ fontWeight: 600, borderRadius: 2 }}
+        >
+          Confirmation PDF
+        </Button>
+      )}
       {tab === 'pending' && payment.status === 'ForVerification' && (
         <>
           <Button
@@ -250,12 +264,14 @@ function PaymentTable({
   onViewProof,
   onApprove,
   onReject,
+  onDownloadConfirmation,
 }: {
   items: Payment[]
   tab: PaymentTab
   onViewProof: (payment: Payment) => void
   onApprove: (payment: Payment) => void
   onReject: (payment: Payment) => void
+  onDownloadConfirmation: (payment: Payment) => void
 }) {
   return (
     <TableContainer>
@@ -330,6 +346,7 @@ function PaymentTable({
                   onViewProof={onViewProof}
                   onApprove={onApprove}
                   onReject={onReject}
+                  onDownloadConfirmation={onDownloadConfirmation}
                 />
               </TableCell>
             </TableRow>
@@ -557,7 +574,7 @@ export default function AdminPaymentsPage() {
       setSaveSuccess(true)
       setMessage(
         approved
-          ? `Payment for schedule #${selectedPayment.scheduleId} approved. ${LOGICTECK_QR.approveSuccess}`
+          ? `Payment for schedule #${selectedPayment.scheduleId} approved. Booking confirmed — QR and confirmation PDF generated.`
           : `Payment for schedule #${selectedPayment.scheduleId} rejected. Trucker can re-upload proof.`,
       )
       window.setTimeout(() => {
@@ -571,6 +588,19 @@ export default function AdminPaymentsPage() {
       setActionError(apiErrorMessage(err, 'Verification failed. Please try again.'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const downloadConfirmation = async (payment: Payment) => {
+    setError('')
+    try {
+      const { data: booking } = await qrApi.getBySchedule(payment.scheduleId)
+      await downloadBookingConfirmationPdf(booking.id, booking.qrCode)
+      setMessage(`Downloaded booking confirmation for ${booking.qrCode}.`)
+    } catch {
+      setError(
+        'Could not download booking confirmation PDF. Approve the payment first so the booking QR/PDF is generated.',
+      )
     }
   }
 
@@ -701,6 +731,7 @@ export default function AdminPaymentsPage() {
                     onViewProof={setProofPreview}
                     onApprove={(payment) => openVerify(payment, 'approve')}
                     onReject={(payment) => openVerify(payment, 'reject')}
+                    onDownloadConfirmation={(payment) => void downloadConfirmation(payment)}
                   />
                 </ListMobileCard>
               ))}
@@ -713,6 +744,7 @@ export default function AdminPaymentsPage() {
                 onViewProof={setProofPreview}
                 onApprove={(payment) => openVerify(payment, 'approve')}
                 onReject={(payment) => openVerify(payment, 'reject')}
+                onDownloadConfirmation={(payment) => void downloadConfirmation(payment)}
               />
             </ListDesktopOnly>
           </>

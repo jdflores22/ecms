@@ -24,6 +24,7 @@ import {
 } from '@mui/material'
 
 import DownloadIcon from '@mui/icons-material/Download'
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
@@ -68,6 +69,7 @@ import { qrApi, scheduleApi, type QrBooking, type Schedule } from '../../service
 import { store } from '../../store'
 
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 
 
@@ -362,6 +364,15 @@ export default function TruckerQrPage() {
 
     URL.revokeObjectURL(url)
 
+  }
+
+  const downloadConfirmationPdf = async (booking: QrBooking) => {
+    try {
+      await downloadBookingConfirmationPdf(booking.id, booking.qrCode)
+      setNotice('')
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to download confirmation PDF.')
+    }
   }
 
 
@@ -813,7 +824,7 @@ export default function TruckerQrPage() {
                             onClick={() => downloadQr(qr)}
                             sx={qrCardButtonSx}
                           >
-                            Download
+                            Download QR
                           </Button>
                           <Button
                             variant="outlined"
@@ -826,6 +837,16 @@ export default function TruckerQrPage() {
                             Print
                           </Button>
                         </Box>
+                        <Button
+                          variant="outlined"
+                          fullWidth
+                          size="small"
+                          startIcon={<PictureAsPdfOutlinedIcon />}
+                          onClick={() => void downloadConfirmationPdf(qr)}
+                          sx={qrCardButtonSx}
+                        >
+                          Confirmation PDF
+                        </Button>
                         <Button
                           component={RouterLink}
                           to={`/trucker/returns/${schedule.id}`}
@@ -1115,7 +1136,23 @@ export default function TruckerQrPage() {
 
               >
 
-                Download
+                Download QR
+
+              </Button>
+
+              <Button
+
+                variant="outlined"
+
+                startIcon={<PictureAsPdfOutlinedIcon />}
+
+                onClick={() => void downloadConfirmationPdf(preview.qr)}
+
+                sx={{ fontWeight: 600, borderRadius: 2 }}
+
+              >
+
+                Confirmation PDF
 
               </Button>
 

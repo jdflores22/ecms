@@ -22,4 +22,10 @@
     <ProjectReference Include="..\ECMS.Persistence\ECMS.Persistence.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Assets\ics-logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -631,6 +631,9 @@ namespace ECMS.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ConfirmationPdfPath")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("QRCode")
                         .IsRequired()
                         .HasColumnType("varchar(255)");

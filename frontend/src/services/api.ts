@@ -958,6 +958,7 @@ export interface QrBooking {
   isUsed: boolean
   logicteckBookedAt?: string | null
   logicteckStatus: string
+  confirmationPdfPath?: string | null
 }
 
 export interface BookLogicteckResponse {
@@ -1166,6 +1167,8 @@ export const qrApi = {
   getBySchedule: (scheduleId: number) => api.get<QrBooking>(`/qr/schedule/${scheduleId}`),
   getByCode: (qrCode: string) => api.get<QrBooking>(`/qr/code/${encodeURIComponent(qrCode)}`),
   downloadUrl: (bookingId: number) => resolveAssetUrl(`/api/qr/download/${bookingId}`),
+  confirmationPdfUrl: (bookingId: number) =>
+    resolveAssetUrl(`/api/qr/confirmation-pdf/${bookingId}`),
   bookLogicteck: (bookingId: number) => api.post<BookLogicteckResponse>(`/qr/${bookingId}/book-logicteck`),
 }
 

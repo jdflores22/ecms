@@ -6,6 +6,8 @@ using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ECMS.Infrastructure.Security;
 using QRCoder;
@@ -19,19 +21,25 @@ public class QrCodeService : IQrService
     private readonly LogicteckOptions _logicteckOptions;
     private readonly IAuditService _auditService;
     private readonly IUploadUrlSigner _uploadUrlSigner;
+    private readonly string _contentRootPath;
+    private readonly string _uploadRoot;
 
     public QrCodeService(
         IEcmsDbContext db,
         LogicteckOutboundClient logicteckClient,
         IOptions<LogicteckOptions> logicteckOptions,
         IAuditService auditService,
-        IUploadUrlSigner uploadUrlSigner)
+        IUploadUrlSigner uploadUrlSigner,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         _db = db;
         _logicteckClient = logicteckClient;
         _logicteckOptions = logicteckOptions.Value;
         _auditService = auditService;
         _uploadUrlSigner = uploadUrlSigner;
+        _contentRootPath = environment.ContentRootPath;
+        _uploadRoot = configuration["FileStorage:UploadPath"] ?? "uploads";
     }
 
     public async Task<QrBookingDto?> GetByBookingIdAsync(
@@ -61,10 +69,167 @@ public class QrCodeService : IQrService
         if (booking is null || !CanAccessBooking(booking, userId, role))
             return null;
 
+        return RenderQrPng(booking.PayloadJson);
+    }
+
+    public async Task<byte[]?> DownloadConfirmationPdfAsync(
+        int bookingId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await LoadDossierBookingQuery()
+            .Include(x => x.Schedule).ThenInclude(s => s.Payment)
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
+
+        if (booking is null || !CanAccessBooking(booking, userId, role))
+            return null;
+
+        // Confirmation PDF is only available after payment is approved / schedule confirmed.
+        var scheduleConfirmed = booking.Schedule.Status is ScheduleStatus.Confirmed or ScheduleStatus.Completed;
+        var paymentPaid = booking.Schedule.Payment?.Status == PaymentStatus.Paid;
+        if (!scheduleConfirmed && !paymentPaid)
+            return null;
+
+        // Always regenerate so layout/logo updates apply; file is also stored at payment approval.
+        await PersistConfirmationPdfAsync(booking, cancellationToken);
+        if (string.IsNullOrWhiteSpace(booking.ConfirmationPdfPath))
+            return null;
+
+        var path = ResolveUploadAbsolutePath(booking.ConfirmationPdfPath);
+        return File.Exists(path) ? await File.ReadAllBytesAsync(path, cancellationToken) : null;
+    }
+
+    private async Task PersistConfirmationPdfAsync(
+        Domain.Entities.QRBooking booking,
+        CancellationToken cancellationToken)
+    {
+        var qrPng = RenderQrPng(booking.PayloadJson);
+        var data = BuildConfirmationPdfData(booking, qrPng, ResolveLogoPath());
+        var pdfBytes = BookingConfirmationPdfRenderer.Render(data);
+
+        var uploadDir = Path.Combine(_contentRootPath, _uploadRoot);
+        Directory.CreateDirectory(uploadDir);
+
+        // Replace previous file when regenerating.
+        if (!string.IsNullOrWhiteSpace(booking.ConfirmationPdfPath))
+        {
+            var previous = ResolveUploadAbsolutePath(booking.ConfirmationPdfPath);
+            if (File.Exists(previous))
+            {
+                try { File.Delete(previous); } catch { /* best effort */ }
+            }
+        }
+
+        var storedName = $"booking-confirmation-{booking.Id}-{Guid.NewGuid():N}.pdf";
+        var absolutePath = Path.Combine(uploadDir, storedName);
+        await File.WriteAllBytesAsync(absolutePath, pdfBytes, cancellationToken);
+
+        booking.ConfirmationPdfPath = $"/uploads/{storedName}";
+        _db.Update(booking);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            booking.Schedule.PreAdvice.TruckerId,
+            "Generate",
+            "BookingConfirmationPdf",
+            $"{booking.QRCode} · {booking.ConfirmationPdfPath}",
+            cancellationToken);
+    }
+
+    private string? ResolveLogoPath()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(_contentRootPath, "Assets", "ics-logo.png"),
+            Path.Combine(_contentRootPath, "wwwroot", "ics-logo.png"),
+            Path.GetFullPath(Path.Combine(_contentRootPath, "..", "..", "frontend", "public", "ics-logo.png")),
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private string ResolveUploadAbsolutePath(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', '/').Trim();
+        if (normalized.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized["/uploads/".Length..];
+        else if (normalized.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized["uploads/".Length..];
+
+        return Path.Combine(_contentRootPath, _uploadRoot, normalized);
+    }
+
+    private static byte[] RenderQrPng(string payloadJson)
+    {
         using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(booking.PayloadJson, QRCodeGenerator.ECCLevel.Q);
+        using var data = generator.CreateQrCode(payloadJson, QRCodeGenerator.ECCLevel.Q);
         var png = new PngByteQRCode(data);
         return png.GetGraphic(20);
+    }
+
+    private static BookingConfirmationPdfData BuildConfirmationPdfData(
+        Domain.Entities.QRBooking booking,
+        byte[] qrPng,
+        string? logoPath = null)
+    {
+        var schedule = booking.Schedule;
+        var preAdvice = schedule.PreAdvice;
+        var trucker = schedule.Trucker ?? preAdvice.Trucker;
+        var customerName = trucker.FullName ?? trucker.Username;
+        var bookingPh = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(booking.GeneratedAt, DateTimeKind.Utc),
+            PhilippinesTime.Zone);
+        var validUntilPh = schedule.Date.ToDateTime(new TimeOnly(23, 59));
+        var sizeLabel = preAdvice.ContainerSize?.Label
+            ?? preAdvice.Container.Size;
+        var typeLabel = preAdvice.ContainerType is null
+            ? preAdvice.Container.Type
+            : $"{preAdvice.ContainerType.Code}";
+        var typeSize = string.IsNullOrWhiteSpace(sizeLabel)
+            ? typeLabel
+            : $"{sizeLabel}{typeLabel}".Trim();
+
+        var evaluator = preAdvice.Evaluation?.Evaluator;
+        var authorizedBy = !string.IsNullOrWhiteSpace(evaluator?.FullName)
+            ? evaluator!.FullName!
+            : !string.IsNullOrWhiteSpace(evaluator?.Username)
+                ? evaluator!.Username
+                : "ICS Ops";
+
+        return new BookingConfirmationPdfData
+        {
+            BookingReference = booking.QRCode,
+            BookingDateDisplay = bookingPh.ToString("dd MMMM yyyy hh:mm tt", System.Globalization.CultureInfo.InvariantCulture).ToUpperInvariant(),
+            ValidUntilDisplay = validUntilPh.ToString("dd MMMM yyyy hh:mm tt", System.Globalization.CultureInfo.InvariantCulture).ToUpperInvariant(),
+            Status = "CONFIRMED",
+            CustomerName = customerName.ToUpperInvariant(),
+            ContactPerson = customerName.ToUpperInvariant(),
+            ContactNo = "—",
+            Email = string.IsNullOrWhiteSpace(trucker.Email) ? "—" : trucker.Email,
+            Company = customerName.ToUpperInvariant(),
+            BookingType = "EMPTY RETURN",
+            ContainerNo = preAdvice.Container.ContainerNo.ToUpperInvariant(),
+            ContainerTypeSize = typeSize.ToUpperInvariant(),
+            CargoType = "EMPTY CONTAINER",
+            ShippingLine = preAdvice.ShippingLine.Name.ToUpperInvariant(),
+            Pol = "—",
+            Pod = schedule.Depot.Name.ToUpperInvariant(),
+            DepotName = schedule.Depot.Name.ToUpperInvariant(),
+            TruckPlate = "—",
+            DriverName = customerName.ToUpperInvariant(),
+            DriverContact = "—",
+            ScheduledDateTime = schedule.Date.ToString("dd MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture).ToUpperInvariant(),
+            ServiceType = "EMPTY RETURN",
+            Remarks = string.IsNullOrWhiteSpace(schedule.DepotRemarks)
+                ? (string.IsNullOrWhiteSpace(preAdvice.Remarks) ? "PLEASE ARRIVE 30 MINS EARLY" : preAdvice.Remarks.ToUpperInvariant())
+                : schedule.DepotRemarks.ToUpperInvariant(),
+            AuthorizedByName = authorizedBy,
+            AuthorizedByRole = "SHIPPING LINE EVALUATOR",
+            AuthorizedByOrg = preAdvice.ShippingLine.Name,
+            QrPng = qrPng,
+            LogoPath = logoPath,
+        };
     }
 
     public async Task<QrBookingDto> GenerateForScheduleAsync(
@@ -89,7 +254,10 @@ public class QrCodeService : IQrService
             if (!CanAccessBooking(schedule.QRBooking, userId, role))
                 throw new UnauthorizedAccessException("You are not allowed to access this QR booking.");
 
-            return MapToDto(schedule.QRBooking);
+            await EnsureConfirmationPdfByBookingIdAsync(schedule.QRBooking.Id, cancellationToken);
+            var existing = await LoadBookingQuery()
+                .FirstAsync(x => x.Id == schedule.QRBooking.Id, cancellationToken);
+            return MapToDto(existing);
         }
 
         var normalizedRole = RoleNames.NormalizeTransactionRole(role);
@@ -114,6 +282,9 @@ public class QrCodeService : IQrService
         booking.PayloadJson = JsonSerializer.Serialize(payload);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Booking confirmed (payment approved / QR published) → generate confirmation PDF now.
+        await EnsureConfirmationPdfByBookingIdAsync(booking.Id, cancellationToken);
+
         // Optional: push to LOGICTECK on publish (off by default — trucker/admin sends manually).
         if (_logicteckOptions.AutoTransferOnQrPublish
             && (!string.IsNullOrWhiteSpace(_logicteckOptions.BookUrl)
@@ -126,7 +297,23 @@ public class QrCodeService : IQrService
                 cancellationToken);
         }
 
-        return MapToDto(booking);
+        var saved = await LoadBookingQuery().FirstAsync(x => x.Id == booking.Id, cancellationToken);
+        return MapToDto(saved);
+    }
+
+    private async Task EnsureConfirmationPdfByBookingIdAsync(int bookingId, CancellationToken cancellationToken)
+    {
+        var booking = await LoadDossierBookingQuery()
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
+        if (booking is null) return;
+
+        if (!string.IsNullOrWhiteSpace(booking.ConfirmationPdfPath))
+        {
+            var absolute = ResolveUploadAbsolutePath(booking.ConfirmationPdfPath);
+            if (File.Exists(absolute)) return;
+        }
+
+        await PersistConfirmationPdfAsync(booking, cancellationToken);
     }
 
     public async Task<QrBookingDto?> GetByScheduleIdAsync(
@@ -489,7 +676,7 @@ public class QrCodeService : IQrService
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Trucker)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ContainerSize)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ContainerType)
-            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Evaluation)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Evaluation).ThenInclude(e => e!.Evaluator)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Documents)
             .Include(x => x.Schedule).ThenInclude(s => s.Depot)
             .Include(x => x.Schedule).ThenInclude(s => s.Trucker);
@@ -554,7 +741,8 @@ public class QrCodeService : IQrService
             booking.GeneratedAt,
             booking.IsUsed,
             booking.LogicteckBookedAt,
-            ResolveLogicteckStatus(booking));
+            ResolveLogicteckStatus(booking),
+            booking.ConfirmationPdfPath);
     }
 
     private static string ResolveLogicteckStatus(Domain.Entities.QRBooking booking)

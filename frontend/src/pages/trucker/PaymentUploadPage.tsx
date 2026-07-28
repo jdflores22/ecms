@@ -37,11 +37,11 @@ import {
 } from '../../components/layout/DetailPagePrimitives'
 import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
 import AssetImage from '../../components/layout/AssetImage'
-import { LOGICTECK_QR } from '../../config/logicteckQr'
-import { paymentApi, preAdviceApi, scheduleApi, type Payment, type PreAdvice, type Schedule } from '../../services/api'
+import { paymentApi, preAdviceApi, qrApi, scheduleApi, type Payment, type PreAdvice, type QrBooking, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
+import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import {
   needsPaymentUpload,
@@ -136,7 +136,8 @@ function statusAlert(
   if (paymentStatus === 'Paid') {
     return {
       severity: 'success',
-      message: `Payment verified. ${LOGICTECK_QR.integrationComingSoon}.`,
+      message:
+        'Payment verified. Your booking confirmation PDF is ready to download, and the booking QR is published for depot gate-in.',
     }
   }
   return null
@@ -192,6 +193,8 @@ export default function TruckerPaymentUploadPage() {
   const [submitting, setSubmitting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [qrBooking, setQrBooking] = useState<QrBooking | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
   const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   const load = useCallback(() => {
@@ -209,6 +212,19 @@ export default function TruckerPaymentUploadPage() {
 
         const preAdviceRes = await preAdviceApi.get(item.preAdviceId)
         setPreAdvice(preAdviceRes.data)
+
+        const paid =
+          existing?.status === 'Paid' || item.status === 'Confirmed' || item.status === 'Completed'
+        if (paid) {
+          try {
+            const qrRes = await qrApi.getBySchedule(item.id)
+            setQrBooking(qrRes.data)
+          } catch {
+            setQrBooking(null)
+          }
+        } else {
+          setQrBooking(null)
+        }
       })
       .catch(() => setError('Payment request not found or not assigned to you.'))
       .finally(() => setLoading(false))
@@ -251,6 +267,19 @@ export default function TruckerPaymentUploadPage() {
     schedule && showPaymentContent ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status) : null
 
   const displayAmount = payment?.amount ?? configuredFee ?? 0
+
+  const handleDownloadConfirmationPdf = async () => {
+    if (!qrBooking) return
+    setPdfLoading(true)
+    setActionError('')
+    try {
+      await downloadBookingConfirmationPdf(qrBooking.id, qrBooking.qrCode)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to download booking confirmation PDF.')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   const handleUpload = async () => {
     if (!schedule || !file) return
@@ -347,9 +376,72 @@ export default function TruckerPaymentUploadPage() {
           {showPaymentContent ? (
             <>
               {contextualAlert && (
-                <Alert severity={contextualAlert.severity} sx={mobileAlertSx}>
+                <Alert
+                  severity={contextualAlert.severity}
+                  sx={mobileAlertSx}
+                  action={
+                    paymentStatus === 'Paid' && qrBooking ? (
+                      <Button
+                        color="inherit"
+                        size="small"
+                        startIcon={<PictureAsPdfOutlinedIcon />}
+                        disabled={pdfLoading}
+                        onClick={() => void handleDownloadConfirmationPdf()}
+                        sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                      >
+                        {pdfLoading ? 'Preparing…' : 'Download PDF'}
+                      </Button>
+                    ) : undefined
+                  }
+                >
                   {contextualAlert.message}
                 </Alert>
+              )}
+
+              {paymentStatus === 'Paid' && qrBooking && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    ...sectionPaperSx,
+                    mb: 3,
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    alignItems: { xs: 'stretch', sm: 'center' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    borderColor: 'rgba(46, 125, 50, 0.35)',
+                    bgcolor: 'rgba(46, 125, 50, 0.04)',
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Booking confirmation PDF
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                      Generated after payment approval · {qrBooking.qrCode}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      startIcon={<PictureAsPdfOutlinedIcon />}
+                      disabled={pdfLoading}
+                      onClick={() => void handleDownloadConfirmationPdf()}
+                      sx={{ fontWeight: 700, borderRadius: 2 }}
+                    >
+                      {pdfLoading ? 'Preparing…' : 'Download PDF'}
+                    </Button>
+                    <Button
+                      component={RouterLink}
+                      to={`/trucker/returns/${schedule.id}`}
+                      variant="outlined"
+                      sx={{ fontWeight: 600, borderRadius: 2 }}
+                    >
+                      Open return
+                    </Button>
+                  </Box>
+                </Paper>
               )}
 
               {schedule.depotRemarks && (

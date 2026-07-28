@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICS Booking Confirmation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#062d5f',
+            navy2: '#0a3977',
+            icsblue: '#1684e8',
+            icslight: '#48a9f5',
+            icsgreen: '#12a64a',
+            icsline: '#cbd2da',
+          },
+          boxShadow: {
+            page: '0 0 12px rgba(0,0,0,.18)',
+          },
+        },
+      },
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+      body { @apply bg-white p-0; }
+      .page { @apply shadow-none m-0; }
+    }
+  </style>
+</head>
+<body class="m-0 bg-[#e9edf2] p-5 font-sans text-[#101010]">
+
+  <!--
+    ICS Booking Confirmation — Tailwind layout
+    Server PDF is generated via QuestPDF with the same structure.
+    Placeholders below are filled from live booking data in the app.
+  -->
+
+  <div class="page mx-auto flex min-h-[297mm] w-[210mm] flex-col overflow-hidden bg-white shadow-page">
+
+    <!-- HEADER -->
+    <header class="flex items-start gap-6 px-7 pb-4 pt-8">
+      <div class="w-[48%] pt-1">
+        <div class="flex h-24 items-center">
+          <div class="origin-left scale-x-90 text-[9.5rem] font-black italic leading-[0.75] tracking-tighter text-navy">
+            ICS
+          </div>
+        </div>
+        <div class="mt-1 text-[0.85rem] font-bold tracking-wide text-navy">
+          INTELLIGENT CONTAINER SOLUTION
+        </div>
+        <div class="mt-1.5 text-[0.8rem] font-bold tracking-wide text-icsblue">
+          SMART SOLUTIONS. SEAMLESS OPERATIONS.
+        </div>
+      </div>
+
+      <div class="mt-1 h-36 w-px bg-[#aeb5bd]"></div>
+
+      <div class="flex-1 pl-2">
+        <h1 class="mb-5 mt-1 text-[2rem] font-black leading-none tracking-tight text-navy">
+          BOOKING CONFIRMATION
+        </h1>
+        <div class="inline-flex h-14 min-w-[16rem] items-center rounded-xl bg-icsgreen px-4 text-xl font-black text-white">
+          <span class="mr-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-xl font-black text-icsgreen">✓</span>
+          CONFIRMED
+        </div>
+      </div>
+    </header>
+
+    <!-- BOOKING BAR -->
+    <section class="mx-7 mb-5 grid h-[7.75rem] grid-cols-4 overflow-hidden rounded-xl bg-gradient-to-br from-[#062b5a] to-[#073b79] text-white">
+      <div class="flex min-w-0 items-center border-r border-white/35 px-4 py-4">
+        <div class="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-icslight text-lg font-black text-icslight">▣</div>
+        <div>
+          <div class="mb-1 whitespace-nowrap text-[0.8rem] text-[#e7edf7]">Booking Date</div>
+          <div class="text-[0.95rem] font-bold leading-snug">{{BOOKING_DATE}}</div>
+        </div>
+      </div>
+      <div class="flex min-w-0 items-center border-r border-white/35 px-4 py-4">
+        <div class="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-icslight text-lg font-black text-icslight">≡</div>
+        <div>
+          <div class="mb-1 whitespace-nowrap text-[0.8rem] text-[#e7edf7]">Booking Reference No.</div>
+          <div class="text-[0.95rem] font-bold leading-snug text-icsblue">{{BOOKING_REF}}</div>
+        </div>
+      </div>
+      <div class="flex min-w-0 items-center border-r border-white/35 px-4 py-4">
+        <div class="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-icslight text-lg font-black text-icslight">✓</div>
+        <div>
+          <div class="mb-1 whitespace-nowrap text-[0.8rem] text-[#e7edf7]">Booking Status</div>
+          <div class="text-[0.95rem] font-bold leading-snug text-[#25d268]">CONFIRMED</div>
+        </div>
+      </div>
+      <div class="flex min-w-0 items-center px-4 py-4">
+        <div class="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-icslight text-lg font-black text-icslight">◷</div>
+        <div>
+          <div class="mb-1 whitespace-nowrap text-[0.8rem] text-[#e7edf7]">Valid Until</div>
+          <div class="text-[0.95rem] font-bold leading-snug">{{VALID_UNTIL}}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN -->
+    <main class="mx-7 grid grid-cols-[57%_43%] gap-5">
+      <div class="min-w-0 space-y-4">
+        <!-- CUSTOMER -->
+        <section class="overflow-hidden rounded-xl border border-icsline bg-white">
+          <div class="flex h-10 items-center bg-gradient-to-br from-[#082d64] to-[#0b438d] px-4 text-[1.05rem] font-extrabold tracking-wide text-white">
+            <span class="mr-2.5 w-7 text-center text-lg">●</span>
+            CUSTOMER INFORMATION
+          </div>
+          <div class="space-y-0 px-4 py-3 text-[0.9rem]">
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Customer Name</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{CUSTOMER_NAME}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Contact Person</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{CONTACT_PERSON}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Contact No.</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{CONTACT_NO}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Email</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{EMAIL}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center py-2"><div class="font-bold">Company</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{COMPANY}}</div></div>
+          </div>
+        </section>
+
+        <!-- SHIPMENT -->
+        <section class="overflow-hidden rounded-xl border border-icsline bg-white">
+          <div class="flex h-10 items-center bg-gradient-to-br from-[#082d64] to-[#0b438d] px-4 text-[1.05rem] font-extrabold tracking-wide text-white">
+            <span class="mr-2.5 w-7 text-center text-lg">▥</span>
+            SHIPMENT INFORMATION
+          </div>
+          <div class="space-y-0 px-4 py-3 text-[0.9rem]">
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Booking Type</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{BOOKING_TYPE}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Container No.</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{CONTAINER_NO}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Container Type / Size</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{CONTAINER_TYPE_SIZE}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Cargo Type</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{CARGO_TYPE}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Shipping Line</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{SHIPPING_LINE}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">POL</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{POL}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center py-2"><div class="font-bold">POD</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{POD}}</div></div>
+          </div>
+        </section>
+
+        <!-- TRANSPORT -->
+        <section class="overflow-hidden rounded-xl border border-icsline bg-white">
+          <div class="flex h-10 items-center bg-gradient-to-br from-[#082d64] to-[#0b438d] px-4 text-[1.05rem] font-extrabold tracking-wide text-white">
+            <span class="mr-2.5 w-7 text-center text-lg">▰</span>
+            TRANSPORT INFORMATION
+          </div>
+          <div class="space-y-0 px-4 py-3 text-[0.9rem]">
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Depot / Terminal</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{DEPOT}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Truck Plate No.</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{TRUCK_PLATE}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Driver Name</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{DRIVER_NAME}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Contact No.</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{DRIVER_CONTACT}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Scheduled Date &amp; Time</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{SCHEDULED_AT}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center border-b border-[#e0e3e7] py-2"><div class="font-bold">Service Type</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{SERVICE_TYPE}}</div></div>
+            <div class="grid grid-cols-[39%_61%] items-center py-2"><div class="font-bold">Remarks</div><div class="relative pl-4 before:absolute before:left-0 before:font-bold before:content-[':']">{{REMARKS}}</div></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="min-w-0 space-y-4">
+        <!-- QR -->
+        <section class="overflow-hidden rounded-xl border border-icsline bg-white pb-4">
+          <div class="flex h-10 items-center bg-gradient-to-br from-[#082d64] to-[#0b438d] px-4 text-[1.05rem] font-extrabold tracking-wide text-white">
+            <span class="mr-2.5 w-7 text-center text-lg">●</span>
+            SCAN FOR BOOKING VERIFICATION
+          </div>
+          <div class="px-5 pt-4 text-center">
+            <div class="relative mx-auto flex h-[19.5rem] w-[19.5rem] max-w-full items-center justify-center rounded-lg border border-[#777] bg-white p-3">
+              <img src="{{QR_IMAGE_URL}}" alt="Booking QR" class="h-full w-full object-contain" />
+            </div>
+            <p class="mt-4 text-[0.9rem] leading-snug">
+              Scan this QR code to verify<br />
+              booking details and status.
+            </p>
+          </div>
+        </section>
+
+        <!-- SUMMARY -->
+        <section class="overflow-hidden rounded-xl border border-icsline bg-white pb-4">
+          <div class="flex h-10 items-center bg-gradient-to-br from-[#082d64] to-[#0b438d] px-4 text-[1.05rem] font-extrabold tracking-wide text-white">
+            <span class="mr-2.5 w-7 text-center text-lg">▤</span>
+            BOOKING SUMMARY
+          </div>
+          <div class="space-y-4 px-5 pt-4">
+            <div>
+              <div class="mb-1.5 text-[0.9rem]">Booking Ref. No.</div>
+              <div class="text-[1.1rem] font-extrabold">{{BOOKING_REF}}</div>
+            </div>
+            <div>
+              <div class="mb-1.5 text-[0.9rem]">Container No.</div>
+              <div class="text-[1.1rem] font-extrabold">{{CONTAINER_NO}}</div>
+            </div>
+            <div>
+              <div class="mb-1.5 text-[0.9rem]">Scheduled Date &amp; Time</div>
+              <div class="text-[1.1rem] font-extrabold">{{SCHEDULED_AT}}</div>
+            </div>
+            <div>
+              <div class="mb-1.5 text-[0.9rem]">Status</div>
+              <div class="text-[1.1rem] font-extrabold text-icsgreen">CONFIRMED</div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- TERMS -->
+    <section class="mx-7 mb-4 mt-4 grid min-h-[7.75rem] grid-cols-[65%_35%] overflow-hidden rounded-xl border border-icsline">
+      <div class="border-r border-icsline px-5 py-4">
+        <div class="mb-2 flex items-center text-[1.1rem] font-extrabold text-navy">
+          <span class="mr-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-navy text-lg text-white">▤</span>
+          TERMS &amp; CONDITIONS
+        </div>
+        <ol class="list-decimal space-y-1 pl-6 text-[0.72rem] leading-relaxed">
+          <li>Present this booking confirmation upon arrival at the depot or terminal.</li>
+          <li>The QR code is valid only for the scheduled booking.</li>
+          <li>Any changes to the booking require prior approval from ICS.</li>
+          <li>This confirmation is subject to terminal/depot operating policies.</li>
+        </ol>
+      </div>
+      <div class="px-5 py-4 text-[0.75rem]">
+        <div class="mb-5">Authorized by:</div>
+        <div class="mb-1 text-center font-['Brush_Script_MT','Segoe_Script',cursive] text-[2.25rem] italic text-navy">ICS Ops</div>
+        <div class="mb-2 border-b border-[#333]"></div>
+        <div class="text-[0.9rem] font-extrabold">ICS OPERATIONS TEAM</div>
+        <div class="leading-snug">Intelligent Container Solution (ICS)</div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="relative mt-auto grid h-24 grid-cols-[48%_27%_25%] overflow-hidden bg-gradient-to-br from-[#062c5d] to-[#06336c] text-white">
+      <div class="absolute -left-8 top-0 h-full w-[4.5rem] -skew-x-[25deg] bg-icsblue"></div>
+      <div class="relative z-10 py-5 pl-14 pr-4 text-[0.72rem] leading-relaxed">
+        <strong>● &nbsp; ICS Logistics Hub</strong><br />
+        1234 Container Rd., Port Area<br />
+        Manila, Philippines 1018
+      </div>
+      <div class="relative z-10 px-4 py-5 text-[0.72rem] leading-loose">
+        ☎ &nbsp; (02) 8123 4567<br />
+        ✉ &nbsp; info@ics.com.ph<br />
+        ◉ &nbsp; www.ics.com.ph
+      </div>
+      <div class="relative z-10 px-4 pt-6 text-left text-[1.1rem] font-extrabold italic leading-snug">
+        INTELLIGENCE THAT<br />
+        MOVES <span class="text-[#36a1ed]">EVERY CONTAINER.</span>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

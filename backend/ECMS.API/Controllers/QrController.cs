@@ -39,6 +39,16 @@ public class QrController : ControllerBase
         return bytes is null ? NotFound() : File(bytes, "image/png", $"qr-{bookingId}.png");
     }
 
+    [HttpGet("confirmation-pdf/{bookingId:int}")]
+    [Authorize]
+    public async Task<IActionResult> DownloadConfirmationPdf(int bookingId, CancellationToken cancellationToken)
+    {
+        var bytes = await _service.DownloadConfirmationPdfAsync(bookingId, UserId, Role, cancellationToken);
+        return bytes is null
+            ? NotFound()
+            : File(bytes, "application/pdf", $"ICS-Booking-Confirmation-{bookingId}.pdf");
+    }
+
     [HttpGet("schedule/{scheduleId:int}")]
     [Authorize]
     public async Task<ActionResult<QrBookingDto>> GetBySchedule(int scheduleId, CancellationToken cancellationToken)

@@ -34,6 +34,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
+
 import PrintIcon from '@mui/icons-material/Print'
 
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
@@ -111,6 +113,7 @@ import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
+import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 
 import {
 
@@ -515,6 +518,15 @@ export default function TruckerReturnDetailPage() {
 
   }
 
+  const downloadConfirmationPdf = async () => {
+    if (!qrBooking) return
+    try {
+      await downloadBookingConfirmationPdf(qrBooking.id, qrBooking.qrCode)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download confirmation PDF.')
+    }
+  }
+
 
 
   const handleBookLogicteck = async () => {
@@ -735,48 +747,39 @@ export default function TruckerReturnDetailPage() {
 
 
           {(schedule.status === 'Confirmed' || schedule.status === 'Completed') && paymentStatus === 'Paid' && (
-
             <Alert
-
               severity="success"
-
               sx={alertWithActionSx}
-
               action={
-
                 qrBooking ? (
-
-                  <Button
-
-                    color="inherit"
-
-                    size="small"
-
-                    startIcon={<QrCode2OutlinedIcon />}
-
-                    onClick={() => {
-                      setActiveTab('qr')
-                      setQrPreviewOpen(true)
-                    }}
-
-                    sx={{ fontWeight: 600 }}
-
-                  >
-
-                    View QR
-
-                  </Button>
-
+                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <Button
+                      color="inherit"
+                      size="small"
+                      startIcon={<PictureAsPdfOutlinedIcon />}
+                      onClick={() => void downloadConfirmationPdf()}
+                      sx={{ fontWeight: 700 }}
+                    >
+                      Confirmation PDF
+                    </Button>
+                    <Button
+                      color="inherit"
+                      size="small"
+                      startIcon={<QrCode2OutlinedIcon />}
+                      onClick={() => {
+                        setActiveTab('qr')
+                        setQrPreviewOpen(true)
+                      }}
+                      sx={{ fontWeight: 600 }}
+                    >
+                      View QR
+                    </Button>
+                  </Box>
                 ) : undefined
-
               }
-
             >
-
-              {LOGICTECK_QR.readyAlert}
-
+              Payment approved. Your booking confirmation PDF and booking QR are ready.
             </Alert>
-
           )}
 
 
@@ -815,6 +818,7 @@ export default function TruckerReturnDetailPage() {
               onProofPreview={() => setProofPreviewOpen(true)}
               onQrPreview={() => setQrPreviewOpen(true)}
               onDownloadQr={downloadQr}
+              onDownloadConfirmationPdf={() => void downloadConfirmationPdf()}
               onPrintQr={(bookingId) => navigate(`/trucker/qr/print/${bookingId}?auto=1`)}
               onReloadDocuments={() => loadDocuments(preAdvice.id)}
             />
@@ -1092,7 +1096,23 @@ export default function TruckerReturnDetailPage() {
 
               >
 
-                Download
+                Download QR
+
+              </Button>
+
+              <Button
+
+                variant="outlined"
+
+                startIcon={<PictureAsPdfOutlinedIcon />}
+
+                onClick={() => void downloadConfirmationPdf()}
+
+                sx={{ fontWeight: 600, borderRadius: 2 }}
+
+              >
+
+                Confirmation PDF
 
               </Button>
 

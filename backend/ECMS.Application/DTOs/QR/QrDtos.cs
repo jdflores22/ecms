@@ -25,7 +25,8 @@ public record QrBookingDto(
     DateTime GeneratedAt,
     bool IsUsed,
     DateTime? LogicteckBookedAt,
-    string LogicteckStatus);
+    string LogicteckStatus,
+    string? ConfirmationPdfPath = null);
 
 public record ValidateQrRequest(string QrCode);
 

@@ -183,7 +183,7 @@ public class PaymentService : IPaymentService
                 new[] { payment.TruckerId },
                 request.Approved ? "Payment approved — return confirmed" : "Payment rejected",
                 request.Approved
-                    ? $"{refNo} payment verified. Your return is confirmed — view your pre-forecast QR and send to LOGICTECK when ready."
+                    ? $"{refNo} payment verified. Your return is confirmed — download your booking confirmation PDF and QR, then send to LOGICTECK when ready."
                     : $"{refNo} payment was rejected. Upload a new proof on the payment page.",
                 "Payment",
                 paymentLink,

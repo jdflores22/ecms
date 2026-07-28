@@ -1,5 +1,6 @@
 import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
 import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -22,6 +23,7 @@ import { paymentApi, scheduleApi, type Payment, type Schedule } from '../../serv
 import { useAppSelector } from '../../store/hooks'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { formatPeso, formatScheduleDate, formatScheduleSlot } from '../../utils/datetime'
+import { downloadBookingConfirmationPdfBySchedule } from '../../utils/downloadBookingConfirmationPdf'
 import {
   needsPaymentUpload,
   paymentStatusColor,
@@ -76,27 +78,67 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
   )
 }
 
-function PaymentRowActions({ item, uploadNeeded }: { item: Schedule; uploadNeeded: boolean }) {
+function PaymentRowActions({
+  item,
+  uploadNeeded,
+  paymentStatus,
+  onError,
+}: {
+  item: Schedule
+  uploadNeeded: boolean
+  paymentStatus: string
+  onError: (message: string) => void
+}) {
   const navigate = useNavigate()
-  return uploadNeeded ? (
-    <Button
-      size="small"
-      variant="contained"
-      startIcon={<UploadFileIcon />}
-      onClick={() => navigate(truckerPaymentPath(item.id))}
-      sx={{ fontWeight: 600, borderRadius: 2 }}
-    >
-      Upload proof
-    </Button>
-  ) : (
-    <Button
-      size="small"
-      variant="outlined"
-      onClick={() => navigate(truckerPaymentPath(item.id))}
-      sx={{ fontWeight: 600, borderRadius: 2 }}
-    >
-      View payment
-    </Button>
+  const [pdfLoading, setPdfLoading] = useState(false)
+
+  const downloadPdf = async () => {
+    setPdfLoading(true)
+    try {
+      await downloadBookingConfirmationPdfBySchedule(item.id)
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to download booking confirmation PDF.')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
+  return (
+    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
+      {paymentStatus === 'Paid' && (
+        <Button
+          size="small"
+          variant="contained"
+          color="success"
+          startIcon={<PictureAsPdfOutlinedIcon />}
+          disabled={pdfLoading}
+          onClick={() => void downloadPdf()}
+          sx={{ fontWeight: 600, borderRadius: 2 }}
+        >
+          {pdfLoading ? 'Preparing…' : 'Confirmation PDF'}
+        </Button>
+      )}
+      {uploadNeeded ? (
+        <Button
+          size="small"
+          variant="contained"
+          startIcon={<UploadFileIcon />}
+          onClick={() => navigate(truckerPaymentPath(item.id))}
+          sx={{ fontWeight: 600, borderRadius: 2 }}
+        >
+          Upload proof
+        </Button>
+      ) : (
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => navigate(truckerPaymentPath(item.id))}
+          sx={{ fontWeight: 600, borderRadius: 2 }}
+        >
+          View payment
+        </Button>
+      )}
+    </Box>
   )
 }
 
@@ -221,9 +263,9 @@ export default function TruckerPaymentsPage() {
               <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
                 Payments
               </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Upload proof of payment for scheduled returns. Depot will verify before the booking QR is published for
-                LOGICTECK integration.
+              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
+                Upload proof of payment for scheduled returns. After verification, download your booking confirmation PDF
+                and booking QR from the Paid tab.
               </Typography>
             </Box>
           </Box>
@@ -357,7 +399,12 @@ export default function TruckerPaymentsPage() {
                       />
                     </ListMobileChipRow>
                     <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
-                      <PaymentRowActions item={item} uploadNeeded={uploadNeeded} />
+                      <PaymentRowActions
+                        item={item}
+                        uploadNeeded={uploadNeeded}
+                        paymentStatus={status}
+                        onError={setError}
+                      />
                     </Box>
                   </ListMobileCard>
                 )
@@ -405,7 +452,12 @@ export default function TruckerPaymentsPage() {
                             {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : '—'}
                           </TableCell>
                           <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                            <PaymentRowActions item={item} uploadNeeded={uploadNeeded} />
+                            <PaymentRowActions
+                              item={item}
+                              uploadNeeded={uploadNeeded}
+                              paymentStatus={resolvePaymentStatus(item, payment)}
+                              onError={setError}
+                            />
                           </TableCell>
                         </TableRow>
                       )

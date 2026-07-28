@@ -11,6 +11,8 @@ public class QRBooking : BaseEntity
     public bool IsUsed { get; set; }
     public DateTime? LogicteckBookedAt { get; set; }
     public string? LogicteckExternalRef { get; set; }
+    /// <summary>Relative path under /uploads for the booking confirmation PDF generated on payment approval.</summary>
+    public string? ConfirmationPdfPath { get; set; }
 
     public Schedule Schedule { get; set; } = null!;
 }
