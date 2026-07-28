@@ -29,6 +29,7 @@ DELIMITER ;
 CALL EcmsAddColumnIfMissing('PaymentsSet', 'ProofProvider', 'varchar(32) CHARACTER SET utf8mb4 NULL');
 CALL EcmsAddColumnIfMissing('PaymentsSet', 'ProofQrphInvoiceNo', 'varchar(32) CHARACTER SET utf8mb4 NULL');
 CALL EcmsAddColumnIfMissing('SchedulesSet', 'DepotRemarks', 'longtext CHARACTER SET utf8mb4 NULL');
+CALL EcmsAddColumnIfMissing('QRBookingsSet', 'ConfirmationPdfPath', 'longtext CHARACTER SET utf8mb4 NULL');
 
 DROP PROCEDURE IF EXISTS EcmsAddColumnIfMissing;
 
@@ -40,5 +41,8 @@ VALUES ('20260701140000_AddPaymentProofQrphInvoiceNo', '7.0.20');
 
 INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260701160000_AddScheduleDepotRemarks', '7.0.20');
+
+INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260728120000_AddQrBookingConfirmationPdfPath', '7.0.20');
 
 COMMIT;

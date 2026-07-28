@@ -46,6 +46,15 @@ public static class ProductionSchemaRepair
             migrationId: "20260703150000_AddPaymentProofPaymentId",
             cancellationToken);
 
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "QRBookingsSet",
+            column: "ConfirmationPdfPath",
+            definition: "longtext CHARACTER SET utf8mb4 NULL",
+            migrationId: "20260728120000_AddQrBookingConfirmationPdfPath",
+            cancellationToken);
+
         await EnsureWithdrawalBookingFlowAsync(db, logger, cancellationToken);
 
         await EnsureDevicePushTokensTableAsync(db, logger, cancellationToken);
