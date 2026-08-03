@@ -141,6 +141,24 @@ public class PreAdviceController : ControllerBase
 
 
 
+    [HttpGet("{id:int}/activity")]
+
+    public async Task<ActionResult<IReadOnlyList<ECMS.Application.DTOs.Audit.AuditLogDto>>> GetActivity(
+
+        int id,
+
+        CancellationToken cancellationToken)
+
+    {
+
+        var items = await _service.GetActivityAsync(id, UserId, Role, cancellationToken);
+
+        return items is null ? NotFound() : Ok(items);
+
+    }
+
+
+
     [HttpPost]
 
     [Authorize(Roles = RoleNames.PreAdviceManager)]

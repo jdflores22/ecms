@@ -1,5 +1,6 @@
 using ECMS.Application;
 using ECMS.Domain.Common;
+using ECMS.Application.DTOs.Audit;
 using ECMS.Application.DTOs.PreAdvice;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Entities;
@@ -59,6 +60,25 @@ public class PreAdviceService : IPreAdviceService
         var damageIds = await LoadDamageReportIdsAsync(new[] { item.Id }, cancellationToken);
         var qrByPreAdvice = await LoadQrInfoByPreAdviceIdsAsync(new[] { item.Id }, cancellationToken);
         return MapToDto(item, damageIds.Contains(item.Id), qrByPreAdvice.GetValueOrDefault(item.Id));
+    }
+
+    public async Task<IReadOnlyList<AuditLogDto>?> GetActivityAsync(
+        int id,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await GetQueryable(id, userId, role)
+            .Include(p => p.Schedule!)
+                .ThenInclude(s => s.QRBooking)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (item is null) return null;
+
+        return await _auditService.QueryPreAdviceTrailAsync(
+            item.ReferenceNo,
+            item.Schedule?.Id,
+            item.Schedule?.QRBooking?.QRCode,
+            cancellationToken);
     }
 
     private async Task<HashSet<int>> LoadDamageReportIdsAsync(

@@ -282,6 +282,7 @@ export const preAdviceApi = {
   },
   deleteDocument: (preAdviceId: number, documentId: number) =>
     api.delete(`/preforecast/${preAdviceId}/documents/${documentId}`),
+  activity: (id: number) => api.get<AuditLog[]>(`/preforecast/${id}/activity`),
 }
 
 export interface WithdrawalLookups {

@@ -13,6 +13,7 @@ import {
 } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from './ContainerIdentityPhotos'
+import PreAdviceActivityLog from './PreAdviceActivityLog'
 import PreAdviceFullDossier from './PreAdviceFullDossier'
 import PreAdviceForm, { type PreAdviceFormSubmitValues } from './PreAdviceForm'
 import {
@@ -39,7 +40,7 @@ import { truckerPaymentPath } from '../../utils/truckerPayment'
 
 const primaryDark = ICS_PRIMARY
 
-export type PreAdviceDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr'
+export type PreAdviceDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr' | 'activity'
 
 type StatusGuidance = {
   severity: 'info' | 'success' | 'warning' | 'error'
@@ -450,6 +451,10 @@ export default function PreAdviceDetailTabPanels({
             )}
           </Paper>
         )}
+      </DetailTabPanel>
+
+      <DetailTabPanel value="activity" activeTab={activeTab}>
+        <PreAdviceActivityLog preAdviceId={preAdviceId} active={activeTab === 'activity'} />
       </DetailTabPanel>
     </Box>
   )

@@ -23,6 +23,11 @@ public interface IAuditService
     void QueueLog(int userId, string action, string module, string? details = null);
     Task LogAsync(int userId, string action, string module, string? details = null, CancellationToken cancellationToken = default);
     Task<AuditLogPageDto> QueryAsync(AuditLogQuery query, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AuditLogDto>> QueryPreAdviceTrailAsync(
+        string referenceNo,
+        int? scheduleId = null,
+        string? qrCode = null,
+        CancellationToken cancellationToken = default);
 }
 
 public interface INotificationService

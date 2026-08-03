@@ -316,7 +316,7 @@ export default function PreAdviceDetailPage() {
 
     const tab = searchParams.get('tab') as PreAdviceDetailTab | null
     const showScheduleTabs = item.status === 'Approved'
-    const allowed: PreAdviceDetailTab[] = ['overview', 'details', 'photos']
+    const allowed: PreAdviceDetailTab[] = ['overview', 'details', 'photos', 'activity']
     if (showScheduleTabs) allowed.push('schedule', 'qr')
 
     const contextChanged =
@@ -783,6 +783,7 @@ export default function PreAdviceDetailPage() {
                 label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
                 value="photos"
               />
+              <Tab label="Activity log" value="activity" />
             </Tabs>
 
             <PreAdviceDetailTabPanels

@@ -70,4 +70,53 @@ public class AuditService : IAuditService
 
         return new AuditLogPageDto(items, total, page, pageSize);
     }
+
+    public async Task<IReadOnlyList<AuditLogDto>> QueryPreAdviceTrailAsync(
+        string referenceNo,
+        int? scheduleId = null,
+        string? qrCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(referenceNo))
+            return Array.Empty<AuditLogDto>();
+
+        var refKey = referenceNo.Trim();
+        var scheduleToken = scheduleId is > 0 ? $"Schedule {scheduleId.Value}" : null;
+        var scheduleTokenAlt = scheduleId is > 0 ? $"schedule {scheduleId.Value}" : null;
+        var qrKey = string.IsNullOrWhiteSpace(qrCode) ? null : qrCode.Trim();
+
+        var modules = new[]
+        {
+            "PreForecast",
+            "PreAdvice",
+            "Evaluation",
+            "Schedule",
+            "Payment",
+            "QR",
+            "BookingConfirmationPdf",
+            "LOGICTECK",
+        };
+
+        var logs = _db.AuditLogs
+            .Include(a => a.User)
+            .Where(a => modules.Contains(a.Module) && a.Details != null)
+            .Where(a =>
+                a.Details!.Contains(refKey)
+                || (scheduleToken != null && a.Details.Contains(scheduleToken))
+                || (scheduleTokenAlt != null && a.Details.Contains(scheduleTokenAlt))
+                || (qrKey != null && a.Details.Contains(qrKey)));
+
+        return await logs
+            .OrderByDescending(a => a.Timestamp)
+            .Take(200)
+            .Select(a => new AuditLogDto(
+                a.Id,
+                a.UserId,
+                a.User.Username,
+                a.Action,
+                a.Module,
+                a.Details,
+                a.Timestamp))
+            .ToListAsync(cancellationToken);
+    }
 }
