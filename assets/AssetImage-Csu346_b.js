@@ -1,0 +1,1 @@
+import{bO as m,j as n,bP as x,l}from"./index-CKUnGMBk.js";function c({path:e,alt:o,sx:s,skeletonHeight:i=320,skeletonMaxHeight:u,onClick:t}){const{url:r,loading:a}=m(e);return e?a||!r?n.jsx(x,{height:i,maxHeight:u}):n.jsx(l,{component:"img",src:r,alt:o,onClick:t,sx:t?{cursor:"pointer",...s}:s}):null}export{c as A};

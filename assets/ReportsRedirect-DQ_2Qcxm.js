@@ -1,0 +1,1 @@
+import{w as a,j as t,aj as r,dk as s}from"./index-CKUnGMBk.js";function u(){const e=a(o=>o.auth.user);return e!=null&&e.role?t.jsx(r,{to:s(e.role),replace:!0}):t.jsx(r,{to:"/login",replace:!0})}export{u as default};

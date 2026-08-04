@@ -1,0 +1,1 @@
+import{j as i,t as e}from"./index-CKUnGMBk.js";import{g as r,l}from"./scheduleStatus-DoTzskPg.js";function p({status:s,scheduleStatus:a}){const t=r({status:s,scheduleStatus:a});return i.jsx(e,{label:t.label,size:"small",variant:"outlined",sx:l(t)})}export{p as P};
