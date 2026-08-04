@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IDemurrageBillingService, DemurrageBillingService>();
         services.AddScoped<IWithdrawalService, WithdrawalService>();
+        services.AddScoped<IContainerReleaseOrderService, ContainerReleaseOrderService>();
         services.AddScoped<ICertificateTemplateService, CertificateTemplateService>();
         services.AddScoped<ICertificateGenerationService, CertificateGenerationService>();
         services.AddScoped<ICertificateVerificationService, CertificateVerificationService>();

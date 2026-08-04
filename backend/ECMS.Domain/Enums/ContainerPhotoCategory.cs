@@ -11,4 +11,5 @@ public enum ContainerPhotoCategory
     RightSideOut,
     Damage,
     Others,
+    CroEdo,
 }

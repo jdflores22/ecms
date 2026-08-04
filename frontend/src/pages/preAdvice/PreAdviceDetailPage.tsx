@@ -36,6 +36,7 @@ import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategorie
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel, qrLogicteckStatusFromPreAdvice } from '../../config/logicteckQr'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import {
+  demurrageBillingApi,
   paymentApi,
   preAdviceApi,
   qrApi,
@@ -50,6 +51,7 @@ import {
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
+import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { prefetchSignedAssetUrls } from '../../utils/assetUrl'
@@ -194,6 +196,12 @@ export default function PreAdviceDetailPage() {
   const [bookLogicteckLoading, setBookLogicteckLoading] = useState(false)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [activeTab, setActiveTab] = useState<PreAdviceDetailTab>(initialDetailTab)
+  const [linkedDemurrage, setLinkedDemurrage] = useState<{
+    id: number
+    referenceNo: string
+    status: string
+    totalAmount: number
+  } | null>(null)
   const tabContextRef = useRef<{ id: number; status: string } | null>(null)
 
   const handleDocumentsChange = useCallback((next: PreAdviceDocument[]) => {
@@ -406,8 +414,85 @@ export default function PreAdviceDetailPage() {
     openScheduleTab,
   ])
 
+  const freeTimeExpired = !!(item?.demurrageValidUntil && isCroFreeTimeExpired(item.demurrageValidUntil))
+  const demurrageSettled = linkedDemurrage?.status === 'Paid'
+  const demurragePending = freeTimeExpired && !demurrageSettled
+
+  useEffect(() => {
+    if (!item || !freeTimeExpired) {
+      setLinkedDemurrage(null)
+      return
+    }
+    let cancelled = false
+
+    const applyMatch = (match: {
+      id: number
+      referenceNo: string
+      status: string
+      totalAmount: number
+    } | undefined) => {
+      if (cancelled) return
+      setLinkedDemurrage(
+        match
+          ? {
+              id: match.id,
+              referenceNo: match.referenceNo,
+              status: String(match.status),
+              totalAmount: match.totalAmount,
+            }
+          : null,
+      )
+    }
+
+    ;(async () => {
+      try {
+        const { data } = await demurrageBillingApi.list()
+        if (cancelled) return
+        let match = data.find((b) => b.preAdviceId === item.id)
+        if (!match && (item.status === 'Draft' || item.status === 'ForCompliance')) {
+          try {
+            const ensured = await demurrageBillingApi.ensureExpiredFreeTime(item.id)
+            match = ensured.data
+          } catch {
+            // Billing may already exist under another filter, or free time not expired server-side.
+          }
+        }
+        applyMatch(
+          match
+            ? {
+                id: match.id,
+                referenceNo: match.referenceNo,
+                status: String(match.status),
+                totalAmount: match.totalAmount,
+              }
+            : undefined,
+        )
+      } catch {
+        if (!cancelled) setLinkedDemurrage(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [item, freeTimeExpired, item?.id, item?.status])
+
   const guidance = useMemo(() => {
     if (!item) return null
+    if ((item.status === 'Draft' || item.status === 'ForCompliance') && freeTimeExpired && !demurrageSettled) {
+      return {
+        severity: 'error' as const,
+        message: linkedDemurrage
+          ? `CRO/eDO free time expired on ${item.demurrageValidUntil}. Demurrage billing ${linkedDemurrage.referenceNo} (₱${linkedDemurrage.totalAmount.toLocaleString()}) is ${linkedDemurrage.status}. You cannot submit until the shipping line marks charges Paid — settle under Demurrage.`
+          : `CRO/eDO free time expired on ${item.demurrageValidUntil}. Demurrage and detention charges must be settled with the shipping line before you can submit this pre-forecast.`,
+      }
+    }
+    if ((item.status === 'Draft' || item.status === 'ForCompliance') && freeTimeExpired && demurrageSettled) {
+      return {
+        severity: 'success' as const,
+        message: 'Demurrage and detention are settled. You can submit this pre-forecast now.',
+      }
+    }
     if (item.status === 'Draft' && !photosComplete) {
       return {
         severity: 'warning' as const,
@@ -421,7 +506,16 @@ export default function PreAdviceDetailPage() {
       }
     }
     return statusGuidance(item.status, schedule, item.complianceRemarks)
-  }, [item, schedule, photosComplete, photoProgress, missingPhotoLabels])
+  }, [
+    item,
+    schedule,
+    photosComplete,
+    photoProgress,
+    missingPhotoLabels,
+    freeTimeExpired,
+    demurrageSettled,
+    linkedDemurrage,
+  ])
 
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
@@ -433,6 +527,8 @@ export default function PreAdviceDetailPage() {
 
   const isDraft = item?.status === 'Draft'
   const isForCompliance = item?.status === 'ForCompliance'
+  const canSubmitRequest =
+    (isDraft || isForCompliance) && photosComplete && (!freeTimeExpired || demurrageSettled)
   const canCancel = item?.status === 'Submitted' || item?.status === 'UnderEvaluation'
   const canManageDocuments =
     item?.status === 'Draft' || item?.status === 'Submitted' || isForCompliance
@@ -519,6 +615,26 @@ export default function PreAdviceDetailPage() {
       setSubmitOpen(false)
     } catch (err) {
       setActionError(apiErrorMessage(err, 'Failed to submit pre-forecast.'))
+      setSubmitOpen(false)
+      // Refresh linked demurrage if submit created billing for expired free time.
+      if (freeTimeExpired) {
+        try {
+          const { data } = await demurrageBillingApi.list()
+          const match = data.find((b) => b.preAdviceId === item.id)
+          setLinkedDemurrage(
+            match
+              ? {
+                  id: match.id,
+                  referenceNo: match.referenceNo,
+                  status: String(match.status),
+                  totalAmount: match.totalAmount,
+                }
+              : null,
+          )
+        } catch {
+          /* ignore */
+        }
+      }
     } finally {
       setSubmitting(false)
     }
@@ -620,6 +736,21 @@ export default function PreAdviceDetailPage() {
                   sx={{ ...heroMutedChipSx, '& .MuiChip-icon': { color: 'inherit' } }}
                 />
                 <PhotoProgressChip uploaded={photoProgress.uploaded} total={photoProgress.total} />
+                {freeTimeExpired && (
+                  <Chip
+                    label={
+                      demurrageSettled
+                        ? 'CRO free time expired · settled'
+                        : 'CRO free time expired · settle demurrage'
+                    }
+                    size="small"
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor: demurrageSettled ? 'rgba(46, 125, 50, 0.92)' : 'rgba(211, 47, 47, 0.92)',
+                      color: '#fff',
+                    }}
+                  />
+                )}
                 <TimezoneChip />
               </>
             }
@@ -659,9 +790,11 @@ export default function PreAdviceDetailPage() {
                       </Button>
                       <Tooltip
                         title={
-                          photosComplete
-                            ? ''
-                            : `Upload all ${photoProgress.total} container identity photos before submitting (${photoProgress.uploaded}/${photoProgress.total})`
+                          demurragePending
+                            ? 'Settle demurrage and detention charges with the shipping line before you can submit.'
+                            : !photosComplete
+                              ? `Upload all ${photoProgress.total} container identity photos before submitting (${photoProgress.uploaded}/${photoProgress.total})`
+                              : ''
                         }
                       >
                         <span>
@@ -672,13 +805,33 @@ export default function PreAdviceDetailPage() {
                               setActionError('')
                               setSubmitOpen(true)
                             }}
-                            disabled={submitting || !photosComplete}
+                            disabled={submitting || !canSubmitRequest}
                             sx={paymentHeroButtonSx}
                           >
                             Submit
                           </Button>
                         </span>
                       </Tooltip>
+                      {(linkedDemurrage || demurragePending) && (
+                        <Button
+                          component={RouterLink}
+                          to={
+                            linkedDemurrage
+                              ? `/trucker/demurrage-billing/${linkedDemurrage.id}`
+                              : '/trucker/demurrage-billing'
+                          }
+                          startIcon={<PaymentOutlinedIcon />}
+                          variant="outlined"
+                          sx={{
+                            color: '#fff',
+                            borderColor: 'rgba(255,255,255,0.45)',
+                            fontWeight: 600,
+                            '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
+                          }}
+                        >
+                          {demurrageSettled ? 'Demurrage settled' : 'Pay demurrage'}
+                        </Button>
+                      )}
                       <Button
                         startIcon={<DeleteIcon />}
                         color="error"
@@ -708,9 +861,11 @@ export default function PreAdviceDetailPage() {
                       </Button>
                       <Tooltip
                         title={
-                          photosComplete
-                            ? ''
-                            : `Upload all ${photoProgress.total} container identity photos before resubmitting (${photoProgress.uploaded}/${photoProgress.total})`
+                          demurragePending
+                            ? 'Settle demurrage and detention charges with the shipping line before you can resubmit.'
+                            : !photosComplete
+                              ? `Upload all ${photoProgress.total} container identity photos before resubmitting (${photoProgress.uploaded}/${photoProgress.total})`
+                              : ''
                         }
                       >
                         <span>
@@ -721,13 +876,33 @@ export default function PreAdviceDetailPage() {
                               setActionError('')
                               setSubmitOpen(true)
                             }}
-                            disabled={submitting || !photosComplete}
+                            disabled={submitting || !canSubmitRequest}
                             sx={paymentHeroButtonSx}
                           >
                             Resubmit
                           </Button>
                         </span>
                       </Tooltip>
+                      {(linkedDemurrage || demurragePending) && (
+                        <Button
+                          component={RouterLink}
+                          to={
+                            linkedDemurrage
+                              ? `/trucker/demurrage-billing/${linkedDemurrage.id}`
+                              : '/trucker/demurrage-billing'
+                          }
+                          startIcon={<PaymentOutlinedIcon />}
+                          variant="outlined"
+                          sx={{
+                            color: '#fff',
+                            borderColor: 'rgba(255,255,255,0.45)',
+                            fontWeight: 600,
+                            '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
+                          }}
+                        >
+                          {demurrageSettled ? 'Demurrage settled' : 'Pay demurrage'}
+                        </Button>
+                      )}
                     </>
                   )}
                 </Box>
@@ -874,6 +1049,13 @@ export default function PreAdviceDetailPage() {
               ? 'This will send your corrected pre-forecast back to the shipping-line evaluator for another review.'
               : 'This will send the pre-forecast to a shipping-line evaluator. You will not be able to edit container details after submission, but you can still cancel while evaluation is in progress.'}
           </Typography>
+          {freeTimeExpired && (
+            <Alert severity={demurrageSettled ? 'success' : 'error'} sx={{ mb: 2, borderRadius: 2 }}>
+              {demurrageSettled
+                ? 'Demurrage and detention are settled. You can submit this pre-forecast.'
+                : 'CRO/eDO free time has expired. You cannot submit until demurrage and detention charges are settled with the shipping line.'}
+            </Alert>
+          )}
           <Alert severity="success" sx={{ mb: actionError ? 2 : 0, borderRadius: 2 }}>
             All {photoProgress.total} container identity photos are uploaded and ready for review.
           </Alert>

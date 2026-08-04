@@ -1,5 +1,6 @@
 import { Box } from '@mui/material'
 import type { SxProps, Theme } from '@mui/material/styles'
+import { useState } from 'react'
 import { ICS_BRAND } from '../../config/brandCopy'
 
 type IcsLogoProps = {
@@ -9,11 +10,16 @@ type IcsLogoProps = {
 }
 
 export default function IcsLogo({ height = 40, maxWidth = 160, sx }: IcsLogoProps) {
+  const [src, setSrc] = useState<string>(ICS_BRAND.logoSrc)
+
   return (
     <Box
       component="img"
-      src={ICS_BRAND.logoSrc}
+      src={src}
       alt={ICS_BRAND.logoAlt}
+      onError={() => {
+        if (src !== ICS_BRAND.logoPngSrc) setSrc(ICS_BRAND.logoPngSrc)
+      }}
       sx={{
         height,
         width: 'auto',

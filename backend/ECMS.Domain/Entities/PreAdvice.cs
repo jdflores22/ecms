@@ -22,11 +22,17 @@ public class PreAdvice : BaseEntity
     public DateOnly? DemurrageValidUntil { get; set; }
     public string? Remarks { get; set; }
 
+    /// <summary>CRO/eDO reference captured when the trucker linked a verified document on create.</summary>
+    public string? CroEdoReferenceNo { get; set; }
+    public string? CroEdoVerificationTokenHash { get; set; }
+    public int? ContainerReleaseOrderId { get; set; }
+
     public User Trucker { get; set; } = null!;
     public ShippingLine ShippingLine { get; set; } = null!;
     public Container Container { get; set; } = null!;
     public ContainerSize ContainerSize { get; set; } = null!;
     public ContainerType ContainerType { get; set; } = null!;
+    public ContainerReleaseOrder? ContainerReleaseOrder { get; set; }
     public Evaluation? Evaluation { get; set; }
     public Schedule? Schedule { get; set; }
     public ICollection<PreAdviceDocument> Documents { get; set; } = new List<PreAdviceDocument>();

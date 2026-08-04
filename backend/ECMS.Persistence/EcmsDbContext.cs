@@ -39,6 +39,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<CertificateVerification> CertificateVerificationsSet => Set<CertificateVerification>();
     public DbSet<DepotBroadcast> DepotBroadcastsSet => Set<DepotBroadcast>();
     public DbSet<TruckerNews> TruckerNewsSet => Set<TruckerNews>();
+    public DbSet<ContainerReleaseOrder> ContainerReleaseOrdersSet => Set<ContainerReleaseOrder>();
+    public DbSet<ContainerReleaseOrderLine> ContainerReleaseOrderLinesSet => Set<ContainerReleaseOrderLine>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -71,6 +73,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<CertificateVerification> IEcmsDbContext.CertificateVerifications => CertificateVerificationsSet;
     IQueryable<DepotBroadcast> IEcmsDbContext.DepotBroadcasts => DepotBroadcastsSet;
     IQueryable<TruckerNews> IEcmsDbContext.TruckerNews => TruckerNewsSet;
+    IQueryable<ContainerReleaseOrder> IEcmsDbContext.ContainerReleaseOrders => ContainerReleaseOrdersSet;
+    IQueryable<ContainerReleaseOrderLine> IEcmsDbContext.ContainerReleaseOrderLines => ContainerReleaseOrderLinesSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -144,6 +148,10 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasOne(x => x.Container).WithMany(x => x.PreAdvices).HasForeignKey(x => x.ContainerId);
             e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
             e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
+            e.Property(x => x.CroEdoReferenceNo).HasMaxLength(32);
+            e.Property(x => x.CroEdoVerificationTokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.CroEdoVerificationTokenHash);
+            e.HasOne(x => x.ContainerReleaseOrder).WithMany().HasForeignKey(x => x.ContainerReleaseOrderId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PreAdviceDocument>(e =>
@@ -363,6 +371,45 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.ImageFileName).HasMaxLength(256);
             e.Property(x => x.ImageContentType).HasMaxLength(128);
             e.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ContainerReleaseOrder>(e =>
+        {
+            e.HasIndex(x => x.ReferenceNo).IsUnique();
+            e.HasIndex(x => new { x.ShippingLineId, x.Status, x.CreatedAt });
+            e.HasIndex(x => x.BlNumber);
+            e.Property(x => x.ReferenceNo).HasMaxLength(32);
+            e.Property(x => x.ConsigneeNotifyParty).HasMaxLength(512);
+            e.Property(x => x.ShippingLineCarrier).HasMaxLength(512);
+            e.Property(x => x.RegistryNumber).HasMaxLength(128);
+            e.Property(x => x.CustomsOffice).HasMaxLength(256);
+            e.Property(x => x.VesselVoyageNumber).HasMaxLength(256);
+            e.Property(x => x.BlNumber).HasMaxLength(128);
+            e.Property(x => x.BrokerName).HasMaxLength(512);
+            e.Property(x => x.AuthorizedByName).HasMaxLength(256);
+            e.Property(x => x.AuthorizedByCompany).HasMaxLength(256);
+            e.Property(x => x.PreparedByName).HasMaxLength(256);
+            e.Property(x => x.PdfPath).HasMaxLength(512);
+            e.Property(x => x.VerificationTokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.VerificationTokenHash).IsUnique();
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.IssuedBy).WithMany().HasForeignKey(x => x.IssuedByUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ContainerReleaseOrderLine>(e =>
+        {
+            e.HasIndex(x => new { x.ContainerReleaseOrderId, x.LineNo }).IsUnique();
+            e.HasIndex(x => x.ContainerNumber);
+            e.Property(x => x.ContainerNumber).HasMaxLength(64);
+            e.Property(x => x.Size).HasMaxLength(32);
+            e.Property(x => x.Type).HasMaxLength(32);
+            e.Property(x => x.Seal).HasMaxLength(64);
+            e.Property(x => x.HaulerName).HasMaxLength(256);
+            e.Property(x => x.PlateNo).HasMaxLength(32);
+            e.Property(x => x.LineReferenceNo).HasMaxLength(32);
+            e.Property(x => x.ReturnEmptyToName).HasMaxLength(256);
+            e.HasOne(x => x.ContainerReleaseOrder).WithMany(x => x.Lines).HasForeignKey(x => x.ContainerReleaseOrderId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ReturnEmptyToDepot).WithMany().HasForeignKey(x => x.ReturnEmptyToDepotId).OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

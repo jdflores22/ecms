@@ -255,6 +255,8 @@ export const preAdviceApi = {
     containerSizeId: number
     containerTypeId: number
     remarks?: string
+    croVerificationToken: string
+    croLineNo?: number
   }) => api.post<PreAdvice>('/preforecast', data),
   update: (
     id: number,
@@ -395,6 +397,91 @@ export interface WithdrawalDocument {
   contentType: string
   fileSize: number
   createdAt: string
+}
+
+export interface CroEdoLine {
+  id: number
+  lineNo: number
+  containerNumber: string
+  size: string
+  type: string
+  seal: string
+  haulerName: string
+  plateNo: string
+  lineReferenceNo: string
+  demurrageValidUntil: string
+  returnEmptyToDepotId?: number | null
+  returnEmptyToName: string
+}
+
+export interface CroEdo {
+  id: number
+  referenceNo: string
+  shippingLineId: number
+  shippingLineName: string
+  status: string
+  consigneeNotifyParty: string
+  shippingLineCarrier: string
+  registryNumber: string
+  customsOffice: string
+  vesselVoyageNumber: string
+  blNumber: string
+  brokerName: string
+  portInstructions: string
+  emptyReturnNote: string
+  authorizedByName?: string | null
+  authorizedByCompany?: string | null
+  preparedByName?: string | null
+  remarks?: string | null
+  issuedAt?: string | null
+  issuedByName?: string | null
+  hasPdf: boolean
+  createdAt: string
+  lines: CroEdoLine[]
+}
+
+export type CroEdoLineInput = {
+  containerNumber: string
+  size: string
+  type: string
+  seal: string
+  haulerName: string
+  plateNo: string
+  lineReferenceNo?: string
+  demurrageValidUntil: string
+  returnEmptyToDepotId?: number | null
+  returnEmptyToName?: string
+}
+
+export type CroEdoUpsertPayload = {
+  consigneeNotifyParty: string
+  shippingLineCarrier?: string
+  registryNumber: string
+  customsOffice: string
+  vesselVoyageNumber: string
+  blNumber: string
+  brokerName: string
+  portInstructions?: string
+  emptyReturnNote?: string
+  authorizedByName?: string
+  authorizedByCompany?: string
+  preparedByName?: string
+  remarks?: string
+  lines: CroEdoLineInput[]
+}
+
+export const croEdoApi = {
+  list: () => api.get<CroEdo[]>('/cro-edo'),
+  get: (id: number) => api.get<CroEdo>(`/cro-edo/${id}`),
+  create: (data: CroEdoUpsertPayload) => api.post<CroEdo>('/cro-edo', data),
+  update: (id: number, data: CroEdoUpsertPayload) => api.put<CroEdo>(`/cro-edo/${id}`, data),
+  issue: (id: number) => api.post<CroEdo>(`/cro-edo/${id}/issue`),
+  cancel: (id: number) => api.post<CroEdo>(`/cro-edo/${id}/cancel`),
+  regeneratePdf: (id: number) => api.post<CroEdo>(`/cro-edo/${id}/regenerate-pdf`),
+  downloadPdf: async (id: number) => {
+    const res = await api.get<Blob>(`/cro-edo/${id}/pdf`, { responseType: 'blob' })
+    return res.data
+  },
 }
 
 export const withdrawalApi = {
@@ -548,6 +635,7 @@ export interface PreAdvice {
   demurrageValidUntil?: string | null
   evaluatedAt?: string | null
   remarks?: string | null
+  croEdoReferenceNo?: string | null
   createdAt: string
   complianceRemarks?: string | null
   complianceRequestedAt?: string | null
@@ -1140,6 +1228,8 @@ export const demurrageBillingApi = {
     containerSizeId: number
     containerTypeId: number
   }) => api.get<DemurrageBlockCheck>('/demurrage-billing/check-block', { params }),
+  ensureExpiredFreeTime: (preAdviceId: number) =>
+    api.post<DemurrageBilling>(`/demurrage-billing/ensure-expired-free-time/${preAdviceId}`),
   uploadProof: (
     id: number,
     proof: File,

@@ -16,6 +16,7 @@ public record PreAdviceDto(
     PreAdviceStatus Status,
     string? DemurrageValidUntil,
     string? Remarks,
+    string? CroEdoReferenceNo,
     DateTime CreatedAt,
     string? ComplianceRemarks,
     DateTime? ComplianceRequestedAt,
@@ -32,7 +33,9 @@ public record CreatePreAdviceRequest(
     string ContainerNo,
     int ContainerSizeId,
     int ContainerTypeId,
-    string? Remarks);
+    string? Remarks,
+    string CroVerificationToken,
+    int? CroLineNo);
 
 public record UpdatePreAdviceRequest(
     int ShippingLineId,

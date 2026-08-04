@@ -24,6 +24,7 @@ import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/date
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
 import { truckerPaymentPath } from '../../utils/truckerPayment'
+import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 
 const primaryDark = ICS_PRIMARY
 
@@ -110,6 +111,24 @@ export default function PreAdviceFullDossier({
             <InfoTile label="Container type" value={containerTypeDisplay} />
           </Box>
           <InfoTile label="Submitted" value={formatDateTime(item.createdAt)} />
+          {item.demurrageValidUntil && (
+            <InfoTile
+              label="CRO free demurrage until"
+              value={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography component="span" variant="body2" sx={{ fontWeight: 600 }}>
+                    {formatDate(item.demurrageValidUntil)}
+                  </Typography>
+                  {isCroFreeTimeExpired(item.demurrageValidUntil) && (
+                    <Chip label="Expired" size="small" color="error" sx={{ fontWeight: 700, height: 22 }} />
+                  )}
+                </Box>
+              }
+            />
+          )}
+          {item.croEdoReferenceNo && (
+            <InfoTile label="CRO/eDO reference" value={item.croEdoReferenceNo} mono />
+          )}
           {item.qrCode && <InfoTile label="ICS QR reference" value={item.qrCode} mono />}
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
             <InfoTile label="Remarks" value={item.remarks || '—'} />

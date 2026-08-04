@@ -20,6 +20,7 @@ export type AppPageKey =
   | 'truckerDemurrageBilling'
   | 'truckerWithdrawals'
   | 'evaluatorAtw'
+  | 'evaluatorCro'
   | 'depotWithdrawals'
   | 'depotBroadcasts'
   | 'truckerQr'
@@ -198,6 +199,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Issue Authority to Withdraw for authorized truckers',
     showInNav: true,
   },
+  evaluatorCro: {
+    key: 'evaluatorCro',
+    label: 'CRO / eDO',
+    path: '/evaluations/cro-edo',
+    group: 'Evaluation',
+    description: 'Issue Container Release Order / electronic Delivery Order with free demurrage time',
+    showInNav: true,
+  },
   depotWithdrawals: {
     key: 'depotWithdrawals',
     label: 'CY withdrawals',
@@ -329,6 +338,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'profile',
     'evaluations',
     'evaluatorAtw',
+    'evaluatorCro',
     'cyAllocation',
     'containerInventory',
     'demurrageBilling',
@@ -369,6 +379,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'truckerNotifications',
   'truckerWithdrawals',
   'evaluatorAtw',
+  'evaluatorCro',
   'evaluatorReports',
   'depotReports',
   'depotDailyReturns',
@@ -536,6 +547,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'preforecast',
   'truckerWithdrawals',
   'evaluatorAtw',
+  'evaluatorCro',
   'evaluatorReports',
   'depotReports',
   'truckerReports',

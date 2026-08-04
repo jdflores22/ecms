@@ -35,6 +35,8 @@ public interface IEcmsDbContext
     IQueryable<CertificateVerification> CertificateVerifications { get; }
     IQueryable<DepotBroadcast> DepotBroadcasts { get; }
     IQueryable<TruckerNews> TruckerNews { get; }
+    IQueryable<ContainerReleaseOrder> ContainerReleaseOrders { get; }
+    IQueryable<ContainerReleaseOrderLine> ContainerReleaseOrderLines { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Add<T>(T entity) where T : class;

@@ -24,6 +24,7 @@ public static class RolePageKeys
     public const string TruckerDemurrageBilling = "truckerDemurrageBilling";
     public const string TruckerWithdrawals = "truckerWithdrawals";
     public const string EvaluatorAtw = "evaluatorAtw";
+    public const string EvaluatorCro = "evaluatorCro";
     public const string DepotWithdrawals = "depotWithdrawals";
     public const string DepotBroadcasts = "depotBroadcasts";
     public const string TruckerNotifications = "truckerNotifications";
@@ -46,7 +47,7 @@ public static class RolePageKeys
         DepotDailyReturns, DepotSchedules,
         AdminPayments,
         TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
-        EvaluatorAtw, DepotWithdrawals, DepotBroadcasts, TruckerNotifications,
+        EvaluatorAtw, EvaluatorCro, DepotWithdrawals, DepotBroadcasts, TruckerNotifications,
         AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue, AdminTruckerNews,
     };
 
@@ -133,10 +134,11 @@ public static class RoleCatalogDefaults
                 "Approve or reject pre-forecast",
                 "Assign container yard on approval",
                 "Set demurrage validity on approval",
+                "Issue CRO/eDO with free demurrage time and empty return CY",
                 "View demurrage billing for expired returns",
                 "View evaluation history",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.EvaluatorAtw, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.EvaluatorReports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.EvaluatorAtw, RolePageKeys.EvaluatorCro, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.EvaluatorReports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",

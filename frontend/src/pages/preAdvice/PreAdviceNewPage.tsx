@@ -4,12 +4,19 @@ import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import axios from 'axios'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
-import PreAdviceForm from '../../components/preAdvice/PreAdviceForm'
+import CroEdoAttachPanel, { type CroEdoAttachSuccess } from '../../components/preAdvice/CroEdoAttachPanel'
+import PreAdviceForm, {
+  type PreAdviceFormSubmitValues,
+  type PreAdviceFormValues,
+} from '../../components/preAdvice/PreAdviceForm'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { preAdviceApi, type PreAdviceLookups } from '../../services/api'
+import type { CroEdoVerificationLine } from '../../services/publicApi'
 import { useAppSelector } from '../../store/hooks'
+import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 
 const primaryDark = '#0B3D91'
 
@@ -21,11 +28,82 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
+const emptyForm: PreAdviceFormValues = {
+  shippingLineId: '',
+  containerNo: '',
+  containerSizeId: '',
+  containerTypeId: '',
+  remarks: '',
+}
+
 const workflowSteps = [
-  'Choose the shipping line and enter the container number.',
-  'Select container size and type from the catalog.',
-  'Save as draft — then submit when ready from the detail page.',
+  'Attach the issued CRO/eDO so the system can read the QR and fill container details.',
+  'Confirm the auto-filled shipping line, container, size, and type.',
+  'Save as draft — then add identity photos and submit from the detail page.',
 ]
+
+function norm(value: string) {
+  return value.trim().toUpperCase().replace(/'/g, '')
+}
+
+function mapCroLineToForm(
+  lookups: PreAdviceLookups,
+  shippingLineId: number | null | undefined,
+  shippingLineName: string | null | undefined,
+  line: CroEdoVerificationLine,
+): { values: PreAdviceFormValues; error?: string } {
+  const byId =
+    shippingLineId != null
+      ? lookups.shippingLines.find((s) => s.id === shippingLineId)
+      : undefined
+  const byName = shippingLineName
+    ? lookups.shippingLines.find(
+        (s) =>
+          norm(s.name) === norm(shippingLineName) ||
+          norm(s.code) === norm(shippingLineName) ||
+          norm(shippingLineName).includes(norm(s.name)),
+      )
+    : undefined
+  const shippingLine = byId ?? byName
+  if (!shippingLine) {
+    return {
+      values: emptyForm,
+      error: `Shipping line from CRO/eDO could not be matched (${shippingLineName || 'unknown'}).`,
+    }
+  }
+
+  const size = lookups.containerSizes.find((s) => {
+    const label = norm(formatContainerSizeLabel(s.label))
+    const cro = norm(line.size)
+    return label === cro || label.startsWith(cro) || cro.startsWith(label)
+  })
+  if (!size) {
+    return {
+      values: emptyForm,
+      error: `Container size from CRO/eDO could not be matched (${line.size}).`,
+    }
+  }
+
+  const type = lookups.containerTypes.find(
+    (t) => norm(t.code) === norm(line.type) || norm(t.label) === norm(line.type),
+  )
+  if (!type) {
+    return {
+      values: emptyForm,
+      error: `Container type from CRO/eDO could not be matched (${line.type}).`,
+    }
+  }
+
+  return {
+    values: {
+      shippingLineId: shippingLine.id,
+      containerNo: line.containerNumber.trim().toUpperCase(),
+      containerSizeId: size.id,
+      containerTypeId: type.id,
+      remarks: '',
+    },
+  }
+}
 
 export default function PreAdviceNewPage() {
   const navigate = useNavigate()
@@ -34,6 +112,8 @@ export default function PreAdviceNewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [formInitial, setFormInitial] = useState<PreAdviceFormValues>(emptyForm)
+  const [croLink, setCroLink] = useState<CroEdoAttachSuccess | null>(null)
 
   useEffect(() => {
     preAdviceApi
@@ -49,21 +129,69 @@ export default function PreAdviceNewPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  const croLinked = useMemo(
+    () =>
+      !!croLink &&
+      formInitial.shippingLineId !== '' &&
+      formInitial.containerSizeId !== '' &&
+      formInitial.containerTypeId !== '' &&
+      !!formInitial.containerNo.trim(),
+    [croLink, formInitial],
+  )
+
+  const freeTimeExpired = useMemo(
+    () => (croLink ? isCroFreeTimeExpired(croLink.line.demurrageValidUntil) : false),
+    [croLink],
+  )
+
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
   }
 
-  const handleCreate = async (values: {
-    shippingLineId: number
-    containerNo: string
-    containerSizeId: number
-    containerTypeId: number
-    remarks?: string
-  }) => {
+  const onCroLinked = (payload: CroEdoAttachSuccess) => {
+    if (!lookups) return
+    const mapped = mapCroLineToForm(
+      lookups,
+      payload.result.shippingLineId,
+      payload.result.shippingLineName,
+      payload.line,
+    )
+    if (mapped.error) {
+      setError(mapped.error)
+      setCroLink(null)
+      setFormInitial(emptyForm)
+      return
+    }
+    setError('')
+    setCroLink(payload)
+    setFormInitial({ ...mapped.values, remarks: formInitial.remarks })
+  }
+
+  const onCroCleared = () => {
+    setCroLink(null)
+    setFormInitial((prev) => ({ ...emptyForm, remarks: prev.remarks }))
+  }
+
+  const handleCreate = async (values: PreAdviceFormSubmitValues) => {
+    if (!croLink) {
+      setError('Attach and verify a CRO/eDO before creating the pre-forecast.')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
-      const { data } = await preAdviceApi.create(values)
+      const { data } = await preAdviceApi.create({
+        ...values,
+        croVerificationToken: croLink.token,
+        croLineNo: croLink.line.lineNo,
+      })
+      if (croLink.file) {
+        try {
+          await preAdviceApi.uploadDocument(data.id, croLink.file, 'CroEdo')
+        } catch {
+          // Draft is created; attachment can be re-uploaded later if needed.
+        }
+      }
       navigate(`/preforecast/${data.id}`)
     } catch (err) {
       setError(apiErrorMessage(err, 'Failed to create pre-forecast.'))
@@ -138,7 +266,8 @@ export default function PreAdviceNewPage() {
               New pre-forecast
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              Create a draft empty container return request. You can submit it to the shipping line after review.
+              Attach your CRO/eDO first. Free demurrage time and container details come from the verified
+              document.
             </Typography>
           </Box>
         </Box>
@@ -179,20 +308,26 @@ export default function PreAdviceNewPage() {
           {loading ? (
             <FormWizardSkeleton />
           ) : lookups ? (
-            <PreAdviceForm
-              lookups={lookups}
-              initial={{
-                shippingLineId: '',
-                containerNo: '',
-                containerSizeId: '',
-                containerTypeId: '',
-                remarks: '',
-              }}
-              onSubmit={handleCreate}
-              onCancel={() => navigate('/preforecast')}
-              submitLabel="Create draft"
-              submitting={submitting}
-            />
+            <>
+              <CroEdoAttachPanel
+                disabled={submitting}
+                onLinked={onCroLinked}
+                onCleared={onCroCleared}
+              />
+              <PreAdviceForm
+                lookups={lookups}
+                initial={formInitial}
+                onSubmit={handleCreate}
+                onCancel={() => navigate('/preforecast')}
+                submitLabel="Create draft"
+                submitting={submitting}
+                lockCatalogFields={croLinked}
+                requireCroLink
+                croLinked={croLinked}
+                freeTimeExpired={freeTimeExpired}
+                freeTimeUntil={croLink?.line.demurrageValidUntil}
+              />
+            </>
           ) : (
             <Alert severity="error">Unable to load shipping lines, sizes, and types.</Alert>
           )}

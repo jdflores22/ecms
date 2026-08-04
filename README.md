@@ -124,6 +124,16 @@ See **[docs/TRUCKER-TRACK.md](docs/TRUCKER-TRACK.md)** for the end-to-end trucke
 - **Phase 2:** Email/SMS notifications, advanced reports, Redis caching
 - **Phase 3:** LOGICTECK gate integration, mobile app, BI dashboard
 
+## Production deploy
+
+- **API (Railway):** push `main` — see [docs/RAILWAY-DEPLOY.md](docs/RAILWAY-DEPLOY.md)
+- **Frontend (Hostinger):** `.\deploy.ps1` — builds, force-pushes orphan branch `hostinger`, then `git pull` on the server
+
+```bash
+copy deploy-config.ps1.example deploy-config.ps1   # once
+.\deploy.ps1
+```
+
 ## License
 
 Proprietary — internal use.

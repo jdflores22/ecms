@@ -8,7 +8,7 @@ import SignUpPage from './pages/SignUpPage'
 import LandingPage from './pages/LandingPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
-import { CertificateVerifyPage } from './routes/lazyPages'
+import { CertificateVerifyPage, CroEdoVerifyPage } from './routes/lazyPages'
 import AppLayout from './layouts/AppLayout'
 import RoleRouteGuard from './components/auth/RoleRouteGuard'
 import {
@@ -23,6 +23,9 @@ import {
   AtwNewPage,
   AtwPage,
   ContainerInventoryPage,
+  CroEdoDetailPage,
+  CroEdoNewPage,
+  CroEdoPage,
   CyAllocationPage,
   DailyReturnsPage,
   DashboardPage,
@@ -130,6 +133,14 @@ export default function App() {
         }
       />
       <Route
+        path="/verify/cro-edo/:token"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <CroEdoVerifyPage />
+          </Suspense>
+        }
+      />
+      <Route
         path="/trucker/qr/print/:bookingId"
         element={
           <ProtectedRoute>
@@ -210,6 +221,30 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <EvaluatorDemurrageBillingPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/cro-edo/new"
+          element={
+            <RoleRouteGuard>
+              <CroEdoNewPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/cro-edo/:id"
+          element={
+            <RoleRouteGuard>
+              <CroEdoDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/cro-edo"
+          element={
+            <RoleRouteGuard>
+              <CroEdoPage />
             </RoleRouteGuard>
           }
         />

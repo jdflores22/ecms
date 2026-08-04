@@ -214,6 +214,30 @@ Railway may probe `/api/auth/login` with GET — that can return 405. If deploys
 
 ---
 
+## Frontend on Hostinger (git deploy)
+
+The SPA is **not** uploaded via SCP from your PC (Hostinger SSH file transfer often times out). Instead:
+
+1. `.\deploy.ps1` builds `frontend/dist`
+2. Force-pushes the dist contents to orphan branch **`hostinger`** on GitHub
+3. Runs a small SSH command on Hostinger: `git fetch` + `git reset` in `public_html`
+
+**Once per site** (done automatically on first `.\deploy.ps1` if `public_html` has no `.git`):
+
+```bash
+cd /home/u910121167/websites/HVdBWy0pE/public_html
+git init
+git remote add origin https://github.com/jdflores22/ecms.git
+git fetch origin hostinger
+git checkout -f -B hostinger origin/hostinger
+```
+
+If the GitHub repo is **private**, set `GitHubToken` in `deploy-config.ps1` (or env `ECMS_GITHUB_TOKEN`) so Hostinger can `git fetch`. Use a fine-scoped PAT with `contents:read`.
+
+Fallback if git pull is unavailable: `.\deploy.ps1 -UseScp` (batched SCP).
+
+---
+
 ## Cost note
 
 Railway offers a trial / hobby tier with usage limits. Monitor **Usage** in the dashboard. A small .NET API + external MySQL is usually low cost compared to a full VPS.
@@ -228,7 +252,7 @@ Railway offers a trial / hobby tier with usage limits. Monitor **Usage** in the 
 | Repo | `jdflores22/ecms` |
 | Dockerfile | `docker/Dockerfile.api` |
 | MySQL host | `h5g5-db.hstgr.io` |
-| Frontend deploy | `.\scripts\deploy-frontend-hostinger.ps1 -ApiBaseUrl "https://....up.railway.app/api"` |
+| Frontend deploy | `.\deploy.ps1` (publishes orphan branch `hostinger`, then `git pull` on Hostinger) |
 
 ---
 

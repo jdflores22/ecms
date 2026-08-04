@@ -45,6 +45,14 @@ public class PreAdviceController : ControllerBase
 
     };
 
+    private static readonly HashSet<string> CroEdoAllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+
+    {
+
+        ".jpg", ".jpeg", ".png", ".webp", ".pdf",
+
+    };
+
 
 
     public PreAdviceController(
@@ -353,9 +361,25 @@ public class PreAdviceController : ControllerBase
 
         var extension = Path.GetExtension(file.FileName);
 
-        if (string.IsNullOrWhiteSpace(extension) || !AllowedExtensions.Contains(extension))
+        var allowed = photoCategory == ContainerPhotoCategory.CroEdo
 
-            return BadRequest(new { message = "Only image files are allowed (JPG, PNG, WEBP)." });
+            ? CroEdoAllowedExtensions
+
+            : AllowedExtensions;
+
+        if (string.IsNullOrWhiteSpace(extension) || !allowed.Contains(extension))
+
+            return BadRequest(new
+
+            {
+
+                message = photoCategory == ContainerPhotoCategory.CroEdo
+
+                    ? "Only image or PDF files are allowed for CRO/eDO (JPG, PNG, WEBP, PDF)."
+
+                    : "Only image files are allowed (JPG, PNG, WEBP).",
+
+            });
 
 
 

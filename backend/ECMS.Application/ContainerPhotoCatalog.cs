@@ -26,6 +26,7 @@ public static class ContainerPhotoCatalog
         ContainerPhotoCategory.RightSideOut => "Right side (out)",
         ContainerPhotoCategory.Damage => "Damage",
         ContainerPhotoCategory.Others => "Others (optional)",
+        ContainerPhotoCategory.CroEdo => "CRO / eDO",
         _ => category.ToString(),
     };
 
@@ -56,6 +57,7 @@ public static class ContainerPhotoCatalog
         return category.Value switch
         {
             ContainerPhotoCategory.Others => 100,
+            ContainerPhotoCategory.CroEdo => 150,
             ContainerPhotoCategory.Damage => 200,
             _ => 300,
         };

@@ -67,4 +67,21 @@ public interface IDemurrageBillingService
         int containerSizeId,
         int containerTypeId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates (or returns) demurrage/detention billing when a pre-forecast's free time has expired.
+    /// Used on draft create with expired CRO/eDO and when a trucker attempts submit.
+    /// </summary>
+    Task<DemurrageBillingDto> EnsureBillingForExpiredFreeTimeAsync(
+        int preAdviceId,
+        int actorUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Trucker-owned ensure: creates billing for an expired free-time draft so charges appear before submit.
+    /// </summary>
+    Task<DemurrageBillingDto> EnsureBillingForTruckerExpiredFreeTimeAsync(
+        int preAdviceId,
+        int truckerId,
+        CancellationToken cancellationToken = default);
 }

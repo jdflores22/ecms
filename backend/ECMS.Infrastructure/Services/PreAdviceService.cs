@@ -1,6 +1,7 @@
 using ECMS.Application;
 using ECMS.Domain.Common;
 using ECMS.Application.DTOs.Audit;
+using ECMS.Application.DTOs.ContainerReleaseOrder;
 using ECMS.Application.DTOs.PreAdvice;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Entities;
@@ -15,17 +16,20 @@ public class PreAdviceService : IPreAdviceService
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
     private readonly IDemurrageBillingService _demurrageBilling;
+    private readonly IContainerReleaseOrderService _croEdo;
 
     public PreAdviceService(
         IEcmsDbContext db,
         IAuditService auditService,
         INotificationService notifications,
-        IDemurrageBillingService demurrageBilling)
+        IDemurrageBillingService demurrageBilling,
+        IContainerReleaseOrderService croEdo)
     {
         _db = db;
         _auditService = auditService;
         _notifications = notifications;
         _demurrageBilling = demurrageBilling;
+        _croEdo = croEdo;
     }
 
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
@@ -145,53 +149,132 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int truckerId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.CroVerificationToken))
+            throw new InvalidOperationException("A verified CRO/eDO is required to create a pre-forecast.");
+
+        var croLink = await _croEdo.ResolveIssuedLinkAsync(request.CroVerificationToken.Trim(), cancellationToken)
+            ?? throw new InvalidOperationException("CRO/eDO could not be verified. Upload a valid issued document and try again.");
+
+        if (croLink.Lines.Count == 0)
+            throw new InvalidOperationException("The CRO/eDO has no container lines.");
+
+        var croLine = ResolveCroLine(croLink, request.CroLineNo);
+
+        if (request.ShippingLineId != croLink.ShippingLineId)
+            throw new InvalidOperationException("Shipping line must match the verified CRO/eDO.");
+
         var catalog = await ValidateCatalogAsync(
-            request.ShippingLineId,
-            request.ContainerNo,
+            croLink.ShippingLineId,
+            croLine.ContainerNumber,
             request.ContainerSizeId,
             request.ContainerTypeId,
             cancellationToken);
 
+        EnsureCatalogMatchesCroLine(catalog.SizeLabel, catalog.TypeCode, croLine);
+
         await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
             truckerId,
             catalog.NormalizedNo,
-            request.ShippingLineId,
+            croLink.ShippingLineId,
             request.ContainerSizeId,
             request.ContainerTypeId,
             cancellationToken);
 
         var container = await ResolveOrTrackContainerAsync(
-            request.ShippingLineId,
+            croLink.ShippingLineId,
             catalog.NormalizedNo,
             catalog.SizeLabel,
             catalog.TypeCode,
             cancellationToken);
+
+        var demurrageUntil = ParseCroDemurrageDate(croLine.DemurrageValidUntil);
 
         var referenceNo = await GenerateReferenceNoAsync(cancellationToken);
         var preAdvice = new PreAdvice
         {
             ReferenceNo = referenceNo,
             TruckerId = truckerId,
-            ShippingLineId = request.ShippingLineId,
+            ShippingLineId = croLink.ShippingLineId,
             Container = container,
             ContainerNoNormalized = catalog.NormalizedNo,
             ContainerSizeId = request.ContainerSizeId,
             ContainerTypeId = request.ContainerTypeId,
             Remarks = request.Remarks,
             Status = PreAdviceStatus.Draft,
+            DemurrageValidUntil = demurrageUntil,
+            CroEdoReferenceNo = croLink.ReferenceNo,
+            CroEdoVerificationTokenHash = croLink.TokenHash,
+            ContainerReleaseOrderId = croLink.Id,
         };
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Add(preAdvice);
-        _auditService.QueueLog(truckerId, "Create", "PreForecast", referenceNo);
+        _auditService.QueueLog(truckerId, "Create", "PreForecast", $"{referenceNo} · CRO {croLink.ReferenceNo}");
         await _db.SaveChangesAsync(cancellationToken);
 
+        if (demurrageUntil is DateOnly freeUntil && freeUntil < PhilippinesTime.Today)
+        {
+            await _demurrageBilling.EnsureBillingForExpiredFreeTimeAsync(
+                preAdvice.Id, truckerId, cancellationToken);
+        }
+
         var trucker = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == truckerId, cancellationToken);
-        var shippingLine = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == request.ShippingLineId, cancellationToken);
+        var shippingLine = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == croLink.ShippingLineId, cancellationToken);
         preAdvice.Trucker = trucker;
         preAdvice.ShippingLine = shippingLine;
 
         return MapToDto(preAdvice, hasDamageReport: false);
+    }
+
+    private static CroEdoLinkLineDto ResolveCroLine(CroEdoLinkDto croLink, int? croLineNo)
+    {
+        if (croLineNo is int lineNo)
+        {
+            var match = croLink.Lines.FirstOrDefault(l => l.LineNo == lineNo);
+            if (match is null)
+                throw new InvalidOperationException("Selected CRO/eDO container line was not found.");
+            return match;
+        }
+
+        if (croLink.Lines.Count == 1)
+            return croLink.Lines[0];
+
+        throw new InvalidOperationException("Select which container line from the CRO/eDO to use.");
+    }
+
+    private static void EnsureCatalogMatchesCroLine(
+        string sizeLabel,
+        string typeCode,
+        CroEdoLinkLineDto croLine)
+    {
+        static string Norm(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant().Replace("'", "", StringComparison.Ordinal);
+
+        if (!string.Equals(Norm(sizeLabel), Norm(croLine.Size), StringComparison.Ordinal)
+            && !Norm(sizeLabel).StartsWith(Norm(croLine.Size), StringComparison.Ordinal)
+            && !Norm(croLine.Size).StartsWith(Norm(sizeLabel), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Container size does not match the CRO/eDO line ({croLine.Size}).");
+        }
+
+        if (!string.Equals(Norm(typeCode), Norm(croLine.Type), StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Container type does not match the CRO/eDO line ({croLine.Type}).");
+    }
+
+    private static DateOnly? ParseCroDemurrageDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (DateOnly.TryParse(value, out var iso))
+            return iso;
+
+        if (DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var dt))
+            return DateOnly.FromDateTime(dt);
+
+        return null;
     }
 
     public async Task<PreAdviceDto?> UpdateAsync(int id, UpdatePreAdviceRequest request, int userId, string role, CancellationToken cancellationToken = default)
@@ -274,6 +357,21 @@ public class PreAdviceService : IPreAdviceService
         if (missing.Count > 0)
             throw new InvalidOperationException(
                 $"All container identity photos are required before submit. Missing: {string.Join(", ", missing)}.");
+
+        if (preAdvice.DemurrageValidUntil is DateOnly freeUntil
+            && freeUntil < PhilippinesTime.Today)
+        {
+            var billing = await _demurrageBilling.EnsureBillingForExpiredFreeTimeAsync(
+                id, userId, cancellationToken);
+
+            if (billing.Status != PaymentStatus.Paid)
+            {
+                throw new InvalidOperationException(
+                    $"Free demurrage time expired on {freeUntil:yyyy-MM-dd}. " +
+                    $"Demurrage billing {billing.ReferenceNo} (₱{billing.TotalAmount:N0}) was added for the shipping line. " +
+                    "Settle demurrage and detention charges, then submit again.");
+            }
+        }
 
         await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
             userId,
@@ -467,6 +565,16 @@ public class PreAdviceService : IPreAdviceService
         {
             if (string.IsNullOrWhiteSpace(comment))
                 throw new InvalidOperationException("A damage description is required for damage photos.");
+        }
+        else if (category == ContainerPhotoCategory.CroEdo)
+        {
+            comment = null;
+            var existing = await _db.PreAdviceDocuments
+                .Where(d => d.PreAdviceId == preAdviceId && d.Category == category)
+                .ToListAsync(cancellationToken);
+
+            foreach (var doc in existing)
+                _db.Remove(doc);
         }
         else if (!ContainerPhotoCatalog.IsIdentityGridSlot(category))
         {
@@ -725,7 +833,9 @@ public class PreAdviceService : IPreAdviceService
         p.ShippingLineId, p.ShippingLine.Name, p.ContainerId, p.Container.ContainerNo,
         p.Container.Size, p.Container.Type, p.Status,
         p.DemurrageValidUntil?.ToString("yyyy-MM-dd"),
-        p.Remarks, p.CreatedAt,
+        p.Remarks,
+        p.CroEdoReferenceNo,
+        p.CreatedAt,
         p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.Remarks : null,
         p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.EvaluatedAt : null,
         hasDamageReport,

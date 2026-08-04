@@ -5,6 +5,7 @@
 **/dist/
 **/publish/
 frontend/ecms-dist.tgz
+scripts/.hostinger-deploy-manifest.json
 android-trucker/app/build/
 
 # IDE
@@ -19,6 +20,9 @@ android-trucker/app/build/
 .env.production
 backend/ECMS.API/.env.production
 backend/ECMS.API/appsettings.Production.json
+
+# Local deploy secrets (copy from deploy-config.ps1.example)
+deploy-config.ps1
 
 # Uploads
 backend/ECMS.API/uploads/

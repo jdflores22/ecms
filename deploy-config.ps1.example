@@ -1,0 +1,19 @@
+# Copy to deploy-config.ps1 and fill in secrets (deploy-config.ps1 is gitignored).
+@{
+    SshHost     = '82.25.100.95'
+    SshPort     = 65002
+    SshUser     = 'u910121167_HVdBWy0pE'
+    SshKey      = Join-Path $env:USERPROFILE '.ssh\hostinger_ecms'
+    # Optional: pin Hostinger host key for plink/pscp batch mode
+    # SshHostKey  = 'SHA256:xxxxxxxx'
+    SshPassword = ''  # Hostinger SSH Access password
+    RemotePath  = '/home/u910121167/websites/HVdBWy0pE/public_html'
+    AppUrl      = 'https://deepskyblue-marten-415020.hostingersite.com'
+    ApiBaseUrl  = 'https://ecms-production-42be.up.railway.app/api'
+    GitBranch   = 'main'                 # source branch pushed for Railway API
+    HostingerGitBranch = 'hostinger'     # orphan branch with frontend/dist contents
+    GitHubRepo  = 'jdflores22/ecms'
+    # Required for private repos (Hostinger git fetch). Prefer a fine-scoped PAT (contents:read).
+    # Or set env ECMS_GITHUB_TOKEN / GITHUB_TOKEN instead of storing here.
+    GitHubToken = ''
+}

@@ -117,6 +117,23 @@ public class DemurrageBillingController : ControllerBase
             containerTypeId,
             cancellationToken));
 
+    [HttpPost("ensure-expired-free-time/{preAdviceId:int}")]
+    [Authorize(Roles = RoleNames.Trucker)]
+    public async Task<ActionResult<DemurrageBillingDto>> EnsureExpiredFreeTime(
+        int preAdviceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.EnsureBillingForTruckerExpiredFreeTimeAsync(
+                preAdviceId, UserId, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:int}/upload-proof")]
     [Authorize(Roles = RoleNames.Trucker)]
     [RequestSizeLimit(10_485_760)]

@@ -1,8 +1,13 @@
+import logoWebp from '../assets/ics-logo.webp'
+import logoPng from '../assets/ics-logo.png'
+
 /** Shared ICS product messaging — pre-forecasted returns to CY or Port Terminal. */
 export const ICS_BRAND = {
   name: 'Intelligent Container Solutions',
   shortName: 'ICS',
-  logoSrc: '/ics-logo.png',
+  /** Vite-bundled WebP (Hostinger CDN often 422s root `/ics-logo.png`). */
+  logoSrc: logoWebp,
+  logoPngSrc: logoPng,
   logoAlt: 'ICS — Intelligent Container Solutions',
   tagline: 'Pre-forecast empty containers for return to CY or Port Terminal',
   description:

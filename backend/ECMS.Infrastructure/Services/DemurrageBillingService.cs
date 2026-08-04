@@ -365,8 +365,8 @@ public class DemurrageBillingService : IDemurrageBillingService
             var total = billing.FeeLines.Sum(l => l.Amount);
             await _notifications.NotifyUsersAsync(
                 new[] { billing.TruckerId },
-                "Demurrage billing updated",
-                $"{billing.PreAdvice.ReferenceNo} — updated total ₱{total:N0}. Review and pay if due.",
+                "Demurrage charges finalized",
+                $"{billing.PreAdvice.ReferenceNo} — final total ₱{total:N0}. Settle demurrage and detention, then submit your pre-forecast.",
                 "DemurrageBilling",
                 $"/trucker/demurrage-billing/{billing.Id}",
                 userId,
@@ -433,6 +433,112 @@ public class DemurrageBillingService : IDemurrageBillingService
 
         if (block.IsBlocked)
             throw new InvalidOperationException(block.Message ?? "Outstanding demurrage charges must be settled first.");
+    }
+
+    public async Task<DemurrageBillingDto> EnsureBillingForTruckerExpiredFreeTimeAsync(
+        int preAdviceId,
+        int truckerId,
+        CancellationToken cancellationToken = default)
+    {
+        var owns = await _db.PreAdvices.AsNoTracking()
+            .AnyAsync(p => p.Id == preAdviceId && p.TruckerId == truckerId, cancellationToken);
+        if (!owns)
+            throw new InvalidOperationException("Pre-forecast not found.");
+
+        return await EnsureBillingForExpiredFreeTimeAsync(preAdviceId, truckerId, cancellationToken);
+    }
+
+    public async Task<DemurrageBillingDto> EnsureBillingForExpiredFreeTimeAsync(
+        int preAdviceId,
+        int actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var preAdvice = await _db.PreAdvices
+            .Include(p => p.Schedule!)
+                .ThenInclude(s => s.QRBooking)
+            .FirstOrDefaultAsync(p => p.Id == preAdviceId, cancellationToken)
+            ?? throw new InvalidOperationException("Pre-forecast not found.");
+
+        if (preAdvice.DemurrageValidUntil is null)
+            throw new InvalidOperationException("Pre-forecast has no free demurrage date.");
+
+        var today = PhilippinesTime.Today;
+        if (preAdvice.DemurrageValidUntil >= today)
+            throw new InvalidOperationException("Free demurrage time has not expired yet.");
+
+        if (preAdvice.Status is PreAdviceStatus.Cancelled or PreAdviceStatus.Rejected)
+            throw new InvalidOperationException("Cannot bill a cancelled or rejected pre-forecast.");
+
+        var existing = await BillingQueryWithIncludes()
+            .FirstOrDefaultAsync(b => b.PreAdviceId == preAdvice.Id, cancellationToken);
+        if (existing is not null)
+            return MapToDto(existing);
+
+        var demurrageFee = await _paymentSettings.GetDemurrageFeeAmountAsync(cancellationToken);
+        var detentionFee = await _paymentSettings.GetDetentionFeeAmountAsync(cancellationToken);
+        var feeInputs = BuildDefaultFeeInputs(demurrageFee, detentionFee);
+        ValidateFeeInputs(feeInputs);
+
+        var billing = new DemurrageBilling
+        {
+            ReferenceNo = await GenerateReferenceNoAsync(cancellationToken),
+            PreAdviceId = preAdvice.Id,
+            ShippingLineId = preAdvice.ShippingLineId,
+            TruckerId = preAdvice.TruckerId,
+            ContainerNoNormalized = preAdvice.ContainerNoNormalized,
+            ContainerSizeId = preAdvice.ContainerSizeId,
+            ContainerTypeId = preAdvice.ContainerTypeId,
+            DemurrageValidUntil = preAdvice.DemurrageValidUntil.Value,
+            ExpiredOn = today,
+            DemurrageAmount = demurrageFee,
+            DetentionAmount = detentionFee,
+            Status = PaymentStatus.Pending,
+        };
+        ApplyFeeLines(billing, feeInputs);
+        SyncLegacyAmounts(billing);
+
+        _db.Add(billing);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(
+            actorUserId,
+            "CreateExpiredFreeTime",
+            "DemurrageBilling",
+            $"{billing.ReferenceNo} · {preAdvice.ReferenceNo}",
+            cancellationToken);
+
+        var total = billing.FeeLines.Sum(l => l.Amount);
+        var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(
+            _db, preAdvice.ShippingLineId, cancellationToken);
+
+        if (evaluatorIds.Count > 0)
+        {
+            await _notifications.NotifyUsersAsync(
+                evaluatorIds,
+                "Expired free time — demurrage billing",
+                $"{preAdvice.ReferenceNo} used an expired CRO/eDO free time ({preAdvice.DemurrageValidUntil:yyyy-MM-dd}). " +
+                $"Demurrage billing {billing.ReferenceNo} (₱{total:N0}) was added — trucker must settle before submit.",
+                "DemurrageBilling",
+                $"/evaluations/demurrage-billing/{billing.Id}",
+                actorUserId,
+                billing.ReferenceNo,
+                cancellationToken);
+        }
+
+        if (billing.TruckerId > 0)
+        {
+            await _notifications.NotifyUsersAsync(
+                new[] { billing.TruckerId },
+                "Demurrage charges must be settled",
+                $"{preAdvice.ReferenceNo} — CRO/eDO free demurrage expired. Charges ₱{total:N0}. " +
+                "Settle demurrage and detention with the shipping line before you can submit this pre-forecast.",
+                "DemurrageBilling",
+                $"/trucker/demurrage-billing/{billing.Id}",
+                actorUserId,
+                billing.ReferenceNo,
+                cancellationToken);
+        }
+
+        return MapToDto(await ReloadBillingAsync(billing.Id, cancellationToken));
     }
 
     public async Task<DemurrageBillingDto> UploadProofAsync(
@@ -517,10 +623,13 @@ public class DemurrageBillingService : IDemurrageBillingService
                 new[] { billing.TruckerId },
                 request.Approved ? "Demurrage payment approved" : "Demurrage payment rejected",
                 request.Approved
-                    ? $"{billing.PreAdvice.ReferenceNo} demurrage charges verified. You may submit a new pre-forecast for this container."
+                    ? $"{billing.PreAdvice.ReferenceNo} demurrage charges verified. You can now submit your pre-forecast."
                     : $"{billing.PreAdvice.ReferenceNo} demurrage payment was rejected. Upload a new proof.",
                 "DemurrageBilling",
-                $"/trucker/demurrage-billing/{billing.Id}",
+                request.Approved
+                    && billing.PreAdvice.Status is PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance
+                    ? $"/preforecast/{billing.PreAdviceId}"
+                    : $"/trucker/demurrage-billing/{billing.Id}",
                 actorUserId,
                 billing.ReferenceNo,
                 cancellationToken);

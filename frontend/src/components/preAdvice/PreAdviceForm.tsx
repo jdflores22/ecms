@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { PreAdviceLookups } from '../../services/api'
 import { demurrageBillingApi } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { croFreeTimeExpiredMessage } from '../../utils/croFreeTime'
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': { borderRadius: 2 },
@@ -31,6 +32,13 @@ interface PreAdviceFormProps {
   onCancel?: () => void
   submitLabel?: string
   submitting?: boolean
+  /** When true, shipping line / container / size / type are read-only (CRO-linked). */
+  lockCatalogFields?: boolean
+  requireCroLink?: boolean
+  croLinked?: boolean
+  /** When true, free demurrage from CRO is expired — draft allowed, submit later blocked. */
+  freeTimeExpired?: boolean
+  freeTimeUntil?: string | null
 }
 
 export default function PreAdviceForm({
@@ -40,6 +48,11 @@ export default function PreAdviceForm({
   onCancel,
   submitLabel = 'Save',
   submitting = false,
+  lockCatalogFields = false,
+  requireCroLink = false,
+  croLinked = false,
+  freeTimeExpired = false,
+  freeTimeUntil = null,
 }: PreAdviceFormProps) {
   const [shippingLineId, setShippingLineId] = useState<number | ''>(initial.shippingLineId)
   const [containerNo, setContainerNo] = useState(initial.containerNo)
@@ -92,7 +105,8 @@ export default function PreAdviceForm({
       containerSizeId === '' ||
       containerTypeId === '' ||
       !containerNo.trim() ||
-      demurrageBlock
+      demurrageBlock ||
+      (requireCroLink && !croLinked)
     ) {
       return
     }
@@ -111,7 +125,8 @@ export default function PreAdviceForm({
     containerTypeId !== '' &&
     containerNo.trim().length > 0 &&
     !demurrageBlock &&
-    !checkingBlock
+    !checkingBlock &&
+    (!requireCroLink || croLinked)
 
   const selectedSizeLabel = useMemo(() => {
     if (containerSizeId === '') return ''
@@ -125,8 +140,13 @@ export default function PreAdviceForm({
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
           Container information
         </Typography>
+        {lockCatalogFields && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+            Fields below were filled from the verified CRO/eDO and are locked.
+          </Alert>
+        )}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <FormControl fullWidth required sx={fieldSx}>
+          <FormControl fullWidth required sx={fieldSx} disabled={lockCatalogFields}>
             <InputLabel>Shipping line</InputLabel>
             <Select
               label="Shipping line"
@@ -155,13 +175,14 @@ export default function PreAdviceForm({
               value={containerNo}
               onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
               placeholder="e.g. MSCU1234567"
+              disabled={lockCatalogFields}
               slotProps={{
                 input: { style: { fontFamily: 'monospace' } },
               }}
               sx={fieldSx}
             />
 
-            <FormControl fullWidth required sx={fieldSx}>
+            <FormControl fullWidth required sx={fieldSx} disabled={lockCatalogFields}>
               <InputLabel>Container size</InputLabel>
               <Select
                 label="Container size"
@@ -183,7 +204,7 @@ export default function PreAdviceForm({
               </Select>
             </FormControl>
 
-            <FormControl fullWidth required sx={fieldSx}>
+            <FormControl fullWidth required sx={fieldSx} disabled={lockCatalogFields}>
               <InputLabel>Container type</InputLabel>
               <Select
                 label="Container type"
@@ -225,6 +246,19 @@ export default function PreAdviceForm({
           Optional context for the evaluator (damage notes, special handling, etc.).
         </FormHelperText>
       </Box>
+
+      {requireCroLink && !croLinked && (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          Attach and verify a CRO/eDO above before creating this pre-forecast.
+        </Alert>
+      )}
+
+      {freeTimeExpired && croLinked && (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          {croFreeTimeExpiredMessage(freeTimeUntil)} Settle charges under{' '}
+          <strong>Demurrage</strong> in the menu before submitting.
+        </Alert>
+      )}
 
       {demurrageBlock && (
         <Alert severity="error" sx={{ borderRadius: 2 }}>

@@ -112,6 +112,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   truckerPayments: <PaymentsIcon fontSize="small" />,
   truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
   evaluatorAtw: <AssignmentTurnedInOutlinedIcon fontSize="small" />,
+  evaluatorCro: <DescriptionIcon fontSize="small" />,
   depotWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,
   depotBroadcasts: <CampaignOutlinedIcon fontSize="small" />,
   truckerWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,

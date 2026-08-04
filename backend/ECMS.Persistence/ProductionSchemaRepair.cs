@@ -68,6 +68,82 @@ public static class ProductionSchemaRepair
         await EnsureTruckerNewsTableAsync(db, logger, cancellationToken);
 
         await EnsureYardInventoryReleaseStatusAsync(db, logger, cancellationToken);
+
+        await EnsureContainerReleaseOrdersAsync(db, logger, cancellationToken);
+
+        await EnsurePreAdviceCroLinkAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsurePreAdviceCroLinkAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (!await TableExistsAsync(db, "PreAdvicesSet", cancellationToken))
+            return;
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "CroEdoReferenceNo",
+            "varchar(32) CHARACTER SET utf8mb4 NULL",
+            "20260804150000_AddPreAdviceCroLink",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "CroEdoVerificationTokenHash",
+            "varchar(64) CHARACTER SET utf8mb4 NULL",
+            "20260804150000_AddPreAdviceCroLink",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "ContainerReleaseOrderId",
+            "int NULL",
+            "20260804150000_AddPreAdviceCroLink",
+            cancellationToken);
+
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE INDEX `IX_PreAdvicesSet_CroEdoVerificationTokenHash`
+                ON `PreAdvicesSet` (`CroEdoVerificationTokenHash`)
+                """,
+                cancellationToken);
+        }
+        catch { /* may already exist */ }
+
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE INDEX `IX_PreAdvicesSet_ContainerReleaseOrderId`
+                ON `PreAdvicesSet` (`ContainerReleaseOrderId`)
+                """,
+                cancellationToken);
+        }
+        catch { /* may already exist */ }
+
+        if (await TableExistsAsync(db, "ContainerReleaseOrdersSet", cancellationToken))
+        {
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    ALTER TABLE `PreAdvicesSet`
+                    ADD CONSTRAINT `FK_PreAdvicesSet_ContainerReleaseOrderId`
+                    FOREIGN KEY (`ContainerReleaseOrderId`) REFERENCES `ContainerReleaseOrdersSet` (`Id`)
+                    ON DELETE SET NULL
+                    """,
+                    cancellationToken);
+            }
+            catch { /* may already exist */ }
+        }
     }
 
     private static async Task EnsureWithdrawalBookingFlowAsync(
@@ -485,6 +561,142 @@ public static class ProductionSchemaRepair
             column: "ReleasedAt",
             definition: "datetime(6) NULL",
             migrationId: "20260706153000_AddYardInventoryReleaseStatus",
+            cancellationToken);
+    }
+
+    private static async Task EnsureContainerReleaseOrdersAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260804120000_AddContainerReleaseOrders";
+
+        if (await TableExistsAsync(db, "ContainerReleaseOrdersSet", cancellationToken))
+        {
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "ContainerReleaseOrdersSet",
+                "VerificationTokenHash",
+                "varchar(64) CHARACTER SET utf8mb4 NULL",
+                "20260804140000_AddCroVerificationToken",
+                cancellationToken);
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "ContainerReleaseOrdersSet",
+                "VerificationCount",
+                "int NOT NULL DEFAULT 0",
+                "20260804140000_AddCroVerificationToken",
+                cancellationToken);
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "ContainerReleaseOrdersSet",
+                "LastVerifiedAt",
+                "datetime(6) NULL",
+                "20260804140000_AddCroVerificationToken",
+                cancellationToken);
+
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    CREATE UNIQUE INDEX `IX_CRO_VerificationTokenHash`
+                    ON `ContainerReleaseOrdersSet` (`VerificationTokenHash`)
+                    """,
+                    cancellationToken);
+            }
+            catch
+            {
+                /* index may already exist */
+            }
+
+            await db.Database.ExecuteSqlRawAsync(
+                $"""
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('{migrationId}', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing tables ContainerReleaseOrdersSet / ContainerReleaseOrderLinesSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `ContainerReleaseOrdersSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `ReferenceNo` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                `ShippingLineId` int NOT NULL,
+                `Status` int NOT NULL,
+                `ConsigneeNotifyParty` varchar(512) CHARACTER SET utf8mb4 NOT NULL,
+                `ShippingLineCarrier` varchar(512) CHARACTER SET utf8mb4 NOT NULL,
+                `RegistryNumber` varchar(128) CHARACTER SET utf8mb4 NOT NULL,
+                `CustomsOffice` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+                `VesselVoyageNumber` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+                `BlNumber` varchar(128) CHARACTER SET utf8mb4 NOT NULL,
+                `BrokerName` varchar(512) CHARACTER SET utf8mb4 NOT NULL,
+                `PortInstructions` longtext CHARACTER SET utf8mb4 NOT NULL,
+                `EmptyReturnNote` longtext CHARACTER SET utf8mb4 NOT NULL,
+                `AuthorizedByName` varchar(256) CHARACTER SET utf8mb4 NULL,
+                `AuthorizedByCompany` varchar(256) CHARACTER SET utf8mb4 NULL,
+                `PreparedByName` varchar(256) CHARACTER SET utf8mb4 NULL,
+                `Remarks` longtext CHARACTER SET utf8mb4 NULL,
+                `IssuedAt` datetime(6) NULL,
+                `IssuedByUserId` int NULL,
+                `PdfPath` varchar(512) CHARACTER SET utf8mb4 NULL,
+                `VerificationTokenHash` varchar(64) CHARACTER SET utf8mb4 NULL,
+                `VerificationCount` int NOT NULL DEFAULT 0,
+                `LastVerifiedAt` datetime(6) NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_CRO_ReferenceNo` (`ReferenceNo`),
+                UNIQUE KEY `IX_CRO_VerificationTokenHash` (`VerificationTokenHash`),
+                KEY `IX_CRO_ShippingLineId_Status_CreatedAt` (`ShippingLineId`, `Status`, `CreatedAt`),
+                KEY `IX_CRO_BlNumber` (`BlNumber`),
+                KEY `IX_CRO_IssuedByUserId` (`IssuedByUserId`),
+                CONSTRAINT `FK_CRO_ShippingLineId`
+                    FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE RESTRICT,
+                CONSTRAINT `FK_CRO_IssuedByUserId`
+                    FOREIGN KEY (`IssuedByUserId`) REFERENCES `UsersSet` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `ContainerReleaseOrderLinesSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `ContainerReleaseOrderId` int NOT NULL,
+                `LineNo` int NOT NULL,
+                `ContainerNumber` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+                `Size` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                `Type` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                `Seal` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+                `HaulerName` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+                `PlateNo` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                `LineReferenceNo` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                `DemurrageValidUntil` date NOT NULL,
+                `ReturnEmptyToDepotId` int NULL,
+                `ReturnEmptyToName` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_CROLine_OrderId_LineNo` (`ContainerReleaseOrderId`, `LineNo`),
+                KEY `IX_CROLine_ContainerNumber` (`ContainerNumber`),
+                KEY `IX_CROLine_ReturnEmptyToDepotId` (`ReturnEmptyToDepotId`),
+                CONSTRAINT `FK_CROLine_OrderId`
+                    FOREIGN KEY (`ContainerReleaseOrderId`) REFERENCES `ContainerReleaseOrdersSet` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_CROLine_ReturnEmptyToDepotId`
+                    FOREIGN KEY (`ReturnEmptyToDepotId`) REFERENCES `DepotsSet` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('{migrationId}', '7.0.20')
+            """,
             cancellationToken);
     }
 
