@@ -21,6 +21,28 @@ public interface IStatementOfAccountService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<SoaTruckerRegisterDto>> GetRegisteredTruckersAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<SoaTruckerCandidateDto>> GetSoaTruckerCandidatesAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<SoaTruckerRegisterDto> RegisterTruckerAsync(
+        RegisterSoaTruckerRequest request,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> UnregisterTruckerAsync(
+        int truckerId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<SoaTruckerRegisterDto>> GetEligibleTruckerRegisterAsync(
         int userId,
         string role,

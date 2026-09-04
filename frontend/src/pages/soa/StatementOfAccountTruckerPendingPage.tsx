@@ -68,14 +68,20 @@ export default function StatementOfAccountTruckerPendingPage() {
     setError('')
     try {
       const [registerRes, billingsRes, creditRes] = await Promise.all([
-        statementOfAccountApi.eligibleTruckers(),
+        statementOfAccountApi.registeredTruckers(),
         statementOfAccountApi.eligibleBillings(truckerId),
         statementOfAccountApi.getCreditLine(),
       ])
       const match = registerRes.data.find((t) => t.truckerId === truckerId) ?? null
       if (!match) {
-        setError('Trucker account not found or has no billings pending SOA release.')
+        setError('This trucker is not registered for SOA. Register the account from the SOA list first.')
         setTrucker(null)
+        setBillings([])
+        return
+      }
+      if (match.billingCount === 0) {
+        setError('This registered trucker has no outstanding billings ready for SOA release.')
+        setTrucker(match)
         setBillings([])
         return
       }
@@ -186,9 +192,11 @@ export default function StatementOfAccountTruckerPendingPage() {
         <InfoTile
           label="Charge period"
           value={
-            trucker.oldestExpiredOn === trucker.latestExpiredOn
-              ? trucker.oldestExpiredOn
-              : `${trucker.oldestExpiredOn} → ${trucker.latestExpiredOn}`
+            trucker.oldestExpiredOn && trucker.latestExpiredOn
+              ? trucker.oldestExpiredOn === trucker.latestExpiredOn
+                ? trucker.oldestExpiredOn
+                : `${trucker.oldestExpiredOn} → ${trucker.latestExpiredOn}`
+              : '—'
           }
         />
         {creditLine && (

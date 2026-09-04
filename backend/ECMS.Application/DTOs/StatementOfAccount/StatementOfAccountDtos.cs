@@ -60,15 +60,25 @@ public record EligibleSoaBillingDto(
     string ExpiredOn,
     PaymentStatus Status);
 
-/// <summary>Truckers with outstanding billings ready to collate into an SOA.</summary>
+/// <summary>Truckers enrolled for SOA with optional outstanding billing summary.</summary>
 public record SoaTruckerRegisterDto(
     int TruckerId,
     string TruckerName,
     int BillingCount,
     decimal TotalAmount,
-    string OldestExpiredOn,
-    string LatestExpiredOn,
-    IReadOnlyList<int> DemurrageBillingIds);
+    string? OldestExpiredOn,
+    string? LatestExpiredOn,
+    IReadOnlyList<int> DemurrageBillingIds,
+    DateTime RegisteredAt);
+
+/// <summary>Active truckers that may be enrolled for SOA by the shipping line.</summary>
+public record SoaTruckerCandidateDto(
+    int TruckerId,
+    string TruckerName,
+    int PendingBillingCount,
+    decimal PendingTotalAmount);
+
+public record RegisterSoaTruckerRequest(int TruckerId);
 
 public record CreateStatementOfAccountRequest(
     int TruckerId,

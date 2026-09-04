@@ -1377,9 +1377,17 @@ export interface SoaTruckerRegister {
   truckerName: string
   billingCount: number
   totalAmount: number
-  oldestExpiredOn: string
-  latestExpiredOn: string
+  oldestExpiredOn: string | null
+  latestExpiredOn: string | null
   demurrageBillingIds: number[]
+  registeredAt: string
+}
+
+export interface SoaTruckerCandidate {
+  truckerId: number
+  truckerName: string
+  pendingBillingCount: number
+  pendingTotalAmount: number
 }
 
 export interface EligibleSoaBilling {
@@ -1406,6 +1414,12 @@ export const statementOfAccountApi = {
       params: truckerId ? { truckerId } : undefined,
     }),
   eligibleTruckers: () => api.get<SoaTruckerRegister[]>('/statement-of-accounts/eligible-truckers'),
+  registeredTruckers: () => api.get<SoaTruckerRegister[]>('/statement-of-accounts/registered-truckers'),
+  registerableTruckers: () => api.get<SoaTruckerCandidate[]>('/statement-of-accounts/registerable-truckers'),
+  registerTrucker: (truckerId: number) =>
+    api.post<SoaTruckerRegister>('/statement-of-accounts/registered-truckers', { truckerId }),
+  unregisterTrucker: (truckerId: number) =>
+    api.delete(`/statement-of-accounts/registered-truckers/${truckerId}`),
   create: (data: {
     truckerId: number
     demurrageBillingIds: number[]

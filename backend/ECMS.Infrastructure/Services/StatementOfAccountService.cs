@@ -111,7 +111,9 @@ public class StatementOfAccountService : IStatementOfAccountService
         CancellationToken cancellationToken = default)
     {
         var shippingLineId = await RequireEvaluatorShippingLineIdAsync(userId, role, cancellationToken);
+        await RequireRegisteredTruckerAsync(shippingLineId, truckerId, cancellationToken);
         var activeSoaBillingIds = await ActiveSoaBillingIdsAsync(cancellationToken);
+        var registeredTruckerIds = await RegisteredTruckerIdsAsync(shippingLineId, cancellationToken);
 
         var query = _db.DemurrageBillings
             .Include(b => b.PreAdvice)
@@ -120,6 +122,7 @@ public class StatementOfAccountService : IStatementOfAccountService
             .Where(b =>
                 b.ShippingLineId == shippingLineId
                 && b.Status == PaymentStatus.Pending
+                && registeredTruckerIds.Contains(b.TruckerId)
                 && !activeSoaBillingIds.Contains(b.Id));
 
         if (truckerId.HasValue)
@@ -142,26 +145,151 @@ public class StatementOfAccountService : IStatementOfAccountService
             b.Status)).ToList();
     }
 
+    public async Task<IReadOnlyList<SoaTruckerRegisterDto>> GetRegisteredTruckersAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var shippingLineId = await RequireEvaluatorShippingLineIdAsync(userId, role, cancellationToken);
+        return await BuildRegisteredTruckerRowsAsync(shippingLineId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SoaTruckerCandidateDto>> GetSoaTruckerCandidatesAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var shippingLineId = await RequireEvaluatorShippingLineIdAsync(userId, role, cancellationToken);
+        var registeredIds = await RegisteredTruckerIdsAsync(shippingLineId, cancellationToken);
+        var activeSoaBillingIds = await ActiveSoaBillingIdsAsync(cancellationToken);
+
+        var pendingByTrucker = await _db.DemurrageBillings
+            .Include(b => b.Trucker)
+            .Include(b => b.FeeLines)
+            .Where(b =>
+                b.ShippingLineId == shippingLineId
+                && b.Status == PaymentStatus.Pending
+                && !activeSoaBillingIds.Contains(b.Id))
+            .ToListAsync(cancellationToken);
+
+        var pendingSummary = pendingByTrucker
+            .GroupBy(b => b.TruckerId)
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    Name = g.First().Trucker.FullName ?? g.First().Trucker.Username,
+                    Count = g.Count(),
+                    Total = g.Sum(BillingTotal),
+                });
+
+        var truckers = await _db.Users
+            .Include(u => u.Role)
+            .Where(u => u.Role.Name == RoleNames.Trucker && u.Status == UserStatus.Active)
+            .OrderBy(u => u.FullName ?? u.Username)
+            .ToListAsync(cancellationToken);
+
+        return truckers
+            .Where(t => !registeredIds.Contains(t.Id))
+            .Select(t =>
+            {
+                pendingSummary.TryGetValue(t.Id, out var summary);
+                return new SoaTruckerCandidateDto(
+                    t.Id,
+                    t.FullName ?? t.Username,
+                    summary?.Count ?? 0,
+                    summary?.Total ?? 0m);
+            })
+            .OrderByDescending(t => t.PendingBillingCount)
+            .ThenBy(t => t.TruckerName)
+            .ToList();
+    }
+
+    public async Task<SoaTruckerRegisterDto> RegisterTruckerAsync(
+        RegisterSoaTruckerRequest request,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var shippingLineId = await RequireEvaluatorShippingLineIdAsync(userId, role, cancellationToken);
+
+        var trucker = await _db.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(
+                u => u.Id == request.TruckerId
+                     && u.Role.Name == RoleNames.Trucker
+                     && u.Status == UserStatus.Active,
+                cancellationToken);
+
+        if (trucker is null)
+            throw new InvalidOperationException("Trucker account was not found or is inactive.");
+
+        var exists = await _db.SoaTruckerRegistrations
+            .AnyAsync(r => r.ShippingLineId == shippingLineId && r.TruckerId == request.TruckerId, cancellationToken);
+        if (exists)
+            throw new InvalidOperationException("This trucker is already registered for SOA.");
+
+        var registration = new SoaTruckerRegistration
+        {
+            ShippingLineId = shippingLineId,
+            TruckerId = request.TruckerId,
+            RegisteredByUserId = userId,
+            RegisteredAt = PhilippinesTime.UtcNow,
+        };
+        _db.Add(registration);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(
+            userId,
+            "Register",
+            "SoaTruckerRegistration",
+            $"{trucker.FullName ?? trucker.Username} enrolled for SOA",
+            cancellationToken);
+
+        var rows = await BuildRegisteredTruckerRowsAsync(shippingLineId, cancellationToken);
+        return rows.First(r => r.TruckerId == request.TruckerId);
+    }
+
+    public async Task<bool> UnregisterTruckerAsync(
+        int truckerId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var shippingLineId = await RequireEvaluatorShippingLineIdAsync(userId, role, cancellationToken);
+        var registration = await _db.SoaTruckerRegistrations
+            .FirstOrDefaultAsync(r => r.ShippingLineId == shippingLineId && r.TruckerId == truckerId, cancellationToken);
+        if (registration is null)
+            return false;
+
+        var hasOpenSoa = await _db.StatementOfAccounts.AnyAsync(
+            s => s.ShippingLineId == shippingLineId
+                 && s.TruckerId == truckerId
+                 && s.Status != StatementOfAccountStatus.Cancelled
+                 && s.Status != StatementOfAccountStatus.Paid,
+            cancellationToken);
+        if (hasOpenSoa)
+            throw new InvalidOperationException("Cannot remove registration while this trucker has an open SOA.");
+
+        _db.Remove(registration);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(
+            userId,
+            "Unregister",
+            "SoaTruckerRegistration",
+            $"Trucker {truckerId} removed from SOA register",
+            cancellationToken);
+        return true;
+    }
+
     public async Task<IReadOnlyList<SoaTruckerRegisterDto>> GetEligibleTruckerRegisterAsync(
         int userId,
         string role,
         CancellationToken cancellationToken = default)
     {
-        var billings = await GetEligibleBillingsAsync(null, userId, role, cancellationToken);
-        return billings
-            .GroupBy(b => b.TruckerId)
-            .Select(g =>
-            {
-                var ordered = g.OrderBy(b => b.ExpiredOn).ToList();
-                return new SoaTruckerRegisterDto(
-                    g.Key,
-                    g.First().TruckerName,
-                    g.Count(),
-                    g.Sum(b => b.TotalAmount),
-                    ordered.First().ExpiredOn,
-                    ordered.Last().ExpiredOn,
-                    ordered.Select(b => b.DemurrageBillingId).ToList());
-            })
+        var shippingLineId = await RequireEvaluatorShippingLineIdAsync(userId, role, cancellationToken);
+        var rows = await BuildRegisteredTruckerRowsAsync(shippingLineId, cancellationToken);
+        return rows
+            .Where(r => r.BillingCount > 0)
             .OrderBy(r => r.TruckerName)
             .ToList();
     }
@@ -236,6 +364,8 @@ public class StatementOfAccountService : IStatementOfAccountService
 
         if (billings.Any(b => activeSoaBillingIds.Contains(b.Id)))
             throw new InvalidOperationException("One or more billings are already on an active SOA.");
+
+        await RequireRegisteredTruckerAsync(shippingLineId, request.TruckerId, cancellationToken);
 
         var creditLine = await GetOrCreateCreditEntityAsync(shippingLineId, cancellationToken);
         var total = billings.Sum(BillingTotal);
@@ -539,6 +669,74 @@ public class StatementOfAccountService : IStatementOfAccountService
         }
 
         return Map(await ReloadAsync(soa.Id, cancellationToken));
+    }
+
+    private async Task<HashSet<int>> RegisteredTruckerIdsAsync(int shippingLineId, CancellationToken cancellationToken)
+    {
+        var ids = await _db.SoaTruckerRegistrations
+            .Where(r => r.ShippingLineId == shippingLineId)
+            .Select(r => r.TruckerId)
+            .ToListAsync(cancellationToken);
+        return ids.ToHashSet();
+    }
+
+    private async Task RequireRegisteredTruckerAsync(
+        int shippingLineId,
+        int? truckerId,
+        CancellationToken cancellationToken)
+    {
+        if (!truckerId.HasValue)
+            return;
+
+        var registered = await _db.SoaTruckerRegistrations.AnyAsync(
+            r => r.ShippingLineId == shippingLineId && r.TruckerId == truckerId.Value,
+            cancellationToken);
+        if (!registered)
+            throw new InvalidOperationException("This trucker is not registered for SOA. Register the account first.");
+    }
+
+    private async Task<IReadOnlyList<SoaTruckerRegisterDto>> BuildRegisteredTruckerRowsAsync(
+        int shippingLineId,
+        CancellationToken cancellationToken)
+    {
+        var registrations = await _db.SoaTruckerRegistrations
+            .Include(r => r.Trucker)
+            .Where(r => r.ShippingLineId == shippingLineId)
+            .OrderBy(r => r.Trucker.FullName ?? r.Trucker.Username)
+            .ToListAsync(cancellationToken);
+
+        if (registrations.Count == 0)
+            return Array.Empty<SoaTruckerRegisterDto>();
+
+        var activeSoaBillingIds = await ActiveSoaBillingIdsAsync(cancellationToken);
+        var registeredIds = registrations.Select(r => r.TruckerId).ToHashSet();
+        var billings = await _db.DemurrageBillings
+            .Include(b => b.FeeLines)
+            .Where(b =>
+                b.ShippingLineId == shippingLineId
+                && b.Status == PaymentStatus.Pending
+                && !activeSoaBillingIds.Contains(b.Id)
+                && registeredIds.Contains(b.TruckerId))
+            .ToListAsync(cancellationToken);
+
+        var billingGroups = billings
+            .GroupBy(b => b.TruckerId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(b => b.ExpiredOn).ToList());
+
+        return registrations.Select(reg =>
+        {
+            billingGroups.TryGetValue(reg.TruckerId, out var group);
+            group ??= new List<DemurrageBilling>();
+            return new SoaTruckerRegisterDto(
+                reg.TruckerId,
+                reg.Trucker.FullName ?? reg.Trucker.Username,
+                group.Count,
+                group.Sum(BillingTotal),
+                group.Count > 0 ? group.First().ExpiredOn.ToString("yyyy-MM-dd") : null,
+                group.Count > 0 ? group.Last().ExpiredOn.ToString("yyyy-MM-dd") : null,
+                group.Select(b => b.Id).ToList(),
+                reg.RegisteredAt);
+        }).ToList();
     }
 
     private async Task<HashSet<int>> ActiveSoaBillingIdsAsync(CancellationToken cancellationToken)

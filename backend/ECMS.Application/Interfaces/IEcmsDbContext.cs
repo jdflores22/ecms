@@ -31,6 +31,7 @@ public interface IEcmsDbContext
     IQueryable<ShippingLineCreditLine> ShippingLineCreditLines { get; }
     IQueryable<StatementOfAccount> StatementOfAccounts { get; }
     IQueryable<StatementOfAccountLine> StatementOfAccountLines { get; }
+    IQueryable<SoaTruckerRegistration> SoaTruckerRegistrations { get; }
     IQueryable<WithdrawalRequest> WithdrawalRequests { get; }
     IQueryable<WithdrawalRequestLine> WithdrawalRequestLines { get; }
     IQueryable<WithdrawalDocument> WithdrawalDocuments { get; }

@@ -80,6 +80,67 @@ public class StatementOfAccountsController : ControllerBase
         }
     }
 
+    [HttpGet("registered-truckers")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<IReadOnlyList<SoaTruckerRegisterDto>>> RegisteredTruckers(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.GetRegisteredTruckersAsync(UserId, UserRole, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("registerable-truckers")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<IReadOnlyList<SoaTruckerCandidateDto>>> RegisterableTruckers(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.GetSoaTruckerCandidatesAsync(UserId, UserRole, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("registered-truckers")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<ActionResult<SoaTruckerRegisterDto>> RegisterTrucker(
+        [FromBody] RegisterSoaTruckerRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.RegisterTruckerAsync(request, UserId, UserRole, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("registered-truckers/{truckerId:int}")]
+    [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+    public async Task<IActionResult> UnregisterTrucker(int truckerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var ok = await _service.UnregisterTruckerAsync(truckerId, UserId, UserRole, cancellationToken);
+            return ok ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("eligible-billings")]
     [Authorize(Roles = RoleNames.ShippingLineEvaluator)]
     public async Task<ActionResult<IReadOnlyList<EligibleSoaBillingDto>>> EligibleBillings(

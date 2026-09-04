@@ -76,6 +76,8 @@ public static class ProductionSchemaRepair
         await EnsureDemurrageDetentionRatesAsync(db, logger, cancellationToken);
 
         await EnsureStatementOfAccountsAsync(db, logger, cancellationToken);
+
+        await EnsureSoaTruckerRegistrationsAsync(db, logger, cancellationToken);
     }
 
     private static async Task EnsurePreAdviceCroLinkAsync(
@@ -942,6 +944,55 @@ public static class ProductionSchemaRepair
                 /* constraint may already exist */
             }
         }
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('{migrationId}', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureSoaTruckerRegistrationsAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260904170000_AddSoaTruckerRegistrations";
+
+        if (await TableExistsAsync(db, "SoaTruckerRegistrationsSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                $"""
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('{migrationId}', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table SoaTruckerRegistrationsSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `SoaTruckerRegistrationsSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `ShippingLineId` int NOT NULL,
+                `TruckerId` int NOT NULL,
+                `RegisteredByUserId` int NOT NULL,
+                `RegisteredAt` datetime(6) NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_SoaTruckerRegistrations_ShippingLineId_TruckerId`
+                    (`ShippingLineId`, `TruckerId`),
+                CONSTRAINT `FK_SoaTruckerRegistrations_ShippingLines`
+                    FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_SoaTruckerRegistrations_Truckers`
+                    FOREIGN KEY (`TruckerId`) REFERENCES `UsersSet` (`Id`) ON DELETE RESTRICT,
+                CONSTRAINT `FK_SoaTruckerRegistrations_RegisteredBy`
+                    FOREIGN KEY (`RegisteredByUserId`) REFERENCES `UsersSet` (`Id`) ON DELETE RESTRICT
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
 
         await db.Database.ExecuteSqlRawAsync(
             $"""

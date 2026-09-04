@@ -35,6 +35,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<ShippingLineCreditLine> ShippingLineCreditLinesSet => Set<ShippingLineCreditLine>();
     public DbSet<StatementOfAccount> StatementOfAccountsSet => Set<StatementOfAccount>();
     public DbSet<StatementOfAccountLine> StatementOfAccountLinesSet => Set<StatementOfAccountLine>();
+    public DbSet<SoaTruckerRegistration> SoaTruckerRegistrationsSet => Set<SoaTruckerRegistration>();
     public DbSet<WithdrawalRequest> WithdrawalRequestsSet => Set<WithdrawalRequest>();
     public DbSet<WithdrawalRequestLine> WithdrawalRequestLinesSet => Set<WithdrawalRequestLine>();
     public DbSet<WithdrawalDocument> WithdrawalDocumentsSet => Set<WithdrawalDocument>();
@@ -73,6 +74,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<ShippingLineCreditLine> IEcmsDbContext.ShippingLineCreditLines => ShippingLineCreditLinesSet;
     IQueryable<StatementOfAccount> IEcmsDbContext.StatementOfAccounts => StatementOfAccountsSet;
     IQueryable<StatementOfAccountLine> IEcmsDbContext.StatementOfAccountLines => StatementOfAccountLinesSet;
+    IQueryable<SoaTruckerRegistration> IEcmsDbContext.SoaTruckerRegistrations => SoaTruckerRegistrationsSet;
     IQueryable<WithdrawalRequest> IEcmsDbContext.WithdrawalRequests => WithdrawalRequestsSet;
     IQueryable<WithdrawalRequestLine> IEcmsDbContext.WithdrawalRequestLines => WithdrawalRequestLinesSet;
     IQueryable<WithdrawalDocument> IEcmsDbContext.WithdrawalDocuments => WithdrawalDocumentsSet;
@@ -316,6 +318,14 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
                 .WithMany()
                 .HasForeignKey(x => x.DemurrageBillingId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SoaTruckerRegistration>(e =>
+        {
+            e.HasIndex(x => new { x.ShippingLineId, x.TruckerId }).IsUnique();
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.RegisteredByUser).WithMany().HasForeignKey(x => x.RegisteredByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DemurrageDetentionRate>(e =>

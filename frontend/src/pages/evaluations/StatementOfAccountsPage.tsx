@@ -1,7 +1,9 @@
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
+import AddIcon from '@mui/icons-material/Add'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import {
@@ -9,6 +11,10 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   InputAdornment,
   Paper,
   Tab,
@@ -41,6 +47,7 @@ import {
 import {
   statementOfAccountApi,
   type ShippingLineCreditLine,
+  type SoaTruckerCandidate,
   type SoaTruckerRegister,
   type StatementOfAccount,
 } from '../../services/api'
@@ -100,13 +107,20 @@ export default function StatementOfAccountsPage() {
   const [truckerRegister, setTruckerRegister] = useState<SoaTruckerRegister[]>([])
   const [registerLoading, setRegisterLoading] = useState(false)
 
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false)
+  const [registerCandidates, setRegisterCandidates] = useState<SoaTruckerCandidate[]>([])
+  const [candidateSearch, setCandidateSearch] = useState('')
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [registeringId, setRegisteringId] = useState<number | null>(null)
+  const [unregisteringId, setUnregisteringId] = useState<number | null>(null)
+
   const [creditLimitEdit, setCreditLimitEdit] = useState('')
   const [creditSaving, setCreditSaving] = useState(false)
 
   const loadRegister = useCallback(async () => {
     setRegisterLoading(true)
     try {
-      const { data } = await statementOfAccountApi.eligibleTruckers()
+      const { data } = await statementOfAccountApi.registeredTruckers()
       setTruckerRegister(data)
     } catch {
       setTruckerRegister([])
@@ -114,6 +128,53 @@ export default function StatementOfAccountsPage() {
       setRegisterLoading(false)
     }
   }, [])
+
+  const loadCandidates = useCallback(async () => {
+    setCandidatesLoading(true)
+    try {
+      const { data } = await statementOfAccountApi.registerableTruckers()
+      setRegisterCandidates(data)
+    } catch {
+      setRegisterCandidates([])
+    } finally {
+      setCandidatesLoading(false)
+    }
+  }, [])
+
+  const openRegisterDialog = () => {
+    setCandidateSearch('')
+    setRegisterDialogOpen(true)
+    void loadCandidates()
+  }
+
+  const registerTrucker = async (truckerId: number) => {
+    setRegisteringId(truckerId)
+    setError('')
+    try {
+      await statementOfAccountApi.registerTrucker(truckerId)
+      setSuccessMessage('Trucker registered for SOA.')
+      setRegisterDialogOpen(false)
+      await loadRegister()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to register trucker for SOA.'))
+    } finally {
+      setRegisteringId(null)
+    }
+  }
+
+  const unregisterTrucker = async (truckerId: number) => {
+    setUnregisteringId(truckerId)
+    setError('')
+    try {
+      await statementOfAccountApi.unregisterTrucker(truckerId)
+      setSuccessMessage('Trucker removed from SOA register.')
+      await loadRegister()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to remove trucker from SOA register.'))
+    } finally {
+      setUnregisteringId(null)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -151,6 +212,12 @@ export default function StatementOfAccountsPage() {
       )
     })
   }, [items, activeTab, search])
+
+  const filteredCandidates = useMemo(() => {
+    const q = candidateSearch.trim().toLowerCase()
+    if (!q) return registerCandidates
+    return registerCandidates.filter((c) => c.truckerName.toLowerCase().includes(q))
+  }, [registerCandidates, candidateSearch])
 
   const saveCreditLine = async () => {
     const limit = Number(creditLimitEdit)
@@ -196,7 +263,7 @@ export default function StatementOfAccountsPage() {
               Statement of accounts
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 720 }}>
-              View trucker accounts with outstanding billings and release SOA from their details page.
+              Register trucker accounts for SOA billing, then release statements from their details page.
             </Typography>
           </Box>
         </Box>
@@ -244,29 +311,40 @@ export default function StatementOfAccountsPage() {
       )}
 
       <Paper elevation={0} sx={{ ...listTablePaperSx, mb: 3 }}>
-        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
             <LocalShippingOutlinedIcon sx={{ color: primaryDark }} />
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                Trucker register — ready for SOA release
+                SOA trucker register
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Truckers with outstanding demurrage billings not yet on an active SOA
+                Only registered trucker accounts can be included in statement of accounts
               </Typography>
             </Box>
           </Box>
-          <Chip
-            size="small"
-            label={`${truckerRegister.length} account${truckerRegister.length === 1 ? '' : 's'}`}
-            sx={{ fontWeight: 700 }}
-          />
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip
+              size="small"
+              label={`${truckerRegister.length} registered`}
+              sx={{ fontWeight: 700 }}
+            />
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openRegisterDialog}
+              sx={{ fontWeight: 700, borderRadius: 2 }}
+            >
+              Register trucker
+            </Button>
+          </Box>
         </Box>
         {registerLoading ? (
           <ListLoadingState />
         ) : truckerRegister.length === 0 ? (
           <Typography sx={{ py: 4, px: 2, textAlign: 'center', color: 'text.secondary' }}>
-            No trucker accounts with billings pending SOA release.
+            No trucker accounts registered for SOA yet. Use Register trucker to enroll accounts that apply to your shipping line.
           </Typography>
         ) : (
           <>
@@ -279,6 +357,7 @@ export default function StatementOfAccountsPage() {
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Billings</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Total charges</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Charge period</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -289,20 +368,44 @@ export default function StatementOfAccountsPage() {
                         <TableCell align="right">{row.billingCount}</TableCell>
                         <TableCell align="right">{formatPeso(row.totalAmount)}</TableCell>
                         <TableCell>
-                          {row.oldestExpiredOn}
-                          {row.oldestExpiredOn !== row.latestExpiredOn ? ` → ${row.latestExpiredOn}` : ''}
+                          {row.billingCount > 0 && row.oldestExpiredOn
+                            ? row.oldestExpiredOn === row.latestExpiredOn
+                              ? row.oldestExpiredOn
+                              : `${row.oldestExpiredOn} → ${row.latestExpiredOn}`
+                            : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {row.billingCount > 0 ? (
+                            <Chip size="small" color="warning" label="Ready for release" sx={{ fontWeight: 700 }} />
+                          ) : (
+                            <Chip size="small" label="No pending billings" />
+                          )}
                         </TableCell>
                         <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            component={RouterLink}
-                            to={`/evaluations/statement-of-accounts/trucker/${row.truckerId}`}
-                            startIcon={<VisibilityOutlinedIcon />}
-                            sx={{ fontWeight: 700, borderRadius: 2 }}
-                          >
-                            View
-                          </Button>
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              component={RouterLink}
+                              to={`/evaluations/statement-of-accounts/trucker/${row.truckerId}`}
+                              startIcon={<VisibilityOutlinedIcon />}
+                              disabled={row.billingCount === 0}
+                              sx={{ fontWeight: 700, borderRadius: 2 }}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="inherit"
+                              startIcon={<PersonRemoveOutlinedIcon />}
+                              disabled={unregisteringId === row.truckerId || row.billingCount > 0}
+                              onClick={() => void unregisterTrucker(row.truckerId)}
+                              sx={{ fontWeight: 700, borderRadius: 2 }}
+                            >
+                              Remove
+                            </Button>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -319,7 +422,11 @@ export default function StatementOfAccountsPage() {
                     {row.billingCount} billing{row.billingCount === 1 ? '' : 's'} · {formatPeso(row.totalAmount)}
                   </ListMobileMeta>
                   <ListMobileChipRow>
-                    <Chip size="small" label={`${row.oldestExpiredOn} → ${row.latestExpiredOn}`} />
+                    {row.billingCount > 0 && row.oldestExpiredOn ? (
+                      <Chip size="small" label={`${row.oldestExpiredOn} → ${row.latestExpiredOn}`} />
+                    ) : (
+                      <Chip size="small" label="No pending billings" />
+                    )}
                   </ListMobileChipRow>
                   <Box sx={listMobileActionsSx}>
                     <Button
@@ -328,8 +435,19 @@ export default function StatementOfAccountsPage() {
                       component={RouterLink}
                       to={`/evaluations/statement-of-accounts/trucker/${row.truckerId}`}
                       startIcon={<VisibilityOutlinedIcon />}
+                      disabled={row.billingCount === 0}
                     >
                       View
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="inherit"
+                      startIcon={<PersonRemoveOutlinedIcon />}
+                      disabled={unregisteringId === row.truckerId || row.billingCount > 0}
+                      onClick={() => void unregisterTrucker(row.truckerId)}
+                    >
+                      Remove
                     </Button>
                   </Box>
                 </ListMobileCard>
@@ -338,6 +456,86 @@ export default function StatementOfAccountsPage() {
           </>
         )}
       </Paper>
+
+      <Dialog
+        open={registerDialogOpen}
+        onClose={() => setRegisterDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>Register trucker for SOA</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select a trucker account to enroll for statement-of-account billing. Only registered accounts will appear in your SOA register.
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search trucker…"
+            value={candidateSearch}
+            onChange={(e) => setCandidateSearch(e.target.value)}
+            sx={{ mb: 2, ...fieldSx }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          {candidatesLoading ? (
+            <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+              Loading trucker accounts…
+            </Typography>
+          ) : filteredCandidates.length === 0 ? (
+            <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+              No trucker accounts available to register.
+            </Typography>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Trucker</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>Pending billings</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }} />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredCandidates.map((candidate) => (
+                    <TableRow key={candidate.truckerId} hover>
+                      <TableCell>{candidate.truckerName}</TableCell>
+                      <TableCell align="right">
+                        {candidate.pendingBillingCount > 0
+                          ? `${candidate.pendingBillingCount} · ${formatPeso(candidate.pendingTotalAmount)}`
+                          : '—'}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          disabled={registeringId === candidate.truckerId}
+                          onClick={() => void registerTrucker(candidate.truckerId)}
+                          sx={{ fontWeight: 700, borderRadius: 2 }}
+                        >
+                          {registeringId === candidate.truckerId ? 'Registering…' : 'Register'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRegisterDialogOpen(false)} sx={{ fontWeight: 700 }}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Paper elevation={0} sx={{ mb: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
         <Tabs
