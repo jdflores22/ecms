@@ -1,5 +1,6 @@
 using ECMS.Application;
 using ECMS.Application.DTOs.DemurrageBilling;
+using ECMS.Application.DTOs.DemurrageDetentionRate;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Entities;
@@ -15,20 +16,20 @@ public class DemurrageBillingService : IDemurrageBillingService
     private static readonly SemaphoreSlim SyncLock = new(1, 1);
 
     private readonly IEcmsDbContext _db;
-    private readonly IPaymentSettingsService _paymentSettings;
+    private readonly IDemurrageDetentionRateService _rateService;
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
     private readonly IPaymentProofExtractionService _proofExtraction;
 
     public DemurrageBillingService(
         IEcmsDbContext db,
-        IPaymentSettingsService paymentSettings,
+        IDemurrageDetentionRateService rateService,
         IAuditService auditService,
         INotificationService notifications,
         IPaymentProofExtractionService proofExtraction)
     {
         _db = db;
-        _paymentSettings = paymentSettings;
+        _rateService = rateService;
         _auditService = auditService;
         _notifications = notifications;
         _proofExtraction = proofExtraction;
@@ -40,6 +41,9 @@ public class DemurrageBillingService : IDemurrageBillingService
         var candidates = await _db.PreAdvices
             .Include(p => p.Schedule!)
                 .ThenInclude(s => s.QRBooking)
+            .Include(p => p.Evaluation)
+            .Include(p => p.ContainerReleaseOrder!)
+                .ThenInclude(o => o.Lines)
             .Where(p =>
                 p.DemurrageValidUntil != null
                 && p.DemurrageValidUntil < today
@@ -57,10 +61,8 @@ public class DemurrageBillingService : IDemurrageBillingService
             .Select(b => b.PreAdviceId)
             .ToListAsync(cancellationToken);
         var existingSet = existingPreAdviceIds.ToHashSet();
-
-        var demurrageFee = await _paymentSettings.GetDemurrageFeeAmountAsync(cancellationToken);
-        var detentionFee = await _paymentSettings.GetDetentionFeeAmountAsync(cancellationToken);
         var nextReference = await GetNextReferenceSequenceAsync(cancellationToken);
+        var resolvedCache = new Dictionary<(int LineId, int DepotKey, int SizeId), ResolvedDemurrageDetentionRateDto>();
 
         foreach (var preAdvice in candidates)
         {
@@ -69,6 +71,7 @@ public class DemurrageBillingService : IDemurrageBillingService
             if (IsSuccessfullyReturned(preAdvice))
                 continue;
 
+            var resolved = await ResolveFeesCachedAsync(preAdvice, today, resolvedCache, cancellationToken);
             var validUntil = preAdvice.DemurrageValidUntil!.Value;
             var billing = new DemurrageBilling
             {
@@ -81,11 +84,9 @@ public class DemurrageBillingService : IDemurrageBillingService
                 ContainerTypeId = preAdvice.ContainerTypeId,
                 DemurrageValidUntil = validUntil,
                 ExpiredOn = today,
-                DemurrageAmount = demurrageFee,
-                DetentionAmount = detentionFee,
                 Status = PaymentStatus.Pending,
             };
-            ApplyDefaultFeeLines(billing, demurrageFee, detentionFee);
+            ApplyResolvedRates(billing, resolved);
             _db.Add(billing);
         }
 
@@ -118,6 +119,9 @@ public class DemurrageBillingService : IDemurrageBillingService
         CancellationToken cancellationToken = default)
     {
         await MaybeSyncExpiredBillingsAsync(cancellationToken);
+
+        if (role is not (RoleNames.Trucker or RoleNames.ShippingLineEvaluator))
+            return Array.Empty<DemurrageBillingDto>();
 
         var query = BillingQueryWithIncludes();
 
@@ -198,8 +202,12 @@ public class DemurrageBillingService : IDemurrageBillingService
 
         var preAdvices = await _db.PreAdvices
             .Include(p => p.Trucker)
+            .Include(p => p.Container)
             .Include(p => p.Schedule!)
                 .ThenInclude(s => s.QRBooking)
+            .Include(p => p.Evaluation)
+            .Include(p => p.ContainerReleaseOrder!)
+                .ThenInclude(o => o.Lines)
             .Where(p =>
                 p.ShippingLineId == shippingLineId
                 && p.Status == PreAdviceStatus.Approved
@@ -209,21 +217,28 @@ public class DemurrageBillingService : IDemurrageBillingService
             .OrderByDescending(p => p.DemurrageValidUntil)
             .ToListAsync(cancellationToken);
 
-        return preAdvices
-            .Where(p => !billedSet.Contains(p.Id) && !IsSuccessfullyReturned(p))
-            .Select(p =>
-            {
-                var validUntil = p.DemurrageValidUntil!.Value;
-                var daysOverdue = Math.Max(0, today.DayNumber - validUntil.DayNumber);
-                return new EligibleDemurragePreAdviceDto(
-                    p.Id,
-                    p.ReferenceNo,
-                    p.Container?.ContainerNo ?? p.ContainerNoNormalized,
-                    p.Trucker.FullName ?? p.Trucker.Username,
-                    validUntil.ToString("yyyy-MM-dd"),
-                    daysOverdue);
-            })
-            .ToList();
+        var results = new List<EligibleDemurragePreAdviceDto>();
+        foreach (var p in preAdvices)
+        {
+            if (billedSet.Contains(p.Id) || IsSuccessfullyReturned(p))
+                continue;
+
+            var validUntil = p.DemurrageValidUntil!.Value;
+            var daysOverdue = Math.Max(0, today.DayNumber - validUntil.DayNumber);
+            var resolved = await ResolveFeesAsync(p, today, cancellationToken);
+            results.Add(new EligibleDemurragePreAdviceDto(
+                p.Id,
+                p.ReferenceNo,
+                p.Container?.ContainerNo ?? p.ContainerNoNormalized,
+                p.Trucker.FullName ?? p.Trucker.Username,
+                validUntil.ToString("yyyy-MM-dd"),
+                daysOverdue,
+                resolved.DemurrageAmount,
+                resolved.DetentionAmount,
+                resolved.Label));
+        }
+
+        return results;
     }
 
     public async Task<DemurrageBillingDto> CreateAsync(
@@ -242,6 +257,9 @@ public class DemurrageBillingService : IDemurrageBillingService
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Schedule!)
                 .ThenInclude(s => s.QRBooking)
+            .Include(p => p.Evaluation)
+            .Include(p => p.ContainerReleaseOrder!)
+                .ThenInclude(o => o.Lines)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
             ?? throw new InvalidOperationException("Pre-forecast not found.");
 
@@ -266,11 +284,10 @@ public class DemurrageBillingService : IDemurrageBillingService
         if (existing)
             throw new InvalidOperationException("Demurrage billing already exists for this pre-forecast.");
 
-        var demurrageFee = await _paymentSettings.GetDemurrageFeeAmountAsync(cancellationToken);
-        var detentionFee = await _paymentSettings.GetDetentionFeeAmountAsync(cancellationToken);
+        var resolved = await ResolveFeesAsync(preAdvice, today, cancellationToken);
         var feeInputs = request.FeeLines is { Count: > 0 }
             ? request.FeeLines
-            : BuildDefaultFeeInputs(demurrageFee, detentionFee);
+            : BuildDefaultFeeInputs(resolved.DemurrageAmount, resolved.DetentionAmount);
 
         ValidateFeeInputs(feeInputs);
 
@@ -285,12 +302,12 @@ public class DemurrageBillingService : IDemurrageBillingService
             ContainerTypeId = preAdvice.ContainerTypeId,
             DemurrageValidUntil = preAdvice.DemurrageValidUntil.Value,
             ExpiredOn = today,
-            DemurrageAmount = demurrageFee,
-            DetentionAmount = detentionFee,
             Status = PaymentStatus.Pending,
         };
         ApplyFeeLines(billing, feeInputs);
         SyncLegacyAmounts(billing);
+        if (request.FeeLines is not { Count: > 0 })
+            StampAppliedRate(billing, resolved);
 
         _db.Add(billing);
         await _db.SaveChangesAsync(cancellationToken);
@@ -456,6 +473,9 @@ public class DemurrageBillingService : IDemurrageBillingService
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Schedule!)
                 .ThenInclude(s => s.QRBooking)
+            .Include(p => p.Evaluation)
+            .Include(p => p.ContainerReleaseOrder!)
+                .ThenInclude(o => o.Lines)
             .FirstOrDefaultAsync(p => p.Id == preAdviceId, cancellationToken)
             ?? throw new InvalidOperationException("Pre-forecast not found.");
 
@@ -474,9 +494,8 @@ public class DemurrageBillingService : IDemurrageBillingService
         if (existing is not null)
             return MapToDto(existing);
 
-        var demurrageFee = await _paymentSettings.GetDemurrageFeeAmountAsync(cancellationToken);
-        var detentionFee = await _paymentSettings.GetDetentionFeeAmountAsync(cancellationToken);
-        var feeInputs = BuildDefaultFeeInputs(demurrageFee, detentionFee);
+        var resolved = await ResolveFeesAsync(preAdvice, today, cancellationToken);
+        var feeInputs = BuildDefaultFeeInputs(resolved.DemurrageAmount, resolved.DetentionAmount);
         ValidateFeeInputs(feeInputs);
 
         var billing = new DemurrageBilling
@@ -490,12 +509,9 @@ public class DemurrageBillingService : IDemurrageBillingService
             ContainerTypeId = preAdvice.ContainerTypeId,
             DemurrageValidUntil = preAdvice.DemurrageValidUntil.Value,
             ExpiredOn = today,
-            DemurrageAmount = demurrageFee,
-            DetentionAmount = detentionFee,
             Status = PaymentStatus.Pending,
         };
-        ApplyFeeLines(billing, feeInputs);
-        SyncLegacyAmounts(billing);
+        ApplyResolvedRates(billing, resolved);
 
         _db.Add(billing);
         await _db.SaveChangesAsync(cancellationToken);
@@ -575,16 +591,35 @@ public class DemurrageBillingService : IDemurrageBillingService
         await _auditService.LogAsync(truckerId, "UploadProof", "DemurrageBilling", billing.ReferenceNo, cancellationToken);
 
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
+        var evaluatorIds = await NotificationService.EvaluatorIdsForShippingLineAsync(
+            _db, billing.ShippingLineId, cancellationToken);
         var total = GetTotalAmount(billing);
-        await _notifications.NotifyUsersAsync(
-            adminIds,
-            "Demurrage payment proof uploaded",
-            $"{billing.PreAdvice.ReferenceNo} — ₱{total:N0} demurrage charges awaiting verification.",
-            "DemurrageBilling",
-            "/admin/payments",
-            truckerId,
-            billing.ReferenceNo,
-            cancellationToken);
+
+        if (adminIds.Count > 0)
+        {
+            await _notifications.NotifyUsersAsync(
+                adminIds,
+                "Demurrage payment proof uploaded",
+                $"{billing.PreAdvice.ReferenceNo} — ₱{total:N0} demurrage charges awaiting verification.",
+                "DemurrageBilling",
+                "/admin/payments",
+                truckerId,
+                billing.ReferenceNo,
+                cancellationToken);
+        }
+
+        if (evaluatorIds.Count > 0)
+        {
+            await _notifications.NotifyUsersAsync(
+                evaluatorIds,
+                "Demurrage payment proof uploaded",
+                $"{billing.PreAdvice.ReferenceNo} — ₱{total:N0} demurrage charges awaiting your verification.",
+                "DemurrageBilling",
+                $"/evaluations/demurrage-billing/{billing.Id}",
+                truckerId,
+                billing.ReferenceNo,
+                cancellationToken);
+        }
 
         return MapToDto(billing);
     }
@@ -593,6 +628,7 @@ public class DemurrageBillingService : IDemurrageBillingService
         int id,
         VerifyDemurrageBillingRequest request,
         int actorUserId,
+        string role,
         CancellationToken cancellationToken = default)
     {
         var billing = await BillingQueryWithIncludes()
@@ -600,6 +636,18 @@ public class DemurrageBillingService : IDemurrageBillingService
 
         if (billing is null)
             return null;
+
+        if (!await CanAccessBillingAsync(billing, actorUserId, role, cancellationToken))
+            return null;
+
+        if (role != RoleNames.ShippingLineEvaluator)
+            throw new InvalidOperationException("Only the shipping line can verify demurrage payments.");
+
+        if (billing.Status != PaymentStatus.ForVerification)
+            throw new InvalidOperationException("Only payments awaiting verification can be approved or rejected.");
+
+        if (string.IsNullOrWhiteSpace(billing.ProofFile))
+            throw new InvalidOperationException("No payment proof has been uploaded for this billing.");
 
         billing.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(request.ProofReferenceNo);
         billing.ProofTransactionAt = request.ProofTransactionAt;
@@ -660,7 +708,6 @@ public class DemurrageBillingService : IDemurrageBillingService
     {
         return role switch
         {
-            RoleNames.Administrator => true,
             RoleNames.Trucker => billing.TruckerId == userId,
             RoleNames.ShippingLineEvaluator => await EvaluatorOwnsShippingLineAsync(
                 userId, billing.ShippingLineId, cancellationToken),
@@ -740,9 +787,6 @@ public class DemurrageBillingService : IDemurrageBillingService
             lines.Add(new DemurrageBillingFeeInput("Detention", detentionFee));
         return lines;
     }
-
-    private static void ApplyDefaultFeeLines(DemurrageBilling billing, decimal demurrageFee, decimal detentionFee) =>
-        ApplyFeeLines(billing, BuildDefaultFeeInputs(demurrageFee, detentionFee));
 
     private static void ApplyFeeLines(DemurrageBilling billing, IReadOnlyList<DemurrageBillingFeeInput> inputs)
     {
@@ -833,6 +877,68 @@ public class DemurrageBillingService : IDemurrageBillingService
             b.ProofReferenceNo,
             b.ProofTransactionAt,
             b.PaidAt,
-            b.CreatedAt);
+            b.CreatedAt,
+            b.AppliedRateId,
+            b.AppliedRateLabel);
+    }
+
+    private async Task<ResolvedDemurrageDetentionRateDto> ResolveFeesCachedAsync(
+        PreAdvice preAdvice,
+        DateOnly asOf,
+        Dictionary<(int LineId, int DepotKey, int SizeId), ResolvedDemurrageDetentionRateDto> cache,
+        CancellationToken cancellationToken)
+    {
+        var depotId = ResolveDepotId(preAdvice);
+        var key = (preAdvice.ShippingLineId, depotId ?? 0, preAdvice.ContainerSizeId);
+        if (cache.TryGetValue(key, out var cached))
+            return cached;
+
+        var resolved = await ResolveFeesAsync(preAdvice, asOf, cancellationToken);
+        cache[key] = resolved;
+        return resolved;
+    }
+
+    private async Task<ResolvedDemurrageDetentionRateDto> ResolveFeesAsync(
+        PreAdvice preAdvice,
+        DateOnly asOf,
+        CancellationToken cancellationToken)
+        => await _rateService.ResolveAsync(
+            preAdvice.ShippingLineId,
+            ResolveDepotId(preAdvice),
+            preAdvice.ContainerSizeId,
+            asOf,
+            cancellationToken);
+
+    private static int? ResolveDepotId(PreAdvice preAdvice)
+    {
+        if (preAdvice.Evaluation?.DepotId is int evaluationDepot)
+            return evaluationDepot;
+        if (preAdvice.Schedule is { DepotId: > 0 } schedule)
+            return schedule.DepotId;
+
+        var lines = preAdvice.ContainerReleaseOrder?.Lines;
+        if (lines is null || lines.Count == 0)
+            return null;
+
+        var match = lines.FirstOrDefault(l =>
+            string.Equals(
+                NormalizeContainerNo(l.ContainerNumber),
+                preAdvice.ContainerNoNormalized,
+                StringComparison.OrdinalIgnoreCase));
+        return match?.ReturnEmptyToDepotId
+            ?? lines.FirstOrDefault(l => l.ReturnEmptyToDepotId.HasValue)?.ReturnEmptyToDepotId;
+    }
+
+    private static void ApplyResolvedRates(DemurrageBilling billing, ResolvedDemurrageDetentionRateDto resolved)
+    {
+        ApplyFeeLines(billing, BuildDefaultFeeInputs(resolved.DemurrageAmount, resolved.DetentionAmount));
+        SyncLegacyAmounts(billing);
+        StampAppliedRate(billing, resolved);
+    }
+
+    private static void StampAppliedRate(DemurrageBilling billing, ResolvedDemurrageDetentionRateDto resolved)
+    {
+        billing.AppliedRateId = resolved.RateId;
+        billing.AppliedRateLabel = resolved.Label.Length > 256 ? resolved.Label[..256] : resolved.Label;
     }
 }

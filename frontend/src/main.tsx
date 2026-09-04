@@ -7,6 +7,28 @@ import App from './App'
 import { ToastProvider } from './components/feedback/ToastProvider'
 import { store } from './store'
 
+async function clearStaleServiceWorkersInDev() {
+  if (!import.meta.env.DEV || !('serviceWorker' in navigator)) return
+
+  const registrations = await navigator.serviceWorker.getRegistrations()
+  if (registrations.length === 0) return
+
+  await Promise.all(registrations.map((registration) => registration.unregister()))
+
+  if ('caches' in window) {
+    const keys = await caches.keys()
+    await Promise.all(keys.map((key) => caches.delete(key)))
+  }
+
+  // Reload once so Vite dev assets are no longer intercepted by Workbox.
+  if (!sessionStorage.getItem('ecms-sw-cleared')) {
+    sessionStorage.setItem('ecms-sw-cleared', '1')
+    window.location.reload()
+  }
+}
+
+void clearStaleServiceWorkersInDev()
+
 const theme = createTheme({
   palette: {
     mode: 'light',

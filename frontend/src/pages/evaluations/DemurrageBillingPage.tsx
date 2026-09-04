@@ -3,6 +3,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import SearchIcon from '@mui/icons-material/Search'
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import {
   Alert,
   Box,
@@ -44,6 +45,7 @@ import {
 } from '../../components/demurrage/DemurrageBillingPrimitives'
 import {
   DEFAULT_FEE_ROWS,
+  feeRowsFromAmounts,
   billingToFeeRows,
   feeRowsToPayload,
   feeRowsTotal,
@@ -62,6 +64,7 @@ import {
   ListMobileTitle,
   LIST_PRIMARY,
   listHeroActionSx,
+  listHeroOutlinedActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
@@ -214,6 +217,19 @@ export default function DemurrageBillingPage() {
     }
   }
 
+  const onSelectEligiblePreAdvice = (preAdviceId: number | '') => {
+    setSelectedPreAdviceId(preAdviceId)
+    if (preAdviceId === '') {
+      setCreateFeeRows(DEFAULT_FEE_ROWS.map((row) => ({ ...row })))
+      return
+    }
+    const item = eligible.find((e) => e.preAdviceId === preAdviceId)
+    if (!item) return
+    setCreateFeeRows(
+      feeRowsFromAmounts(item.suggestedDemurrageAmount ?? 3500, item.suggestedDetentionAmount ?? 2500),
+    )
+  }
+
   const createBilling = async () => {
     if (selectedPreAdviceId === '') {
       setCreateError('Select a pre-forecast.')
@@ -253,14 +269,25 @@ export default function DemurrageBillingPage() {
         title="Demurrage billing"
         description="Manage charges when pre-forecast expires without CY return. Add demurrage, detention, storage, and other fee lines — truckers must settle before re-filing the same container."
         action={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => void openCreateDialog()}
-            sx={listHeroActionSx}
-          >
-            Create billing
-          </Button>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            <Button
+              component={RouterLink}
+              to="/evaluations/demurrage-rates"
+              variant="outlined"
+              startIcon={<SettingsOutlinedIcon />}
+              sx={listHeroOutlinedActionSx}
+            >
+              Manage rates
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => void openCreateDialog()}
+              sx={listHeroActionSx}
+            >
+              Create billing
+            </Button>
+          </Box>
         }
       />
 
@@ -380,6 +407,11 @@ export default function DemurrageBillingPage() {
                       </TableCell>
                       <TableCell sx={{ minWidth: 160 }}>
                         <DemurrageFeeBreakdown item={item} />
+                        {item.appliedRateLabel && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {item.appliedRateLabel}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -436,6 +468,11 @@ export default function DemurrageBillingPage() {
                 </ListMobileMeta>
                 <Box sx={{ mt: 1 }}>
                   <DemurrageFeeBreakdown item={item} />
+                  {item.appliedRateLabel && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      {item.appliedRateLabel}
+                    </Typography>
+                  )}
                 </Box>
                 <ListMobileChipRow>
                   <Chip
@@ -525,7 +562,7 @@ export default function DemurrageBillingPage() {
                   labelId="eligible-pre-forecast-label"
                   label="Expired pre-forecast"
                   value={selectedPreAdviceId}
-                  onChange={(e) => setSelectedPreAdviceId(e.target.value as number)}
+                  onChange={(e) => onSelectEligiblePreAdvice(e.target.value as number)}
                 >
                   {eligible.map((row) => (
                     <MenuItem key={row.preAdviceId} value={row.preAdviceId}>
@@ -536,13 +573,20 @@ export default function DemurrageBillingPage() {
               </FormControl>
 
               {selectedEligible && (
-                <BillingContextCard
-                  referenceNo={selectedEligible.referenceNo}
-                  containerNo={selectedEligible.containerNo}
-                  truckerName={selectedEligible.truckerName}
-                  validUntil={selectedEligible.demurrageValidUntil}
-                  daysOverdue={selectedEligible.daysOverdue}
-                />
+                <>
+                  <BillingContextCard
+                    referenceNo={selectedEligible.referenceNo}
+                    containerNo={selectedEligible.containerNo}
+                    truckerName={selectedEligible.truckerName}
+                    validUntil={selectedEligible.demurrageValidUntil}
+                    daysOverdue={selectedEligible.daysOverdue}
+                  />
+                  {selectedEligible.appliedRateLabel && (
+                    <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+                      Suggested from rule: {selectedEligible.appliedRateLabel}
+                    </Alert>
+                  )}
+                </>
               )}
 
               <Divider sx={{ my: 2 }} />

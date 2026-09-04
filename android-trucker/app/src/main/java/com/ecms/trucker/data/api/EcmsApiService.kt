@@ -212,6 +212,9 @@ interface EcmsApiService {
     @GET("demurrage-billing/{id}")
     suspend fun getDemurrageBilling(@Path("id") id: Int): DemurrageBillingDto
 
+    @GET("demurrage-billing/payment-due/count")
+    suspend fun getDemurragePaymentDueCount(): CountResponse
+
     @GET("demurrage-billing/check-block")
     suspend fun checkDemurrageBlock(
         @Query("containerNo") containerNo: String,
@@ -228,6 +231,25 @@ interface EcmsApiService {
         @Part("proofReferenceNo") proofReferenceNo: RequestBody?,
         @Part("proofTransactionAt") proofTransactionAt: RequestBody?,
     ): DemurrageBillingDto
+
+    // Statement of accounts
+    @GET("statement-of-accounts")
+    suspend fun listStatementOfAccounts(): List<StatementOfAccountDto>
+
+    @GET("statement-of-accounts/{id}")
+    suspend fun getStatementOfAccount(@Path("id") id: Int): StatementOfAccountDto
+
+    @GET("statement-of-accounts/payment-due/count")
+    suspend fun getSoaPaymentDueCount(): CountResponse
+
+    @Multipart
+    @POST("statement-of-accounts/{id}/upload-proof")
+    suspend fun uploadSoaProof(
+        @Path("id") id: Int,
+        @Part proof: MultipartBody.Part,
+        @Part("proofReferenceNo") proofReferenceNo: RequestBody?,
+        @Part("proofTransactionAt") proofTransactionAt: RequestBody?,
+    ): StatementOfAccountDto
 
     // Reports
     @GET("reports/returns/daily")

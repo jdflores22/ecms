@@ -18,9 +18,10 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
-import { croEdoApi, type CroEdo } from '../../services/api'
+import { croEdoApi, type CroEdo, type CroEdoLine } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { formatDateTime } from '../../utils/datetime'
+import { formatDate, formatDateTime } from '../../utils/datetime'
+import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 
 const primaryDark = LIST_PRIMARY
 
@@ -31,6 +32,28 @@ const STATUS_TABS = [
 ] as const
 
 type StatusTabKey = (typeof STATUS_TABS)[number]['key']
+
+function lineContainersLabel(lines: CroEdoLine[]): string {
+  if (lines.length === 0) return '—'
+  if (lines.length === 1) return lines[0].containerNumber || '—'
+  const first = lines[0].containerNumber || '—'
+  return `${first} (+${lines.length - 1})`
+}
+
+function lineFreeTimeSummary(lines: CroEdoLine[]): { label: string; expired: boolean } {
+  if (lines.length === 0) return { label: '—', expired: false }
+  const dates = [...new Set(lines.map((l) => l.demurrageValidUntil).filter(Boolean))]
+  if (dates.length === 0) return { label: '—', expired: false }
+  if (dates.length === 1) {
+    const date = dates[0]
+    return { label: formatDate(date), expired: isCroFreeTimeExpired(date) }
+  }
+  const earliest = [...dates].sort()[0]
+  return {
+    label: `${formatDate(earliest)} · ${dates.length} dates`,
+    expired: dates.some((d) => isCroFreeTimeExpired(d)),
+  }
+}
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -150,83 +173,111 @@ export default function CroEdoPage() {
     return <Navigate to="/dashboard" replace />
   }
 
-  const renderMobileCard = (item: CroEdo) => (
-    <ListMobileCard key={item.id} onClick={() => navigate(`/evaluations/cro-edo/${item.id}`)}>
-      <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
-      <ListMobileMeta>{item.blNumber}</ListMobileMeta>
-      <ListMobileMeta>{item.consigneeNotifyParty}</ListMobileMeta>
-      <ListMobileMeta>{item.vesselVoyageNumber}</ListMobileMeta>
-      <ListMobileMeta>
-        {item.lines.length} container{item.lines.length === 1 ? '' : 's'} · {formatDateTime(item.createdAt)}
-      </ListMobileMeta>
-      <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
-        <Button
-          component={RouterLink}
-          to={`/evaluations/cro-edo/${item.id}`}
-          size="small"
-          variant={item.status === 'Draft' ? 'contained' : 'outlined'}
-          startIcon={<OpenInNewIcon />}
-          sx={{
-            fontWeight: 600,
-            borderRadius: 2,
-            ...(item.status !== 'Draft' && {
-              color: primaryDark,
-              borderColor: hexToRgba(primaryDark, 0.35),
-            }),
-          }}
-        >
-          {item.status === 'Draft' ? 'Open' : 'View'}
-        </Button>
-      </Box>
-    </ListMobileCard>
-  )
+  const renderMobileCard = (item: CroEdo) => {
+    const freeTime = lineFreeTimeSummary(item.lines)
+    return (
+      <ListMobileCard key={item.id} onClick={() => navigate(`/evaluations/cro-edo/${item.id}`)}>
+        <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+        <ListMobileMeta>{item.blNumber}</ListMobileMeta>
+        <ListMobileMeta>
+          <Box component="span" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+            {lineContainersLabel(item.lines)}
+          </Box>
+        </ListMobileMeta>
+        <ListMobileMeta>
+          Free time {freeTime.label}
+          {freeTime.expired ? ' · expired' : ''}
+        </ListMobileMeta>
+        <ListMobileMeta>{item.consigneeNotifyParty}</ListMobileMeta>
+        <ListMobileMeta>{item.vesselVoyageNumber}</ListMobileMeta>
+        <ListMobileMeta>
+          {item.lines.length} container{item.lines.length === 1 ? '' : 's'} · {formatDateTime(item.createdAt)}
+        </ListMobileMeta>
+        <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
+          <Button
+            component={RouterLink}
+            to={`/evaluations/cro-edo/${item.id}`}
+            size="small"
+            variant={item.status === 'Draft' ? 'contained' : 'outlined'}
+            startIcon={<OpenInNewIcon />}
+            sx={{
+              fontWeight: 600,
+              borderRadius: 2,
+              ...(item.status !== 'Draft' && {
+                color: primaryDark,
+                borderColor: hexToRgba(primaryDark, 0.35),
+              }),
+            }}
+          >
+            {item.status === 'Draft' ? 'Open' : 'View'}
+          </Button>
+        </Box>
+      </ListMobileCard>
+    )
+  }
 
-  const renderDesktopRow = (item: CroEdo) => (
-    <TableRow
-      key={item.id}
-      hover
-      sx={{ '&:last-child td': { borderBottom: 0 }, cursor: 'pointer' }}
-      onClick={() => navigate(`/evaluations/cro-edo/${item.id}`)}
-    >
-      <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.blNumber}</TableCell>
-      <TableCell>{item.consigneeNotifyParty}</TableCell>
-      <TableCell>{item.vesselVoyageNumber}</TableCell>
-      <TableCell>{item.lines.length}</TableCell>
-      <TableCell>
-        <Chip
-          size="small"
-          label={item.status}
-          color={item.status === 'Issued' ? 'success' : item.status === 'Cancelled' ? 'error' : 'default'}
-          sx={{ fontWeight: 700 }}
-        />
-      </TableCell>
-      <TableCell>
-        <Typography variant="body2" color="text.secondary">
-          {formatDateTime(item.createdAt)}
-        </Typography>
-      </TableCell>
-      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-        <Button
-          component={RouterLink}
-          to={`/evaluations/cro-edo/${item.id}`}
-          size="small"
-          variant={item.status === 'Draft' ? 'contained' : 'outlined'}
-          startIcon={<OpenInNewIcon />}
-          sx={{
-            fontWeight: 600,
-            borderRadius: 2,
-            ...(item.status !== 'Draft' && {
-              color: primaryDark,
-              borderColor: hexToRgba(primaryDark, 0.35),
-            }),
-          }}
-        >
-          {item.status === 'Draft' ? 'Open' : 'View'}
-        </Button>
-      </TableCell>
-    </TableRow>
-  )
+  const renderDesktopRow = (item: CroEdo) => {
+    const freeTime = lineFreeTimeSummary(item.lines)
+    return (
+      <TableRow
+        key={item.id}
+        hover
+        sx={{ '&:last-child td': { borderBottom: 0 }, cursor: 'pointer' }}
+        onClick={() => navigate(`/evaluations/cro-edo/${item.id}`)}
+      >
+        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
+        <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.blNumber}</TableCell>
+        <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {lineContainersLabel(item.lines)}
+        </TableCell>
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {freeTime.label}
+            </Typography>
+            {freeTime.expired && (
+              <Chip label="Expired" size="small" color="error" sx={{ fontWeight: 700, height: 22 }} />
+            )}
+          </Box>
+        </TableCell>
+        <TableCell>{item.consigneeNotifyParty}</TableCell>
+        <TableCell>{item.vesselVoyageNumber}</TableCell>
+        <TableCell>{item.lines.length}</TableCell>
+        <TableCell>
+          <Chip
+            size="small"
+            label={item.status}
+            color={item.status === 'Issued' ? 'success' : item.status === 'Cancelled' ? 'error' : 'default'}
+            sx={{ fontWeight: 700 }}
+          />
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2" color="text.secondary">
+            {formatDateTime(item.createdAt)}
+          </Typography>
+        </TableCell>
+        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+          <Button
+            component={RouterLink}
+            to={`/evaluations/cro-edo/${item.id}`}
+            size="small"
+            variant={item.status === 'Draft' ? 'contained' : 'outlined'}
+            startIcon={<OpenInNewIcon />}
+            sx={{
+              fontWeight: 600,
+              borderRadius: 2,
+              ...(item.status !== 'Draft' && {
+                color: primaryDark,
+                borderColor: hexToRgba(primaryDark, 0.35),
+              }),
+            }}
+          >
+            {item.status === 'Draft' ? 'Open' : 'View'}
+          </Button>
+        </TableCell>
+      </TableRow>
+    )
+  }
 
   return (
     <Box sx={listPageRootSx}>
@@ -370,9 +421,11 @@ export default function CroEdoPage() {
           <>
             <TableCell>Reference</TableCell>
             <TableCell>BL Number</TableCell>
+            <TableCell>Container</TableCell>
+            <TableCell>Free time</TableCell>
             <TableCell>Consignee</TableCell>
             <TableCell>Vessel / Voyage</TableCell>
-            <TableCell>Containers</TableCell>
+            <TableCell>Qty</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Created</TableCell>
             <TableCell align="right">Actions</TableCell>

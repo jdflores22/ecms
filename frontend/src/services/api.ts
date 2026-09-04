@@ -1113,6 +1113,8 @@ export const scheduleApi = {
 
 export interface PaymentSettings {
   returnFeeAmount: number
+  demurrageFeeAmount: number
+  detentionFeeAmount: number
   updatedAt: string
 }
 
@@ -1125,6 +1127,8 @@ export const paymentApi = {
   getSettings: () => api.get<PaymentSettings>('/payments/settings'),
   updateSettings: (returnFeeAmount: number) =>
     api.put<PaymentSettings>('/payments/settings', { returnFeeAmount }),
+  updateDemurrageSettings: (demurrageFeeAmount: number, detentionFeeAmount: number) =>
+    api.put<PaymentSettings>('/payments/settings/demurrage', { demurrageFeeAmount, detentionFeeAmount }),
   getBySchedule: (scheduleId: number) => api.get<Payment | null>(`/payments/by-schedule/${scheduleId}`),
   upload: (
     scheduleId: number,
@@ -1191,6 +1195,8 @@ export interface DemurrageBilling {
   proofTransactionAt?: string | null
   paidAt?: string | null
   createdAt: string
+  appliedRateId?: number | null
+  appliedRateLabel?: string | null
 }
 
 export interface DemurrageBillingFeeInput {
@@ -1205,6 +1211,9 @@ export interface EligibleDemurragePreAdvice {
   truckerName: string
   demurrageValidUntil: string
   daysOverdue: number
+  suggestedDemurrageAmount?: number
+  suggestedDetentionAmount?: number
+  appliedRateLabel?: string
 }
 
 export interface DemurrageBlockCheck {
@@ -1251,6 +1260,180 @@ export const demurrageBillingApi = {
       proofReferenceNo: metadata?.proofReferenceNo ?? null,
       proofTransactionAt: metadata?.proofTransactionAt ?? null,
     }),
+}
+
+export interface DemurrageDetentionRate {
+  id: number
+  shippingLineId: number
+  shippingLineName: string
+  depotId?: number | null
+  depotName?: string | null
+  containerSizeId?: number | null
+  containerSizeLabel?: string | null
+  demurrageAmount: number
+  detentionAmount: number
+  effectiveFrom: string
+  effectiveTo?: string | null
+  isActive: boolean
+  updatedAt: string
+  createdAt: string
+}
+
+export interface ResolvedDemurrageDetentionRate {
+  demurrageAmount: number
+  detentionAmount: number
+  usedFallback: boolean
+  rateId?: number | null
+  label: string
+}
+
+export const demurrageDetentionRateApi = {
+  list: (params?: { shippingLineId?: number }) =>
+    api.get<DemurrageDetentionRate[]>('/demurrage-detention-rates', { params }),
+  resolve: (params: {
+    shippingLineId: number
+    depotId?: number
+    containerSizeId?: number
+    asOf?: string
+  }) => api.get<ResolvedDemurrageDetentionRate>('/demurrage-detention-rates/resolve', { params }),
+  create: (data: {
+    shippingLineId: number
+    depotId?: number | null
+    containerSizeId?: number | null
+    demurrageAmount: number
+    detentionAmount: number
+    effectiveFrom: string
+    effectiveTo?: string | null
+    isActive?: boolean
+  }) => api.post<DemurrageDetentionRate>('/demurrage-detention-rates', data),
+  update: (
+    id: number,
+    data: {
+      shippingLineId: number
+      depotId?: number | null
+      containerSizeId?: number | null
+      demurrageAmount: number
+      detentionAmount: number
+      effectiveFrom: string
+      effectiveTo?: string | null
+      isActive?: boolean
+    },
+  ) => api.put<DemurrageDetentionRate>(`/demurrage-detention-rates/${id}`, data),
+  deactivate: (id: number) => api.post(`/demurrage-detention-rates/${id}/deactivate`),
+}
+
+export type StatementOfAccountStatus = 'Draft' | 'Issued' | 'ForVerification' | 'Paid' | 'Cancelled'
+
+export interface ShippingLineCreditLine {
+  id: number
+  shippingLineId: number
+  shippingLineName: string
+  creditLimit: number
+  utilizedAmount: number
+  availableCredit: number
+  isActive: boolean
+  updatedAt: string
+}
+
+export interface StatementOfAccountLine {
+  id: number
+  demurrageBillingId: number
+  demurrageBillingReferenceNo: string
+  containerNo: string
+  preAdviceReferenceNo: string
+  description: string
+  amount: number
+  sortOrder: number
+  billingStatus: string
+}
+
+export interface StatementOfAccount {
+  id: number
+  referenceNo: string
+  shippingLineId: number
+  shippingLineName: string
+  truckerId: number
+  truckerName: string
+  periodFrom?: string | null
+  periodTo?: string | null
+  status: StatementOfAccountStatus | number
+  totalAmount: number
+  creditApplied: number
+  amountDue: number
+  dueDate?: string | null
+  issuedAt?: string | null
+  paidAt?: string | null
+  issuedByName?: string | null
+  remarks?: string | null
+  proofFile?: string | null
+  proofReferenceNo?: string | null
+  proofTransactionAt?: string | null
+  createdAt: string
+  lines: StatementOfAccountLine[]
+}
+
+export interface SoaTruckerRegister {
+  truckerId: number
+  truckerName: string
+  billingCount: number
+  totalAmount: number
+  oldestExpiredOn: string
+  latestExpiredOn: string
+  demurrageBillingIds: number[]
+}
+
+export interface EligibleSoaBilling {
+  demurrageBillingId: number
+  referenceNo: string
+  containerNo: string
+  preAdviceReferenceNo: string
+  truckerName: string
+  truckerId: number
+  totalAmount: number
+  expiredOn: string
+  status: string
+}
+
+export const statementOfAccountApi = {
+  getCreditLine: () => api.get<ShippingLineCreditLine>('/statement-of-accounts/credit-line'),
+  updateCreditLine: (data: { creditLimit: number; isActive: boolean }) =>
+    api.put<ShippingLineCreditLine>('/statement-of-accounts/credit-line', data),
+  list: () => api.get<StatementOfAccount[]>('/statement-of-accounts'),
+  paymentDueCount: () => api.get<{ count: number }>('/statement-of-accounts/payment-due/count'),
+  get: (id: number) => api.get<StatementOfAccount>(`/statement-of-accounts/${id}`),
+  eligibleBillings: (truckerId?: number) =>
+    api.get<EligibleSoaBilling[]>('/statement-of-accounts/eligible-billings', {
+      params: truckerId ? { truckerId } : undefined,
+    }),
+  eligibleTruckers: () => api.get<SoaTruckerRegister[]>('/statement-of-accounts/eligible-truckers'),
+  create: (data: {
+    truckerId: number
+    demurrageBillingIds: number[]
+    creditApplied: number
+    remarks?: string
+    issueImmediately: boolean
+    dueDate?: string
+  }) => api.post<StatementOfAccount>('/statement-of-accounts', data),
+  issue: (id: number, data: { dueDate?: string; remarks?: string }) =>
+    api.post<StatementOfAccount>(`/statement-of-accounts/${id}/issue`, data),
+  cancel: (id: number) => api.post<StatementOfAccount>(`/statement-of-accounts/${id}/cancel`),
+  uploadProof: (
+    id: number,
+    file: File,
+    metadata?: { proofReferenceNo?: string; proofTransactionAt?: string },
+  ) => {
+    const form = new FormData()
+    form.append('proof', file)
+    if (metadata?.proofReferenceNo) form.append('proofReferenceNo', metadata.proofReferenceNo)
+    if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
+    return api.post<StatementOfAccount>(`/statement-of-accounts/${id}/upload-proof`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  verify: (
+    id: number,
+    data: { approved: boolean; proofReferenceNo?: string; proofTransactionAt?: string },
+  ) => api.post<StatementOfAccount>(`/statement-of-accounts/${id}/verify`, data),
 }
 
 export const qrApi = {

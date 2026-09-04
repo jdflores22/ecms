@@ -20,3 +20,6 @@ fun buildAuthedImageRequest(
 }
 
 fun AuthState.accessTokenOrNull(): String? = accessToken?.takeIf { it.isNotBlank() }
+
+fun isImageProof(path: String): Boolean =
+    path.matches(Regex(""".*\.(jpe?g|png|gif|webp|bmp)$""", RegexOption.IGNORE_CASE))

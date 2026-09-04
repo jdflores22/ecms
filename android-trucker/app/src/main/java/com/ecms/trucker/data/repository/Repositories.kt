@@ -191,6 +191,24 @@ class TruckerRepository(
         api.uploadDemurrageProof(id, proof, refBody, atBody)
     }
 
+    suspend fun getDemurragePaymentDueCount() = api.getDemurragePaymentDueCount().count
+
+    suspend fun listStatementOfAccounts() = api.listStatementOfAccounts()
+    suspend fun getStatementOfAccount(id: Int) = api.getStatementOfAccount(id)
+    suspend fun getSoaPaymentDueCount() = api.getSoaPaymentDueCount().count
+
+    suspend fun uploadSoaProof(
+        id: Int,
+        uri: Uri,
+        referenceNo: String?,
+        transactionAt: String?,
+    ) {
+        val proof = uriToMultipart(uri, "proof")
+        val refBody = referenceNo?.toRequestBody("text/plain".toMediaTypeOrNull())
+        val atBody = transactionAt?.toRequestBody("text/plain".toMediaTypeOrNull())
+        api.uploadSoaProof(id, proof, refBody, atBody)
+    }
+
     suspend fun getDailyReturnsReport(from: String?, to: String?) =
         api.getDailyReturnsReport(from, to)
 

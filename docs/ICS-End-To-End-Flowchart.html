@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ICS End-to-End Flowchart</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #0B3D91;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+    .sheet {
+      width: 194mm;
+      height: 281mm;
+      margin: 0 auto;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      page-break-after: avoid;
+      page-break-inside: avoid;
+    }
+    header {
+      flex: 0 0 auto;
+      text-align: center;
+      border-bottom: 2px solid #00A3E0;
+      padding: 0 0 6px;
+      margin-bottom: 6px;
+    }
+    h1 {
+      margin: 0 0 2px;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      margin: 0;
+      color: #546E7A;
+      font-size: 9px;
+    }
+    .legend {
+      margin: 4px 0 0;
+      font-size: 8px;
+      color: #37474F;
+      line-height: 1.35;
+    }
+    .legend strong { color: #0B3D91; }
+    .chart-area {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .chart-scaler {
+      transform-origin: top center;
+      width: max-content;
+      margin: 0 auto;
+    }
+    .mermaid svg {
+      display: block;
+    }
+    footer {
+      flex: 0 0 auto;
+      margin-top: 4px;
+      text-align: center;
+      font-size: 8px;
+      color: #78909C;
+    }
+    @media print {
+      html, body { width: 194mm; height: 281mm; overflow: hidden; }
+      .sheet { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <header>
+      <h1>ICS — End-to-End Process Flow</h1>
+      <p class="sub">Intelligent Container Solutions · From port pull-out to empty return</p>
+      <div class="legend">
+        <div><strong>CRO</strong> = Container Release Order · laden pull-out from port &nbsp;|&nbsp; <strong>eDO</strong> = Empty return &nbsp;|&nbsp; A product of <strong>TNSDS</strong></div>
+      </div>
+    </header>
+
+    <div class="chart-area" id="chart-area">
+      <div class="chart-scaler" id="chart-scaler">
+        <pre class="mermaid" id="diagram">
+flowchart TD
+  START([START]) --> CRO[Shipping line issues CRO<br/>Container Release Order]
+  CRO --> PORT[Trucker pulls out laden container<br/>from the PORT]
+  PORT --> EDO[Shipping line issues eDO<br/>Empty return]
+  EDO --> PF[Trucker submits pre-forecast<br/>+ photos + eDO]
+  PF --> EVAL{Shipping line<br/>evaluates}
+  EVAL -->|Needs correction| COMP[For compliance]
+  COMP --> PF
+  EVAL -->|Approved| YARD[Assign CY / yard<br/>+ schedule return slot]
+  YARD --> FREE{Empty-return<br/>free time still valid?}
+  FREE -->|Expired| DEM[Demurrage / detention billing]
+  DEM --> SETTLE{Charges settled<br/>and verified?}
+  SETTLE -->|No| DEM
+  SETTLE -->|Yes| PAY
+  FREE -->|Yes| PAY[Trucker pays return fees<br/>uploads proof]
+  PAY --> VER{ICS admin / shipping line<br/>verifies payment}
+  VER -->|Reject| PAY
+  VER -->|Approve| QR[QR booking ready<br/>for the gate]
+  QR --> GATE[Trucker arrives at CY]
+  GATE --> END([Empty returned · END])
+        </pre>
+      </div>
+    </div>
+
+    <footer>ICS End-to-End Flowchart (with branches) · Trans-Net Software Development Services</footer>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#E3F2FD',
+        primaryTextColor: '#0B3D91',
+        primaryBorderColor: '#0B3D91',
+        lineColor: '#546E7A',
+        secondaryColor: '#E8F5E9',
+        tertiaryColor: '#FFF3E0',
+        fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+        fontSize: '10px',
+      },
+      flowchart: { htmlLabels: true, curve: 'basis', padding: 8, nodeSpacing: 22, rankSpacing: 28 },
+    });
+
+    function fitChartToPage() {
+      const area = document.getElementById('chart-area');
+      const scaler = document.getElementById('chart-scaler');
+      const svg = scaler.querySelector('svg');
+      if (!area || !scaler || !svg) return;
+
+      scaler.style.transform = 'none';
+      const areaW = area.clientWidth;
+      const areaH = area.clientHeight;
+      const contentW = scaler.offsetWidth;
+      const contentH = scaler.offsetHeight;
+      if (!contentW || !contentH) return;
+
+      const scale = Math.min(areaW / contentW, areaH / contentH, 1);
+      scaler.style.transform = `scale(${scale})`;
+      document.body.dataset.pdfReady = 'true';
+    }
+
+    async function render() {
+      const el = document.getElementById('diagram');
+      await mermaid.run({ nodes: [el] });
+      requestAnimationFrame(() => {
+        fitChartToPage();
+        setTimeout(fitChartToPage, 100);
+      });
+    }
+
+    render().catch(console.error);
+  </script>
+</body>
+</html>

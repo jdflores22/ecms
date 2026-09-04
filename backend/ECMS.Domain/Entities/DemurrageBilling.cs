@@ -24,8 +24,13 @@ public class DemurrageBilling : BaseEntity
     public string? ProofReferenceNo { get; set; }
     public DateTime? ProofTransactionAt { get; set; }
     public DateTime? PaidAt { get; set; }
+    public int? AppliedRateId { get; set; }
+    public string? AppliedRateLabel { get; set; }
+    public int? StatementOfAccountId { get; set; }
 
     public PreAdvice PreAdvice { get; set; } = null!;
+    public DemurrageDetentionRate? AppliedRate { get; set; }
+    public StatementOfAccount? StatementOfAccount { get; set; }
     public ShippingLine ShippingLine { get; set; } = null!;
     public User Trucker { get; set; } = null!;
     public ContainerSize ContainerSize { get; set; } = null!;

@@ -57,6 +57,26 @@ public class PaymentsController : ControllerBase
         }
     }
 
+    [HttpPut("settings/demurrage")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<PaymentSettingsDto>> UpdateDemurrageSettings(
+        [FromBody] UpdateDemurrageFeeSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _settings.UpdateDemurrageFeesAsync(
+                request.DemurrageFeeAmount,
+                request.DetentionFeeAmount,
+                UserId,
+                cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("upload")]
     [Authorize(Roles = RoleNames.Trucker)]
     [RequestSizeLimit(10_485_760)]

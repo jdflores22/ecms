@@ -27,6 +27,10 @@ public interface IEcmsDbContext
     IQueryable<PaymentSettings> PaymentSettings { get; }
     IQueryable<DemurrageBilling> DemurrageBillings { get; }
     IQueryable<DemurrageBillingFeeLine> DemurrageBillingFeeLines { get; }
+    IQueryable<DemurrageDetentionRate> DemurrageDetentionRates { get; }
+    IQueryable<ShippingLineCreditLine> ShippingLineCreditLines { get; }
+    IQueryable<StatementOfAccount> StatementOfAccounts { get; }
+    IQueryable<StatementOfAccountLine> StatementOfAccountLines { get; }
     IQueryable<WithdrawalRequest> WithdrawalRequests { get; }
     IQueryable<WithdrawalRequestLine> WithdrawalRequestLines { get; }
     IQueryable<WithdrawalDocument> WithdrawalDocuments { get; }

@@ -58,6 +58,7 @@ public interface IDemurrageBillingService
         int id,
         VerifyDemurrageBillingRequest request,
         int actorUserId,
+        string role,
         CancellationToken cancellationToken = default);
 
     Task EnsureTruckerCanCreatePreAdviceAsync(

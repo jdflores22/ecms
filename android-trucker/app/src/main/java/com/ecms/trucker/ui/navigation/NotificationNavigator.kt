@@ -28,6 +28,9 @@ object NotificationNavigator {
         pathId(path, Regex("/trucker/demurrage-billing/(\\d+)"))?.let {
             return Target(Routes.demurrageDetail(it))
         }
+        pathId(path, Regex("/trucker/statement-of-accounts/(\\d+)"))?.let {
+            return Target(Routes.soaDetail(it))
+        }
         pathId(path, Regex("/trucker/news/(\\d+)"))?.let {
             return Target(Routes.newsDetail(it))
         }
@@ -42,6 +45,7 @@ object NotificationNavigator {
             "/trucker/withdrawals/schedule" -> return Target(Routes.WITHDRAWAL_SCHEDULE, MainTab.Withdrawals.route)
             "/trucker/withdrawals" -> return Target(Routes.MAIN, MainTab.Withdrawals.route)
             "/trucker/demurrage-billing" -> return Target(Routes.DEMURRAGE_LIST)
+            "/trucker/statement-of-accounts" -> return Target(Routes.SOA_LIST)
             "/trucker/notifications" -> return Target(Routes.NOTIFICATIONS)
         }
 
@@ -57,6 +61,7 @@ object NotificationNavigator {
             "Payment", "Schedule" -> Target(Routes.MAIN, MainTab.Payments.route)
             "Evaluation", "PreAdvice" -> Target(Routes.PREFORECAST_LIST)
             "DemurrageBilling" -> Target(Routes.DEMURRAGE_LIST)
+            "StatementOfAccount" -> Target(Routes.SOA_LIST)
             else -> if (cat.isNotBlank()) Target(Routes.NOTIFICATIONS) else null
         }
     }

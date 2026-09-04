@@ -1,0 +1,25 @@
+flowchart TD
+  START([START]) --> CRO[Shipping line issues CRO<br/>Container Release Order]
+  CRO --> PORT[Trucker pulls out laden container<br/>from the PORT]
+  PORT --> EDO[Shipping line issues eDO<br/>Empty return]
+  EDO --> PF[Trucker submits pre-forecast<br/>+ photos + eDO]
+
+  PF --> EVAL{Shipping line<br/>evaluates}
+
+  EVAL -->|Needs correction| COMP[For compliance]
+  COMP --> PF
+  EVAL -->|Approved| YARD[Assign CY / yard<br/>+ schedule return slot]
+
+  YARD --> FREE{Empty-return<br/>free time still valid?}
+
+  FREE -->|Expired| DEM[Demurrage / detention billing]
+  DEM --> SETTLE{Charges settled<br/>and verified?}
+  SETTLE -->|No| DEM
+  SETTLE -->|Yes| PAY
+  FREE -->|Yes| PAY[Trucker pays return fees<br/>uploads proof]
+
+  PAY --> VER{ICS admin / shipping line<br/>verifies payment}
+  VER -->|Reject| PAY
+  VER -->|Approve| QR[QR booking ready<br/>for the gate]
+  QR --> GATE[Trucker arrives at CY]
+  GATE --> END([Empty returned · END])

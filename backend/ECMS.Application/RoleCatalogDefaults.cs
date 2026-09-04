@@ -12,6 +12,8 @@ public static class RolePageKeys
     public const string CyAllocation = "cyAllocation";
     public const string ContainerInventory = "containerInventory";
     public const string DemurrageBilling = "demurrageBilling";
+    public const string DemurrageRates = "demurrageRates";
+    public const string StatementOfAccounts = "statementOfAccounts";
     public const string AdminReports = "adminReports";
     public const string DepotReports = "depotReports";
     public const string EvaluatorReports = "evaluatorReports";
@@ -22,6 +24,7 @@ public static class RolePageKeys
     public const string TruckerReturns = "truckerReturns";
     public const string TruckerPayments = "truckerPayments";
     public const string TruckerDemurrageBilling = "truckerDemurrageBilling";
+    public const string TruckerStatementOfAccounts = "truckerStatementOfAccounts";
     public const string TruckerWithdrawals = "truckerWithdrawals";
     public const string EvaluatorAtw = "evaluatorAtw";
     public const string EvaluatorCro = "evaluatorCro";
@@ -42,7 +45,7 @@ public static class RolePageKeys
 
     public static readonly HashSet<string> All = new(StringComparer.Ordinal)
     {
-        Dashboard, Profile, Preforecast, Evaluations, CyAllocation, ContainerInventory, DemurrageBilling,
+        Dashboard, Profile, Preforecast, Evaluations, CyAllocation, ContainerInventory, DemurrageBilling, DemurrageRates, StatementOfAccounts,
         AdminReports, DepotReports, EvaluatorReports, TruckerReports,
         DepotDailyReturns, DepotSchedules,
         AdminPayments,
@@ -122,6 +125,7 @@ public static class RoleCatalogDefaults
             {
                 RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preforecast, RolePageKeys.TruckerReports,
                 RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments, RolePageKeys.TruckerDemurrageBilling,
+                RolePageKeys.TruckerStatementOfAccounts,
                 RolePageKeys.TruckerWithdrawals, RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
                 RolePageKeys.TruckerNotifications,
             }),
@@ -136,9 +140,11 @@ public static class RoleCatalogDefaults
                 "Set demurrage validity on approval",
                 "Issue CRO/eDO with free demurrage time and empty return CY",
                 "View demurrage billing for expired returns",
+                "Configure demurrage and detention rates for the assigned shipping line",
+                "Compile demurrage billings into statements of account (SOA)",
                 "View evaluation history",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.EvaluatorAtw, RolePageKeys.EvaluatorCro, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.EvaluatorReports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.EvaluatorAtw, RolePageKeys.EvaluatorCro, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.DemurrageRates, RolePageKeys.StatementOfAccounts, RolePageKeys.EvaluatorReports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",

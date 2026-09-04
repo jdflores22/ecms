@@ -179,13 +179,20 @@ public class DemurrageBillingController : ControllerBase
     }
 
     [HttpPost("{id:int}/verify")]
-    [Authorize(Roles = RoleNames.Administrator)]
+    [Authorize(Roles = $"{RoleNames.Administrator},{RoleNames.ShippingLineEvaluator}")]
     public async Task<ActionResult<DemurrageBillingDto>> Verify(
         int id,
         [FromBody] VerifyDemurrageBillingRequest request,
         CancellationToken cancellationToken)
     {
-        var item = await _service.VerifyAsync(id, request, UserId, cancellationToken);
-        return item is null ? NotFound() : Ok(item);
+        try
+        {
+            var item = await _service.VerifyAsync(id, request, UserId, UserRole, cancellationToken);
+            return item is null ? NotFound() : Ok(item);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

@@ -233,6 +233,7 @@ public class DbSeeder
         }
 
         await SeedDemurrageBillingTestDataAsync();
+        await DemurrageDetentionRateDemoSeeder.SeedAsync(_context);
         await YardInventoryDemoSeeder.SeedAsync(_context);
     }
 

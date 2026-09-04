@@ -31,6 +31,10 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
     public DbSet<DemurrageBilling> DemurrageBillingsSet => Set<DemurrageBilling>();
     public DbSet<DemurrageBillingFeeLine> DemurrageBillingFeeLinesSet => Set<DemurrageBillingFeeLine>();
+    public DbSet<DemurrageDetentionRate> DemurrageDetentionRatesSet => Set<DemurrageDetentionRate>();
+    public DbSet<ShippingLineCreditLine> ShippingLineCreditLinesSet => Set<ShippingLineCreditLine>();
+    public DbSet<StatementOfAccount> StatementOfAccountsSet => Set<StatementOfAccount>();
+    public DbSet<StatementOfAccountLine> StatementOfAccountLinesSet => Set<StatementOfAccountLine>();
     public DbSet<WithdrawalRequest> WithdrawalRequestsSet => Set<WithdrawalRequest>();
     public DbSet<WithdrawalRequestLine> WithdrawalRequestLinesSet => Set<WithdrawalRequestLine>();
     public DbSet<WithdrawalDocument> WithdrawalDocumentsSet => Set<WithdrawalDocument>();
@@ -65,6 +69,10 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
     IQueryable<DemurrageBilling> IEcmsDbContext.DemurrageBillings => DemurrageBillingsSet;
     IQueryable<DemurrageBillingFeeLine> IEcmsDbContext.DemurrageBillingFeeLines => DemurrageBillingFeeLinesSet;
+    IQueryable<DemurrageDetentionRate> IEcmsDbContext.DemurrageDetentionRates => DemurrageDetentionRatesSet;
+    IQueryable<ShippingLineCreditLine> IEcmsDbContext.ShippingLineCreditLines => ShippingLineCreditLinesSet;
+    IQueryable<StatementOfAccount> IEcmsDbContext.StatementOfAccounts => StatementOfAccountsSet;
+    IQueryable<StatementOfAccountLine> IEcmsDbContext.StatementOfAccountLines => StatementOfAccountLinesSet;
     IQueryable<WithdrawalRequest> IEcmsDbContext.WithdrawalRequests => WithdrawalRequestsSet;
     IQueryable<WithdrawalRequestLine> IEcmsDbContext.WithdrawalRequestLines => WithdrawalRequestLinesSet;
     IQueryable<WithdrawalDocument> IEcmsDbContext.WithdrawalDocuments => WithdrawalDocumentsSet;
@@ -256,11 +264,68 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
             e.Property(x => x.DemurrageAmount).HasPrecision(18, 2);
             e.Property(x => x.DetentionAmount).HasPrecision(18, 2);
+            e.Property(x => x.AppliedRateLabel).HasMaxLength(256);
             e.HasOne(x => x.PreAdvice).WithMany().HasForeignKey(x => x.PreAdviceId);
             e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
             e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId);
             e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId);
             e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
+            e.HasOne(x => x.AppliedRate)
+                .WithMany()
+                .HasForeignKey(x => x.AppliedRateId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.StatementOfAccount)
+                .WithMany()
+                .HasForeignKey(x => x.StatementOfAccountId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ShippingLineCreditLine>(e =>
+        {
+            e.HasIndex(x => x.ShippingLineId).IsUnique();
+            e.Property(x => x.CreditLimit).HasPrecision(18, 2);
+            e.Property(x => x.UtilizedAmount).HasPrecision(18, 2);
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StatementOfAccount>(e =>
+        {
+            e.HasIndex(x => x.ReferenceNo).IsUnique();
+            e.HasIndex(x => new { x.ShippingLineId, x.TruckerId, x.Status });
+            e.Property(x => x.ReferenceNo).HasMaxLength(32);
+            e.Property(x => x.TotalAmount).HasPrecision(18, 2);
+            e.Property(x => x.CreditApplied).HasPrecision(18, 2);
+            e.Property(x => x.AmountDue).HasPrecision(18, 2);
+            e.Property(x => x.Remarks).HasMaxLength(1000);
+            e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
+            e.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId);
+            e.HasOne(x => x.IssuedByUser).WithMany().HasForeignKey(x => x.IssuedByUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<StatementOfAccountLine>(e =>
+        {
+            e.HasIndex(x => x.DemurrageBillingId).IsUnique();
+            e.Property(x => x.Description).HasMaxLength(300);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasOne(x => x.StatementOfAccount)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.StatementOfAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.DemurrageBilling)
+                .WithMany()
+                .HasForeignKey(x => x.DemurrageBillingId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DemurrageDetentionRate>(e =>
+        {
+            e.Property(x => x.DemurrageAmount).HasPrecision(18, 2);
+            e.Property(x => x.DetentionAmount).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.ShippingLineId, x.DepotId, x.ContainerSizeId, x.IsActive, x.EffectiveFrom });
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ContainerSize).WithMany().HasForeignKey(x => x.ContainerSizeId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DemurrageBillingFeeLine>(e =>

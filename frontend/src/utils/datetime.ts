@@ -202,6 +202,49 @@ export function shiftIsoDate(dateStr: string, days: number): string {
   return isoDateInTimezone(d)
 }
 
+/** Monday (YYYY-MM-DD) of the week containing `dateStr` in system timezone. */
+export function startOfWeekMondayIso(dateStr: string = todayIsoDate()): string {
+  const d = calendarDate(dateStr)
+  // getDay: 0=Sun … 6=Sat → convert to Monday-based offset
+  const day = d.getDay()
+  const offset = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + offset)
+  return isoDateInTimezone(d)
+}
+
+/** Seven ISO dates Mon→Sun starting from Monday. */
+export function weekIsoDates(weekStartMonday: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => shiftIsoDate(weekStartMonday, i))
+}
+
+/** e.g. "May 20 – May 26, 2024" */
+export function formatWeekRangeLabel(weekStartMonday: string): string {
+  const end = shiftIsoDate(weekStartMonday, 6)
+  const startFmt = new Intl.DateTimeFormat(SYSTEM_TIMEZONE.locale, {
+    timeZone: SYSTEM_TIMEZONE.id,
+    month: 'short',
+    day: 'numeric',
+  }).format(calendarDate(weekStartMonday))
+  const endFmt = new Intl.DateTimeFormat(SYSTEM_TIMEZONE.locale, {
+    timeZone: SYSTEM_TIMEZONE.id,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(calendarDate(end))
+  return `${startFmt} – ${endFmt}`
+}
+
+/** Hour 0–23 from schedule time string (HH:mm or HH:mm:ss). Returns null if midnight / empty (date-only). */
+export function scheduleHourOfDay(time: string | null | undefined): number | null {
+  if (!time?.trim()) return null
+  const m = /^(\d{1,2}):(\d{2})/.exec(time.trim())
+  if (!m) return null
+  const hour = Number(m[1])
+  if (hour === 0 && m[2] === '00') return null
+  if (hour < 0 || hour > 23) return null
+  return hour
+}
+
 /** Long weekday label for a calendar date (YYYY-MM-DD). */
 export function formatDisplayDate(dateStr: string): string {
   return longDateFormatter.format(calendarDate(dateStr))

@@ -426,7 +426,7 @@ export default function MasterDataPage() {
               Master Data
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-              Manage shipping lines, container yards, container sizes, and container types.
+              Manage shipping lines, container yards, container reference data, and fees.
             </Typography>
           </Box>
         </Box>

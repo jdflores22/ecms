@@ -31,7 +31,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import SearchIcon from '@mui/icons-material/Search'
 import TodayIcon from '@mui/icons-material/Today'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import {
   depotApi,
@@ -179,14 +179,21 @@ function SummaryCard({
 
 export default function DailyReturnsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const user = useAppSelector((s) => s.auth.user)
   const today = todayIsoDate()
-  const [selectedDate, setSelectedDate] = useState(today)
+  const initialDate = searchParams.get('date')
+  const initialDepot = Number(searchParams.get('depotId'))
+  const [selectedDate, setSelectedDate] = useState(
+    initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : today,
+  )
   const [activeFilter, setActiveFilter] = useState<DayStatusFilter>('All')
   const [search, setSearch] = useState('')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
-  const [depotId, setDepotId] = useState<number | ''>('')
+  const [depotId, setDepotId] = useState<number | ''>(
+    Number.isFinite(initialDepot) && initialDepot > 0 ? initialDepot : '',
+  )
   const [capacityInfo, setCapacityInfo] = useState<SlotAvailability | null>(null)
   const [loading, setLoading] = useState(true)
   const [capacityLoading, setCapacityLoading] = useState(false)

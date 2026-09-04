@@ -8,6 +8,8 @@ export type AppPageKey =
   | 'cyAllocation'
   | 'containerInventory'
   | 'demurrageBilling'
+  | 'demurrageRates'
+  | 'statementOfAccounts'
   | 'adminReports'
   | 'depotReports'
   | 'evaluatorReports'
@@ -18,6 +20,7 @@ export type AppPageKey =
   | 'truckerReturns'
   | 'truckerPayments'
   | 'truckerDemurrageBilling'
+  | 'truckerStatementOfAccounts'
   | 'truckerWithdrawals'
   | 'evaluatorAtw'
   | 'evaluatorCro'
@@ -103,6 +106,22 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Expired pre-forecast with outstanding demurrage and detention charges',
     showInNav: true,
   },
+  demurrageRates: {
+    key: 'demurrageRates',
+    label: 'Demurrage rates',
+    path: '/evaluations/demurrage-rates',
+    group: 'Evaluation',
+    description: 'Configure demurrage and detention amounts for your shipping line',
+    showInNav: true,
+  },
+  statementOfAccounts: {
+    key: 'statementOfAccounts',
+    label: 'Statement of accounts',
+    path: '/evaluations/statement-of-accounts',
+    group: 'Evaluation',
+    description: 'Compile trucker demurrage billings into SOA for payment release',
+    showInNav: true,
+  },
   adminReports: {
     key: 'adminReports',
     label: 'Reports',
@@ -181,6 +200,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/trucker/demurrage-billing',
     group: 'Trucker',
     description: 'Settle demurrage and detention before new pre-forecast',
+    showInNav: true,
+  },
+  truckerStatementOfAccounts: {
+    key: 'truckerStatementOfAccounts',
+    label: 'Statements (SOA)',
+    path: '/trucker/statement-of-accounts',
+    group: 'Trucker',
+    description: 'View and pay collated statements from your shipping line',
     showInNav: true,
   },
   truckerWithdrawals: {
@@ -342,6 +369,8 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'cyAllocation',
     'containerInventory',
     'demurrageBilling',
+    'demurrageRates',
+    'statementOfAccounts',
     'evaluatorReports',
   ],
   DepotPersonnel: [
@@ -361,6 +390,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'truckerReturns',
     'truckerPayments',
     'truckerDemurrageBilling',
+    'truckerStatementOfAccounts',
     'truckerWithdrawals',
     'truckerQr',
     'truckerQrPrint',
@@ -400,6 +430,8 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'cyAllocation',
   'containerInventory',
   'demurrageBilling',
+  'demurrageRates',
+  'statementOfAccounts',
   'evaluations',
   'profile',
   'dashboard',
@@ -423,6 +455,8 @@ const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
   'evaluations',
   'cyAllocation',
   'containerInventory',
+  'demurrageBilling',
+  'demurrageRates',
   'depotDailyReturns',
   'depotSchedules',
 ]
@@ -556,6 +590,8 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'cyAllocation',
   'containerInventory',
   'demurrageBilling',
+  'demurrageRates',
+  'statementOfAccounts',
   'adminUsers',
   'adminRoles',
   'adminMasterData',
@@ -572,6 +608,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'truckerReturns',
   'truckerPayments',
   'truckerDemurrageBilling',
+  'truckerStatementOfAccounts',
   'truckerQr',
 ]
 

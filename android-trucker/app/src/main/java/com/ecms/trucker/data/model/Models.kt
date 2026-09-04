@@ -414,6 +414,7 @@ data class DemurrageBillingDto(
     val demurrageAmount: Double,
     val detentionAmount: Double,
     val totalAmount: Double,
+    val appliedRateLabel: String? = null,
     val feeLines: List<DemurrageFeeLineDto> = emptyList(),
     val status: String,
     val proofFile: String? = null,
@@ -436,6 +437,45 @@ data class DemurrageBlockCheckDto(
     val isBlocked: Boolean,
     val message: String? = null,
     val billing: DemurrageBillingDto? = null,
+)
+
+@Serializable
+data class StatementOfAccountLineDto(
+    val id: Int,
+    val demurrageBillingId: Int,
+    val demurrageBillingReferenceNo: String,
+    val containerNo: String,
+    val preAdviceReferenceNo: String,
+    val description: String,
+    val amount: Double,
+    val sortOrder: Int,
+    val billingStatus: String,
+)
+
+@Serializable
+data class StatementOfAccountDto(
+    val id: Int,
+    val referenceNo: String,
+    val shippingLineId: Int,
+    val shippingLineName: String,
+    val truckerId: Int,
+    val truckerName: String,
+    val periodFrom: String? = null,
+    val periodTo: String? = null,
+    val status: String,
+    val totalAmount: Double,
+    val creditApplied: Double,
+    val amountDue: Double,
+    val dueDate: String? = null,
+    val issuedAt: String? = null,
+    val paidAt: String? = null,
+    val issuedByName: String? = null,
+    val remarks: String? = null,
+    val proofFile: String? = null,
+    val proofReferenceNo: String? = null,
+    val proofTransactionAt: String? = null,
+    val createdAt: String,
+    val lines: List<StatementOfAccountLineDto> = emptyList(),
 )
 
 @Serializable

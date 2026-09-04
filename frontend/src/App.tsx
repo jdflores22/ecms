@@ -37,6 +37,10 @@ import {
   EvaluationDetailPage,
   EvaluationsPage,
   EvaluatorDemurrageBillingPage,
+  EvaluatorDemurrageRatesPage,
+  EvaluatorStatementOfAccountsPage,
+  StatementOfAccountDetailPage,
+  StatementOfAccountTruckerPendingPage,
   MasterDataPage,
   CertificateTemplatesPage,
   CertificateTemplatePreviewPage,
@@ -51,6 +55,7 @@ import {
   RolesPage,
   ScheduleDetailPage,
   TruckerDemurrageBillingPage,
+  TruckerStatementOfAccountsPage,
   TruckerPaymentUploadPage,
   TruckerNotificationsPage,
   TruckerPaymentsPage,
@@ -205,6 +210,38 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <RoleReportsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/statement-of-accounts/trucker/:truckerId"
+          element={
+            <RoleRouteGuard>
+              <StatementOfAccountTruckerPendingPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/statement-of-accounts/:id"
+          element={
+            <RoleRouteGuard>
+              <StatementOfAccountDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/statement-of-accounts"
+          element={
+            <RoleRouteGuard>
+              <EvaluatorStatementOfAccountsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/demurrage-rates"
+          element={
+            <RoleRouteGuard>
+              <EvaluatorDemurrageRatesPage />
             </RoleRouteGuard>
           }
         />
@@ -422,6 +459,22 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <TruckerDemurrageBillingPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/statement-of-accounts/:id"
+          element={
+            <RoleRouteGuard>
+              <StatementOfAccountDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="trucker/statement-of-accounts"
+          element={
+            <RoleRouteGuard>
+              <TruckerStatementOfAccountsPage />
             </RoleRouteGuard>
           }
         />

@@ -57,6 +57,8 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 var paymentBadge by remember { mutableIntStateOf(0) }
                 var withdrawalBadge by remember { mutableIntStateOf(0) }
+                var demurrageBadge by remember { mutableIntStateOf(0) }
+                var soaBadge by remember { mutableIntStateOf(0) }
                 var notificationBadge by remember { mutableIntStateOf(0) }
                 var pushNavigation by remember { mutableStateOf(pendingPushNavigation) }
 
@@ -79,6 +81,12 @@ class MainActivity : ComponentActivity() {
                         val d = container.truckerRepository.getDashboard()
                         paymentBadge = d.pendingPayments
                         withdrawalBadge = d.issuedWithdrawalsAwaitingUpload
+                    }
+                    runCatching {
+                        demurrageBadge = container.truckerRepository.getDemurragePaymentDueCount()
+                    }
+                    runCatching {
+                        soaBadge = container.truckerRepository.getSoaPaymentDueCount()
                     }
                     runCatching {
                         notificationBadge = container.truckerRepository.getUnreadNotificationCount()
@@ -109,6 +117,8 @@ class MainActivity : ComponentActivity() {
                     } else {
                         paymentBadge = 0
                         withdrawalBadge = 0
+                        demurrageBadge = 0
+                        soaBadge = 0
                         notificationBadge = 0
                         clearAllTruckerScreenCaches()
                     }
@@ -269,6 +279,8 @@ class MainActivity : ComponentActivity() {
                                                 repository = container.truckerRepository,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                                                 notificationUnreadCount = notificationBadge,
+                                                demurrageDueCount = demurrageBadge,
+                                                soaDueCount = soaBadge,
                                                 onNavigate = { navController.navigate(it) },
                                                 onLogout = { scope.launch { logout() } },
                                             )
@@ -381,11 +393,27 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                 )
                             }
-                            composable(
-                                Routes.DEMURRAGE_DETAIL,
+                            composable(Routes.DEMURRAGE_DETAIL,
                                 arguments = listOf(navArgument("id") { type = NavType.IntType }),
                             ) { entry ->
                                 DemurrageDetailScreen(
+                                    id = entry.arguments?.getInt("id") ?: 0,
+                                    repository = container.truckerRepository,
+                                    onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable(Routes.SOA_LIST) {
+                                SoaListScreen(
+                                    repository = container.truckerRepository,
+                                    onItemClick = { navController.navigate(Routes.soaDetail(it)) },
+                                    onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable(
+                                Routes.SOA_DETAIL,
+                                arguments = listOf(navArgument("id") { type = NavType.IntType }),
+                            ) { entry ->
+                                SoaDetailScreen(
                                     id = entry.arguments?.getInt("id") ?: 0,
                                     repository = container.truckerRepository,
                                     onBack = { navController.popBackStack() },

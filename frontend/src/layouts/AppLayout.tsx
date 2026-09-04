@@ -18,6 +18,7 @@ import {
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import DescriptionIcon from '@mui/icons-material/Description'
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import CalendarViewDayIcon from '@mui/icons-material/CalendarViewDay'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
@@ -101,6 +102,8 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
   containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
   demurrageBilling: <PaymentsIcon fontSize="small" />,
+  demurrageRates: <PaymentsIcon fontSize="small" />,
+  statementOfAccounts: <DescriptionOutlinedIcon fontSize="small" />,
   adminReports: <AssessmentIcon fontSize="small" />,
   depotReports: <AssessmentIcon fontSize="small" />,
   evaluatorReports: <AssessmentIcon fontSize="small" />,
@@ -111,6 +114,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   truckerReturns: <LocalShippingIcon fontSize="small" />,
   truckerPayments: <PaymentsIcon fontSize="small" />,
   truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
+  truckerStatementOfAccounts: <DescriptionOutlinedIcon fontSize="small" />,
   evaluatorAtw: <AssignmentTurnedInOutlinedIcon fontSize="small" />,
   evaluatorCro: <DescriptionIcon fontSize="small" />,
   depotWithdrawals: <UnarchiveOutlinedIcon fontSize="small" />,

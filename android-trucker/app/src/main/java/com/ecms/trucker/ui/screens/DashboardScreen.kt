@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
@@ -535,6 +536,8 @@ fun MenuScreen(
     repository: TruckerRepository,
     onOpenNotifications: () -> Unit,
     notificationUnreadCount: Int = 0,
+    demurrageDueCount: Int = 0,
+    soaDueCount: Int = 0,
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -593,7 +596,17 @@ fun MenuScreen(
                         tint = IcsColors.Warning,
                         title = stringResource(R.string.menu_demurrage_title),
                         subtitle = stringResource(R.string.menu_demurrage_subtitle),
+                        badgeCount = demurrageDueCount,
                         onClick = { onNavigate(Routes.DEMURRAGE_LIST) },
+                    )
+                    MenuRowDivider()
+                    MenuActionRow(
+                        icon = Icons.Outlined.Description,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.menu_soa_title),
+                        subtitle = stringResource(R.string.menu_soa_subtitle),
+                        badgeCount = soaDueCount,
+                        onClick = { onNavigate(Routes.SOA_LIST) },
                     )
                     MenuRowDivider()
                     MenuActionRow(

@@ -54,6 +54,8 @@ object Routes {
     const val WITHDRAWAL_SCHEDULE = "withdrawals/schedule"
     const val DEMURRAGE_LIST = "demurrage"
     const val DEMURRAGE_DETAIL = "demurrage/{id}"
+    const val SOA_LIST = "soa"
+    const val SOA_DETAIL = "soa/{id}"
     const val REPORTS = "reports"
     const val PROFILE = "profile"
     const val NOTIFICATIONS = "notifications"
@@ -65,6 +67,7 @@ object Routes {
     fun qrDetail(bookingId: Int) = "qr/$bookingId"
     fun withdrawalDetail(id: Int) = "withdrawals/$id"
     fun demurrageDetail(id: Int) = "demurrage/$id"
+    fun soaDetail(id: Int) = "soa/$id"
     fun newsDetail(id: Int) = "news/$id"
 }
 

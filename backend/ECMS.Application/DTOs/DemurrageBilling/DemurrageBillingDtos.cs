@@ -32,7 +32,9 @@ public record DemurrageBillingDto(
     string? ProofReferenceNo,
     DateTime? ProofTransactionAt,
     DateTime? PaidAt,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    int? AppliedRateId = null,
+    string? AppliedRateLabel = null);
 
 public record DemurrageBillingFeeInput(string Description, decimal Amount);
 
@@ -48,7 +50,10 @@ public record EligibleDemurragePreAdviceDto(
     string ContainerNo,
     string TruckerName,
     string DemurrageValidUntil,
-    int DaysOverdue);
+    int DaysOverdue,
+    decimal SuggestedDemurrageAmount = 0,
+    decimal SuggestedDetentionAmount = 0,
+    string AppliedRateLabel = "");
 
 public record DemurrageBlockCheckDto(
     bool IsBlocked,

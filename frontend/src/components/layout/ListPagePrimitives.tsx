@@ -38,6 +38,18 @@ export const listHeroActionSx = {
   '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
 }
 
+export const listHeroOutlinedActionSx = {
+  color: '#fff',
+  borderColor: 'rgba(255,255,255,0.55)',
+  fontWeight: 700,
+  flexShrink: 0,
+  width: { xs: '100%', sm: 'auto' },
+  '&:hover': {
+    borderColor: '#fff',
+    bgcolor: 'rgba(255,255,255,0.1)',
+  },
+}
+
 export const listMobileActionsSx = {
   display: 'flex',
   flexDirection: { xs: 'column', sm: 'row' },

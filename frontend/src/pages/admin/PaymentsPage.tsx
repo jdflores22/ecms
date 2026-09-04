@@ -796,6 +796,14 @@ export default function AdminPaymentsPage() {
                     <TableCell align="right">
                       <Button
                         size="small"
+                        component={RouterLink}
+                        to={`/evaluations/demurrage-billing/${item.id}`}
+                        sx={{ mr: 1, fontWeight: 600 }}
+                      >
+                        Review
+                      </Button>
+                      <Button
+                        size="small"
                         color="success"
                         startIcon={<CheckCircleOutlinedIcon />}
                         disabled={demurrageSubmittingId === item.id}

@@ -1,9 +1,10 @@
 import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
-import CalendarViewDayOutlinedIcon from '@mui/icons-material/CalendarViewDayOutlined'
+import AddIcon from '@mui/icons-material/Add'
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
+import DepotScheduleCalendar, { ViewModeToggle } from '../../components/depot/DepotScheduleCalendar'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
@@ -17,12 +18,12 @@ import {
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  ListLoadingState,
 } from '../../components/layout/ListPagePrimitives'
-import { scheduleApi, type Schedule } from '../../services/api'
+import { depotApi, scheduleApi, type Depot, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { formatScheduleDate } from '../../utils/datetime'
+import { formatScheduleDate, startOfWeekMondayIso, todayIsoDate } from '../../utils/datetime'
 import { scheduleStatusLabel } from '../../utils/scheduleStatus'
-import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
 
 const primaryDark = LIST_PRIMARY
 
@@ -96,8 +97,12 @@ export default function DepotSchedulesPage() {
   const location = useLocation()
   const user = useAppSelector((s) => s.auth.user)
   const isDepotView = user?.role === 'DepotPersonnel'
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar')
   const [activeStatus, setActiveStatus] = useState<ScheduleStatusTab>('WaitingSchedule')
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [depots, setDepots] = useState<Depot[]>([])
+  const [weekStart, setWeekStart] = useState(() => startOfWeekMondayIso(todayIsoDate()))
+  const [depotFilterId, setDepotFilterId] = useState<number | 'all'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -112,9 +117,11 @@ export default function DepotSchedulesPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    scheduleApi
-      .list()
-      .then(({ data }) => setSchedules(data))
+    Promise.all([scheduleApi.list(), depotApi.list()])
+      .then(([schedulesRes, depotsRes]) => {
+        setSchedules(schedulesRes.data)
+        setDepots(depotsRes.data.filter((d) => d.isActive))
+      })
       .catch(() => setError('Failed to load schedules.'))
       .finally(() => setLoading(false))
   }, [])
@@ -145,14 +152,16 @@ export default function DepotSchedulesPage() {
   const filtered = useMemo(() => {
     return schedules
       .filter((s) => s.status === activeStatus)
+      .filter((s) => (depotFilterId === 'all' ? true : s.depotId === depotFilterId))
       .sort((a, b) => {
         const byDate = b.date.localeCompare(a.date)
         if (byDate !== 0) return byDate
         return b.id - a.id
       })
-  }, [schedules, activeStatus])
+  }, [schedules, activeStatus, depotFilterId])
 
   const activeTabMeta = visibleStatusTabs.find((t) => t.key === activeStatus) ?? visibleStatusTabs[0]
+  const waitingCount = countByStatus.WaitingSchedule
 
   return (
     <Box sx={listPageRootSx}>
@@ -206,21 +215,23 @@ export default function DepotSchedulesPage() {
             </Box>
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                Depot Scheduling
+                Return slot schedule
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Assign return date — validated against depot daily capacity.
+                Schedule and manage empty container return slots.
               </Typography>
             </Box>
           </Box>
           <Button
-            component={RouterLink}
-            to="/depot/daily-returns"
             variant="contained"
-            startIcon={<CalendarViewDayOutlinedIcon />}
+            startIcon={<AddIcon />}
+            onClick={() => {
+              setViewMode('list')
+              setActiveStatus('WaitingSchedule')
+            }}
             sx={listHeroActionSx}
           >
-            Daily returns
+            New slot
           </Button>
         </Box>
       </Paper>
@@ -238,153 +249,192 @@ export default function DepotSchedulesPage() {
 
       <Box
         sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: 'repeat(2, minmax(0, 1fr))',
-            sm: 'repeat(3, 1fr)',
-            lg: `repeat(${visibleStatusTabs.length}, 1fr)`,
-          },
-          gap: { xs: 1.5, sm: 2 },
-          mb: 3,
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1.5,
+          mb: 2,
         }}
       >
-        {visibleStatusTabs.map((tab) => (
-          <SummaryCard
-            key={tab.key}
-            label={tab.label}
-            value={countByStatus[tab.key]}
-            color={tab.summaryColor}
-          />
-        ))}
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+        {waitingCount > 0 && viewMode === 'calendar' && (
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+            {waitingCount} waiting to assign
+          </Typography>
+        )}
       </Box>
 
-      <Paper
-        elevation={0}
-        sx={{
-          mb: 2,
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
-          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-          overflow: 'hidden',
-        }}
-      >
-        <Tabs
-          value={activeStatus}
-          onChange={(_, v) => setActiveStatus(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          sx={{
-            px: 1,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            bgcolor: hexToRgba(primaryDark, 0.02),
-            '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
-            '& .Mui-selected': { color: primaryDark },
-            '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
-          }}
-        >
-          {visibleStatusTabs.map((tab) => (
-            <Tab
-              key={tab.key}
-              value={tab.key}
-              label={`${tab.label} (${countByStatus[tab.key]})`}
-            />
-          ))}
-        </Tabs>
-      </Paper>
-
-      <Paper elevation={0} sx={listTablePaperSx}>
-        {loading ? (
-          <ListLoadingState />
-        ) : filtered.length === 0 ? (
-          <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
-            No {activeTabMeta.label.toLowerCase()} schedules for this depot.
-          </Typography>
+      {viewMode === 'calendar' ? (
+        loading ? (
+          <Paper elevation={0} sx={listTablePaperSx}>
+            <ListLoadingState />
+          </Paper>
         ) : (
-          <>
-            <ListMobileOnly>
-              {filtered.map((item) => (
-                <ListMobileCard key={item.id} onClick={() => navigate(`/depot/schedules/${item.id}`)}>
-                  <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
-                  <ListMobileMeta>{item.depotName}</ListMobileMeta>
-                  <ListMobileMeta>
-                    {item.date ? formatScheduleDate(item.date) : 'Date not set'}
-                  </ListMobileMeta>
-                  {item.truckerName && <ListMobileMeta>Trucker: {item.truckerName}</ListMobileMeta>}
-                  {item.depotRemarks && (
-                    <ListMobileMeta>Depot remarks: {item.depotRemarks}</ListMobileMeta>
-                  )}
-                  <ListMobileChipRow>
-                    <Chip
-                      label={scheduleStatusLabel(item.status)}
-                      color={statusColor[item.status] ?? 'default'}
-                      size="small"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </ListMobileChipRow>
-                  <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
-                    <ScheduleRowActions item={item} />
-                  </Box>
-                </ListMobileCard>
-              ))}
-            </ListMobileOnly>
+          <DepotScheduleCalendar
+            schedules={schedules}
+            depots={depots}
+            weekStart={weekStart}
+            depotFilterId={depotFilterId}
+            onWeekStartChange={setWeekStart}
+            onDepotFilterChange={setDepotFilterId}
+            onOpenSchedule={(id) => navigate(`/depot/schedules/${id}`)}
+            onOpenDay={(date, depotId) => navigate(`/depot/daily-returns?date=${date}&depotId=${depotId}`)}
+          />
+        )
+      ) : (
+        <>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                sm: 'repeat(3, 1fr)',
+                lg: `repeat(${visibleStatusTabs.length}, 1fr)`,
+              },
+              gap: { xs: 1.5, sm: 2 },
+              mb: 3,
+            }}
+          >
+            {visibleStatusTabs.map((tab) => (
+              <SummaryCard
+                key={tab.key}
+                label={tab.label}
+                value={countByStatus[tab.key]}
+                color={tab.summaryColor}
+              />
+            ))}
+          </Box>
 
-            <ListDesktopOnly>
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow
-                      sx={{
-                        bgcolor: hexToRgba(primaryDark, 0.04),
-                        '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
-                      }}
-                    >
-                      <TableCell>Reference</TableCell>
-                      <TableCell>Depot</TableCell>
-                      <TableCell>Return date</TableCell>
-                      <TableCell>Trucker</TableCell>
-                      <TableCell>Depot remarks</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filtered.map((item) => (
-                      <TableRow
-                        key={item.id}
-                        hover
-                        sx={{ '&:last-child td': { borderBottom: 0 }, cursor: 'pointer' }}
-                        onClick={() => navigate(`/depot/schedules/${item.id}`)}
-                      >
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-                        <TableCell>{item.depotName}</TableCell>
-                        <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
-                        <TableCell>{item.truckerName ?? '—'}</TableCell>
-                        <TableCell
+          <Paper
+            elevation={0}
+            sx={{
+              mb: 2,
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: '#fff',
+              boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+              overflow: 'hidden',
+            }}
+          >
+            <Tabs
+              value={activeStatus}
+              onChange={(_, v) => setActiveStatus(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                px: 1,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                bgcolor: hexToRgba(primaryDark, 0.02),
+                '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
+                '& .Mui-selected': { color: primaryDark },
+                '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0', bgcolor: '#00A3E0' },
+              }}
+            >
+              {visibleStatusTabs.map((tab) => (
+                <Tab
+                  key={tab.key}
+                  value={tab.key}
+                  label={`${tab.label} (${countByStatus[tab.key]})`}
+                />
+              ))}
+            </Tabs>
+          </Paper>
+
+          <Paper elevation={0} sx={listTablePaperSx}>
+            {loading ? (
+              <ListLoadingState />
+            ) : filtered.length === 0 ? (
+              <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary', px: 2 }}>
+                No {activeTabMeta.label.toLowerCase()} schedules for this depot.
+              </Typography>
+            ) : (
+              <>
+                <ListMobileOnly>
+                  {filtered.map((item) => (
+                    <ListMobileCard key={item.id} onClick={() => navigate(`/depot/schedules/${item.id}`)}>
+                      <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+                      <ListMobileMeta>{item.depotName}</ListMobileMeta>
+                      <ListMobileMeta>
+                        {item.date ? formatScheduleDate(item.date) : 'Date not set'}
+                      </ListMobileMeta>
+                      {item.truckerName && <ListMobileMeta>Trucker: {item.truckerName}</ListMobileMeta>}
+                      {item.depotRemarks && (
+                        <ListMobileMeta>Depot remarks: {item.depotRemarks}</ListMobileMeta>
+                      )}
+                      <ListMobileChipRow>
+                        <Chip
+                          label={scheduleStatusLabel(item.status)}
+                          color={statusColor[item.status] ?? 'default'}
+                          size="small"
+                          sx={{ fontWeight: 600 }}
+                        />
+                      </ListMobileChipRow>
+                      <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
+                        <ScheduleRowActions item={item} />
+                      </Box>
+                    </ListMobileCard>
+                  ))}
+                </ListMobileOnly>
+
+                <ListDesktopOnly>
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow
                           sx={{
-                            maxWidth: 220,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            color: item.depotRemarks ? 'text.primary' : 'text.secondary',
+                            bgcolor: hexToRgba(primaryDark, 0.04),
+                            '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                           }}
-                          title={item.depotRemarks ?? undefined}
                         >
-                          {item.depotRemarks || '—'}
-                        </TableCell>
-                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                          <ScheduleRowActions item={item} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </ListDesktopOnly>
-          </>
-        )}
-      </Paper>
+                          <TableCell>Reference</TableCell>
+                          <TableCell>Depot</TableCell>
+                          <TableCell>Return date</TableCell>
+                          <TableCell>Trucker</TableCell>
+                          <TableCell>Depot remarks</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filtered.map((item) => (
+                          <TableRow
+                            key={item.id}
+                            hover
+                            sx={{ '&:last-child td': { borderBottom: 0 }, cursor: 'pointer' }}
+                            onClick={() => navigate(`/depot/schedules/${item.id}`)}
+                          >
+                            <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
+                            <TableCell>{item.depotName}</TableCell>
+                            <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
+                            <TableCell>{item.truckerName ?? '—'}</TableCell>
+                            <TableCell
+                              sx={{
+                                maxWidth: 220,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                color: item.depotRemarks ? 'text.primary' : 'text.secondary',
+                              }}
+                              title={item.depotRemarks ?? undefined}
+                            >
+                              {item.depotRemarks || '—'}
+                            </TableCell>
+                            <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                              <ScheduleRowActions item={item} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </ListDesktopOnly>
+              </>
+            )}
+          </Paper>
+        </>
+      )}
     </Box>
   )
 }

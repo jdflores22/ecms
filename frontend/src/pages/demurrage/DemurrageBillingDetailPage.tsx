@@ -4,7 +4,9 @@ import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
@@ -35,6 +37,11 @@ import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { openSignedAsset } from '../../utils/openSignedAsset'
 import { formatDate, formatDateTime, formatPeso } from '../../utils/datetime'
 import { paymentStatusLabel } from '../../utils/truckerPayment'
+import {
+  fromDatetimeLocalValue,
+  normalizeProofReferenceNo,
+  toDatetimeLocalValue,
+} from '../../utils/paymentProofTextParser'
 
 const primaryDark = ICS_PRIMARY
 
@@ -69,12 +76,12 @@ function statusMessage(item: DemurrageBilling, isTrucker: boolean) {
   switch (item.status) {
     case 'Pending':
       return isTrucker
-        ? 'Payment is due. Upload proof of payment to start admin verification.'
+        ? 'Payment is due. Upload proof of payment to start verification.'
         : 'Outstanding — trucker has not uploaded payment proof yet.'
     case 'ForVerification':
       return isTrucker
-        ? 'Your proof is under admin review. You will be notified when verified.'
-        : 'Payment proof uploaded — awaiting admin verification.'
+        ? 'Your proof is under review by the shipping line / ICS admin. You will be notified when verified.'
+        : 'Payment proof uploaded — review the receipt and approve or reject, same as ICS admin payment verification.'
     case 'Paid':
       return 'Settled. The trucker may submit a new pre-forecast for this container.'
     case 'Rejected':
@@ -85,6 +92,8 @@ function statusMessage(item: DemurrageBilling, isTrucker: boolean) {
       return null
   }
 }
+
+type VerifyAction = 'approve' | 'reject'
 
 export default function DemurrageBillingDetailPage() {
   const { id } = useParams()
@@ -107,6 +116,12 @@ export default function DemurrageBillingDetailPage() {
   const [feeRows, setFeeRows] = useState<FeeRow[]>([])
   const [feeError, setFeeError] = useState('')
   const [feeSaving, setFeeSaving] = useState(false)
+
+  const [verifyAction, setVerifyAction] = useState<VerifyAction | null>(null)
+  const [verifyReferenceNo, setVerifyReferenceNo] = useState('')
+  const [verifyTransactionLocal, setVerifyTransactionLocal] = useState('')
+  const [verifyError, setVerifyError] = useState('')
+  const [verifying, setVerifying] = useState(false)
 
   const load = useCallback(() => {
     if (!billingId) return
@@ -138,6 +153,45 @@ export default function DemurrageBillingDetailPage() {
 
   const canUpload = item != null && (item.status === 'Pending' || item.status === 'Rejected') && isTrucker
   const canEditFees = item != null && (item.status === 'Pending' || item.status === 'Rejected') && !isTrucker
+  const canVerify =
+    item != null && item.status === 'ForVerification' && !!item.proofFile && !isTrucker
+
+  const openVerify = (action: VerifyAction) => {
+    if (!item) return
+    setVerifyError('')
+    setVerifyAction(action)
+    setVerifyReferenceNo(item.proofReferenceNo ?? '')
+    setVerifyTransactionLocal(toDatetimeLocalValue(item.proofTransactionAt))
+  }
+
+  const closeVerify = () => {
+    if (verifying) return
+    setVerifyAction(null)
+    setVerifyError('')
+  }
+
+  const submitVerify = async () => {
+    if (!item || !verifyAction) return
+    setVerifying(true)
+    setVerifyError('')
+    try {
+      const { data } = await demurrageBillingApi.verify(item.id, verifyAction === 'approve', {
+        proofReferenceNo: normalizeProofReferenceNo(verifyReferenceNo) ?? undefined,
+        proofTransactionAt: fromDatetimeLocalValue(verifyTransactionLocal) ?? undefined,
+      })
+      setItem(data)
+      setVerifyAction(null)
+      setSuccessMessage(
+        verifyAction === 'approve'
+          ? 'Demurrage payment approved. Trucker can submit the pre-forecast.'
+          : 'Demurrage payment rejected. Trucker must upload a new proof.',
+      )
+    } catch (err: unknown) {
+      setVerifyError(apiErrorMessage(err, 'Failed to update demurrage payment verification.'))
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   const openFeeEditor = () => {
     if (!item) return
@@ -177,7 +231,7 @@ export default function DemurrageBillingDetailPage() {
     try {
       const { data } = await demurrageBillingApi.uploadProof(item.id, file)
       setItem(data)
-      setSuccessMessage('Payment proof uploaded. Admin will verify shortly.')
+      setSuccessMessage('Payment proof uploaded. Shipping line or ICS admin will verify shortly.')
     } catch (err: unknown) {
       setUploadError(apiErrorMessage(err, 'Upload failed. Try again with a clear payment proof.'))
     } finally {
@@ -291,6 +345,9 @@ export default function DemurrageBillingDetailPage() {
             <InfoTile label="Expired on" value={formatDate(item.expiredOn)} />
             <InfoTile label="Days overdue" value={String(item.daysOverdue)} />
             <InfoTile label="Created" value={formatDateTime(item.createdAt)} />
+            {item.appliedRateLabel && (
+              <InfoTile label="Applied rate rule" value={item.appliedRateLabel} />
+            )}
             {item.proofReferenceNo && <InfoTile label="Proof reference" value={item.proofReferenceNo} mono />}
             {item.proofTransactionAt && (
               <InfoTile label="Proof transaction" value={formatDateTime(item.proofTransactionAt)} />
@@ -368,9 +425,11 @@ export default function DemurrageBillingDetailPage() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
           {canUpload
-            ? 'Attach a clear image or PDF of your payment receipt. Admin verifies before the container block is lifted.'
+            ? 'Attach a clear image or PDF of your payment receipt. Shipping line or ICS admin verifies before the container block is lifted.'
             : item.proofFile
-              ? 'Submitted proof of payment for this billing.'
+              ? canVerify
+                ? 'Review the submitted proof, then approve or reject — same verification flow used by ICS admin.'
+                : 'Submitted proof of payment for this billing.'
               : 'No payment proof uploaded yet.'}
         </Typography>
 
@@ -441,6 +500,29 @@ export default function DemurrageBillingDetailPage() {
           </Box>
         ) : null}
 
+        {canVerify && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: item.proofFile ? 2.5 : 0 }}>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<CheckCircleOutlinedIcon />}
+              onClick={() => openVerify('approve')}
+              sx={{ fontWeight: 700, borderRadius: 2 }}
+            >
+              Approve payment
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<CancelOutlinedIcon />}
+              onClick={() => openVerify('reject')}
+              sx={{ fontWeight: 700, borderRadius: 2 }}
+            >
+              Reject payment
+            </Button>
+          </Box>
+        )}
+
         {canUpload && (
           <Button
             variant="contained"
@@ -494,6 +576,67 @@ export default function DemurrageBillingDetailPage() {
           </Button>
           <Button variant="contained" onClick={() => void saveFees()} disabled={feeSaving} sx={{ fontWeight: 700, borderRadius: 2 }}>
             {feeSaving ? 'Saving…' : 'Save fees'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={verifyAction !== null} onClose={closeVerify} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          {verifyAction === 'approve' ? 'Approve demurrage payment' : 'Reject demurrage payment'}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Alert severity={verifyAction === 'approve' ? 'success' : 'warning'} sx={{ mb: 2, borderRadius: 2 }}>
+            {verifyAction === 'approve'
+              ? `Confirm ₱${item.totalAmount.toLocaleString()} received for ${item.referenceNo}. Trucker can then submit the pre-forecast.`
+              : `Reject proof for ${item.referenceNo}. Trucker must upload a new receipt.`}
+          </Alert>
+          <BillingContextCard
+            referenceNo={item.referenceNo}
+            containerNo={item.containerNo}
+            truckerName={item.truckerName}
+            validUntil={item.demurrageValidUntil}
+            daysOverdue={item.daysOverdue}
+          />
+          {verifyError && (
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+              {verifyError}
+            </Alert>
+          )}
+          <TextField
+            label="Proof reference no. (optional)"
+            value={verifyReferenceNo}
+            onChange={(e) => setVerifyReferenceNo(e.target.value)}
+            fullWidth
+            margin="normal"
+            disabled={verifying}
+          />
+          <TextField
+            label="Transaction date/time (optional)"
+            type="datetime-local"
+            value={verifyTransactionLocal}
+            onChange={(e) => setVerifyTransactionLocal(e.target.value)}
+            fullWidth
+            margin="normal"
+            disabled={verifying}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={closeVerify} disabled={verifying}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={verifyAction === 'reject' ? 'error' : 'success'}
+            onClick={() => void submitVerify()}
+            disabled={verifying}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            {verifying
+              ? 'Saving…'
+              : verifyAction === 'approve'
+                ? 'Approve payment'
+                : 'Reject payment'}
           </Button>
         </DialogActions>
       </Dialog>

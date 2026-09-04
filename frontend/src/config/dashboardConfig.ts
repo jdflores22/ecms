@@ -63,6 +63,8 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
     actions: [
       { label: 'Open evaluations', path: '/evaluations', icon: FactCheckIcon },
+      { label: 'Demurrage rates', path: '/evaluations/demurrage-rates', icon: PaymentsIcon },
+      { label: 'Statements (SOA)', path: '/evaluations/statement-of-accounts', icon: AssignmentIcon },
       { label: 'CY allocation', path: '/evaluations/cy-allocation', icon: WarehouseIcon },
       { label: 'CY inventory', path: '/evaluations/container-inventory', icon: WarehouseIcon },
     ],

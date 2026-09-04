@@ -13,7 +13,8 @@ Native Android app for **Trucker** role users. Connects to the same ECMS REST AP
 | **Payments** | Due list, upload proof (image/PDF) |
 | **QR passes** | View QR codes, book LOGICTECK |
 | **Withdrawals** | List, create ATW withdrawal, upload certificate, submit, gate pass |
-| **Demurrage** | Outstanding billings, upload payment proof |
+| **Demurrage** | Status tabs, summary cards, proof upload (list + detail), applied rate label |
+| **Statements (SOA)** | List open SOAs, view lines, upload payment proof |
 | **Reports** | Daily & monthly return reports |
 | **Profile** | Update profile, change password |
 | **Notifications** | In-app notification list + push alerts (FCM) when configured |

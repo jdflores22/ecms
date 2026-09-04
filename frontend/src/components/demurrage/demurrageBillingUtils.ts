@@ -7,6 +7,13 @@ export const DEFAULT_FEE_ROWS: FeeRow[] = [
   { key: 'detention', description: 'Detention', amount: 2500 },
 ]
 
+export function feeRowsFromAmounts(demurrageAmount: number, detentionAmount: number): FeeRow[] {
+  const rows: FeeRow[] = []
+  if (demurrageAmount > 0) rows.push({ key: 'demurrage', description: 'Demurrage', amount: demurrageAmount })
+  if (detentionAmount > 0) rows.push({ key: 'detention', description: 'Detention', amount: detentionAmount })
+  return rows.length > 0 ? rows : DEFAULT_FEE_ROWS.map((row) => ({ ...row }))
+}
+
 export const FEE_PRESETS = ['Storage fee', 'Handling fee', 'Admin fee', 'Lift-off charge'] as const
 
 export function isExpiredValidUntil(dateStr: string) {
