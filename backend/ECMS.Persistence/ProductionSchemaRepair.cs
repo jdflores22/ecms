@@ -72,6 +72,10 @@ public static class ProductionSchemaRepair
         await EnsureContainerReleaseOrdersAsync(db, logger, cancellationToken);
 
         await EnsurePreAdviceCroLinkAsync(db, logger, cancellationToken);
+
+        await EnsureDemurrageDetentionRatesAsync(db, logger, cancellationToken);
+
+        await EnsureStatementOfAccountsAsync(db, logger, cancellationToken);
     }
 
     private static async Task EnsurePreAdviceCroLinkAsync(
@@ -691,6 +695,253 @@ public static class ProductionSchemaRepair
             ) CHARACTER SET=utf8mb4
             """,
             cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('{migrationId}', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureDemurrageDetentionRatesAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260903020000_AddDemurrageDetentionRates";
+
+        if (!await TableExistsAsync(db, "DemurrageDetentionRatesSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table DemurrageDetentionRatesSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `DemurrageDetentionRatesSet` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `ShippingLineId` int NOT NULL,
+                    `DepotId` int NULL,
+                    `ContainerSizeId` int NULL,
+                    `DemurrageAmount` decimal(18,2) NOT NULL,
+                    `DetentionAmount` decimal(18,2) NOT NULL,
+                    `EffectiveFrom` date NOT NULL,
+                    `EffectiveTo` date NULL,
+                    `IsActive` tinyint(1) NOT NULL,
+                    `UpdatedAt` datetime(6) NOT NULL,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`),
+                    KEY `IX_DemurrageDetentionRates_Line_Depot_Size_Active_From`
+                        (`ShippingLineId`, `DepotId`, `ContainerSizeId`, `IsActive`, `EffectiveFrom`),
+                    KEY `IX_DemurrageDetentionRates_DepotId` (`DepotId`),
+                    KEY `IX_DemurrageDetentionRates_ContainerSizeId` (`ContainerSizeId`),
+                    CONSTRAINT `FK_DemurrageDetentionRates_ShippingLines`
+                        FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE,
+                    CONSTRAINT `FK_DemurrageDetentionRates_Depots`
+                        FOREIGN KEY (`DepotId`) REFERENCES `DepotsSet` (`Id`) ON DELETE RESTRICT,
+                    CONSTRAINT `FK_DemurrageDetentionRates_ContainerSizes`
+                        FOREIGN KEY (`ContainerSizeId`) REFERENCES `ContainerSizesSet` (`Id`) ON DELETE RESTRICT
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
+
+        if (await TableExistsAsync(db, "DemurrageBillingsSet", cancellationToken))
+        {
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "DemurrageBillingsSet",
+                "AppliedRateId",
+                "int NULL",
+                migrationId,
+                cancellationToken);
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "DemurrageBillingsSet",
+                "AppliedRateLabel",
+                "varchar(256) CHARACTER SET utf8mb4 NULL",
+                migrationId,
+                cancellationToken);
+
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    CREATE INDEX `IX_DemurrageBillings_AppliedRateId`
+                    ON `DemurrageBillingsSet` (`AppliedRateId`)
+                    """,
+                    cancellationToken);
+            }
+            catch
+            {
+                /* index may already exist */
+            }
+
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    ALTER TABLE `DemurrageBillingsSet`
+                    ADD CONSTRAINT `FK_DemurrageBillings_AppliedRate`
+                    FOREIGN KEY (`AppliedRateId`) REFERENCES `DemurrageDetentionRatesSet` (`Id`)
+                    ON DELETE SET NULL
+                    """,
+                    cancellationToken);
+            }
+            catch
+            {
+                /* constraint may already exist */
+            }
+        }
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('{migrationId}', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureStatementOfAccountsAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260904140000_AddStatementOfAccounts";
+
+        if (await TableExistsAsync(db, "DemurrageBillingsSet", cancellationToken))
+        {
+            await EnsureColumnAsync(
+                db,
+                logger,
+                "DemurrageBillingsSet",
+                "StatementOfAccountId",
+                "int NULL",
+                migrationId,
+                cancellationToken);
+        }
+
+        if (!await TableExistsAsync(db, "ShippingLineCreditLinesSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table ShippingLineCreditLinesSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `ShippingLineCreditLinesSet` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `ShippingLineId` int NOT NULL,
+                    `CreditLimit` decimal(18,2) NOT NULL,
+                    `UtilizedAmount` decimal(18,2) NOT NULL,
+                    `IsActive` tinyint(1) NOT NULL,
+                    `UpdatedAt` datetime(6) NOT NULL,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`),
+                    UNIQUE KEY `IX_ShippingLineCreditLinesSet_ShippingLineId` (`ShippingLineId`),
+                    CONSTRAINT `FK_ShippingLineCreditLines_ShippingLines`
+                        FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
+
+        if (!await TableExistsAsync(db, "StatementOfAccountsSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table StatementOfAccountsSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `StatementOfAccountsSet` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `ReferenceNo` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
+                    `ShippingLineId` int NOT NULL,
+                    `TruckerId` int NOT NULL,
+                    `PeriodFrom` date NULL,
+                    `PeriodTo` date NULL,
+                    `Status` int NOT NULL,
+                    `TotalAmount` decimal(18,2) NOT NULL,
+                    `CreditApplied` decimal(18,2) NOT NULL,
+                    `AmountDue` decimal(18,2) NOT NULL,
+                    `DueDate` date NULL,
+                    `IssuedAt` datetime(6) NULL,
+                    `PaidAt` datetime(6) NULL,
+                    `IssuedByUserId` int NULL,
+                    `Remarks` varchar(1000) CHARACTER SET utf8mb4 NULL,
+                    `ProofFile` longtext CHARACTER SET utf8mb4 NULL,
+                    `ProofReferenceNo` varchar(64) CHARACTER SET utf8mb4 NULL,
+                    `ProofTransactionAt` datetime(6) NULL,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`),
+                    UNIQUE KEY `IX_StatementOfAccountsSet_ReferenceNo` (`ReferenceNo`),
+                    KEY `IX_StatementOfAccountsSet_ShippingLineId_TruckerId_Status`
+                        (`ShippingLineId`, `TruckerId`, `Status`),
+                    KEY `IX_StatementOfAccountsSet_IssuedByUserId` (`IssuedByUserId`),
+                    CONSTRAINT `FK_StatementOfAccounts_ShippingLines`
+                        FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE RESTRICT,
+                    CONSTRAINT `FK_StatementOfAccounts_Truckers`
+                        FOREIGN KEY (`TruckerId`) REFERENCES `UsersSet` (`Id`) ON DELETE RESTRICT,
+                    CONSTRAINT `FK_StatementOfAccounts_IssuedBy`
+                        FOREIGN KEY (`IssuedByUserId`) REFERENCES `UsersSet` (`Id`) ON DELETE SET NULL
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
+
+        if (!await TableExistsAsync(db, "StatementOfAccountLinesSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table StatementOfAccountLinesSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `StatementOfAccountLinesSet` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `StatementOfAccountId` int NOT NULL,
+                    `DemurrageBillingId` int NOT NULL,
+                    `Description` varchar(300) CHARACTER SET utf8mb4 NOT NULL,
+                    `Amount` decimal(18,2) NOT NULL,
+                    `SortOrder` int NOT NULL,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`),
+                    UNIQUE KEY `IX_StatementOfAccountLinesSet_DemurrageBillingId` (`DemurrageBillingId`),
+                    KEY `IX_StatementOfAccountLinesSet_StatementOfAccountId` (`StatementOfAccountId`),
+                    CONSTRAINT `FK_StatementOfAccountLines_SOA`
+                        FOREIGN KEY (`StatementOfAccountId`) REFERENCES `StatementOfAccountsSet` (`Id`) ON DELETE CASCADE,
+                    CONSTRAINT `FK_StatementOfAccountLines_DemurrageBilling`
+                        FOREIGN KEY (`DemurrageBillingId`) REFERENCES `DemurrageBillingsSet` (`Id`) ON DELETE RESTRICT
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
+
+        if (await TableExistsAsync(db, "DemurrageBillingsSet", cancellationToken)
+            && await TableExistsAsync(db, "StatementOfAccountsSet", cancellationToken))
+        {
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    CREATE INDEX `IX_DemurrageBillingsSet_StatementOfAccountId`
+                    ON `DemurrageBillingsSet` (`StatementOfAccountId`)
+                    """,
+                    cancellationToken);
+            }
+            catch
+            {
+                /* index may already exist */
+            }
+
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    ALTER TABLE `DemurrageBillingsSet`
+                    ADD CONSTRAINT `FK_DemurrageBillings_StatementOfAccounts`
+                    FOREIGN KEY (`StatementOfAccountId`) REFERENCES `StatementOfAccountsSet` (`Id`)
+                    ON DELETE SET NULL
+                    """,
+                    cancellationToken);
+            }
+            catch
+            {
+                /* constraint may already exist */
+            }
+        }
 
         await db.Database.ExecuteSqlRawAsync(
             $"""
