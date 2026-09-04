@@ -166,6 +166,12 @@ export default function SignUpPage() {
         </Button>
 
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+          <Button component={RouterLink} to="/trucker/faq" sx={{ fontWeight: 600, color: primaryDark, p: 0, minWidth: 0 }}>
+            Read trucker FAQ
+          </Button>
+          {' '}before you register.
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
           Already have an account?{' '}
           <Button component={RouterLink} to="/login" sx={{ fontWeight: 700, color: primaryDark, p: 0, minWidth: 0 }}>
             Sign in

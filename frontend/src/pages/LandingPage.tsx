@@ -175,6 +175,21 @@ export default function LandingPage() {
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
                 component={RouterLink}
+                to="/trucker/faq"
+                variant="text"
+                size="small"
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  fontWeight: 700,
+                  borderRadius: 2,
+                  color: '#fff',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+                }}
+              >
+                Trucker FAQ
+              </Button>
+              <Button
+                component={RouterLink}
                 to="/login"
                 variant="outlined"
                 size="small"
@@ -518,6 +533,14 @@ export default function LandingPage() {
                 sx={{ fontWeight: 700, borderRadius: 2.5, py: 1.35 }}
               >
                 {ICS_LANDING.primaryCta}
+              </Button>
+              <Button
+                component={RouterLink}
+                to="/trucker/faq"
+                fullWidth
+                sx={{ mt: 1.5, fontWeight: 700, borderRadius: 2.5, color: primaryDark }}
+              >
+                Trucker FAQ — no login needed
               </Button>
             </Paper>
 

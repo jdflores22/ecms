@@ -5,6 +5,7 @@ import { ensureValidAccessToken } from './services/api'
 import { useAppSelector } from './store/hooks'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import TruckerFaqPage from './pages/TruckerFaqPage'
 import LandingPage from './pages/LandingPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -127,6 +128,7 @@ export default function App() {
       <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup/:role" element={<SignUpPage />} />
+      <Route path="/trucker/faq" element={<TruckerFaqPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route

@@ -1,3 +1,4 @@
+import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import {
   Alert,
   Box,
@@ -151,32 +152,66 @@ export default function LoginPage() {
         >
           Forgot password?
         </Button>
+
         <Box
           sx={{
-            mt: 1,
+            mt: 0.5,
             pt: 2,
             borderTop: '1px solid',
             borderColor: 'divider',
             textAlign: 'center',
           }}
         >
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             New to ICS?
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+          <Button
+            component={RouterLink}
+            to="/signup/trucker"
+            variant="outlined"
+            fullWidth
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            Create trucker account
+          </Button>
+          <Box
+            sx={{
+              mt: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1,
+              flexWrap: 'wrap',
+            }}
+          >
             <Button
               component={RouterLink}
-              to="/signup/trucker"
-              variant="outlined"
-              fullWidth
-              sx={{ fontWeight: 700, borderRadius: 2 }}
+              to="/"
+              size="small"
+              sx={{ fontWeight: 600, color: 'text.secondary', minWidth: 0, px: 1 }}
             >
-              Create trucker account
+              Back to home
+            </Button>
+            <Typography variant="caption" color="text.disabled" aria-hidden>
+              ·
+            </Typography>
+            <Button
+              component={RouterLink}
+              to="/trucker/faq"
+              size="small"
+              startIcon={<HelpOutlineOutlinedIcon sx={{ fontSize: 15 }} />}
+              sx={{
+                fontWeight: 600,
+                color: 'text.secondary',
+                textTransform: 'none',
+                minWidth: 0,
+                px: 1,
+                '&:hover': { color: primaryDark, bgcolor: 'transparent' },
+              }}
+            >
+              Trucker FAQ
             </Button>
           </Box>
-          <Button component={RouterLink} to="/" sx={{ mt: 1.5, fontWeight: 600, color: primaryDark }}>
-            Back to home
-          </Button>
         </Box>
       </Box>
     </AuthShell>
