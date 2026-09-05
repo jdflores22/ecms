@@ -1,4 +1,5 @@
 import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
+import AndroidOutlinedIcon from '@mui/icons-material/AndroidOutlined'
 import {
   Alert,
   Box,
@@ -11,6 +12,7 @@ import {
 import { useState } from 'react'
 import { Navigate, Link as RouterLink } from 'react-router-dom'
 import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
+import { TRUCKER_APP_DOWNLOAD } from '../config/truckerAppDownload'
 import axios from 'axios'
 import { authApi, resetAuthRefreshState } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -210,6 +212,25 @@ export default function LoginPage() {
               }}
             >
               Trucker FAQ
+            </Button>
+            <Typography variant="caption" color="text.disabled" aria-hidden>
+              ·
+            </Typography>
+            <Button
+              component={RouterLink}
+              to={TRUCKER_APP_DOWNLOAD.publicPagePath}
+              size="small"
+              startIcon={<AndroidOutlinedIcon sx={{ fontSize: 15 }} />}
+              sx={{
+                fontWeight: 600,
+                color: 'text.secondary',
+                textTransform: 'none',
+                minWidth: 0,
+                px: 1,
+                '&:hover': { color: primaryDark, bgcolor: 'transparent' },
+              }}
+            >
+              Android app
             </Button>
           </Box>
         </Box>

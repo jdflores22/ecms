@@ -12,6 +12,15 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+fun releaseSigningConfigured(): Boolean {
+    val path = localProperties.getProperty("RELEASE_STORE_FILE")?.trim()
+    return !path.isNullOrEmpty() &&
+        !localProperties.getProperty("RELEASE_STORE_PASSWORD").isNullOrBlank() &&
+        !localProperties.getProperty("RELEASE_KEY_ALIAS").isNullOrBlank() &&
+        !localProperties.getProperty("RELEASE_KEY_PASSWORD").isNullOrBlank() &&
+        rootProject.file(path).exists()
+}
+
 val firebaseEnabled = file("google-services.json").exists()
 if (firebaseEnabled) {
     apply(plugin = "com.google.gms.google-services")
@@ -52,6 +61,51 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured()) {
+                val storePath = localProperties.getProperty("RELEASE_STORE_FILE")!!.trim()
+                storeFile = rootProject.file(storePath)
+                storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+                keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+                keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = false
+            if (releaseSigningConfigured()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+        debug {
+            versionNameSuffix = "-debug"
+        }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val needsReleaseSigning = allTasks.any {
+        it.name == "assembleRelease" || it.name == "bundleRelease" || it.name == "packageRelease"
+    }
+    if (needsReleaseSigning && !releaseSigningConfigured()) {
+        error(
+            """
+            Release signing is not configured.
+
+            1. Run:  android-trucker\scripts\create-release-keystore.ps1
+            2. Then: android-trucker\scripts\build-release-apk.ps1
+
+            Or set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and
+            RELEASE_KEY_PASSWORD in android-trucker/local.properties (see local.properties.example).
+            """.trimIndent(),
+        )
     }
 }
 

@@ -2,6 +2,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
+import AndroidOutlinedIcon from '@mui/icons-material/AndroidOutlined'
 import {
   Accordion,
   AccordionDetails,
@@ -20,6 +21,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import IcsLogo from '../components/brand/IcsLogo'
 import { ICS_BRAND, ICS_LANDING } from '../config/brandCopy'
 import { TRUCKER_FAQ_CATEGORIES, type TruckerFaqItem } from '../config/truckerFaq'
+import { TRUCKER_APP_DOWNLOAD } from '../config/truckerAppDownload'
 
 const primaryDark = '#0B3D91'
 const primaryLight = '#00A3E0'
@@ -72,6 +74,21 @@ export default function TruckerFaqPage() {
               <IcsLogo height={{ xs: 36, sm: 44 }} maxWidth={{ xs: 120, sm: 150 }} />
             </Box>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Button
+                component={RouterLink}
+                to={TRUCKER_APP_DOWNLOAD.publicPagePath}
+                size="small"
+                startIcon={<AndroidOutlinedIcon />}
+                sx={{
+                  fontWeight: 700,
+                  borderRadius: 2,
+                  color: '#fff',
+                  bgcolor: 'rgba(255,255,255,0.14)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.22)' },
+                }}
+              >
+                Android app
+              </Button>
               <Button
                 component={RouterLink}
                 to="/trucker/faq"

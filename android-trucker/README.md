@@ -137,16 +137,49 @@ All endpoints mirror the web trucker role (`frontend/src/services/api.ts`):
 - `GET/PUT /profile`, `POST /profile/change-password`
 - `GET /notifications`
 
-## Building release APK
+## Building release APK (signed — for trucker install / Google Play)
+
+Use a **signed release** build for distribution. Debug builds show version suffix `-debug` in About and are only for development.
+
+### One-time setup
+
+```powershell
+cd android-trucker
+.\scripts\create-release-keystore.ps1
+```
+
+This creates `keystore/ics-trucker-upload.jks` and adds signing entries to `local.properties` (gitignored). **Back up the keystore and passwords** — you need the same key for all future updates and Google Play.
+
+### Build installable release APK
+
+```powershell
+cd android-trucker
+.\scripts\build-release-apk.ps1
+```
+
+Output:
+
+- `dist/ICS-Trucker-v{version}-release.apk` — share this file to truckers
+- Also: `app/build/outputs/apk/release/app-release.apk`
+
+### Google Play (later)
+
+Same keystore works for Play upload. Build an App Bundle with:
+
+```powershell
+.\gradlew.bat bundleRelease --no-daemon
+```
+
+Upload `app/build/outputs/bundle/release/app-release.aab` to Play Console.
+
+## Building debug APK (developers only)
 
 ```bash
 cd android-trucker
-./gradlew assembleRelease
+./gradlew assembleDebug
 ```
 
-Output: `app/build/outputs/apk/release/app-release-unsigned.apk`
-
-Sign with your keystore before distributing to truckers.
+Output: `app/build/outputs/apk/debug/app-debug.apk`
 
 ## Notes
 

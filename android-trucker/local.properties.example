@@ -4,5 +4,11 @@ sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
 # Production (Railway)
 API_BASE_URL=https://ecms-production-42be.up.railway.app/api
 
+# Release signing (run scripts/create-release-keystore.ps1 once — do not commit)
+# RELEASE_STORE_FILE=keystore\\ics-trucker-upload.jks
+# RELEASE_STORE_PASSWORD=your-store-password
+# RELEASE_KEY_ALIAS=ics-trucker
+# RELEASE_KEY_PASSWORD=your-key-password
+
 # Web frontend (Hostinger) — reference only
 # FRONTEND_URL=https://deepskyblue-marten-415020.hostingersite.com/

@@ -12,4 +12,7 @@ google-services.json
 *firebase-adminsdk*.json
 *.apk
 *.aab
+/dist/
 *.keystore
+*.jks
+/keystore/

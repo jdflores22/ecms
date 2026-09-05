@@ -219,9 +219,9 @@ export const TRUCKER_FAQ_CATEGORIES: TruckerFaqCategory[] = [
         question: 'Is there a mobile app for truckers?',
         questionTl: 'May mobile app ba para sa truckers?',
         answer:
-          'Yes — the ICS Trucker Android app supports pre-forecast, returns, payments, demurrage, SOA, withdrawals, and push notifications. Install the latest build from your administrator or internal distribution link.',
+          'Yes — download the ICS Trucker Android app from the Download page (also linked on the sign-in screen). It supports pre-forecast, returns, payments, demurrage, SOA, withdrawals, and push notifications.',
         answerTl:
-          'Oo — may ICS Trucker Android app para sa pre-forecast, returns, payments, demurrage, SOA, withdrawals, at push notifications. I-install ang latest build mula sa admin o internal link.',
+          'Oo — i-download ang ICS Trucker Android app sa Download page (may link din sa sign-in screen). Kasama ang pre-forecast, returns, payments, demurrage, SOA, withdrawals, at push notifications.',
       },
       {
         id: 'support',
