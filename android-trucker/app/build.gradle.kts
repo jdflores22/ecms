@@ -25,8 +25,8 @@ android {
         applicationId = "com.ecms.trucker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.11.0"
+        versionCode = 18
+        versionName = "1.18.0"
 
         val apiBaseUrl = localProperties.getProperty("API_BASE_URL")
             ?: "https://your-ecms-domain.com/api"
@@ -80,6 +80,13 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.google.zxing:core:3.5.3")
+
+    val cameraX = "1.4.1"
+    implementation("androidx.camera:camera-camera2:$cameraX")
+    implementation("androidx.camera:camera-lifecycle:$cameraX")
+    implementation("androidx.camera:camera-view:$cameraX")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")

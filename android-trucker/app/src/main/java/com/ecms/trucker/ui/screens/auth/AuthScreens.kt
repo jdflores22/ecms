@@ -1,8 +1,11 @@
 package com.ecms.trucker.ui.screens.auth
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -14,6 +17,7 @@ import com.ecms.trucker.ui.components.IcsAuthScreenLayout
 import com.ecms.trucker.ui.components.IcsOutlinedField
 import com.ecms.trucker.ui.components.IcsPrimaryButton
 import com.ecms.trucker.ui.theme.IcsColors
+import kotlinx.coroutines.delay
 
 @Composable
 fun LoginScreen(
@@ -21,6 +25,7 @@ fun LoginScreen(
     onLoggedIn: () -> Unit,
     onSignUp: () -> Unit,
     onForgotPassword: () -> Unit,
+    onOpenFaq: () -> Unit,
 ) {
     val loginFailedMessage = stringResource(R.string.auth_login_failed)
     var username by remember { mutableStateOf("") }
@@ -61,13 +66,25 @@ fun LoginScreen(
 
             Column(
                 Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 TextButton(onClick = onForgotPassword) {
                     Text(stringResource(R.string.auth_forgot_password), color = IcsColors.Primary)
                 }
                 TextButton(onClick = onSignUp) {
                     Text(stringResource(R.string.auth_create_trucker_account), color = IcsColors.Primary)
+                }
+                TextButton(onClick = onOpenFaq) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
+                            contentDescription = null,
+                            tint = IcsColors.Primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.auth_trucker_faq), color = IcsColors.Primary)
+                    }
                 }
             }
         }
@@ -79,6 +96,7 @@ fun SignUpScreen(
     authRepository: AuthRepository,
     onSignedUp: () -> Unit,
     onBack: () -> Unit,
+    onOpenFaq: () -> Unit,
 ) {
     val signUpFailedMessage = stringResource(R.string.auth_sign_up_failed)
     var username by remember { mutableStateOf("") }
@@ -111,6 +129,17 @@ fun SignUpScreen(
                 enabled = username.isNotBlank() && email.isNotBlank() && fullName.isNotBlank() && password.length >= 8,
                 loading = loading,
             )
+            TextButton(
+                onClick = onOpenFaq,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.auth_read_faq_before_register),
+                    color = IcsColors.Primary,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 
@@ -161,6 +190,68 @@ fun ForgotPasswordScreen(
         if (loading) {
             authRepository.forgotPassword(emailOrUsername.trim())
                 .onSuccess { message = it; error = null }
+                .onFailure { error = it.message }
+            loading = false
+        }
+    }
+}
+
+@Composable
+fun ResetPasswordScreen(
+    authRepository: AuthRepository,
+    resetToken: String,
+    onBack: () -> Unit,
+    onResetComplete: () -> Unit,
+) {
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val mismatchMessage = stringResource(R.string.auth_passwords_mismatch)
+    val successMessage = stringResource(R.string.auth_reset_password_success)
+
+    IcsAuthScreenLayout(onBack = onBack) {
+        IcsAuthCard(
+            title = stringResource(R.string.auth_reset_password_new_title),
+            subtitle = stringResource(R.string.auth_reset_password_new_subtitle),
+        ) {
+            IcsOutlinedField(newPassword, { newPassword = it }, stringResource(R.string.auth_new_password), password = true)
+            Spacer(Modifier.height(12.dp))
+            IcsOutlinedField(confirmPassword, { confirmPassword = it }, stringResource(R.string.auth_confirm_password), password = true)
+            error?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, color = IcsColors.Error, style = MaterialTheme.typography.bodySmall)
+            }
+            message?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, color = IcsColors.Success, style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(Modifier.height(16.dp))
+            IcsPrimaryButton(
+                text = stringResource(R.string.auth_reset_password_new_title),
+                onClick = {
+                    if (newPassword != confirmPassword) {
+                        error = mismatchMessage
+                    } else {
+                        loading = true
+                        error = null
+                    }
+                },
+                enabled = newPassword.length >= 8 && confirmPassword.isNotBlank(),
+                loading = loading,
+            )
+        }
+    }
+
+    LaunchedEffect(loading) {
+        if (loading) {
+            authRepository.resetPassword(resetToken, newPassword)
+                .onSuccess {
+                    message = successMessage
+                    delay(1200)
+                    onResetComplete()
+                }
                 .onFailure { error = it.message }
             loading = false
         }

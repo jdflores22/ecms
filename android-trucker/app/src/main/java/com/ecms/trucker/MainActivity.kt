@@ -30,6 +30,7 @@ import com.ecms.trucker.ui.navigation.Routes
 import com.ecms.trucker.ui.screens.*
 import com.ecms.trucker.ui.screens.auth.ForgotPasswordScreen
 import com.ecms.trucker.ui.screens.auth.LoginScreen
+import com.ecms.trucker.ui.screens.auth.ResetPasswordScreen
 import com.ecms.trucker.ui.screens.auth.SignUpScreen
 import com.ecms.trucker.ui.theme.EcmsTruckerTheme
 import com.ecms.trucker.ui.util.clearAllTruckerScreenCaches
@@ -44,11 +45,13 @@ private data class PushNavigation(
 class MainActivity : ComponentActivity() {
 
     private var pendingPushNavigation by mutableStateOf<PushNavigation?>(null)
+    private var pendingResetToken by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as EcmsTruckerApp).container
         pendingPushNavigation = extractPushNavigation(intent)
+        pendingResetToken = extractResetToken(intent)
 
         setContent {
             EcmsTruckerTheme {
@@ -61,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 var soaBadge by remember { mutableIntStateOf(0) }
                 var notificationBadge by remember { mutableIntStateOf(0) }
                 var pushNavigation by remember { mutableStateOf(pendingPushNavigation) }
+                var resetToken by remember { mutableStateOf(pendingResetToken) }
 
                 val notificationPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
@@ -110,6 +114,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         refreshBadges()
+                        container.authRepository.syncAllowedPages()
                         while (true) {
                             delay(30_000)
                             refreshBadges()
@@ -128,9 +133,26 @@ class MainActivity : ComponentActivity() {
                     pushNavigation = pendingPushNavigation
                 }
 
+                LaunchedEffect(pendingResetToken) {
+                    if (pendingResetToken != null) {
+                        resetToken = pendingResetToken
+                    }
+                }
+
                 key(authState.isLoggedIn) {
                     val navController = rememberNavController()
                     var selectedTabRoute by rememberSaveable { mutableStateOf(MainTab.Home.route) }
+
+                    LaunchedEffect(resetToken, authState.isLoggedIn) {
+                        val token = resetToken?.trim().orEmpty()
+                        if (!authState.isLoggedIn && token.isNotEmpty()) {
+                            navController.navigate(Routes.resetPassword(token)) {
+                                launchSingleTop = true
+                            }
+                            resetToken = null
+                            pendingResetToken = null
+                        }
+                    }
 
                     fun navigateFromNotification(linkPath: String?, category: String) {
                         NotificationNavigator.navigate(
@@ -157,6 +179,7 @@ class MainActivity : ComponentActivity() {
                                     onLoggedIn = {},
                                     onSignUp = { navController.navigate(Routes.SIGNUP) },
                                     onForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
+                                    onOpenFaq = { navController.navigate(Routes.FAQ) },
                                 )
                             }
                             composable(Routes.SIGNUP) {
@@ -164,12 +187,31 @@ class MainActivity : ComponentActivity() {
                                     authRepository = container.authRepository,
                                     onSignedUp = {},
                                     onBack = { navController.popBackStack() },
+                                    onOpenFaq = { navController.navigate(Routes.FAQ) },
                                 )
                             }
                             composable(Routes.FORGOT_PASSWORD) {
                                 ForgotPasswordScreen(
                                     authRepository = container.authRepository,
                                     onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable(Routes.FAQ) {
+                                FaqScreen(onBack = { navController.popBackStack() })
+                            }
+                            composable(
+                                Routes.RESET_PASSWORD,
+                                arguments = listOf(navArgument("token") { type = NavType.StringType }),
+                            ) { entry ->
+                                ResetPasswordScreen(
+                                    authRepository = container.authRepository,
+                                    resetToken = entry.arguments?.getString("token").orEmpty(),
+                                    onBack = { navController.popBackStack() },
+                                    onResetComplete = {
+                                        navController.navigate(Routes.LOGIN) {
+                                            popUpTo(Routes.LOGIN) { inclusive = true }
+                                        }
+                                    },
                                 )
                             }
                         }
@@ -238,6 +280,8 @@ class MainActivity : ComponentActivity() {
                                                 userName = displayName,
                                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                                                 notificationUnreadCount = notificationBadge,
+                                                demurrageDueCount = demurrageBadge,
+                                                soaDueCount = soaBadge,
                                                 onNavigate = { route ->
                                                     when (route) {
                                                         "returns" -> selectedTabRoute = MainTab.Returns.route
@@ -292,6 +336,7 @@ class MainActivity : ComponentActivity() {
                                 PreForecastListScreen(
                                     repository = container.truckerRepository,
                                     onItemClick = { navController.navigate(Routes.preForecastDetail(it)) },
+                                    onViewQr = { navController.navigate(Routes.preForecastDetail(it, "qr")) },
                                     onNewClick = { navController.navigate(Routes.PREFORECAST_NEW) },
                                     onBack = { navController.popBackStack() },
                                 )
@@ -309,12 +354,25 @@ class MainActivity : ComponentActivity() {
                             }
                             composable(
                                 Routes.PREFORECAST_DETAIL,
-                                arguments = listOf(navArgument("id") { type = NavType.IntType }),
+                                arguments = listOf(
+                                    navArgument("id") { type = NavType.IntType },
+                                    navArgument("initialTab") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    },
+                                ),
                             ) { entry ->
                                 PreForecastDetailScreen(
                                     id = entry.arguments?.getInt("id") ?: 0,
                                     repository = container.truckerRepository,
                                     onBack = { navController.popBackStack() },
+                                    onDeleted = {
+                                        navController.popBackStack(Routes.PREFORECAST_LIST, false)
+                                    },
+                                    onUploadPayment = { navController.navigate(Routes.paymentUpload(it)) },
+                                    onPayDemurrage = { navController.navigate(Routes.demurrageDetail(it)) },
+                                    initialTab = PreForecastDetailTab.fromRoute(entry.arguments?.getString("initialTab")),
                                 )
                             }
                             composable(
@@ -358,8 +416,11 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable(Routes.WITHDRAWAL_NEW) {
+                                val truckingCompany = authState.user?.fullName?.takeIf { it.isNotBlank() }
+                                    ?: authState.user?.username.orEmpty()
                                 WithdrawalNewScreen(
                                     repository = container.truckerRepository,
+                                    truckingCompany = truckingCompany,
                                     onCreated = {
                                         navController.navigate(Routes.withdrawalDetail(it)) {
                                             popUpTo(Routes.WITHDRAWAL_NEW) { inclusive = true }
@@ -425,6 +486,9 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                 )
                             }
+                            composable(Routes.FAQ) {
+                                FaqScreen(onBack = { navController.popBackStack() })
+                            }
                             composable(Routes.PROFILE) {
                                 ProfileScreen(
                                     repository = container.truckerRepository,
@@ -465,6 +529,18 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingPushNavigation = extractPushNavigation(intent)
+        pendingResetToken = extractResetToken(intent)
+    }
+
+    private fun extractResetToken(intent: Intent?): String? {
+        if (intent == null) return null
+        intent.data?.let { uri ->
+            val path = uri.path.orEmpty()
+            if (path.contains("reset-password", ignoreCase = true) || !uri.getQueryParameter("token").isNullOrBlank()) {
+                uri.getQueryParameter("token")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+            }
+        }
+        return intent.getStringExtra("reset_token")?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     private fun extractPushNavigation(intent: Intent?): PushNavigation? {

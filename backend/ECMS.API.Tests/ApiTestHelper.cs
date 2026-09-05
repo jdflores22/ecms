@@ -89,6 +89,7 @@ public static class ApiTestHelper
             "RightSideIn",
             "LeftSideIn",
             "Back",
+            "Backdoor",
             "Front",
             "LeftSideOut",
             "RightSideOut",

@@ -3,6 +3,7 @@ export const CONTAINER_PHOTO_CATEGORIES = [
   { value: 'RightSideIn', label: 'Right side (in)' },
   { value: 'LeftSideIn', label: 'Left side (in)' },
   { value: 'Back', label: 'Back' },
+  { value: 'Backdoor', label: 'Back door' },
   { value: 'Front', label: 'Front' },
   { value: 'LeftSideOut', label: 'Left side (out)' },
   { value: 'RightSideOut', label: 'Right side (out)' },

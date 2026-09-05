@@ -145,9 +145,16 @@ fun IcsInfoTileGrid(
 fun IcsDetailHeader(
     referenceNo: String,
     status: String,
+    containerNo: String? = null,
     modifier: Modifier = Modifier,
     belowStatus: @Composable (() -> Unit)? = null,
 ) {
+    val headline = containerNo?.trim()?.takeIf { it.isNotBlank() } ?: referenceNo
+    val headlineLabel = if (!containerNo.isNullOrBlank()) {
+        stringResource(R.string.field_container).uppercase()
+    } else {
+        stringResource(R.string.field_reference).uppercase()
+    }
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -156,17 +163,32 @@ fun IcsDetailHeader(
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                stringResource(R.string.field_reference).uppercase(),
+                headlineLabel,
                 style = MaterialTheme.typography.labelSmall,
                 color = IcsColors.TextSecondary,
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                referenceNo,
+                headline,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = IcsColors.Primary,
             )
+            if (!containerNo.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.field_reference).uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IcsColors.TextSecondary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    referenceNo,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = IcsColors.OnSurface,
+                )
+            }
             Spacer(Modifier.height(10.dp))
             StatusChip(status)
             belowStatus?.let {

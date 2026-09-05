@@ -135,7 +135,9 @@ fun DemurrageListScreen(
     fun load() {
         scope.launch {
             loadState.begin(items.isNotEmpty())
-            loadItems(repository) { items = it }
+            runCatching { repository.listDemurrageBillings() }
+                .onSuccess { items = it }
+                .onFailure { error = it.message }
             loadState.end()
         }
     }
@@ -162,6 +164,10 @@ fun DemurrageListScreen(
             loadState.loading -> LoadingBox(Modifier.padding(padding))
             error != null && items.isEmpty() -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             else -> Column(Modifier.padding(padding)) {
+                IcsScreenTip(
+                    stringResource(R.string.ui_tip_demurrage_list),
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
                 if (!loadState.loading) {
                     DemurrageSummaryRow(pendingCount, rejectedCount, reviewCount, paidCount, outstandingTotal)
                 }
@@ -220,10 +226,10 @@ fun DemurrageListScreen(
                         items(filtered, key = { it.id }) { b ->
                             val canUpload = b.status.equals("Pending", true) || b.status.equals("Rejected", true)
                             IcsListItemCard(
-                                title = b.referenceNo,
+                                title = b.containerNo,
                                 subtitle = stringResource(
                                     R.string.demurrage_item_subtitle,
-                                    b.containerNo,
+                                    b.referenceNo,
                                     "\u20B1",
                                     b.totalAmount.toString(),
                                     b.daysOverdue,
@@ -308,7 +314,11 @@ fun DemurrageDetailScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    IcsDetailHeader(referenceNo = b.referenceNo, status = demurrageTabLabel(b.status))
+                    IcsDetailHeader(
+                        referenceNo = b.referenceNo,
+                        containerNo = b.containerNo,
+                        status = demurrageTabLabel(b.status),
+                    )
 
                     success?.let {
                         Text(it, color = IcsColors.Success, style = MaterialTheme.typography.bodySmall)
@@ -449,24 +459,51 @@ fun ReportsScreen(
     val context = LocalContext.current
     val loadState = rememberScreenLoadState(initiallyLoading = false)
     var tab by remember { mutableIntStateOf(0) }
-    var daily by remember { mutableStateOf<String?>(null) }
-    var monthly by remember { mutableStateOf<String?>(null) }
+    var fromDate by remember { mutableStateOf("") }
+    var toDate by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf(java.time.LocalDate.now().year.toString()) }
+    var daily by remember { mutableStateOf<com.ecms.trucker.data.model.DailyReturnReportDto?>(null) }
+    var monthly by remember { mutableStateOf<com.ecms.trucker.data.model.MonthlyReturnReportDto?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun loadReport() {
         scope.launch {
             loadState.begin(daily != null || monthly != null)
+            error = null
             if (tab == 0) {
-                runCatching { repository.getDailyReturnsReport(null, null) }
-                    .onSuccess { daily = context.getString(R.string.reports_summary, it.totalScheduled, it.totalCompleted) }
+                runCatching {
+                    repository.getDailyReturnsReport(fromDate.ifBlank { null }, toDate.ifBlank { null })
+                }.onSuccess { daily = it; monthly = null }
+                    .onFailure { error = it.message }
             } else {
-                runCatching { repository.getMonthlyReturnsReport(null) }
-                    .onSuccess { monthly = context.getString(R.string.reports_summary, it.totalScheduled, it.totalCompleted) }
+                runCatching {
+                    repository.getMonthlyReturnsReport(year.toIntOrNull())
+                }.onSuccess { monthly = it; daily = null }
+                    .onFailure { error = it.message }
             }
             loadState.end()
         }
     }
     LaunchedEffect(tab) { loadReport() }
+
+    fun shareCsv() {
+        val csv = buildString {
+            append("Period,Scheduled,Confirmed,Completed,Cancelled\n")
+            if (tab == 0) {
+                daily?.rows?.forEach { row ->
+                    append("${row.date},${row.scheduled},${row.confirmed},${row.completed},${row.cancelled}\n")
+                }
+            } else {
+                monthly?.rows?.forEach { row ->
+                    append("${row.label},${row.scheduled},${row.confirmed},${row.completed},${row.cancelled}\n")
+                }
+            }
+        }
+        val file = java.io.File(context.cacheDir, "returns-report-${System.currentTimeMillis()}.csv")
+        file.writeText(csv)
+        com.ecms.trucker.ui.util.FileShareHelper.shareFile(context, file, "text/csv", context.getString(R.string.reports_export_csv))
+    }
 
     IcsScreenScaffold(
         title = stringResource(R.string.reports_title),
@@ -480,14 +517,63 @@ fun ReportsScreen(
                 .padding(16.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.reports_daily_tab)) })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.reports_monthly_tab)) })
             }
-            Spacer(Modifier.height(16.dp))
-            if (loadState.loading) CircularProgressIndicator() else {
-                Text(if (tab == 0) daily ?: stringResource(R.string.reports_no_data) else monthly ?: stringResource(R.string.reports_no_data))
+            if (tab == 0) {
+                OutlinedTextField(fromDate, { fromDate = it }, label = { Text(stringResource(R.string.reports_from_date)) }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("YYYY-MM-DD") })
+                OutlinedTextField(toDate, { toDate = it }, label = { Text(stringResource(R.string.reports_to_date)) }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("YYYY-MM-DD") })
+            } else {
+                OutlinedTextField(year, { year = it }, label = { Text(stringResource(R.string.reports_year)) }, modifier = Modifier.fillMaxWidth())
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { loadReport() }, modifier = Modifier.weight(1f)) { Text("Apply") }
+                OutlinedButton(onClick = { shareCsv() }, modifier = Modifier.weight(1f), enabled = (daily?.rows?.isNotEmpty() == true) || (monthly?.rows?.isNotEmpty() == true)) {
+                    Text(stringResource(R.string.reports_export_csv))
+                }
+            }
+            if (loadState.loading) {
+                CircularProgressIndicator()
+            } else if (error != null) {
+                Text(error!!, color = IcsColors.Error)
+            } else {
+                val rows = if (tab == 0) daily?.rows.orEmpty() else monthly?.rows.orEmpty().map {
+                    com.ecms.trucker.data.model.DailyReturnReportRowDto(it.label, it.scheduled, it.confirmed, it.completed, it.cancelled)
+                }
+                if (rows.isEmpty()) {
+                    Text(stringResource(R.string.reports_no_data), color = IcsColors.TextSecondary)
+                } else {
+                    IcsSectionCard(title = stringResource(R.string.reports_title)) {
+                        Column(Modifier.padding(8.dp)) {
+                            Row(Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.reports_col_label), Modifier.weight(1.2f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.reports_col_scheduled), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.reports_col_confirmed), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.reports_col_completed), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.reports_col_cancelled), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                            rows.forEach { row ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    Text(row.date, Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall)
+                                    Text("${row.scheduled}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                    Text("${row.confirmed}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                    Text("${row.completed}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                    Text("${row.cancelled}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                    val summary = if (tab == 0) daily else null
+                    summary?.let {
+                        Text(stringResource(R.string.reports_summary, it.totalScheduled, it.totalCompleted), color = IcsColors.TextSecondary)
+                    }
+                    monthly?.let {
+                        Text(stringResource(R.string.reports_summary, it.totalScheduled, it.totalCompleted), color = IcsColors.TextSecondary)
+                    }
+                }
             }
         }
     }
@@ -501,6 +587,10 @@ fun ProfileScreen(
     onBack: (() -> Unit)? = null,
     onLogout: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val app = context.applicationContext as EcmsTruckerApp
+    val authState by app.container.tokenStore.authState.collectAsState(initial = AuthState())
+    val accessToken = authState.accessToken
     val loadState = rememberScreenLoadState(initiallyLoading = true)
     var profile by remember { mutableStateOf<com.ecms.trucker.data.model.ProfileDto?>(null) }
     var fullName by remember { mutableStateOf("") }
@@ -510,7 +600,22 @@ fun ProfileScreen(
     var message by remember { mutableStateOf<String?>(null) }
     val profileUpdatedMessage = stringResource(R.string.profile_updated)
     val passwordChangedMessage = stringResource(R.string.profile_password_changed)
+    val photoUpdatedMessage = stringResource(R.string.profile_photo_updated)
+    val photoRemovedMessage = stringResource(R.string.profile_photo_removed)
     val scope = rememberCoroutineScope()
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching { repository.uploadProfilePhoto(uri) }
+                .onSuccess {
+                    runCatching { repository.getProfile() }
+                        .onSuccess { profile = it; fullName = it.fullName; email = it.email }
+                    message = photoUpdatedMessage
+                }
+                .onFailure { message = it.message }
+        }
+    }
 
     fun loadProfile() {
         scope.launch {
@@ -542,6 +647,49 @@ fun ProfileScreen(
                     username = profile?.username ?: "",
                     email = email.ifBlank { profile?.email ?: "" },
                 )
+
+                IcsSectionCard(title = stringResource(R.string.profile_photo_title)) {
+                    Column(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        val photoPath = profile?.profilePhoto
+                        if (!photoPath.isNullOrBlank()) {
+                            AsyncImage(
+                                model = remember(photoPath, accessToken) {
+                                    buildAuthedImageRequest(context, photoPath, accessToken)
+                                },
+                                contentDescription = stringResource(R.string.profile_photo_title),
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                        IcsSecondaryButton(
+                            text = stringResource(R.string.profile_photo_upload),
+                            onClick = { photoPicker.launch("image/*") },
+                            icon = Icons.Outlined.UploadFile,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (!photoPath.isNullOrBlank()) {
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        runCatching { repository.removeProfilePhoto() }
+                                            .onSuccess {
+                                                runCatching { repository.getProfile() }
+                                                    .onSuccess { profile = it; fullName = it.fullName; email = it.email }
+                                                message = photoRemovedMessage
+                                            }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.profile_photo_remove)) }
+                        }
+                    }
+                }
 
                 IcsSectionCard(title = stringResource(R.string.profile_title)) {
                     Column(

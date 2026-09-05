@@ -458,7 +458,7 @@
     }
 
     const PHOTO_VIEW_ORDER = [
-      'Flooring', 'RightSideIn', 'LeftSideIn', 'Back', 'Front', 'LeftSideOut', 'RightSideOut',
+      'Flooring', 'RightSideIn', 'LeftSideIn', 'Back', 'Backdoor', 'Front', 'LeftSideOut', 'RightSideOut',
       'Others', 'Damage',
     ]
 
@@ -584,12 +584,12 @@
       const buckets = countPhotoBuckets(docs)
       var photoTitle = 'Container identity photos (' + docs.length + ')'
       if (docs.length > 0) {
-        photoTitle += ' — ' + buckets.required + '/7 required'
+        photoTitle += ' — ' + buckets.required + '/8 required'
         if (buckets.optional) photoTitle += ', ' + buckets.optional + ' optional'
         if (buckets.damage) photoTitle += ', ' + buckets.damage + ' damage'
       }
       html += '<p class="section-title" style="margin-top:20px;">' + escapeHtml(photoTitle) + '</p>'
-      html += '<p class="hint" style="margin-top:-6px;">Includes all ICS uploads: 7 standard views, optional <strong>Others</strong> (if trucker added extra photos), and damage photos.</p>'
+      html += '<p class="hint" style="margin-top:-6px;">Includes all ICS uploads: 8 standard views, optional <strong>Others</strong> (if trucker added extra photos), and damage photos.</p>'
       if (docs.length === 0) {
         html += '<p style="color:var(--muted);margin:0;font-size:0.875rem;">No photos on file.</p>'
       } else {

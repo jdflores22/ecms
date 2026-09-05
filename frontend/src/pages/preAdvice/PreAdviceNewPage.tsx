@@ -1,12 +1,14 @@
-import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Paper, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import axios from 'axios'
 import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
 import CroEdoAttachPanel, { type CroEdoAttachSuccess } from '../../components/preAdvice/CroEdoAttachPanel'
+import CroEdoLegacyUploadPanel from '../../components/preAdvice/CroEdoLegacyUploadPanel'
 import PreAdviceForm, {
   type PreAdviceFormSubmitValues,
   type PreAdviceFormValues,
@@ -19,6 +21,8 @@ import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 
 const primaryDark = '#0B3D91'
+
+type PreForecastEntryMode = 'ics' | 'legacy'
 
 function apiErrorMessage(err: unknown, fallback: string) {
   if (axios.isAxiosError(err)) {
@@ -36,10 +40,16 @@ const emptyForm: PreAdviceFormValues = {
   remarks: '',
 }
 
-const workflowSteps = [
+const icsWorkflowSteps = [
   'Attach the issued CRO/eDO so the system can read the QR and fill container details.',
   'Confirm the auto-filled shipping line, container, size, and type.',
   'Save as draft — then add identity photos and submit from the detail page.',
+]
+
+const legacyWorkflowSteps = [
+  'Upload a copy of your legacy CRO/eDO and enter container details manually.',
+  'Save as draft, then add identity photos on the detail page.',
+  'Submit when complete. The evaluator will review your uploaded CRO/eDO.',
 ]
 
 function norm(value: string) {
@@ -112,8 +122,10 @@ export default function PreAdviceNewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [entryMode, setEntryMode] = useState<PreForecastEntryMode>('ics')
   const [formInitial, setFormInitial] = useState<PreAdviceFormValues>(emptyForm)
   const [croLink, setCroLink] = useState<CroEdoAttachSuccess | null>(null)
+  const [legacyFile, setLegacyFile] = useState<File | null>(null)
 
   useEffect(() => {
     preAdviceApi
@@ -129,14 +141,18 @@ export default function PreAdviceNewPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const croLinked = useMemo(
+  const formComplete = useMemo(
     () =>
-      !!croLink &&
       formInitial.shippingLineId !== '' &&
       formInitial.containerSizeId !== '' &&
       formInitial.containerTypeId !== '' &&
       !!formInitial.containerNo.trim(),
-    [croLink, formInitial],
+    [formInitial],
+  )
+
+  const croLinked = useMemo(
+    () => entryMode === 'ics' && !!croLink && formComplete,
+    [entryMode, croLink, formComplete],
   )
 
   const freeTimeExpired = useMemo(
@@ -144,8 +160,28 @@ export default function PreAdviceNewPage() {
     [croLink],
   )
 
+  const workflowSteps = entryMode === 'ics' ? icsWorkflowSteps : legacyWorkflowSteps
+
+  const heroSubtitle =
+    entryMode === 'ics'
+      ? 'Attach your ICS CRO/eDO first. Free demurrage time and container details come from the verified document.'
+      : 'For older CRO/eDO documents issued outside ICS. Enter container details manually and upload a copy of the paper document.'
+
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
+  }
+
+  const resetFormFields = () => {
+    setFormInitial((prev) => ({ ...emptyForm, remarks: prev.remarks }))
+  }
+
+  const switchEntryMode = (mode: PreForecastEntryMode) => {
+    if (entryMode === mode) return
+    setEntryMode(mode)
+    setError('')
+    setCroLink(null)
+    setLegacyFile(null)
+    resetFormFields()
   }
 
   const onCroLinked = (payload: CroEdoAttachSuccess) => {
@@ -169,25 +205,36 @@ export default function PreAdviceNewPage() {
 
   const onCroCleared = () => {
     setCroLink(null)
-    setFormInitial((prev) => ({ ...emptyForm, remarks: prev.remarks }))
+    resetFormFields()
   }
 
   const handleCreate = async (values: PreAdviceFormSubmitValues) => {
-    if (!croLink) {
+    if (entryMode === 'ics' && !croLink) {
       setError('Attach and verify a CRO/eDO before creating the pre-forecast.')
       return
     }
+    if (entryMode === 'legacy' && !legacyFile) {
+      setError('Upload a copy of your CRO/eDO document before creating the pre-forecast.')
+      return
+    }
+
     setSubmitting(true)
     setError('')
     try {
       const { data } = await preAdviceApi.create({
         ...values,
-        croVerificationToken: croLink.token,
-        croLineNo: croLink.line.lineNo,
+        ...(entryMode === 'ics' && croLink
+          ? {
+              croVerificationToken: croLink.token,
+              croLineNo: croLink.line.lineNo,
+            }
+          : {}),
       })
-      if (croLink.file) {
+
+      const attachment = entryMode === 'ics' ? croLink?.file : legacyFile
+      if (attachment) {
         try {
-          await preAdviceApi.uploadDocument(data.id, croLink.file, 'CroEdo')
+          await preAdviceApi.uploadDocument(data.id, attachment, 'CroEdo')
         } catch {
           // Draft is created; attachment can be re-uploaded later if needed.
         }
@@ -266,8 +313,7 @@ export default function PreAdviceNewPage() {
               New pre-forecast
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              Attach your CRO/eDO first. Free demurrage time and container details come from the verified
-              document.
+              {heroSubtitle}
             </Typography>
           </Box>
         </Box>
@@ -309,11 +355,58 @@ export default function PreAdviceNewPage() {
             <FormWizardSkeleton />
           ) : lookups ? (
             <>
-              <CroEdoAttachPanel
-                disabled={submitting}
-                onLinked={onCroLinked}
-                onCleared={onCroCleared}
-              />
+              <Box sx={{ mb: 2.5 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                  How are you filing this pre-forecast?
+                </Typography>
+                <ToggleButtonGroup
+                  exclusive
+                  fullWidth
+                  value={entryMode}
+                  onChange={(_, value: PreForecastEntryMode | null) => {
+                    if (value) switchEntryMode(value)
+                  }}
+                  disabled={submitting}
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      py: 1.25,
+                      fontWeight: 700,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                    },
+                  }}
+                >
+                  <ToggleButton value="ics">
+                    <QrCodeScannerIcon sx={{ mr: 1, fontSize: 18 }} />
+                    ICS CRO/eDO (QR)
+                  </ToggleButton>
+                  <ToggleButton value="legacy">
+                    <DescriptionOutlinedIcon sx={{ mr: 1, fontSize: 18 }} />
+                    Legacy manual entry
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              {entryMode === 'ics' ? (
+                <CroEdoAttachPanel
+                  disabled={submitting}
+                  onLinked={onCroLinked}
+                  onCleared={onCroCleared}
+                />
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                    For older CRO/eDO documents issued outside ICS. Enter container details manually and
+                    upload a photo or PDF of the paper document.
+                  </Alert>
+                  <CroEdoLegacyUploadPanel
+                    fileName={legacyFile?.name ?? ''}
+                    onFileChange={setLegacyFile}
+                    disabled={submitting}
+                  />
+                </>
+              )}
+
               <PreAdviceForm
                 lookups={lookups}
                 initial={formInitial}
@@ -321,8 +414,10 @@ export default function PreAdviceNewPage() {
                 onCancel={() => navigate('/preforecast')}
                 submitLabel="Create draft"
                 submitting={submitting}
-                lockCatalogFields={croLinked}
-                requireCroLink
+                lockCatalogFields={entryMode === 'ics' && croLinked}
+                requireCroLink={entryMode === 'ics'}
+                requireLegacyDocument={entryMode === 'legacy'}
+                legacyDocumentReady={!!legacyFile}
                 croLinked={croLinked}
                 freeTimeExpired={freeTimeExpired}
                 freeTimeUntil={croLink?.line.demurrageValidUntil}

@@ -12,4 +12,5 @@ public enum ContainerPhotoCategory
     Damage,
     Others,
     CroEdo,
+    Backdoor,
 }

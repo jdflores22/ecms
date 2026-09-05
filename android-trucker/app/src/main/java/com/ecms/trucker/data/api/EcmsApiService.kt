@@ -56,6 +56,9 @@ interface EcmsApiService {
     @GET("preforecast/lookups")
     suspend fun getPreAdviceLookups(): PreAdviceLookupsDto
 
+    @GET("public/cro-edo/verify/{token}")
+    suspend fun verifyCroEdo(@Path("token") token: String): CroEdoVerificationResponseDto
+
     @GET("preforecast/check-duplicate")
     suspend fun checkPreAdviceDuplicate(
         @Query("containerNo") containerNo: String,
@@ -81,6 +84,9 @@ interface EcmsApiService {
 
     @GET("preforecast/{id}/documents")
     suspend fun getPreAdviceDocuments(@Path("id") id: Int): List<PreAdviceDocumentDto>
+
+    @GET("preforecast/{id}/activity")
+    suspend fun getPreAdviceActivity(@Path("id") id: Int): List<AuditLogDto>
 
     @Multipart
     @POST("preforecast/{id}/documents")
@@ -126,6 +132,9 @@ interface EcmsApiService {
         @Part proof: MultipartBody.Part,
         @Part("proofReferenceNo") proofReferenceNo: RequestBody?,
         @Part("proofTransactionAt") proofTransactionAt: RequestBody?,
+        @Part("proofProvider") proofProvider: RequestBody? = null,
+        @Part("proofQrphInvoiceNo") proofQrphInvoiceNo: RequestBody? = null,
+        @Part("proofPaymentId") proofPaymentId: RequestBody? = null,
     ): PaymentDto
 
     // QR
@@ -176,6 +185,12 @@ interface EcmsApiService {
     @POST("withdrawals")
     suspend fun createWithdrawal(@Body body: CreateWithdrawalRequest): WithdrawalDto
 
+    @POST("withdrawals/book")
+    suspend fun bookWithdrawal(@Body body: BookWithdrawalRequest): WithdrawalDto
+
+    @GET("withdrawals/next-booking-number")
+    suspend fun getNextBookingNumber(): NextBookingNumberResponse
+
     @PUT("withdrawals/{id}")
     suspend fun updateWithdrawal(@Path("id") id: Int, @Body body: CreateWithdrawalRequest): WithdrawalDto
 
@@ -222,6 +237,9 @@ interface EcmsApiService {
         @Query("containerSizeId") containerSizeId: Int,
         @Query("containerTypeId") containerTypeId: Int,
     ): DemurrageBlockCheckDto
+
+    @POST("demurrage-billing/ensure-expired-free-time/{preAdviceId}")
+    suspend fun ensureExpiredDemurrageFreeTime(@Path("preAdviceId") preAdviceId: Int): DemurrageBillingDto
 
     @Multipart
     @POST("demurrage-billing/{id}/upload-proof")

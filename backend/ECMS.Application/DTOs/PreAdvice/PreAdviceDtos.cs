@@ -34,8 +34,8 @@ public record CreatePreAdviceRequest(
     int ContainerSizeId,
     int ContainerTypeId,
     string? Remarks,
-    string CroVerificationToken,
-    int? CroLineNo);
+    string? CroVerificationToken = null,
+    int? CroLineNo = null);
 
 public record UpdatePreAdviceRequest(
     int ShippingLineId,

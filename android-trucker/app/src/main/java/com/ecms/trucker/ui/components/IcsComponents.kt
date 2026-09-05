@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -341,7 +342,12 @@ fun IcsPaymentListRow(
 ) {
     ListItem(
         headlineContent = {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+            )
         },
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -384,7 +390,12 @@ fun IcsPaymentDueCard(
 ) {
     ListItem(
         headlineContent = {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+            )
         },
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -407,6 +418,7 @@ fun IcsListItemCard(
     status: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    titleMonospace: Boolean = true,
 ) {
     Surface(
         modifier = modifier
@@ -420,7 +432,14 @@ fun IcsListItemCard(
     ) {
         ListItem(
             headlineContent = {
-                Text(title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    title,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = if (titleMonospace) FontFamily.Monospace else FontFamily.Default,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             },
             supportingContent = {
                 Text(

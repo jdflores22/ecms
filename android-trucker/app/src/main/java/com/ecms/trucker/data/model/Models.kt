@@ -115,6 +115,7 @@ data class PreAdviceDto(
     val containerType: String,
     val status: String,
     val demurrageValidUntil: String? = null,
+    val croEdoReferenceNo: String? = null,
     val remarks: String? = null,
     val createdAt: String,
     val complianceRemarks: String? = null,
@@ -124,6 +125,19 @@ data class PreAdviceDto(
     val qrCode: String? = null,
     val qrBookingId: Int? = null,
     val logicteckStatus: String? = null,
+    val scheduleStatus: String? = null,
+    val evaluatedAt: String? = null,
+)
+
+@Serializable
+data class AuditLogDto(
+    val id: Int,
+    val userId: Int,
+    val username: String,
+    val action: String,
+    val module: String,
+    val details: String? = null,
+    val timestamp: String,
 )
 
 @Serializable
@@ -152,6 +166,38 @@ data class CreatePreAdviceRequest(
     val containerSizeId: Int,
     val containerTypeId: Int,
     val remarks: String? = null,
+    val croVerificationToken: String? = null,
+    val croLineNo: Int? = null,
+)
+
+@Serializable
+data class CroEdoVerificationLineDto(
+    val lineNo: Int,
+    val containerNumber: String,
+    val size: String,
+    val type: String,
+    val seal: String,
+    val haulerName: String,
+    val plateNo: String,
+    val demurrageValidUntil: String,
+    val returnEmptyTo: String,
+)
+
+@Serializable
+data class CroEdoVerificationResponseDto(
+    val valid: Boolean,
+    val status: String,
+    val message: String,
+    val referenceNo: String? = null,
+    val documentStatus: String? = null,
+    val shippingLineId: Int? = null,
+    val shippingLineName: String? = null,
+    val consigneeNotifyParty: String? = null,
+    val blNumber: String? = null,
+    val vesselVoyageNumber: String? = null,
+    val brokerName: String? = null,
+    val issuedAt: String? = null,
+    val lines: List<CroEdoVerificationLineDto>? = null,
 )
 
 @Serializable
@@ -356,6 +402,24 @@ data class CreateWithdrawalRequest(
     val expirationDate: String,
     val remarks: String? = null,
 )
+
+@Serializable
+data class BookWithdrawalRequest(
+    val plateNumber: String,
+    val driverName: String,
+    val atwNumber: String,
+    val shippingLineId: Int,
+    val purpose: String,
+    val lines: List<WithdrawalLineInput>,
+    val destination: String,
+    val issueDate: String,
+    val expirationDate: String,
+    val requestedDepotId: Int? = null,
+    val remarks: String? = null,
+)
+
+@Serializable
+data class NextBookingNumberResponse(val nextBookingNumber: String)
 
 @Serializable
 data class WithdrawalDocumentDto(

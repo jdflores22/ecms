@@ -150,7 +150,7 @@ public class PreAdviceService : IPreAdviceService
     public async Task<PreAdviceDto> CreateAsync(CreatePreAdviceRequest request, int truckerId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.CroVerificationToken))
-            throw new InvalidOperationException("A verified CRO/eDO is required to create a pre-forecast.");
+            return await CreateLegacyManualAsync(request, truckerId, cancellationToken);
 
         var croLink = await _croEdo.ResolveIssuedLinkAsync(request.CroVerificationToken.Trim(), cancellationToken)
             ?? throw new InvalidOperationException("CRO/eDO could not be verified. Upload a valid issued document and try again.");
@@ -220,6 +220,60 @@ public class PreAdviceService : IPreAdviceService
 
         var trucker = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == truckerId, cancellationToken);
         var shippingLine = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == croLink.ShippingLineId, cancellationToken);
+        preAdvice.Trucker = trucker;
+        preAdvice.ShippingLine = shippingLine;
+
+        return MapToDto(preAdvice, hasDamageReport: false);
+    }
+
+    private async Task<PreAdviceDto> CreateLegacyManualAsync(
+        CreatePreAdviceRequest request,
+        int truckerId,
+        CancellationToken cancellationToken)
+    {
+        var catalog = await ValidateCatalogAsync(
+            request.ShippingLineId,
+            request.ContainerNo,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            cancellationToken);
+
+        await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
+            truckerId,
+            catalog.NormalizedNo,
+            request.ShippingLineId,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            cancellationToken);
+
+        var container = await ResolveOrTrackContainerAsync(
+            request.ShippingLineId,
+            catalog.NormalizedNo,
+            catalog.SizeLabel,
+            catalog.TypeCode,
+            cancellationToken);
+
+        var referenceNo = await GenerateReferenceNoAsync(cancellationToken);
+        var preAdvice = new PreAdvice
+        {
+            ReferenceNo = referenceNo,
+            TruckerId = truckerId,
+            ShippingLineId = request.ShippingLineId,
+            Container = container,
+            ContainerNoNormalized = catalog.NormalizedNo,
+            ContainerSizeId = request.ContainerSizeId,
+            ContainerTypeId = request.ContainerTypeId,
+            Remarks = request.Remarks,
+            Status = PreAdviceStatus.Draft,
+        };
+        PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
+
+        _db.Add(preAdvice);
+        _auditService.QueueLog(truckerId, "Create", "PreForecast", $"{referenceNo} · legacy manual CRO/eDO");
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var trucker = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == truckerId, cancellationToken);
+        var shippingLine = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == request.ShippingLineId, cancellationToken);
         preAdvice.Trucker = trucker;
         preAdvice.ShippingLine = shippingLine;
 

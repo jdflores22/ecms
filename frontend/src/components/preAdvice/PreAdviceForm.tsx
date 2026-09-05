@@ -32,6 +32,9 @@ interface PreAdviceFormProps {
   onCancel?: () => void
   submitLabel?: string
   submitting?: boolean
+  /** When true, a legacy CRO/eDO file must be attached before submit. */
+  requireLegacyDocument?: boolean
+  legacyDocumentReady?: boolean
   /** When true, shipping line / container / size / type are read-only (CRO-linked). */
   lockCatalogFields?: boolean
   requireCroLink?: boolean
@@ -50,6 +53,8 @@ export default function PreAdviceForm({
   submitting = false,
   lockCatalogFields = false,
   requireCroLink = false,
+  requireLegacyDocument = false,
+  legacyDocumentReady = false,
   croLinked = false,
   freeTimeExpired = false,
   freeTimeUntil = null,
@@ -106,7 +111,8 @@ export default function PreAdviceForm({
       containerTypeId === '' ||
       !containerNo.trim() ||
       demurrageBlock ||
-      (requireCroLink && !croLinked)
+      (requireCroLink && !croLinked) ||
+      (requireLegacyDocument && !legacyDocumentReady)
     ) {
       return
     }
@@ -126,7 +132,8 @@ export default function PreAdviceForm({
     containerNo.trim().length > 0 &&
     !demurrageBlock &&
     !checkingBlock &&
-    (!requireCroLink || croLinked)
+    (!requireCroLink || croLinked) &&
+    (!requireLegacyDocument || legacyDocumentReady)
 
   const selectedSizeLabel = useMemo(() => {
     if (containerSizeId === '') return ''
@@ -250,6 +257,12 @@ export default function PreAdviceForm({
       {requireCroLink && !croLinked && (
         <Alert severity="warning" sx={{ borderRadius: 2 }}>
           Attach and verify a CRO/eDO above before creating this pre-forecast.
+        </Alert>
+      )}
+
+      {requireLegacyDocument && !legacyDocumentReady && (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          Upload a photo or PDF of your CRO/eDO document above before creating the draft.
         </Alert>
       )}
 

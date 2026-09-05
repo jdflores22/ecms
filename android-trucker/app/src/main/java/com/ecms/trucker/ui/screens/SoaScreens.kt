@@ -106,6 +106,7 @@ fun SoaListScreen(
                         ),
                         status = soaStatusLabel(soa.status),
                         onClick = { onItemClick(soa.id) },
+                        titleMonospace = false,
                     )
                 }
             }

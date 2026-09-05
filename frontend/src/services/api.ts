@@ -255,7 +255,7 @@ export const preAdviceApi = {
     containerSizeId: number
     containerTypeId: number
     remarks?: string
-    croVerificationToken: string
+    croVerificationToken?: string
     croLineNo?: number
   }) => api.post<PreAdvice>('/preforecast', data),
   update: (

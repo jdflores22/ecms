@@ -14,11 +14,12 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
@@ -76,6 +77,15 @@ private data class HomeMetric(
     val onClick: () -> Unit,
 )
 
+private data class HomeShortcut(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val tint: androidx.compose.ui.graphics.Color,
+    val badgeCount: Int = 0,
+    val onClick: () -> Unit,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -83,6 +93,8 @@ fun DashboardScreen(
     userName: String,
     onOpenNotifications: () -> Unit,
     notificationUnreadCount: Int = 0,
+    demurrageDueCount: Int = 0,
+    soaDueCount: Int = 0,
     onNavigate: (String) -> Unit,
 ) {
     val cachedDashboard = DashboardCache
@@ -148,8 +160,18 @@ fun DashboardScreen(
             error != null -> ErrorMessage(error!!, onRetry = { load() }, modifier = Modifier.padding(padding))
             dashboard != null -> {
                 val d = dashboard!!
-                val attentionItems = buildAttentionItems(d, onNavigate)
+                val attentionItems = buildAttentionItems(
+                    d = d,
+                    demurrageDueCount = demurrageDueCount,
+                    soaDueCount = soaDueCount,
+                    onNavigate = onNavigate,
+                )
                 val metrics = buildHomeMetrics(d, onNavigate)
+                val shortcuts = buildHomeShortcuts(
+                    demurrageDueCount = demurrageDueCount,
+                    soaDueCount = soaDueCount,
+                    onNavigate = onNavigate,
+                )
 
                 LazyColumn(
                     modifier = Modifier
@@ -221,6 +243,23 @@ fun DashboardScreen(
                                 modifier = Modifier.weight(1f),
                                 onClick = { onNavigate(Routes.PREFORECAST_NEW) },
                             )
+                        }
+                    }
+
+                    item {
+                        HomeSectionTitle(stringResource(R.string.home_tools_title))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            shortcuts.chunked(2).forEach { row ->
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    row.forEach { shortcut ->
+                                        HomeShortcutCard(shortcut, Modifier.weight(1f))
+                                    }
+                                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
 
@@ -419,11 +458,135 @@ private fun HomeMetricCard(metric: HomeMetric) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeShortcutCard(shortcut: HomeShortcut, modifier: Modifier = Modifier) {
+    OutlinedCard(
+        onClick = shortcut.onClick,
+        modifier = modifier.heightIn(min = 96.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(icsHexAlpha(shortcut.tint, 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(shortcut.icon, contentDescription = null, tint = shortcut.tint, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        shortcut.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    if (shortcut.badgeCount > 0) {
+                        Badge(containerColor = IcsColors.Error, contentColor = Color.White) {
+                            Text(
+                                if (shortcut.badgeCount > 99) "99+" else "${shortcut.badgeCount}",
+                                style = MaterialTheme.typography.labelSmall.copy(color = Color.White),
+                            )
+                        }
+                    }
+                }
+                Text(
+                    shortcut.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IcsColors.TextSecondary,
+                    maxLines = 2,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun buildHomeShortcuts(
+    demurrageDueCount: Int,
+    soaDueCount: Int,
+    onNavigate: (String) -> Unit,
+): List<HomeShortcut> = listOf(
+    HomeShortcut(
+        title = stringResource(R.string.home_preforecast),
+        subtitle = stringResource(R.string.menu_preforecast_subtitle),
+        icon = Icons.Default.PostAdd,
+        tint = IcsColors.Primary,
+        onClick = { onNavigate(Routes.PREFORECAST_LIST) },
+    ),
+    HomeShortcut(
+        title = stringResource(R.string.home_qr_passes),
+        subtitle = stringResource(R.string.menu_qr_subtitle),
+        icon = Icons.Default.QrCode2,
+        tint = IcsColors.Primary,
+        onClick = { onNavigate(Routes.QR_LIST) },
+    ),
+    HomeShortcut(
+        title = stringResource(R.string.menu_demurrage_title),
+        subtitle = stringResource(R.string.menu_demurrage_subtitle),
+        icon = Icons.Default.WarningAmber,
+        tint = IcsColors.Warning,
+        badgeCount = demurrageDueCount,
+        onClick = { onNavigate(Routes.DEMURRAGE_LIST) },
+    ),
+    HomeShortcut(
+        title = stringResource(R.string.menu_soa_title),
+        subtitle = stringResource(R.string.menu_soa_subtitle),
+        icon = Icons.Outlined.Description,
+        tint = IcsColors.Primary,
+        badgeCount = soaDueCount,
+        onClick = { onNavigate(Routes.SOA_LIST) },
+    ),
+    HomeShortcut(
+        title = stringResource(R.string.menu_reports_title),
+        subtitle = stringResource(R.string.menu_reports_subtitle),
+        icon = Icons.Outlined.Assessment,
+        tint = IcsColors.Primary,
+        onClick = { onNavigate(Routes.REPORTS) },
+    ),
+)
+
 @Composable
 private fun buildAttentionItems(
     d: TruckerDashboardDto,
+    demurrageDueCount: Int,
+    soaDueCount: Int,
     onNavigate: (String) -> Unit,
 ): List<AttentionItem> = buildList {
+    if (demurrageDueCount > 0) {
+        add(
+            AttentionItem(
+                title = stringResource(R.string.menu_demurrage_title),
+                subtitle = stringResource(R.string.home_demurrage_due_summary, demurrageDueCount),
+                count = demurrageDueCount,
+                icon = Icons.Default.WarningAmber,
+                tint = IcsColors.Warning,
+                onClick = { onNavigate(Routes.DEMURRAGE_LIST) },
+            ),
+        )
+    }
+    if (soaDueCount > 0) {
+        add(
+            AttentionItem(
+                title = stringResource(R.string.menu_soa_title),
+                subtitle = stringResource(R.string.home_soa_due_summary, soaDueCount),
+                count = soaDueCount,
+                icon = Icons.Outlined.Description,
+                tint = IcsColors.Primary,
+                onClick = { onNavigate(Routes.SOA_LIST) },
+            ),
+        )
+    }
     if (d.pendingPayments > 0) {
         add(
             AttentionItem(
@@ -524,6 +687,12 @@ private fun buildHomeMetrics(
         onClick = { onNavigate("withdrawals") },
     ),
     HomeMetric(
+        label = stringResource(R.string.home_metric_confirmed_returns),
+        value = d.confirmedReturns,
+        icon = Icons.Default.QrCode2,
+        onClick = { onNavigate(Routes.QR_LIST) },
+    ),
+    HomeMetric(
         label = stringResource(R.string.home_metric_preforecast),
         value = d.pendingRequests,
         icon = Icons.Default.PostAdd,
@@ -615,6 +784,14 @@ fun MenuScreen(
                         title = stringResource(R.string.menu_reports_title),
                         subtitle = stringResource(R.string.menu_reports_subtitle),
                         onClick = { onNavigate(Routes.REPORTS) },
+                    )
+                    MenuRowDivider()
+                    MenuActionRow(
+                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                        tint = IcsColors.Primary,
+                        title = stringResource(R.string.menu_faq_title),
+                        subtitle = stringResource(R.string.menu_faq_subtitle),
+                        onClick = { onNavigate(Routes.FAQ) },
                     )
                 }
             }

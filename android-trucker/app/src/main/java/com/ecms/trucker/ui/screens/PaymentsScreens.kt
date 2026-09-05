@@ -30,6 +30,14 @@ import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.util.rememberScreenLoadState
+import com.ecms.trucker.util.containerHeadline
+import com.ecms.trucker.util.containerListSubtitle
+import com.ecms.trucker.util.preAdviceContainerById
+import com.ecms.trucker.util.buildPaymentProgressSteps
+import com.ecms.trucker.util.isActiveReturnSchedule
+import com.ecms.trucker.util.needsPaymentUpload
+import com.ecms.trucker.util.TextRecognitionOcr
+import com.ecms.trucker.ui.util.FileShareHelper
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -37,6 +45,7 @@ import kotlinx.coroutines.launch
 private data class PaymentsCacheEntry(
     val payments: List<PaymentDto>,
     val schedules: List<ScheduleDto>,
+    val containerByPreAdviceId: Map<Int, String>,
     val fee: Double,
     val updatedAtMs: Long,
 )
@@ -54,14 +63,9 @@ private fun paymentFor(payments: List<PaymentDto>, scheduleId: Int): PaymentDto?
 private fun scheduleFor(schedules: List<ScheduleDto>, scheduleId: Int): ScheduleDto? =
     schedules.find { it.id == scheduleId }
 
-private fun isActiveReturnSchedule(schedule: ScheduleDto): Boolean =
-    schedule.status.equals("Scheduled", true) || schedule.status.equals("Confirmed", true)
-
-private fun needsPaymentUpload(schedule: ScheduleDto, payment: PaymentDto?): Boolean {
-    if (!isActiveReturnSchedule(schedule)) return false
-    return payment == null ||
-        payment.status.equals("Pending", true) ||
-        payment.status.equals("Rejected", true)
+private fun isImageUri(context: android.content.Context, uri: Uri): Boolean {
+    val type = context.contentResolver.getType(uri).orEmpty()
+    return type.startsWith("image/")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,6 +81,7 @@ fun PaymentsListScreen(
     val loadState = rememberScreenLoadState(initiallyLoading = cached == null)
     var payments by remember { mutableStateOf(cached?.payments ?: emptyList()) }
     var schedules by remember { mutableStateOf(cached?.schedules ?: emptyList()) }
+    var containerByPreAdviceId by remember { mutableStateOf(cached?.containerByPreAdviceId ?: emptyMap()) }
     var fee by remember { mutableStateOf(cached?.fee ?: 0.0) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -91,6 +96,7 @@ fun PaymentsListScreen(
                     ?.let { entry ->
                         payments = entry.payments
                         schedules = entry.schedules
+                        containerByPreAdviceId = entry.containerByPreAdviceId
                         fee = entry.fee
                         loadState.end()
                         return@launch
@@ -100,14 +106,17 @@ fun PaymentsListScreen(
                 coroutineScope {
                     val paymentsDeferred = async { repository.getMyPayments() }
                     val schedulesDeferred = async { repository.listSchedules() }
+                    val containersDeferred = async { repository.preAdviceContainerById() }
                     val settingsDeferred = async { repository.getPaymentSettings() }
                     payments = paymentsDeferred.await()
                     schedules = schedulesDeferred.await()
+                    containerByPreAdviceId = containersDeferred.await()
                     fee = settingsDeferred.await().returnFeeAmount
                 }
                 PaymentsCache = PaymentsCacheEntry(
                     payments = payments,
                     schedules = schedules,
+                    containerByPreAdviceId = containerByPreAdviceId,
                     fee = fee,
                     updatedAtMs = System.currentTimeMillis(),
                 )
@@ -145,6 +154,9 @@ fun PaymentsListScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp),
             ) {
+                item {
+                    IcsScreenTip(stringResource(R.string.ui_tip_payments_list))
+                }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         IcsOverviewPanel {
@@ -218,9 +230,10 @@ fun PaymentsListScreen(
                                 if (index > 0) HorizontalDivider(color = IcsColors.Divider)
                                 val payment = paymentFor(payments, schedule.id)
                                 val isRejected = payment?.status.equals("Rejected", true)
+                                val meta = "${schedule.depotName} · ${schedule.date}"
                                 IcsPaymentListRow(
-                                    title = schedule.referenceNo,
-                                    subtitle = "${schedule.depotName} · ${schedule.date}",
+                                    title = schedule.containerHeadline(containerByPreAdviceId),
+                                    subtitle = schedule.containerListSubtitle(containerByPreAdviceId, meta),
                                     amount = stringResource(
                                         R.string.payments_return_fee,
                                         "$currencySymbol${payment?.amount ?: fee}",
@@ -245,9 +258,10 @@ fun PaymentsListScreen(
                             underReview.forEachIndexed { index, schedule ->
                                 if (index > 0) HorizontalDivider(color = IcsColors.Divider)
                                 val payment = paymentFor(payments, schedule.id)!!
+                                val meta = "${schedule.depotName} · ${schedule.date}"
                                 IcsPaymentListRow(
-                                    title = schedule.referenceNo,
-                                    subtitle = "${schedule.depotName} · ${schedule.date}",
+                                    title = schedule.containerHeadline(containerByPreAdviceId),
+                                    subtitle = schedule.containerListSubtitle(containerByPreAdviceId, meta),
                                     amount = stringResource(R.string.payments_return_fee, "$currencySymbol${payment.amount}"),
                                     status = payment.status,
                                     actionLabel = stringResource(R.string.payments_view_details),
@@ -264,11 +278,11 @@ fun PaymentsListScreen(
                             paidPayments.forEachIndexed { index, payment ->
                                 if (index > 0) HorizontalDivider(color = IcsColors.Divider)
                                 val schedule = scheduleFor(schedules, payment.scheduleId)
+                                val meta = schedule?.let { "${it.depotName} · ${it.date}" } ?: payment.truckerName
                                 IcsPaymentListRow(
-                                    title = schedule?.referenceNo
+                                    title = schedule?.containerHeadline(containerByPreAdviceId)
                                         ?: stringResource(R.string.payments_schedule_number, payment.scheduleId),
-                                    subtitle = schedule?.let { "${it.depotName} · ${it.date}" }
-                                        ?: payment.truckerName,
+                                    subtitle = schedule?.containerListSubtitle(containerByPreAdviceId, meta) ?: meta,
                                     amount = stringResource(R.string.payments_return_fee, "$currencySymbol${payment.amount}"),
                                     status = payment.status,
                                     actionLabel = stringResource(R.string.payments_view_details),
@@ -298,6 +312,7 @@ fun PaymentUploadScreen(
 
     val loadState = rememberScreenLoadState(initiallyLoading = true)
     var schedule by remember { mutableStateOf<ScheduleDto?>(null) }
+    var preAdvice by remember { mutableStateOf<com.ecms.trucker.data.model.PreAdviceDto?>(null) }
     var payment by remember { mutableStateOf<PaymentDto?>(null) }
     var fee by remember { mutableStateOf(0.0) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -313,8 +328,31 @@ fun PaymentUploadScreen(
     val refreshMessage = stringResource(R.string.refresh_feedback_payment_form_reset)
     val currencySymbol = "\u20B1"
 
+    var ocrLoading by remember { mutableStateOf(false) }
+    var ocrNote by remember { mutableStateOf<String?>(null) }
+    var pdfLoading by remember { mutableStateOf(false) }
+    var qrBooking by remember { mutableStateOf<com.ecms.trucker.data.model.QrBookingDto?>(null) }
+    val ocrAppliedMessage = stringResource(R.string.payment_ocr_applied)
+    val ocrScanningMessage = stringResource(R.string.payment_ocr_scanning)
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri
+        ocrNote = null
+        if (uri != null && isImageUri(context, uri)) {
+            ocrLoading = true
+            scope.launch {
+                runCatching { TextRecognitionOcr.extractPaymentProofMetadata(context, uri) }
+                    .onSuccess { meta ->
+                        meta.referenceNo?.let { referenceNo = it }
+                        meta.paymentId?.takeIf { referenceNo.isBlank() }?.let { referenceNo = it }
+                        meta.transactionAt?.let { transactionAt = it }
+                        if (meta.referenceNo != null || meta.paymentId != null || meta.transactionAt != null) {
+                            ocrNote = ocrAppliedMessage
+                        }
+                    }
+                ocrLoading = false
+            }
+        }
     }
 
     fun load() {
@@ -329,6 +367,10 @@ fun PaymentUploadScreen(
                     schedule = scheduleDeferred.await()
                     payment = paymentDeferred.await()
                     fee = settingsDeferred.await().returnFeeAmount
+                    schedule?.let { loaded ->
+                        preAdvice = repository.getPreAdviceOrNull(loaded.preAdviceId)
+                    }
+                    qrBooking = repository.getQrBySchedule(scheduleId)
                 }
             }.onFailure { error = it.message }
             loadState.end()
@@ -396,7 +438,11 @@ fun PaymentUploadScreen(
                     item {
                         IcsSectionCard(title = stringResource(R.string.payment_schedule_context)) {
                             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                IcsDetailHeader(referenceNo = s.referenceNo, status = status)
+                                IcsDetailHeader(
+                                    referenceNo = s.referenceNo,
+                                    containerNo = preAdvice?.containerNo,
+                                    status = status,
+                                )
                                 Spacer(Modifier.height(12.dp))
                                 IcsInfoTileGrid(
                                     tiles = listOf(
@@ -435,6 +481,40 @@ fun PaymentUploadScreen(
                         }
                     }
 
+                    val hasProof = !currentPayment?.proofFile.isNullOrBlank()
+
+                    item {
+                        PreForecastProgressStrip(
+                            steps = buildPaymentProgressSteps(
+                                paymentStatus = status,
+                                hasProof = selectedUri != null || hasProof,
+                                uploadNeeded = uploadNeeded,
+                            ),
+                        )
+                    }
+
+                    if (status.equals("Paid", true) && qrBooking != null) {
+                        item {
+                            IcsSecondaryButton(
+                                text = stringResource(R.string.qr_action_download_pdf),
+                                onClick = {
+                                    val booking = qrBooking ?: return@IcsSecondaryButton
+                                    pdfLoading = true
+                                    scope.launch {
+                                        runCatching {
+                                            val file = FileShareHelper.downloadConfirmationPdf(
+                                                context, booking.id, booking.qrCode, accessToken,
+                                            )
+                                            FileShareHelper.openFile(context, file, "application/pdf")
+                                        }.onFailure { uploadError = it.message }
+                                        pdfLoading = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+
                     item {
                         IcsSectionCard(title = stringResource(R.string.payment_summary_title)) {
                             IcsInfoTileGrid(
@@ -457,8 +537,6 @@ fun PaymentUploadScreen(
                             )
                         }
                     }
-
-                    val hasProof = !currentPayment?.proofFile.isNullOrBlank()
 
                     if (hasProof || !uploadNeeded) {
                         item {
@@ -533,6 +611,12 @@ fun PaymentUploadScreen(
                                             color = IcsColors.Success,
                                         )
                                     }
+                                    if (ocrLoading) {
+                                        Text(ocrScanningMessage, style = MaterialTheme.typography.bodySmall, color = IcsColors.TextSecondary)
+                                    }
+                                    ocrNote?.let {
+                                        Text(it, style = MaterialTheme.typography.bodySmall, color = IcsColors.Primary)
+                                    }
                                 }
                             }
                         }
@@ -574,12 +658,33 @@ fun PaymentUploadScreen(
                                     val uri = selectedUri ?: return@IcsPrimaryButton
                                     uploading = true
                                     scope.launch {
+                                        var proofProvider: String? = null
+                                        var proofQrph: String? = null
+                                        var proofPaymentId: String? = null
+                                        if (isImageUri(context, uri)) {
+                                            runCatching {
+                                                TextRecognitionOcr.extractPaymentProofMetadata(context, uri)
+                                            }.onSuccess { meta ->
+                                                proofProvider = meta.provider
+                                                proofQrph = meta.qrphInvoiceNo
+                                                proofPaymentId = meta.paymentId
+                                                if (referenceNo.isBlank()) {
+                                                    referenceNo = meta.referenceNo ?: meta.paymentId.orEmpty()
+                                                }
+                                                if (transactionAt.isBlank()) {
+                                                    transactionAt = meta.transactionAt.orEmpty()
+                                                }
+                                            }
+                                        }
                                         runCatching {
                                             repository.uploadPaymentProof(
                                                 scheduleId,
                                                 uri,
                                                 referenceNo.ifBlank { null },
                                                 transactionAt.ifBlank { null },
+                                                proofProvider,
+                                                proofQrph,
+                                                proofPaymentId,
                                             )
                                         }.onSuccess {
                                             PaymentsCache = null

@@ -2,6 +2,8 @@
 
 package com.ecms.trucker.ui.navigation
 
+import android.net.Uri
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.AttachMoney
@@ -41,9 +43,10 @@ object Routes {
     const val LOGIN = "login"
     const val SIGNUP = "signup"
     const val FORGOT_PASSWORD = "forgot_password"
+    const val RESET_PASSWORD = "reset_password?token={token}"
     const val MAIN = "main"
     const val PREFORECAST_LIST = "preforecast"
-    const val PREFORECAST_DETAIL = "preforecast/{id}"
+    const val PREFORECAST_DETAIL = "preforecast/{id}?initialTab={initialTab}"
     const val PREFORECAST_NEW = "preforecast/new"
     const val RETURN_DETAIL = "returns/{id}"
     const val PAYMENT_UPLOAD = "payments/upload/{scheduleId}"
@@ -57,11 +60,15 @@ object Routes {
     const val SOA_LIST = "soa"
     const val SOA_DETAIL = "soa/{id}"
     const val REPORTS = "reports"
+    const val FAQ = "faq"
     const val PROFILE = "profile"
     const val NOTIFICATIONS = "notifications"
     const val NEWS_DETAIL = "news/{id}"
 
-    fun preForecastDetail(id: Int) = "preforecast/$id"
+    fun preForecastDetail(id: Int, initialTab: String? = null): String {
+        val tab = initialTab?.trim().orEmpty()
+        return if (tab.isEmpty()) "preforecast/$id" else "preforecast/$id?initialTab=$tab"
+    }
     fun returnDetail(id: Int) = "returns/$id"
     fun paymentUpload(scheduleId: Int) = "payments/upload/$scheduleId"
     fun qrDetail(bookingId: Int) = "qr/$bookingId"
@@ -69,6 +76,7 @@ object Routes {
     fun demurrageDetail(id: Int) = "demurrage/$id"
     fun soaDetail(id: Int) = "soa/$id"
     fun newsDetail(id: Int) = "news/$id"
+    fun resetPassword(token: String) = "reset_password?token=${Uri.encode(token)}"
 }
 
 @Composable

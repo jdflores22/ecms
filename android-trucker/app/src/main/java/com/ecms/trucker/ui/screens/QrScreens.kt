@@ -15,12 +15,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.ecms.trucker.EcmsTruckerApp
 import com.ecms.trucker.R
+import com.ecms.trucker.data.local.AuthState
+import com.ecms.trucker.ui.util.FileShareHelper
 import com.ecms.trucker.data.model.QrBookingDto
 import com.ecms.trucker.data.model.ScheduleDto
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
 import com.ecms.trucker.ui.util.rememberScreenLoadState
+import com.ecms.trucker.util.primaryContainerLabel
+import com.ecms.trucker.util.referenceWithMeta
 import com.ecms.trucker.util.QrCodeGenerator
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -97,11 +103,18 @@ fun QrListScreen(
             error != null -> ErrorMessage(error!!, { load() }, Modifier.padding(padding))
             schedules.isEmpty() -> EmptyState(stringResource(R.string.qr_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
+                item {
+                    IcsScreenTip(stringResource(R.string.ui_tip_qr_list))
+                }
                 items(schedules) { s ->
                     val qr = qrMap[s.id]
                     IcsListItemCard(
-                        title = s.referenceNo,
-                        subtitle = if (qr != null) "${qr.payload.containerNo} · ${qr.qrCode}" else stringResource(R.string.qr_awaiting_payment_verification),
+                        title = primaryContainerLabel(qr?.payload?.containerNo, s.referenceNo),
+                        subtitle = if (qr != null) {
+                            referenceWithMeta(s.referenceNo, qr.qrCode)
+                        } else {
+                            stringResource(R.string.qr_awaiting_payment_verification)
+                        },
                         status = s.status,
                         onClick = { qr?.let { onItemClick(it.id) } },
                     )
@@ -118,13 +131,51 @@ fun QrDetailScreen(
     repository: TruckerRepository,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val app = context.applicationContext as EcmsTruckerApp
+    val authState by app.container.tokenStore.authState.collectAsState(initial = AuthState())
+    val accessToken = authState.accessToken
+
     val loadState = rememberScreenLoadState(initiallyLoading = true)
     var qr by remember { mutableStateOf<QrBookingDto?>(null) }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var booking by remember { mutableStateOf(false) }
+    var downloading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun downloadQr(share: Boolean) {
+        val q = qr ?: return
+        scope.launch {
+            downloading = true
+            runCatching {
+                val file = FileShareHelper.downloadQrImage(context, q.id, q.qrCode, accessToken)
+                if (share) {
+                    FileShareHelper.shareFile(context, file, "image/png", context.getString(R.string.qr_action_share_image))
+                } else {
+                    FileShareHelper.openFile(context, file, "image/png")
+                }
+            }.onFailure { error = it.message }
+            downloading = false
+        }
+    }
+
+    fun downloadPdf(share: Boolean) {
+        val q = qr ?: return
+        scope.launch {
+            downloading = true
+            runCatching {
+                val file = FileShareHelper.downloadConfirmationPdf(context, q.id, q.qrCode, accessToken)
+                if (share) {
+                    FileShareHelper.shareFile(context, file, "application/pdf", context.getString(R.string.qr_action_share_pdf))
+                } else {
+                    FileShareHelper.openFile(context, file, "application/pdf")
+                }
+            }.onFailure { error = it.message }
+            downloading = false
+        }
+    }
 
     fun load() {
         scope.launch {
@@ -165,21 +216,24 @@ fun QrDetailScreen(
                     DetailRow(stringResource(R.string.field_schedule), "${q.payload.scheduleDate} ${q.payload.scheduleTime}")
                     DetailRow(stringResource(R.string.field_logicteck), q.logicteckStatus)
                     message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-                    if (!q.logicteckStatus.equals("Booked", true)) {
-                        Button(
-                            onClick = {
-                                booking = true
-                                scope.launch {
-                                    runCatching { repository.bookLogicteck(bookingId) }
-                                        .onSuccess { message = it.message; qr = it.booking ?: qr }
-                                        .onFailure { error = it.message }
-                                    booking = false
-                                }
-                            },
-                            enabled = !booking,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(stringResource(R.string.action_book_logicteck)) }
-                    }
+                    QrDownloadActions(
+                        downloading = downloading,
+                        onDownloadQr = { downloadQr(share = false) },
+                        onDownloadPdf = { downloadPdf(share = false) },
+                        onShareQr = { downloadQr(share = true) },
+                        onSharePdf = { downloadPdf(share = true) },
+                        showLogicteck = !q.logicteckStatus.equals("Booked", true),
+                        logicteckBooking = booking,
+                        onBookLogicteck = {
+                            booking = true
+                            scope.launch {
+                                runCatching { repository.bookLogicteck(bookingId) }
+                                    .onSuccess { message = it.message; qr = it.booking ?: qr; bitmap = qr?.let { QrCodeGenerator.generate(it.qrCode, 512) } }
+                                    .onFailure { error = it.message }
+                                booking = false
+                            }
+                        },
+                    )
                 }
             }
         }

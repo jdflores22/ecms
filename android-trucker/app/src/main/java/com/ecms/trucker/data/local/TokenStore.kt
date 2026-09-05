@@ -33,6 +33,10 @@ class TokenStore(private val context: Context) {
 
     suspend fun getRefreshToken(): String? = context.dataStore.data.first()[refreshTokenKey]
 
+    suspend fun getCurrentUser(): UserDto? = context.dataStore.data.first()[userKey]?.let { raw ->
+        runCatching { json.decodeFromString<UserDto>(raw) }.getOrNull()
+    }
+
     suspend fun saveAuth(accessToken: String, refreshToken: String, user: UserDto) {
         context.dataStore.edit { prefs ->
             prefs[accessTokenKey] = accessToken

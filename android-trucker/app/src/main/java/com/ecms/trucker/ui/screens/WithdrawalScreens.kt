@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,7 +36,11 @@ import com.ecms.trucker.ui.theme.icsHexAlpha
 import com.ecms.trucker.ui.util.formatScheduleDate
 import com.ecms.trucker.ui.util.formatScheduleTime
 import com.ecms.trucker.ui.util.rememberScreenLoadState
+import com.ecms.trucker.util.withdrawalListHeadline
+import com.ecms.trucker.util.withdrawalListSubtitle
+import com.ecms.trucker.util.TextRecognitionOcr
 import com.ecms.trucker.util.QrCodeGenerator
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -136,6 +141,9 @@ fun WithdrawalsListScreen(
             items.isEmpty() -> EmptyState(stringResource(R.string.withdrawal_empty), Modifier.padding(padding))
             else -> LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(vertical = 8.dp)) {
                 item {
+                    IcsScreenTip(stringResource(R.string.ui_tip_withdrawals_list))
+                }
+                item {
                     WithdrawalSummaryGrid(summary, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
                 items(items) { w ->
@@ -160,6 +168,8 @@ fun WithdrawalDetailScreen(
     var gatePass by remember { mutableStateOf<WithdrawalGatePassDto?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var actionLoading by remember { mutableStateOf(false) }
+    var deleteRequestOpen by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val docPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -216,6 +226,7 @@ fun WithdrawalDetailScreen(
                     item {
                         IcsDetailHeader(
                             referenceNo = w.referenceNo,
+                            containerNo = w.lines.firstOrNull()?.containerNo,
                             status = w.status,
                             belowStatus = {
                                 WithdrawalStatusTimeline(status = w.status)
@@ -269,6 +280,22 @@ fun WithdrawalDetailScreen(
                             w.reviewRemarks?.takeIf { it.isNotBlank() }?.let { remarks ->
                                 Spacer(Modifier.height(8.dp))
                                 IcsInfoTile(stringResource(R.string.field_cy_review_remarks), remarks)
+                            }
+                        }
+                    }
+                    if (isDraft) {
+                        item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { editing = true },
+                                    enabled = !actionLoading,
+                                    modifier = Modifier.weight(1f),
+                                ) { Text(stringResource(R.string.action_edit)) }
+                                OutlinedButton(
+                                    onClick = { deleteRequestOpen = true },
+                                    enabled = !actionLoading,
+                                    modifier = Modifier.weight(1f),
+                                ) { Text(stringResource(R.string.action_delete)) }
                             }
                         }
                     }
@@ -349,6 +376,69 @@ fun WithdrawalDetailScreen(
             }
         }
     }
+
+    if (deleteRequestOpen && withdrawal != null) {
+        AlertDialog(
+            onDismissRequest = { deleteRequestOpen = false },
+            title = { Text(stringResource(R.string.withdrawal_delete_title)) },
+            text = { Text(stringResource(R.string.withdrawal_delete_message)) },
+            confirmButton = {
+                TextButton(
+                    enabled = !actionLoading,
+                    onClick = {
+                        scope.launch {
+                            actionLoading = true
+                            runCatching { repository.deleteWithdrawal(id) }
+                                .onSuccess { deleteRequestOpen = false; onBack() }
+                                .onFailure { error = it.message }
+                            actionLoading = false
+                        }
+                    },
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteRequestOpen = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+
+    if (editing && withdrawal != null) {
+        WithdrawalEditDialog(
+            withdrawal = withdrawal!!,
+            saving = actionLoading,
+            onDismiss = { editing = false },
+            onSave = { atw, dest, remarksText ->
+                val current = withdrawal!!
+                val line = current.lines.firstOrNull() ?: return@WithdrawalEditDialog
+                scope.launch {
+                    actionLoading = true
+                    runCatching {
+                        repository.updateWithdrawal(
+                            id,
+                            CreateWithdrawalRequest(
+                                atwNumber = atw,
+                                shippingLineId = current.shippingLineId,
+                                lines = listOf(
+                                    WithdrawalLineInput(
+                                        containerNo = line.containerNo,
+                                        containerSizeId = line.containerSizeId,
+                                        containerTypeId = line.containerTypeId,
+                                    ),
+                                ),
+                                currentDepotId = current.currentDepotId,
+                                destination = dest,
+                                issueDate = current.issueDate,
+                                expirationDate = current.expirationDate,
+                                remarks = remarksText,
+                            ),
+                        )
+                    }.onSuccess { editing = false; load() }
+                        .onFailure { error = it.message }
+                    actionLoading = false
+                }
+            },
+        )
+    }
 }
 
 private data class WithdrawalListSummary(
@@ -381,14 +471,15 @@ private fun WithdrawalListCard(w: WithdrawalDto, onClick: () -> Unit) {
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        w.referenceNo,
+                        withdrawalListHeadline(w),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        w.atwNumber,
+                        withdrawalListSubtitle(w),
                         style = MaterialTheme.typography.bodySmall,
                         color = IcsColors.TextSecondary,
                         maxLines = 1,
@@ -554,17 +645,18 @@ fun WithdrawalScheduleScreen(
                     )
                 }
                 items(items) { row ->
+                    val headline = row.containerSummary.takeIf { it.isNotBlank() && it != "—" } ?: row.referenceNo
                     IcsListItemCard(
-                        title = row.referenceNo,
+                        title = headline,
                         subtitle = buildString {
+                            append(row.referenceNo)
+                            append(" · ")
                             append(formatScheduleDate(row.date))
                             append(" · ")
                             append(formatScheduleTime(row.time))
                             if (row.slotNo > 0) append(" · Slot ${row.slotNo}")
                             append("\n")
                             append(row.depotName)
-                            append(" · ")
-                            append(row.containerSummary)
                         },
                         status = row.status,
                         onClick = { onItemClick(row.withdrawalRequestId) },
@@ -579,117 +671,50 @@ fun WithdrawalScheduleScreen(
 @Composable
 fun WithdrawalNewScreen(
     repository: TruckerRepository,
+    truckingCompany: String,
     onCreated: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
-    val loadState = rememberScreenLoadState(initiallyLoading = true)
-    var config by remember { mutableStateOf<WithdrawalFormConfigDto?>(null) }
-    var atwNumber by remember { mutableStateOf("") }
-    var shippingLineId by remember { mutableIntStateOf(0) }
-    var depotId by remember { mutableIntStateOf(0) }
-    var destination by remember { mutableStateOf("") }
-    var containerNo by remember { mutableStateOf("") }
-    var sizeId by remember { mutableIntStateOf(0) }
-    var typeId by remember { mutableIntStateOf(0) }
-    var remarks by remember { mutableStateOf("") }
-    var saving by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val refreshMessage = stringResource(R.string.refresh_feedback_withdrawal_form)
-    val today = LocalDate.now().toString()
-    val expiry = LocalDate.now().plusDays(7).toString()
-
-    fun loadFormConfig() {
-        scope.launch {
-            loadState.begin(config != null)
-            runCatching { config = repository.getWithdrawalFormConfig() }
-                .onFailure { error = it.message }
-            loadState.end()
-        }
-    }
-
-    fun refreshFormConfig() {
-        loadFormConfig()
-        scope.launch { snackbarHostState.showSnackbar(refreshMessage) }
-    }
-    LaunchedEffect(Unit) { loadFormConfig() }
-
-    IcsScreenScaffold(
-        title = stringResource(R.string.withdrawal_new_title),
+    WithdrawalNewWizard(
+        repository = repository,
+        truckingCompany = truckingCompany,
+        onBooked = onCreated,
         onBack = onBack,
-        refreshing = loadState.refreshing,
-        onRefresh = { refreshFormConfig() },
-        showRefreshFeedback = false,
-        snackbarHost = { _ -> SnackbarHost(hostState = snackbarHostState) },
-    ) { padding ->
-        if (loadState.loading) {
-            LoadingBox(Modifier.padding(padding))
-        } else {
-            Column(
-                Modifier
-                    .padding(padding)
-                    .padding(16.dp)
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    atwNumber,
-                    { atwNumber = it },
-                    label = { Text(stringResource(R.string.field_atw_number)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    containerNo,
-                    { containerNo = it.uppercase() },
-                    label = { Text(stringResource(R.string.field_container_number)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                config?.let { c ->
-                    WDropdown(stringResource(R.string.field_shipping_line), c.shippingLines.map { it.id to it.name }, shippingLineId) { shippingLineId = it }
-                    WDropdown(stringResource(R.string.field_depot), c.depots.map { it.id to it.name }, depotId) { depotId = it }
-                    WDropdown(stringResource(R.string.field_size), c.containerSizes.map { it.id to it.label }, sizeId) { sizeId = it }
-                    WDropdown(stringResource(R.string.field_type), c.containerTypes.map { it.id to it.label }, typeId) { typeId = it }
-                    WDropdown(stringResource(R.string.field_destination), c.destinations.map { 0 to it.label }.distinctBy { it.second }, 0) { idx ->
-                        destination = c.destinations.getOrNull(idx)?.label ?: destination
-                    }
-                    if (destination.isBlank() && c.destinations.isNotEmpty()) destination = c.destinations.first().label
-                }
-                OutlinedTextField(
-                    remarks,
-                    { remarks = it },
-                    label = { Text(stringResource(R.string.field_remarks)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                Button(
-                    onClick = {
-                        saving = true
-                        scope.launch {
-                            runCatching {
-                                repository.createWithdrawal(
-                                    CreateWithdrawalRequest(
-                                        atwNumber = atwNumber.trim(),
-                                        shippingLineId = shippingLineId,
-                                        lines = listOf(WithdrawalLineInput(containerNo.trim(), sizeId, typeId)),
-                                        currentDepotId = depotId,
-                                        destination = destination,
-                                        issueDate = today,
-                                        expirationDate = expiry,
-                                        remarks = remarks.ifBlank { null },
-                                    ),
-                                )
-                            }.onSuccess { onCreated(it.id) }
-                                .onFailure { error = it.message; saving = false }
-                        }
-                    },
-                    enabled = !saving && atwNumber.isNotBlank() && containerNo.isNotBlank() && shippingLineId > 0 && depotId > 0,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.action_create_draft)) }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WithdrawalEditDialog(
+    withdrawal: WithdrawalDto,
+    saving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (atwNumber: String, destination: String, remarks: String?) -> Unit,
+) {
+    var atwNumber by remember(withdrawal.id) { mutableStateOf(withdrawal.atwNumber) }
+    var destination by remember(withdrawal.id) { mutableStateOf(withdrawal.destination) }
+    var remarks by remember(withdrawal.id) { mutableStateOf(withdrawal.remarks.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.withdrawal_edit_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(atwNumber, { atwNumber = it }, label = { Text(stringResource(R.string.field_atw_number)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(destination, { destination = it }, label = { Text(stringResource(R.string.field_destination)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(remarks, { remarks = it }, label = { Text(stringResource(R.string.field_remarks)) }, modifier = Modifier.fillMaxWidth())
             }
-        }
-    }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !saving && atwNumber.isNotBlank() && destination.isNotBlank(),
+                onClick = { onSave(atwNumber.trim(), destination.trim(), remarks.ifBlank { null }) },
+            ) { Text(if (saving) "..." else stringResource(R.string.action_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

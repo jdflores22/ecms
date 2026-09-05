@@ -32,6 +32,7 @@ class AuthRepository(
             }
             tokenStore.saveAuth(response.accessToken, response.refreshToken, response.user)
             authInterceptor.resetSession()
+            refreshAllowedPagesForUser(response.user)
             Result.success(response.user)
         } catch (error: Throwable) {
             tokenStore.clear()
@@ -58,6 +59,7 @@ class AuthRepository(
             )
             tokenStore.saveAuth(response.accessToken, response.refreshToken, response.user)
             authInterceptor.resetSession()
+            refreshAllowedPagesForUser(response.user)
             Result.success(response.user)
         } catch (error: Throwable) {
             tokenStore.clear()
@@ -86,6 +88,23 @@ class AuthRepository(
     }.recoverCatching { error ->
         throw IllegalStateException(error.userMessage("Failed to reset password."))
     }
+
+    suspend fun refreshAllowedPages(): Result<List<String>> = runCatching {
+        api.getAllowedPages().allowedPages
+    }
+
+    suspend fun syncAllowedPages() {
+        val user = tokenStore.getCurrentUser() ?: return
+        runCatching { api.getAllowedPages().allowedPages }
+            .onSuccess { pages -> tokenStore.updateUser(user.copy(allowedPages = pages)) }
+    }
+
+    private suspend fun refreshAllowedPagesForUser(user: UserDto) {
+        runCatching { api.getAllowedPages().allowedPages }
+            .onSuccess { pages ->
+                tokenStore.updateUser(user.copy(allowedPages = pages))
+            }
+    }
 }
 
 class TruckerRepository(
@@ -100,6 +119,7 @@ class TruckerRepository(
     suspend fun listPreAdvices() = api.listPreAdvices()
     suspend fun getPreAdvice(id: Int) = api.getPreAdvice(id)
     suspend fun getPreAdviceLookups() = api.getPreAdviceLookups()
+    suspend fun verifyCroEdo(token: String) = api.verifyCroEdo(token)
     suspend fun createPreAdvice(body: CreatePreAdviceRequest) = api.createPreAdvice(body)
     suspend fun updatePreAdvice(id: Int, body: CreatePreAdviceRequest) = api.updatePreAdvice(id, body)
     suspend fun deletePreAdvice(id: Int) = api.deletePreAdvice(id)
@@ -107,6 +127,7 @@ class TruckerRepository(
     suspend fun cancelPreAdvice(id: Int, reason: String?) =
         api.cancelPreAdvice(id, CancelPreAdviceRequest(reason))
     suspend fun getPreAdviceDocuments(id: Int) = api.getPreAdviceDocuments(id)
+    suspend fun getPreAdviceActivity(id: Int) = api.getPreAdviceActivity(id)
 
     suspend fun uploadPreAdviceDocument(id: Int, uri: Uri, category: String, comment: String?) {
         val part = uriToMultipart(uri, "file")
@@ -135,17 +156,30 @@ class TruckerRepository(
         api.getPreAdvice(id)
     }.getOrNull()
 
+    suspend fun checkPreAdviceDuplicate(
+        containerNo: String,
+        containerSizeId: Int,
+        containerTypeId: Int,
+        excludePreAdviceId: Int? = null,
+    ) = api.checkPreAdviceDuplicate(containerNo, containerSizeId, containerTypeId, excludePreAdviceId)
+
     suspend fun uploadPaymentProof(
         scheduleId: Int,
         uri: Uri,
         referenceNo: String?,
         transactionAt: String?,
+        proofProvider: String? = null,
+        proofQrphInvoiceNo: String? = null,
+        proofPaymentId: String? = null,
     ) {
         val proof = uriToMultipart(uri, "proof")
         val scheduleBody = scheduleId.toString().toRequestBody("text/plain".toMediaTypeOrNull())
         val refBody = referenceNo?.toRequestBody("text/plain".toMediaTypeOrNull())
         val atBody = transactionAt?.toRequestBody("text/plain".toMediaTypeOrNull())
-        api.uploadPaymentProof(scheduleBody, proof, refBody, atBody)
+        val providerBody = proofProvider?.toRequestBody("text/plain".toMediaTypeOrNull())
+        val qrphBody = proofQrphInvoiceNo?.toRequestBody("text/plain".toMediaTypeOrNull())
+        val paymentIdBody = proofPaymentId?.toRequestBody("text/plain".toMediaTypeOrNull())
+        api.uploadPaymentProof(scheduleBody, proof, refBody, atBody, providerBody, qrphBody, paymentIdBody)
     }
 
     suspend fun getQrBooking(bookingId: Int) = api.getQrBooking(bookingId)
@@ -156,6 +190,8 @@ class TruckerRepository(
     suspend fun getWithdrawal(id: Int) = api.getWithdrawal(id)
     suspend fun getWithdrawalFormConfig() = api.getWithdrawalFormConfig()
     suspend fun createWithdrawal(body: CreateWithdrawalRequest) = api.createWithdrawal(body)
+    suspend fun bookWithdrawal(body: BookWithdrawalRequest) = api.bookWithdrawal(body)
+    suspend fun getNextBookingNumber() = api.getNextBookingNumber().nextBookingNumber
     suspend fun updateWithdrawal(id: Int, body: CreateWithdrawalRequest) = api.updateWithdrawal(id, body)
     suspend fun deleteWithdrawal(id: Int) = api.deleteWithdrawal(id)
     suspend fun submitWithdrawal(id: Int) = api.submitWithdrawal(id)
@@ -178,6 +214,9 @@ class TruckerRepository(
         containerSizeId: Int,
         containerTypeId: Int,
     ) = api.checkDemurrageBlock(containerNo, shippingLineId, containerSizeId, containerTypeId)
+
+    suspend fun ensureExpiredDemurrageFreeTime(preAdviceId: Int) =
+        api.ensureExpiredDemurrageFreeTime(preAdviceId)
 
     suspend fun uploadDemurrageProof(
         id: Int,
@@ -218,8 +257,29 @@ class TruckerRepository(
     suspend fun getProfile() = api.getProfile()
     suspend fun updateProfile(email: String, fullName: String) =
         api.updateProfile(UpdateProfileRequest(email, fullName))
+    suspend fun checkAtwNumber(atwNumber: String, excludeWithdrawalId: Int? = null) =
+        api.checkAtwNumber(atwNumber, excludeWithdrawalId)
+
+    suspend fun checkYard(depotId: Int, containerNo: String, containerSizeId: Int, containerTypeId: Int) =
+        api.checkYard(depotId, containerNo, containerSizeId, containerTypeId)
+
+    suspend fun checkWithdrawalDuplicate(
+        currentDepotId: Int,
+        containerNo: String,
+        containerSizeId: Int,
+        containerTypeId: Int,
+        excludeWithdrawalId: Int? = null,
+    ) = api.checkWithdrawalDuplicate(currentDepotId, containerNo, containerSizeId, containerTypeId, excludeWithdrawalId)
+
     suspend fun changePassword(current: String, newPassword: String) =
         api.changePassword(ChangePasswordRequest(current, newPassword))
+
+    suspend fun uploadProfilePhoto(uri: Uri) {
+        val part = uriToMultipart(uri, "photo")
+        api.uploadProfilePhoto(part)
+    }
+
+    suspend fun removeProfilePhoto() = api.removeProfilePhoto()
 
     suspend fun getNotifications(page: Int = 1, pageSize: Int = 50, unreadOnly: Boolean? = null) =
         api.getNotifications(page = page, pageSize = pageSize, unreadOnly = unreadOnly)

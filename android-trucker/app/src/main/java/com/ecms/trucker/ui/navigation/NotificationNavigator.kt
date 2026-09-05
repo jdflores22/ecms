@@ -34,12 +34,7 @@ object NotificationNavigator {
         pathId(path, Regex("/trucker/news/(\\d+)"))?.let {
             return Target(Routes.newsDetail(it))
         }
-        pathId(path, Regex("/trucker/preforecast/(\\d+)"))?.let {
-            return Target(Routes.preForecastDetail(it))
-        }
-        pathId(path, Regex("/preforecast/(\\d+)"))?.let {
-            return Target(Routes.preForecastDetail(it))
-        }
+        resolvePreForecastTarget(path)?.let { return it }
 
         when (path) {
             "/trucker/withdrawals/schedule" -> return Target(Routes.WITHDRAWAL_SCHEDULE, MainTab.Withdrawals.route)
@@ -59,7 +54,10 @@ object NotificationNavigator {
             "DepotBroadcast" -> Target(Routes.NOTIFICATIONS)
             "Withdrawal" -> Target(Routes.MAIN, MainTab.Withdrawals.route)
             "Payment", "Schedule" -> Target(Routes.MAIN, MainTab.Payments.route)
-            "Evaluation", "PreAdvice" -> Target(Routes.PREFORECAST_LIST)
+            "Evaluation", "PreAdvice" -> {
+                resolvePreForecastTarget(path)?.let { return it }
+                Target(Routes.PREFORECAST_LIST)
+            }
             "DemurrageBilling" -> Target(Routes.DEMURRAGE_LIST)
             "StatementOfAccount" -> Target(Routes.SOA_LIST)
             else -> if (cat.isNotBlank()) Target(Routes.NOTIFICATIONS) else null
@@ -77,5 +75,12 @@ object NotificationNavigator {
         navController.navigate(target.route) {
             launchSingleTop = true
         }
+    }
+
+    private fun resolvePreForecastTarget(path: String): Target? {
+        val match = Regex("""/(?:trucker/)?preforecast/(\d+)""").find(path) ?: return null
+        val id = match.groupValues[1].toIntOrNull() ?: return null
+        val tab = Regex("""[?&](?:tab|initialTab)=([^&]+)""").find(path)?.groupValues?.getOrNull(1)
+        return Target(Routes.preForecastDetail(id, tab))
     }
 }

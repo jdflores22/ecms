@@ -10,6 +10,7 @@ public static class ContainerPhotoCatalog
         ContainerPhotoCategory.RightSideIn,
         ContainerPhotoCategory.LeftSideIn,
         ContainerPhotoCategory.Back,
+        ContainerPhotoCategory.Backdoor,
         ContainerPhotoCategory.Front,
         ContainerPhotoCategory.LeftSideOut,
         ContainerPhotoCategory.RightSideOut,
@@ -21,6 +22,7 @@ public static class ContainerPhotoCatalog
         ContainerPhotoCategory.RightSideIn => "Right side (in)",
         ContainerPhotoCategory.LeftSideIn => "Left side (in)",
         ContainerPhotoCategory.Back => "Back",
+        ContainerPhotoCategory.Backdoor => "Back door",
         ContainerPhotoCategory.Front => "Front",
         ContainerPhotoCategory.LeftSideOut => "Left side (out)",
         ContainerPhotoCategory.RightSideOut => "Right side (out)",
@@ -48,7 +50,7 @@ public static class ContainerPhotoCatalog
     public static bool AllowsMultiple(ContainerPhotoCategory category)
         => category == ContainerPhotoCategory.Damage;
 
-    /// <summary>Sort identity photos: 7 standard views, optional Others, then damage.</summary>
+    /// <summary>Sort identity photos: 8 standard views, optional Others, then damage.</summary>
     public static int GetDisplaySortOrder(ContainerPhotoCategory? category)
     {
         if (!category.HasValue) return 999;
