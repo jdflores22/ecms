@@ -1,0 +1,1 @@
+import{aB as c}from"./index-CQxfVmm0.js";async function i(o){const{data:t}=await c.bookLogicteck(o);return t}function n(o){return!!(o&&!o.isUsed&&!o.logicteckBookedAt)}function e(o,t){return!o||!t.booking?o:t.booking}export{e as a,i as b,n as c};

@@ -1,0 +1,1 @@
+import{j as e,t as a}from"./index-CQxfVmm0.js";const o="#C62828";function t(){return e.jsx(a,{label:"Damage reported",size:"small",sx:{fontWeight:700,bgcolor:o,color:"#fff","& .MuiChip-label":{px:1}}})}function i(){return e.jsx(a,{label:"—",size:"small",variant:"outlined",sx:{color:"text.disabled",borderColor:"divider"}})}export{t as D,i as a};

@@ -1,0 +1,1 @@
+import{w as a,j as t,al as r,dn as s}from"./index-CQxfVmm0.js";function p(){const e=a(o=>o.auth.user);return e!=null&&e.role?t.jsx(r,{to:s(e.role),replace:!0}):t.jsx(r,{to:"/login",replace:!0})}export{p as default};

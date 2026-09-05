@@ -1,0 +1,1 @@
+import{ck as l,j as n,cl as m,l as x}from"./index-CQxfVmm0.js";function g({path:e,alt:o,sx:s,skeletonHeight:i=320,skeletonMaxHeight:u,onClick:t}){const{url:r,loading:a}=l(e);return e?a||!r?n.jsx(m,{height:i,maxHeight:u}):n.jsx(x,{component:"img",src:r,alt:o,onClick:t,sx:t?{cursor:"pointer",...s}:s}):null}export{g as A};
