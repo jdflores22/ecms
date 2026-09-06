@@ -202,6 +202,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasIndex(x => x.QRCode).IsUnique();
             e.HasOne(x => x.Schedule).WithOne(x => x.QRBooking).HasForeignKey<QRBooking>(x => x.ScheduleId);
+            e.HasOne(x => x.GateCheckedInBy).WithMany().HasForeignKey(x => x.GateCheckedInByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AuditLog>(e =>

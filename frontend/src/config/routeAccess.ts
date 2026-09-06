@@ -15,6 +15,7 @@ export type AppPageKey =
   | 'evaluatorReports'
   | 'truckerReports'
   | 'depotDailyReturns'
+  | 'depotGateScan'
   | 'depotSchedules'
   | 'adminPayments'
   | 'truckerReturns'
@@ -160,6 +161,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/depot/daily-returns',
     group: 'Depot',
     description: "Today's scheduled returns at the depot",
+    showInNav: true,
+  },
+  depotGateScan: {
+    key: 'depotGateScan',
+    label: 'Gate scan',
+    path: '/depot/gate-scan',
+    group: 'Depot',
+    description: 'Scan trucker booking QR for empty return check-in at the CY gate',
     showInNav: true,
   },
   depotSchedules: {
@@ -377,6 +386,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'dashboard',
     'profile',
     'depotDailyReturns',
+    'depotGateScan',
     'depotSchedules',
     'depotWithdrawals',
     'depotBroadcasts',
@@ -413,6 +423,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'evaluatorReports',
   'depotReports',
   'depotDailyReturns',
+  'depotGateScan',
   'depotSchedules',
   'depotWithdrawals',
   'adminReports',
@@ -602,6 +613,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'adminAudit',
   'adminVersion',
   'depotDailyReturns',
+  'depotGateScan',
   'depotSchedules',
   'depotWithdrawals',
   'depotBroadcasts',

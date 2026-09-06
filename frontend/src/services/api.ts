@@ -889,6 +889,11 @@ export const depotApi = {
   deactivate: (id: number) => api.delete(`/depots/${id}`),
 }
 
+export const depotGateApi = {
+  scan: (qrCode: string) => api.post<DepotGateScanResult>('/depot/gate/scan', { qrCode }),
+  checkIn: (qrCode: string) => api.post<DepotGateCheckInResult>('/depot/gate/check-in', { qrCode }),
+}
+
 export interface ShippingLine {
   id: number
   name: string
@@ -1003,6 +1008,33 @@ export interface Schedule {
   truckerId?: number | null
   truckerName?: string | null
   depotRemarks?: string | null
+  gateCheckedInAt?: string | null
+  hasQrBooking?: boolean
+}
+
+export type DepotGateIssueSeverity = 'error' | 'warning' | 'info'
+
+export interface DepotGateIssue {
+  code: string
+  severity: DepotGateIssueSeverity
+  message: string
+}
+
+export interface DepotGateScanResult {
+  found: boolean
+  message?: string | null
+  qrCode?: string | null
+  canCheckIn: boolean
+  alreadyCheckedIn: boolean
+  gateCheckedInAt?: string | null
+  gateCheckedInByName?: string | null
+  issues: DepotGateIssue[]
+}
+
+export interface DepotGateCheckInResult {
+  success: boolean
+  message: string
+  scan?: DepotGateScanResult | null
 }
 
 export interface Payment {

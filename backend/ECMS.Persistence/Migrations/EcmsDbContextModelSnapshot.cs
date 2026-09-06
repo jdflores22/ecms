@@ -634,6 +634,12 @@ namespace ECMS.Persistence.Migrations
                     b.Property<string>("ConfirmationPdfPath")
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("GateCheckedInAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("GateCheckedInByUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("QRCode")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
@@ -645,6 +651,8 @@ namespace ECMS.Persistence.Migrations
 
                     b.HasIndex("QRCode")
                         .IsUnique();
+
+                    b.HasIndex("GateCheckedInByUserId");
 
                     b.HasIndex("ScheduleId")
                         .IsUnique();
@@ -1137,11 +1145,18 @@ namespace ECMS.Persistence.Migrations
 
             modelBuilder.Entity("ECMS.Domain.Entities.QRBooking", b =>
                 {
+                    b.HasOne("ECMS.Domain.Entities.User", "GateCheckedInBy")
+                        .WithMany()
+                        .HasForeignKey("GateCheckedInByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ECMS.Domain.Entities.Schedule", "Schedule")
                         .WithOne("QRBooking")
                         .HasForeignKey("ECMS.Domain.Entities.QRBooking", "ScheduleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("GateCheckedInBy");
 
                     b.Navigation("Schedule");
                 });

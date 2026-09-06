@@ -55,6 +55,24 @@ public static class ProductionSchemaRepair
             migrationId: "20260728120000_AddQrBookingConfirmationPdfPath",
             cancellationToken);
 
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "QRBookingsSet",
+            column: "GateCheckedInAt",
+            definition: "datetime(6) NULL",
+            migrationId: "20260906120000_AddQrBookingGateCheckIn",
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "QRBookingsSet",
+            column: "GateCheckedInByUserId",
+            definition: "int NULL",
+            migrationId: "20260906120000_AddQrBookingGateCheckIn",
+            cancellationToken);
+
         await EnsureWithdrawalBookingFlowAsync(db, logger, cancellationToken);
 
         await EnsureDevicePushTokensTableAsync(db, logger, cancellationToken);

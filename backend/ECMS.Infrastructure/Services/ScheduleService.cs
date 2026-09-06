@@ -33,6 +33,7 @@ public class ScheduleService : IScheduleService
             .Include(s => s.PreAdvice)
             .Include(s => s.Depot)
             .Include(s => s.Trucker)
+            .Include(s => s.QRBooking)
             .AsQueryable();
 
         if (role == RoleNames.DepotPersonnel)
@@ -54,6 +55,7 @@ public class ScheduleService : IScheduleService
             .Include(s => s.PreAdvice)
             .Include(s => s.Depot)
             .Include(s => s.Trucker)
+            .Include(s => s.QRBooking)
             .AsQueryable();
 
         if (role == RoleNames.DepotPersonnel)
@@ -275,5 +277,7 @@ public class ScheduleService : IScheduleService
         s.Id, s.PreAdviceId, s.PreAdvice.ReferenceNo, s.DepotId, s.Depot.Name,
         s.Date, s.Time, s.SlotNo, s.Status, s.TruckerId,
         s.Trucker?.FullName ?? s.Trucker?.Username,
-        s.DepotRemarks);
+        s.DepotRemarks,
+        s.QRBooking?.GateCheckedInAt,
+        s.QRBooking is not null);
 }

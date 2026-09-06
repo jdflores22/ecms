@@ -27,6 +27,7 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import WarehouseIcon from '@mui/icons-material/Warehouse'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
@@ -109,6 +110,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   evaluatorReports: <AssessmentIcon fontSize="small" />,
   truckerReports: <AssessmentIcon fontSize="small" />,
   depotDailyReturns: <CalendarViewDayIcon fontSize="small" />,
+  depotGateScan: <QrCodeScannerIcon fontSize="small" />,
   depotSchedules: <CalendarMonthIcon fontSize="small" />,
   adminPayments: <PaymentsIcon fontSize="small" />,
   truckerReturns: <LocalShippingIcon fontSize="small" />,

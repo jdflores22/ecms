@@ -29,6 +29,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import SearchIcon from '@mui/icons-material/Search'
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import TodayIcon from '@mui/icons-material/Today'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
@@ -387,6 +388,16 @@ export default function DailyReturnsPage() {
           </Box>
           <Button
             component={RouterLink}
+            to="/depot/gate-scan"
+            variant="contained"
+            color="secondary"
+            startIcon={<QrCodeScannerIcon />}
+            sx={listHeroActionSx}
+          >
+            Gate scan
+          </Button>
+          <Button
+            component={RouterLink}
             to="/depot/schedules"
             variant="contained"
             startIcon={<EventNoteOutlinedIcon />}
@@ -672,6 +683,9 @@ export default function DailyReturnsPage() {
                       size="small"
                       sx={{ fontWeight: 600 }}
                     />
+                    {item.gateCheckedInAt && (
+                      <Chip label="Gate in" color="success" size="small" sx={{ fontWeight: 700 }} />
+                    )}
                   </ListMobileChipRow>
                   <Box sx={listMobileActionsSx} onClick={(e) => e.stopPropagation()}>
                     <Button
@@ -721,12 +735,17 @@ export default function DailyReturnsPage() {
                           {item.slotNo > 0 ? ` · Slot ${item.slotNo}` : ''}
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            label={displayScheduleStatus(item.status)}
-                            color={statusColor[item.status] ?? 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                            <Chip
+                              label={displayScheduleStatus(item.status)}
+                              color={statusColor[item.status] ?? 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                            {item.gateCheckedInAt && (
+                              <Chip label="Gate in" color="success" size="small" sx={{ fontWeight: 700 }} />
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell
                           sx={{

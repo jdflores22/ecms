@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
         services.AddHttpClient<LogicteckOutboundClient>();
         services.AddScoped<IQrService, QrCodeService>();
+        services.AddScoped<IDepotGateService, DepotGateService>();
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IPreAdviceService, PreAdviceService>();

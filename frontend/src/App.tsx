@@ -41,6 +41,7 @@ import {
   EvaluatorDemurrageBillingPage,
   EvaluatorDemurrageRatesPage,
   EvaluatorStatementOfAccountsPage,
+  GateScanPage,
   StatementOfAccountDetailPage,
   StatementOfAccountTruckerPendingPage,
   MasterDataPage,
@@ -374,6 +375,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <ScheduleDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/gate-scan"
+          element={
+            <RoleRouteGuard>
+              <GateScanPage />
             </RoleRouteGuard>
           }
         />
