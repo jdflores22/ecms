@@ -22,7 +22,11 @@ import {
 import { paymentApi, scheduleApi, type Payment, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
-import { formatPeso, formatScheduleDate, formatScheduleSlot } from '../../utils/datetime'
+import { formatPeso, formatScheduleSlot } from '../../utils/datetime'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+} from '../../utils/truckerSchedule'
 import { downloadBookingConfirmationPdfBySchedule } from '../../utils/downloadBookingConfirmationPdf'
 import {
   needsPaymentUpload,
@@ -379,13 +383,9 @@ export default function TruckerPaymentsPage() {
                 return (
                   <ListMobileCard key={item.id} onClick={() => navigate(truckerPaymentPath(item.id))}>
                     <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
-                    <ListMobileMeta>{item.depotName}</ListMobileMeta>
+                    <ListMobileMeta>{isScheduleDetailsVisible(item) ? item.depotName : '—'}</ListMobileMeta>
                     <ListMobileMeta>
-                      {item.date && item.time
-                        ? formatScheduleSlot(item.date, item.time)
-                        : item.date
-                          ? formatScheduleDate(item.date)
-                          : '—'}
+                      {formatTruckerScheduleSlot(item, formatScheduleSlot)}
                     </ListMobileMeta>
                     <ListMobileMeta>
                       {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : 'Amount pending'}
@@ -440,14 +440,8 @@ export default function TruckerPaymentsPage() {
                           onClick={() => navigate(truckerPaymentPath(item.id))}
                         >
                           <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-                          <TableCell>{item.depotName}</TableCell>
-                          <TableCell>
-                            {item.date && item.time
-                              ? formatScheduleSlot(item.date, item.time)
-                              : item.date
-                                ? formatScheduleDate(item.date)
-                                : '—'}
-                          </TableCell>
+                          <TableCell>{isScheduleDetailsVisible(item) ? item.depotName : '—'}</TableCell>
+                          <TableCell>{formatTruckerScheduleSlot(item, formatScheduleSlot)}</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>
                             {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : '—'}
                           </TableCell>

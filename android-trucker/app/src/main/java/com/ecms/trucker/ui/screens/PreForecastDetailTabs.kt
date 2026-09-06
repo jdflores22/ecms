@@ -56,6 +56,10 @@ import com.ecms.trucker.util.StatusGuidance
 import com.ecms.trucker.util.canBookLogicteck
 import com.ecms.trucker.util.isScheduleConfirmed
 import com.ecms.trucker.util.isScheduleForPayment
+import com.ecms.trucker.util.formatTruckerScheduleSlot
+import com.ecms.trucker.util.isScheduleDetailsVisible
+import com.ecms.trucker.util.truckerScheduleStatusHint
+import com.ecms.trucker.util.truckerScheduleStatusLabel
 import com.ecms.trucker.util.logicteckStatusFromBooking
 import com.ecms.trucker.util.scheduleStatusLabel
 import com.ecms.trucker.util.QrCodeGenerator
@@ -221,11 +225,18 @@ internal fun PreForecastOverviewTab(
                     Text(stringResource(R.string.preforecast_schedule_empty), color = IcsColors.TextSecondary, modifier = Modifier.padding(8.dp))
                 } else {
                     IcsInfoTileGrid(
-                        tiles = listOf(
-                            stringResource(R.string.field_depot) to schedule.depotName,
-                            stringResource(R.string.field_date) to schedule.date,
-                            stringResource(R.string.field_status) to scheduleStatusLabel(schedule.status),
-                        ),
+                        tiles = if (isScheduleDetailsVisible(schedule)) {
+                            listOf(
+                                stringResource(R.string.field_depot) to schedule.depotName,
+                                stringResource(R.string.field_date) to schedule.date,
+                                stringResource(R.string.field_status) to truckerScheduleStatusLabel(schedule),
+                            )
+                        } else {
+                            listOf(
+                                stringResource(R.string.field_status) to truckerScheduleStatusLabel(schedule),
+                                stringResource(R.string.field_schedule) to truckerScheduleStatusHint(schedule),
+                            )
+                        },
                     )
                 }
                 OutlinedButton(onClick = onOpenSchedule, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -312,25 +323,35 @@ internal fun PreForecastScheduleTab(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             IcsSectionCard(title = stringResource(R.string.preforecast_tab_schedule)) {
-                IcsInfoTileGrid(
-                    tiles = listOf(
-                        stringResource(R.string.field_reference) to schedule.referenceNo,
-                        stringResource(R.string.field_depot) to schedule.depotName,
-                        stringResource(R.string.field_date) to schedule.date,
-                        stringResource(R.string.field_time) to "${schedule.time} · Slot ${schedule.slotNo}",
-                        stringResource(R.string.field_status) to scheduleStatusLabel(schedule.status),
-                    ),
-                )
-                schedule.truckerName?.takeIf { it.isNotBlank() }?.let { name ->
-                    Spacer(Modifier.height(8.dp))
-                    IcsInfoTile(stringResource(R.string.field_trucker), name, Modifier.padding(horizontal = 8.dp))
-                }
-                schedule.depotRemarks?.takeIf { it.isNotBlank() }?.let { remarks ->
-                    Spacer(Modifier.height(8.dp))
-                    IcsInfoTile(stringResource(R.string.field_remarks), remarks, Modifier.padding(horizontal = 8.dp))
+                if (!isScheduleDetailsVisible(schedule)) {
+                    Text(
+                        truckerScheduleStatusHint(schedule),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    IcsInfoTileGrid(
+                        tiles = listOf(
+                            stringResource(R.string.field_reference) to schedule.referenceNo,
+                            stringResource(R.string.field_depot) to schedule.depotName,
+                            stringResource(R.string.field_date) to schedule.date,
+                            stringResource(R.string.field_time) to "${schedule.time} · Slot ${schedule.slotNo}",
+                            stringResource(R.string.field_status) to truckerScheduleStatusLabel(schedule),
+                        ),
+                    )
+                    schedule.truckerName?.takeIf { it.isNotBlank() }?.let { name ->
+                        Spacer(Modifier.height(8.dp))
+                        IcsInfoTile(stringResource(R.string.field_trucker), name, Modifier.padding(horizontal = 8.dp))
+                    }
+                    schedule.depotRemarks?.takeIf { it.isNotBlank() }?.let { remarks ->
+                        Spacer(Modifier.height(8.dp))
+                        IcsInfoTile(stringResource(R.string.field_remarks), remarks, Modifier.padding(horizontal = 8.dp))
+                    }
                 }
             }
-            if (schedule.status.equals("WaitingSchedule", true)) {
+            if (!isScheduleDetailsVisible(schedule)) {
+                Text(truckerScheduleStatusHint(schedule), color = IcsColors.Warning, style = MaterialTheme.typography.bodySmall)
+            } else if (schedule.status.equals("WaitingSchedule", true)) {
                 Text(stringResource(R.string.preforecast_schedule_waiting), color = IcsColors.Warning, style = MaterialTheme.typography.bodySmall)
             }
             if (schedule.status.equals("Scheduled", true) && onUploadPayment != null) {

@@ -1,8 +1,14 @@
 import axios from 'axios'
+import { applyHostingerProxyRequest } from '../utils/hostingerApiProxy'
 
 const publicApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
+})
+
+publicApi.interceptors.request.use((config) => {
+  applyHostingerProxyRequest(config)
+  return config
 })
 
 export interface CertificateVerificationResult {

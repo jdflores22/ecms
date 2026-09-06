@@ -114,7 +114,15 @@ fun ReturnsListScreen(
                     IcsScreenTip(stringResource(R.string.ui_tip_returns_list))
                 }
                 items(schedules, key = { it.id }) { s ->
-                    val meta = scheduleListSubtitle(s.depotName, s.date, s.time, s.slotNo, s.status)
+                    val meta = scheduleListSubtitle(
+                        s.depotName,
+                        s.date,
+                        s.time,
+                        s.slotNo,
+                        s.status,
+                        s.detailsVisible,
+                        s.statusHint,
+                    )
                     IcsListItemCard(
                         title = s.containerHeadline(containerByPreAdviceId),
                         subtitle = s.containerListSubtitle(containerByPreAdviceId, meta),

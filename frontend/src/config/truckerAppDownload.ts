@@ -1,7 +1,7 @@
 /** ICS Trucker Android — public APK served from /downloads/ on the web host. */
 export const TRUCKER_APP_DOWNLOAD = {
-  version: '1.18.0',
-  versionCode: 18,
+  version: '1.19.0',
+  versionCode: 19,
   /** Stable URL — overwritten on each release build. */
   apkFileName: 'ics-trucker-latest.apk',
   downloadPath: '/downloads/ics-trucker-latest.apk',

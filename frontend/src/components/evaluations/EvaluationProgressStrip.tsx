@@ -6,6 +6,11 @@ import { Box, Button, Paper, Typography } from '@mui/material'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import type { Evaluation, PreAdvice, QrBooking, Schedule } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+  truckerScheduleStatusHint,
+} from '../../utils/truckerSchedule'
 import { ICS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
 
 type StepState = 'complete' | 'current' | 'upcoming' | 'error'
@@ -100,21 +105,17 @@ export function buildEvaluationProgressSteps(
           : undefined,
       }
     }
-    if (schedule.status === 'WaitingSchedule') {
+    if (schedule.status === 'WaitingSchedule' || !isScheduleDetailsVisible(schedule)) {
       return {
         label: 'Return scheduling',
-        detail: 'Depot is assigning date, time slot, and trucker',
+        detail: truckerScheduleStatusHint(schedule) || 'Awaiting Container Yard to confirm the date of return',
         state: 'current',
         action: onOpenSchedule
           ? { label: 'View schedule tab', onClick: onOpenSchedule }
           : undefined,
       }
     }
-    const slotDetail = schedule.date
-      ? formatScheduleSlot(schedule.date, schedule.time) +
-        (schedule.slotNo > 0 ? ` · Slot ${schedule.slotNo}` : '') +
-        (schedule.truckerName ? ` · ${schedule.truckerName}` : '')
-      : schedule.depotName
+    const slotDetail = formatTruckerScheduleSlot(schedule, formatScheduleSlot)
     return {
       label: 'Return scheduling',
       detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : schedule.status === 'Scheduled' ? 'For Payment' : 'Scheduled'} · ${slotDetail}`,
@@ -245,10 +246,6 @@ export function buildPreAdviceProgressSteps(
             ? 'A shipping-line evaluator is reviewing your request'
             : 'Waiting for a shipping-line evaluator to review this request',
         state: 'current',
-        action:
-          onManagePhotos && item.status === 'Submitted'
-            ? { label: 'Manage photos', onClick: onManagePhotos, icon: 'photos' }
-            : undefined,
       }
     }
     return {
@@ -286,21 +283,17 @@ export function buildPreAdviceProgressSteps(
           : undefined,
       }
     }
-    if (schedule.status === 'WaitingSchedule') {
+    if (schedule.status === 'WaitingSchedule' || !isScheduleDetailsVisible(schedule)) {
       return {
         label: 'Return scheduling',
-        detail: 'Depot is assigning date, time slot, and trucker',
+        detail: truckerScheduleStatusHint(schedule) || 'Awaiting Container Yard to confirm the date of return',
         state: 'current',
         action: onOpenSchedule
           ? { label: 'View schedule tab', onClick: onOpenSchedule }
           : undefined,
       }
     }
-    const slotDetail = schedule.date
-      ? formatScheduleSlot(schedule.date, schedule.time) +
-        (schedule.slotNo > 0 ? ` · Slot ${schedule.slotNo}` : '') +
-        (schedule.truckerName ? ` · ${schedule.truckerName}` : '')
-      : schedule.depotName
+    const slotDetail = formatTruckerScheduleSlot(schedule, formatScheduleSlot)
     return {
       label: 'Return scheduling',
       detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : schedule.status === 'Scheduled' ? 'For Payment' : 'Scheduled'} · ${slotDetail}`,

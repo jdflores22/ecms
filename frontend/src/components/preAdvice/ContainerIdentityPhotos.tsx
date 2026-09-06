@@ -23,7 +23,7 @@ import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import axios from 'axios'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
 import { useToast } from '../feedback/ToastProvider'
 import { useAssetUrlsState } from '../../hooks/useAssetUrl'
 import {
@@ -166,12 +166,21 @@ type Props = {
   documents: PreAdviceDocument[]
   loading?: boolean
   canManage?: boolean
+  /** When true, photos are stored locally until uploadAllPending() is called (e.g. on submit). */
+  deferUpload?: boolean
   /** Full reload fallback for read-only parents */
   onChange?: () => void
   /** Incremental update — avoids page-level loading spinner */
   onDocumentsChange?: (documents: PreAdviceDocument[]) => void
+  /** Called when deferred pending photo categories change */
+  onPendingCategoriesChange?: (categories: string[]) => void
   error?: string
   onError?: (message: string) => void
+}
+
+export type ContainerIdentityPhotosHandle = {
+  uploadAllPending: () => Promise<boolean>
+  pendingCount: () => number
 }
 
 type DamageDialogState = {
@@ -179,18 +188,27 @@ type DamageDialogState = {
   label: string
 }
 
-export default function ContainerIdentityPhotos({
-  preAdviceId,
-  documents,
-  loading = false,
-  canManage = false,
-  onChange,
-  onDocumentsChange,
-  error,
-  onError,
-}: Props) {
+const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>(function ContainerIdentityPhotos(
+  {
+    preAdviceId,
+    documents,
+    loading = false,
+    canManage = false,
+    deferUpload = false,
+    onChange,
+    onDocumentsChange,
+    onPendingCategoriesChange,
+    error,
+    onError,
+  },
+  ref,
+) {
   const { showToast } = useToast()
   const [uploading, setUploading] = useState<string | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({})
+  const [pendingPreviews, setPendingPreviews] = useState<Record<string, string>>({})
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
+  const [bulkUploading, setBulkUploading] = useState(false)
   const [damageDialog, setDamageDialog] = useState<DamageDialogState | null>(null)
   const [damageComment, setDamageComment] = useState('')
   const [damageFile, setDamageFile] = useState<File | null>(null)
@@ -245,8 +263,20 @@ export default function ContainerIdentityPhotos({
   const { urls: assetUrls, loading: assetUrlsLoading } = useAssetUrlsState(documents.map((d) => d.filePath))
   const assetUrl = (path: string | null | undefined) => (path ? assetUrls[path] ?? '' : '')
 
-  const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) => identityByCategory.has(c.value)).length
+  const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter(
+    (c) => identityByCategory.has(c.value) || pendingFiles[c.value],
+  ).length
   const progress = Math.round((standardUploaded / CONTAINER_PHOTO_CATEGORIES.length) * 100)
+
+  useEffect(() => {
+    onPendingCategoriesChange?.(Object.keys(pendingFiles))
+  }, [pendingFiles, onPendingCategoriesChange])
+
+  useEffect(() => {
+    return () => {
+      Object.values(pendingPreviews).forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [pendingPreviews])
 
   const applyDocuments = useCallback(
     (next: PreAdviceDocument[]) => {
@@ -265,6 +295,7 @@ export default function ContainerIdentityPhotos({
       file: File,
       comment?: string,
       successMessage?: string,
+      onProgress?: (percent: number) => void,
     ) => {
       const uploadKey =
         category === DAMAGE_PHOTO_CATEGORY.value
@@ -273,10 +304,16 @@ export default function ContainerIdentityPhotos({
       setUploading(uploadKey)
       onError?.('')
       try {
-        const { data: uploaded } = await preAdviceApi.uploadDocument(preAdviceId, file, category, comment)
+        const { data: uploaded } = await preAdviceApi.uploadDocument(
+          preAdviceId,
+          file,
+          category,
+          comment,
+          onProgress,
+        )
         const next = mergeUploadedDocument(documents, uploaded, category)
         applyDocuments(next)
-        showToast(successMessage ?? 'Photo uploaded successfully')
+        if (successMessage) showToast(successMessage)
         return uploaded
       } catch (err) {
         const message = apiErrorMessage(err, 'Failed to upload photo.')
@@ -288,6 +325,78 @@ export default function ContainerIdentityPhotos({
       }
     },
     [preAdviceId, documents, applyDocuments, onError, showToast],
+  )
+
+  const queuePendingPhoto = useCallback(
+    (category: ContainerPhotoCategoryValue, file: File) => {
+      setPendingFiles((prev) => ({ ...prev, [category]: file }))
+      setPendingPreviews((prev) => {
+        const next = { ...prev }
+        if (next[category]) URL.revokeObjectURL(next[category])
+        next[category] = URL.createObjectURL(file)
+        return next
+      })
+      onError?.('')
+    },
+    [onError],
+  )
+
+  const uploadAllPending = useCallback(async (): Promise<boolean> => {
+    const entries = CONTAINER_PHOTO_CATEGORIES.filter(
+      (c) => pendingFiles[c.value] && !identityByCategory.has(c.value),
+    )
+    if (entries.length === 0) return true
+
+    setBulkUploading(true)
+    onError?.('')
+    let workingDocs = documents
+    try {
+      for (const category of entries) {
+        const file = pendingFiles[category.value]
+        if (!file) continue
+        setUploadProgress((prev) => ({ ...prev, [category.value]: 0 }))
+        const { data: uploaded } = await preAdviceApi.uploadDocument(
+          preAdviceId,
+          file,
+          category.value,
+          undefined,
+          (percent) => setUploadProgress((prev) => ({ ...prev, [category.value]: percent })),
+        )
+        workingDocs = mergeUploadedDocument(workingDocs, uploaded, category.value)
+        applyDocuments(workingDocs)
+        setUploadProgress((prev) => ({ ...prev, [category.value]: 100 }))
+        setPendingFiles((prev) => {
+          const next = { ...prev }
+          delete next[category.value]
+          return next
+        })
+        setPendingPreviews((prev) => {
+          const next = { ...prev }
+          if (next[category.value]) URL.revokeObjectURL(next[category.value])
+          delete next[category.value]
+          return next
+        })
+      }
+      showToast('All container photos uploaded successfully')
+      return true
+    } catch (err) {
+      const message = apiErrorMessage(err, 'Failed to upload photos.')
+      onError?.(message)
+      showToast(message, 'error')
+      return false
+    } finally {
+      setBulkUploading(false)
+      setUploadProgress({})
+    }
+  }, [pendingFiles, identityByCategory, documents, applyDocuments, preAdviceId, onError, showToast])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      uploadAllPending,
+      pendingCount: () => Object.keys(pendingFiles).length,
+    }),
+    [uploadAllPending, pendingFiles],
   )
 
   const requestDeletePhoto = useCallback((documentId: number, label: string) => {
@@ -347,9 +456,12 @@ export default function ContainerIdentityPhotos({
 
   const renderIdentitySlot = (category: ContainerPhotoGridCategory, slotIndex: number) => {
     const identityDoc = identityByCategory.get(category.value)
+    const pendingPreview = pendingPreviews[category.value]
     const hasDamage = damageByView.has(category.value)
-    const busy = uploading === category.value
+    const busy = uploading === category.value || bulkUploading
+    const cardProgress = uploadProgress[category.value]
     const isOptional = !isRequiredContainerPhotoCategory(category.value)
+    const hasPhoto = Boolean(identityDoc || pendingPreview)
 
     return (
       <Paper
@@ -366,7 +478,7 @@ export default function ContainerIdentityPhotos({
               : isOptional
                 ? 'divider'
                 : 'divider',
-          bgcolor: identityDoc ? hexToRgba(primaryDark, 0.02) : '#fff',
+          bgcolor: hasPhoto ? hexToRgba(primaryDark, 0.02) : '#fff',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -401,6 +513,24 @@ export default function ContainerIdentityPhotos({
         </Box>
 
         <Box sx={{ position: 'relative', aspectRatio: '4/3', bgcolor: '#f8fafc' }}>
+          {cardProgress != null && cardProgress < 100 && (
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 }}>
+              <LinearProgress variant="determinate" value={cardProgress} />
+              <Typography
+                variant="caption"
+                sx={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 4,
+                  color: '#fff',
+                  fontWeight: 700,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                }}
+              >
+                {cardProgress}%
+              </Typography>
+            </Box>
+          )}
           {identityDoc ? (
             <>
               {brokenImages[identityDoc.filePath] ? (
@@ -497,6 +627,70 @@ export default function ContainerIdentityPhotos({
                 </Box>
               )}
             </>
+          ) : pendingPreview ? (
+            <>
+              <Box
+                component="img"
+                src={pendingPreview}
+                alt={category.label}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+              {canManage && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-end',
+                    gap: 0.5,
+                    p: 0.75,
+                    background: 'linear-gradient(transparent 55%, rgba(0,0,0,0.45))',
+                  }}
+                >
+                  <Chip
+                    label="Ready to upload"
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.92)', fontWeight: 700, fontSize: '0.65rem' }}
+                  />
+                  <Tooltip title="Replace photo">
+                    <IconButton
+                      size="small"
+                      disabled={busy}
+                      onClick={() => fileInputsRef.current[category.value]?.click()}
+                      sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
+                      aria-label={`Replace ${category.label}`}
+                    >
+                      <CameraAltOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Remove photo">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      disabled={busy}
+                      onClick={() => {
+                        setPendingFiles((prev) => {
+                          const next = { ...prev }
+                          delete next[category.value]
+                          return next
+                        })
+                        setPendingPreviews((prev) => {
+                          const next = { ...prev }
+                          if (next[category.value]) URL.revokeObjectURL(next[category.value])
+                          delete next[category.value]
+                          return next
+                        })
+                      }}
+                      sx={{ bgcolor: 'rgba(255,255,255,0.9)' }}
+                      aria-label={`Remove ${category.label}`}
+                    >
+                      <DeleteOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
+            </>
           ) : (
             <Box
               sx={{
@@ -568,7 +762,12 @@ export default function ContainerIdentityPhotos({
             accept="image/jpeg,image/png,image/webp"
             onChange={(e) => {
               const file = e.target.files?.[0]
-              if (file) void uploadPhoto(category.value, file, undefined, `${category.label} photo uploaded`)
+              if (!file) return
+              if (deferUpload) {
+                queuePendingPhoto(category.value, file)
+              } else {
+                void uploadPhoto(category.value, file, undefined, `${category.label} photo uploaded`)
+              }
               e.target.value = ''
             }}
           />
@@ -1039,6 +1238,8 @@ export default function ContainerIdentityPhotos({
       </Dialog>
     </Box>
   )
-}
+})
+
+export default ContainerIdentityPhotos
 
 export { containerPhotoLabel } from '../../config/containerPhotoCategories'

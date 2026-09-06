@@ -1,6 +1,11 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # Preserve Authorization for the PHP API proxy (LiteSpeed/Apache).
+  RewriteCond %{HTTP:Authorization} ^(.+)$
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
@@ -13,11 +18,11 @@
   AddType application/vnd.android.package-archive .apk
 </IfModule>
 
-# Hostinger/LiteSpeed HTTP/2 rejects responses when gzip and Content-Length disagree.
+# Hostinger/LiteSpeed HTTP/2: serve pre-compressed .br/.gz from /assets/ (see assets/.htaccess).
 <IfModule mod_setenvif.c>
-  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ static_asset
-  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ no-gzip
-  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ dont-vary
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ static_asset
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ no-gzip
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ dont-vary
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -27,10 +32,5 @@
 </IfModule>
 
 <IfModule mod_deflate.c>
-  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ no-gzip
-</IfModule>
-
-<IfModule LiteSpeed>
-  RewriteEngine On
-  RewriteRule \.(js|mjs|css|wasm)$ - [E=cache-control:no-cache]
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ no-gzip
 </IfModule>

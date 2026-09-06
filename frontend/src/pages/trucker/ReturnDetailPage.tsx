@@ -112,6 +112,11 @@ import { useAppSelector } from '../../store/hooks'
 
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import {
+  isScheduleDetailsVisible,
+  truckerScheduleStatusHint,
+  truckerScheduleStatusLabel,
+} from '../../utils/truckerSchedule'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 
@@ -132,16 +137,6 @@ import {
 
 
 const primaryDark = ICS_PRIMARY
-
-
-
-const scheduleStatusLabel: Record<string, string> = {
-
-  WaitingSchedule: 'Waiting schedule',
-
-}
-
-
 
 function heroScheduleChipStyle(status: string): { bgcolor: string; color: string } {
 
@@ -575,15 +570,10 @@ export default function TruckerReturnDetailPage() {
             title={schedule.referenceNo}
 
             subtitle={
-
               <>
-
-                {schedule.depotName} · {preAdvice.containerNo} ({preAdvice.containerSize}&apos;{' '}
-
-                {preAdvice.containerType})
-
+                {isScheduleDetailsVisible(schedule) ? schedule.depotName : '—'} · {preAdvice.containerNo} (
+                {preAdvice.containerSize}&apos; {preAdvice.containerType})
               </>
-
             }
 
             chips={
@@ -592,7 +582,7 @@ export default function TruckerReturnDetailPage() {
 
                 <Chip
 
-                  label={scheduleStatusLabel[schedule.status] ?? schedule.status}
+                  label={truckerScheduleStatusLabel(schedule)}
 
                   size="small"
 
@@ -623,21 +613,15 @@ export default function TruckerReturnDetailPage() {
             }
 
             aside={
-
-              schedule.date ? (
-
+              isScheduleDetailsVisible(schedule) && schedule.date ? (
                 <DetailHeroAside
-
                   label="Return slot"
-
                   primary={formatScheduleSlot(schedule.date, schedule.time)}
-
                   secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
-
                 />
-
+              ) : !isScheduleDetailsVisible(schedule) ? (
+                <DetailHeroAside label="Return schedule" primary={truckerScheduleStatusHint(schedule)} />
               ) : undefined
-
             }
 
           />
@@ -1036,15 +1020,16 @@ export default function TruckerReturnDetailPage() {
 
                 <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />
 
-                <InfoTile
+                {isScheduleDetailsVisible(schedule) && (
+                  <InfoTile
+                    label="Return slot"
+                    value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
+                  />
+                )}
 
-                  label="Return slot"
-
-                  value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
-
-                />
-
-                <InfoTile label="Depot" value={qrBooking.payload.depot} />
+                {isScheduleDetailsVisible(schedule) && (
+                  <InfoTile label="Depot" value={qrBooking.payload.depot} />
+                )}
 
                 <InfoTile
 

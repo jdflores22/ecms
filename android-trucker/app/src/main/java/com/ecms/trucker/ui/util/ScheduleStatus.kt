@@ -21,7 +21,17 @@ fun scheduleListSubtitle(
     time: String,
     slotNo: Int,
     status: String,
+    detailsVisible: Boolean = true,
+    statusHint: String? = null,
 ): String {
+    if (!detailsVisible) {
+        return statusHint?.takeIf { it.isNotBlank() }
+            ?: if (isWaitingSchedule(status)) {
+                stringResource(R.string.returns_waiting_cy_confirmation)
+            } else {
+                stringResource(R.string.returns_awaiting_payment_schedule)
+            }
+    }
     if (isWaitingSchedule(status)) {
         return stringResource(R.string.returns_waiting_schedule_list_subtitle, depotName)
     }

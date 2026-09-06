@@ -35,11 +35,12 @@ $frontend = Join-Path $PSScriptRoot 'frontend'
 $dist = Join-Path $frontend 'dist'
 $manifestPath = Join-Path $PSScriptRoot 'scripts\.hostinger-deploy-manifest.json'
 
-if (-not $SkipBuild) {
-    Write-Host ("Building frontend (API: {0})..." -f $config.ApiBaseUrl) -ForegroundColor Cyan
-    Push-Location $frontend
-    try {
-        $env:VITE_API_BASE_URL = $config.ApiBaseUrl
+    if (-not $SkipBuild) {
+        Write-Host ("Building frontend (API: {0})..." -f 'Hostinger PHP proxy') -ForegroundColor Cyan
+        Push-Location $frontend
+        try {
+            $env:VITE_USE_HOSTINGER_API_PROXY = 'true'
+            $env:VITE_API_BASE_URL = '/api'
         npm run build
         if ($LASTEXITCODE -ne 0) {
             throw 'npm run build failed'

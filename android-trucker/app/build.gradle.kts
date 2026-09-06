@@ -34,8 +34,8 @@ android {
         applicationId = "com.ecms.trucker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.18.0"
+        versionCode = 19
+        versionName = "1.19.0"
 
         val apiBaseUrl = localProperties.getProperty("API_BASE_URL")
             ?: "https://your-ecms-domain.com/api"

@@ -33,6 +33,8 @@ import com.ecms.trucker.ui.util.rememberScreenLoadState
 import com.ecms.trucker.util.containerHeadline
 import com.ecms.trucker.util.containerListSubtitle
 import com.ecms.trucker.util.preAdviceContainerById
+import com.ecms.trucker.util.formatTruckerScheduleSlot
+import com.ecms.trucker.util.isScheduleDetailsVisible
 import com.ecms.trucker.util.buildPaymentProgressSteps
 import com.ecms.trucker.util.isActiveReturnSchedule
 import com.ecms.trucker.util.needsPaymentUpload
@@ -230,7 +232,7 @@ fun PaymentsListScreen(
                                 if (index > 0) HorizontalDivider(color = IcsColors.Divider)
                                 val payment = paymentFor(payments, schedule.id)
                                 val isRejected = payment?.status.equals("Rejected", true)
-                                val meta = "${schedule.depotName} · ${schedule.date}"
+                                val meta = formatTruckerScheduleSlot(schedule)
                                 IcsPaymentListRow(
                                     title = schedule.containerHeadline(containerByPreAdviceId),
                                     subtitle = schedule.containerListSubtitle(containerByPreAdviceId, meta),
@@ -258,7 +260,7 @@ fun PaymentsListScreen(
                             underReview.forEachIndexed { index, schedule ->
                                 if (index > 0) HorizontalDivider(color = IcsColors.Divider)
                                 val payment = paymentFor(payments, schedule.id)!!
-                                val meta = "${schedule.depotName} · ${schedule.date}"
+                                val meta = formatTruckerScheduleSlot(schedule)
                                 IcsPaymentListRow(
                                     title = schedule.containerHeadline(containerByPreAdviceId),
                                     subtitle = schedule.containerListSubtitle(containerByPreAdviceId, meta),

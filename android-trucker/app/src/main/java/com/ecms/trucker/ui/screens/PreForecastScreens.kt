@@ -445,6 +445,8 @@ fun PreForecastDetailScreen(
     var cancelRequestOpen by remember { mutableStateOf(false) }
     var cancelReason by remember { mutableStateOf("") }
     var submitConfirmOpen by remember { mutableStateOf(false) }
+    var pendingPhotos by remember { mutableStateOf<Map<String, Uri>>(emptyMap()) }
+    var uploadProgress by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var tabInitialized by remember(id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -487,6 +489,16 @@ fun PreForecastDetailScreen(
             return@rememberLauncherForActivityResult
         }
         val category = uploadCategory ?: return@rememberLauncherForActivityResult
+        val current = item
+        val deferUpload = current != null && (
+            current.status.equals("Draft", true) || current.status.equals("ForCompliance", true)
+        )
+        if (deferUpload) {
+            pendingPhotos = pendingPhotos + (category.value to uri)
+            uploadCategory = null
+            Toast.makeText(context, "Photo attached — will upload when you submit", Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
         Toast.makeText(context, "Uploading photo...", Toast.LENGTH_SHORT).show()
         scope.launch {
             actionLoading = true
@@ -592,7 +604,7 @@ fun PreForecastDetailScreen(
                 val isDraft = p.status.equals("Draft", true)
                 val isForCompliance = p.status.equals("ForCompliance", true)
                 val isSubmitted = p.status.equals("Submitted", true)
-                val canManagePhotos = isDraft || isForCompliance || isSubmitted
+                val canManagePhotos = isDraft || isForCompliance
                 val canSubmit = (isDraft || isForCompliance) && (!freeTimeExpired || demurrageSettled)
                 val docsByCategory = docs.associateBy { it.category.orEmpty() }
                 val damageByView = docs
@@ -600,10 +612,14 @@ fun PreForecastDetailScreen(
                     .mapNotNull { doc -> parseDamageView(doc.comment)?.let { it to doc } }
                     .toMap()
                 val requiredCategories = CONTAINER_PHOTO_GRID_CATEGORIES.filter { it.required }
-                val uploadedRequired = requiredCategories.count { docsByCategory[it.value] != null }
+                val uploadedRequired = requiredCategories.count {
+                    docsByCategory[it.value] != null || pendingPhotos.containsKey(it.value)
+                }
                 val photosTotal = requiredCategories.size
                 val photosComplete = uploadedRequired == photosTotal
-                val missing = requiredCategories.filter { docsByCategory[it.value] == null }
+                val missing = requiredCategories.filter {
+                    docsByCategory[it.value] == null && !pendingPhotos.containsKey(it.value)
+                }
                 var missingPhotoLabels = ""
                 for (i in missing.indices) {
                     if (i > 0) missingPhotoLabels += ", "
@@ -786,6 +802,8 @@ fun PreForecastDetailScreen(
                             PreForecastDetailTab.Photos -> PreForecastPhotosTabContent(
                                 canManagePhotos = canManagePhotos,
                                 docsByCategory = docsByCategory,
+                                pendingPhotos = pendingPhotos,
+                                uploadProgress = uploadProgress,
                                 damageByView = damageByView,
                                 damageDocs = CONTAINER_PHOTO_GRID_CATEGORIES.mapNotNull { c ->
                                     damageByView[c.value]?.let { c to it }
@@ -803,6 +821,9 @@ fun PreForecastDetailScreen(
                                 },
                                 onView = { preview = it },
                                 onDelete = { deleteConfirm = it },
+                                onRemovePending = { category ->
+                                    pendingPhotos = pendingPhotos - category.value
+                                },
                                 onDamageUpdate = { category, doc ->
                                     damageTarget = category
                                     damageDescription = parseDamageDescription(doc.comment)
@@ -951,12 +972,40 @@ fun PreForecastDetailScreen(
                     onClick = {
                         scope.launch {
                             actionLoading = true
-                            runCatching { repository.submitPreAdvice(id) }
-                                .onSuccess {
-                                    submitConfirmOpen = false
-                                    load()
+                            val categoriesToUpload = REQUIRED_PHOTO_CATEGORY_VALUES.filter { key ->
+                                pendingPhotos.containsKey(key) && docs.none { it.category == key }
+                            }.mapNotNull { key ->
+                                CONTAINER_PHOTO_GRID_CATEGORIES.find { it.value == key }
+                            }
+                            var uploadFailed = false
+                            for (category in categoriesToUpload) {
+                                val uri = pendingPhotos[category.value] ?: continue
+                                uploadProgress = uploadProgress + (category.value to 0)
+                                val result = runCatching {
+                                    repository.uploadPreAdviceDocument(id, uri, category.value, null)
                                 }
-                                .onFailure { error = it.message }
+                                if (result.isSuccess) {
+                                    uploadProgress = uploadProgress + (category.value to 100)
+                                    pendingPhotos = pendingPhotos - category.value
+                                } else {
+                                    uploadFailed = true
+                                    error = result.exceptionOrNull()?.message
+                                    break
+                                }
+                            }
+                            if (!uploadFailed) {
+                                docs = repository.getPreAdviceDocuments(id)
+                                runCatching { repository.submitPreAdvice(id) }
+                                    .onSuccess {
+                                        submitConfirmOpen = false
+                                        pendingPhotos = emptyMap()
+                                        uploadProgress = emptyMap()
+                                        snackbarHostState.showSnackbar("Pre-forecast submitted")
+                                        load()
+                                    }
+                                    .onFailure { error = it.message }
+                            }
+                            uploadProgress = emptyMap()
                             actionLoading = false
                         }
                     },
@@ -1708,6 +1757,8 @@ internal fun clearPreForecastScreenCache() {
 private fun PreForecastPhotosTabContent(
     canManagePhotos: Boolean,
     docsByCategory: Map<String, PreAdviceDocumentDto>,
+    pendingPhotos: Map<String, Uri>,
+    uploadProgress: Map<String, Int>,
     damageByView: Map<String, PreAdviceDocumentDto>,
     damageDocs: List<Pair<ContainerPhotoCategory, PreAdviceDocumentDto>>,
     actionLoading: Boolean,
@@ -1716,6 +1767,7 @@ private fun PreForecastPhotosTabContent(
     onDamage: (ContainerPhotoCategory) -> Unit,
     onView: (PreAdviceDocumentDto) -> Unit,
     onDelete: (PreAdviceDocumentDto) -> Unit,
+    onRemovePending: (ContainerPhotoCategory) -> Unit,
     onDamageUpdate: (ContainerPhotoCategory, PreAdviceDocumentDto) -> Unit,
 ) {
     Column(
@@ -1739,6 +1791,8 @@ private fun PreForecastPhotosTabContent(
                     ContainerPhotoCard(
                         category = category,
                         document = doc,
+                        pendingUri = pendingPhotos[category.value],
+                        uploadPercent = uploadProgress[category.value],
                         damageDocument = damageByView[category.value],
                         canManage = canManagePhotos,
                         loading = actionLoading,
@@ -1747,6 +1801,7 @@ private fun PreForecastPhotosTabContent(
                         onDamage = { onDamage(category) },
                         onView = { doc?.let(onView) },
                         onDelete = { doc?.let(onDelete) },
+                        onRemovePending = { onRemovePending(category) },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -1890,6 +1945,8 @@ private fun PreForecastListRowCard(
 private fun ContainerPhotoCard(
     category: ContainerPhotoCategory,
     document: PreAdviceDocumentDto?,
+    pendingUri: Uri? = null,
+    uploadPercent: Int? = null,
     damageDocument: PreAdviceDocumentDto?,
     canManage: Boolean,
     loading: Boolean,
@@ -1898,6 +1955,7 @@ private fun ContainerPhotoCard(
     onDamage: () -> Unit,
     onView: () -> Unit,
     onDelete: () -> Unit,
+    onRemovePending: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1940,11 +1998,31 @@ private fun ContainerPhotoCard(
                     .background(Color(0xFFF8FAFC)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (document != null) {
+                if (uploadPercent != null && uploadPercent < 100) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        LinearProgressIndicator(
+                            progress = { uploadPercent / 100f },
+                            modifier = Modifier.fillMaxWidth(0.85f),
+                        )
+                        Text(
+                            "$uploadPercent%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = IcsColors.Primary,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                } else if (document != null) {
                     AsyncImage(
                         model = remember(document.filePath, accessToken) {
                             buildAuthedImageRequest(context, document.filePath, accessToken)
                         },
+                        contentDescription = containerPhotoLabel(category.value),
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else if (pendingUri != null) {
+                    AsyncImage(
+                        model = pendingUri,
                         contentDescription = containerPhotoLabel(category.value),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
@@ -1974,6 +2052,10 @@ private fun ContainerPhotoCard(
                         IconButton(enabled = !loading, onClick = onDelete) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.content_desc_remove))
                         }
+                    }
+                } else if (pendingUri != null && canManage) {
+                    IconButton(enabled = !loading, onClick = onRemovePending) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.content_desc_remove))
                     }
                 }
             }

@@ -13,6 +13,7 @@ import { Navigate, Link as RouterLink, useNavigate, useParams, useSearchParams }
 import PreAdviceDetailTabPanels, {
   type PreAdviceDetailTab,
 } from '../../components/preAdvice/PreAdviceDetailTabPanels'
+import type { ContainerIdentityPhotosHandle } from '../../components/preAdvice/ContainerIdentityPhotos'
 import EvaluationProgressStrip, {
   buildPreAdviceProgressSteps,
 } from '../../components/evaluations/EvaluationProgressStrip'
@@ -51,6 +52,10 @@ import {
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
+import {
+  isScheduleDetailsVisible,
+  truckerScheduleStatusHint,
+} from '../../utils/truckerSchedule'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
@@ -186,6 +191,8 @@ export default function PreAdviceDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [documents, setDocuments] = useState<PreAdviceDocument[]>([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [pendingPhotoCategories, setPendingPhotoCategories] = useState<string[]>([])
+  const photosRef = useRef<ContainerIdentityPhotosHandle>(null)
   const [photoError, setPhotoError] = useState('')
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [scheduleLoading, setScheduleLoading] = useState(false)
@@ -364,18 +371,19 @@ export default function PreAdviceDetailPage() {
   }, [setSearchParams])
 
   const photoProgress = useMemo(() => {
-    const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
-      documents.some((d) => d.category === c.value),
+    const uploaded = CONTAINER_PHOTO_CATEGORIES.filter(
+      (c) => documents.some((d) => d.category === c.value) || pendingPhotoCategories.includes(c.value),
     ).length
     return { uploaded, total: CONTAINER_PHOTO_CATEGORIES.length }
-  }, [documents])
+  }, [documents, pendingPhotoCategories])
 
   const missingPhotoLabels = useMemo(
     () =>
       CONTAINER_PHOTO_CATEGORIES.filter(
-        (c) => !documents.some((d) => d.category === c.value),
+        (c) =>
+          !documents.some((d) => d.category === c.value) && !pendingPhotoCategories.includes(c.value),
       ).map((c) => c.label),
-    [documents],
+    [documents, pendingPhotoCategories],
   )
 
   const photosComplete = missingPhotoLabels.length === 0
@@ -530,8 +538,8 @@ export default function PreAdviceDetailPage() {
   const canSubmitRequest =
     (isDraft || isForCompliance) && photosComplete && (!freeTimeExpired || demurrageSettled)
   const canCancel = item?.status === 'Submitted' || item?.status === 'UnderEvaluation'
-  const canManageDocuments =
-    item?.status === 'Draft' || item?.status === 'Submitted' || isForCompliance
+  const canManageDocuments = item?.status === 'Draft' || isForCompliance
+  const deferPhotoUpload = canManageDocuments
   const showHeroActions = !editing && (canCancel || isDraft || isForCompliance)
   const effectiveScheduleStatus = schedule?.status ?? item?.scheduleStatus ?? null
   const showsFlowStatus = item?.status === 'Approved' && !!effectiveScheduleStatus
@@ -610,6 +618,10 @@ export default function PreAdviceDetailPage() {
     setSubmitting(true)
     setActionError('')
     try {
+      if (deferPhotoUpload && photosRef.current) {
+        const uploaded = await photosRef.current.uploadAllPending()
+        if (!uploaded) return
+      }
       const { data } = await preAdviceApi.submit(item.id)
       setItem(data)
       setSubmitOpen(false)
@@ -906,7 +918,7 @@ export default function PreAdviceDetailPage() {
                     </>
                   )}
                 </Box>
-              ) : showPaymentAction || schedule?.date ? (
+              ) : showPaymentAction || schedule ? (
                 <Box
                   sx={{
                     display: 'flex',
@@ -916,12 +928,15 @@ export default function PreAdviceDetailPage() {
                     flexShrink: 0,
                   }}
                 >
-                  {schedule?.date && (
+                  {schedule && isScheduleDetailsVisible(schedule) && schedule.date && (
                     <DetailHeroAside
                       label="Return slot"
                       primary={formatScheduleSlot(schedule.date, schedule.time)}
                       secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
                     />
+                  )}
+                  {schedule && !isScheduleDetailsVisible(schedule) && (
+                    <DetailHeroAside label="Return schedule" primary={truckerScheduleStatusHint(schedule)} />
                   )}
                   {showPaymentAction && schedule && (
                     <Button
@@ -968,6 +983,9 @@ export default function PreAdviceDetailPage() {
               documents={documents}
               documentsLoading={documentsLoading}
               canManageDocuments={canManageDocuments}
+              deferPhotoUpload={deferPhotoUpload}
+              photosRef={photosRef}
+              onPendingPhotoCategoriesChange={setPendingPhotoCategories}
               photoError={photoError}
               onPhotoError={setPhotoError}
               editing={editing}

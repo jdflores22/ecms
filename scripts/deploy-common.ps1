@@ -340,10 +340,12 @@ function Invoke-DeployBundle {
             Write-Host ("    Bundle size: {0} KB" -f $archiveKb) -ForegroundColor DarkGray
 
             $remoteArchiveName = 'ecms-deploy-batch-' + $batchNo + '-' + [Guid]::NewGuid().ToString('N') + '.tar.gz'
+            $remoteRoot = $Config.RemotePath.TrimEnd('/')
+            $safeArchive = $remoteArchiveName.Replace("'", "'\''")
+            Invoke-DeployRemote -Config $Config -Command "rm -rf '$remoteRoot/$safeArchive'" -MaxAttempts 2
             Invoke-DeployCopy -Config $Config -LocalPath $archive -RemoteTarget $remoteArchiveName -MaxAttempts $MaxAttempts
 
-            $remoteRoot = $Config.RemotePath.TrimEnd('/')
-            $extractCmd = "cd '$remoteRoot' && tar -xzf '$remoteRoot/$remoteArchiveName' && rm -f '$remoteRoot/$remoteArchiveName' && echo BATCH_${batchNo}_OK"
+            $extractCmd = "cd '$remoteRoot' && tar -xzf '$remoteRoot/$safeArchive' && rm -f '$remoteRoot/$safeArchive' && echo BATCH_${batchNo}_OK"
             Invoke-DeployRemote -Config $Config -Command $extractCmd -MaxAttempts $MaxAttempts
             Write-Host ("    Batch {0} OK" -f $batchNo) -ForegroundColor Green
         }

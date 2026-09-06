@@ -29,7 +29,7 @@ const PRE_ADVICE_STATUS_STYLES: Record<string, LightStatusBadgeStyle> = {
 }
 
 const SCHEDULE_FLOW_STYLES: Record<string, LightStatusBadgeStyle> = {
-  WaitingSchedule: { label: 'Awaiting schedule', color: '#ED6C02', bg: 'rgba(237, 108, 2, 0.08)', border: 'rgba(237, 108, 2, 0.28)' },
+  WaitingSchedule: { label: 'Awaiting CY confirmation', color: '#ED6C02', bg: 'rgba(237, 108, 2, 0.08)', border: 'rgba(237, 108, 2, 0.28)' },
   Scheduled: { label: 'For Payment', color: '#1565C0', bg: 'rgba(21, 101, 192, 0.08)', border: 'rgba(21, 101, 192, 0.28)' },
   Confirmed: { label: 'Confirmed', color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.08)', border: 'rgba(46, 125, 50, 0.28)' },
   Completed: { label: 'Completed', color: '#1565C0', bg: 'rgba(21, 101, 192, 0.08)', border: 'rgba(21, 101, 192, 0.28)' },

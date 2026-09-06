@@ -181,7 +181,7 @@ public class EvaluationService : IEvaluationService
         await _notifications.NotifyUsersAsync(
             new[] { preAdvice.TruckerId },
             "Pre-forecast approved",
-            $"{preAdvice.ReferenceNo} was approved. CY: {depot.Name}.",
+            $"{preAdvice.ReferenceNo} was approved. {TruckerScheduleVisibility.AwaitingCyConfirmation}",
             "Evaluation",
             $"/trucker/preforecast/{preAdvice.Id}",
             evaluatorId,

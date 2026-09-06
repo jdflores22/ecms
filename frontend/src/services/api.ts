@@ -2,6 +2,7 @@ import axios from 'axios'
 import { store } from '../store'
 import { logout, setCredentials } from '../store/slices/authSlice'
 import { resolveAssetUrl } from '../utils/assetUrl'
+import { applyHostingerProxyRequest, toHostingerProxyUrl, USE_HOSTINGER_API_PROXY } from '../utils/hostingerApiProxy'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -9,9 +10,14 @@ const api = axios.create({
   withCredentials: true,
 })
 
+api.interceptors.request.use((config) => {
+  applyHostingerProxyRequest(config)
+  return config
+})
+
 api.interceptors.request.use(async (config) => {
   const url = config.url ?? ''
-  if (url.includes('/auth/')) return config
+  if (url.includes('/auth/') || url.includes('api/auth') || url.includes('api%2Fauth')) return config
 
   let token = store.getState().auth.accessToken
   if (!token) return config
@@ -81,7 +87,9 @@ function requestRefreshAccessToken(): Promise<string | null> {
 
   refreshPromise = axios
     .post<LoginResponse>(
-      `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`,
+      USE_HOSTINGER_API_PROXY
+        ? toHostingerProxyUrl('api/auth/refresh')
+        : `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`,
       { refreshToken },
       { withCredentials: true },
     )
@@ -127,7 +135,7 @@ api.interceptors.response.use(
     const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined
     const requestUrl = originalRequest?.url ?? ''
 
-    if (requestUrl.includes('/auth/')) {
+    if (requestUrl.includes('/auth/') || requestUrl.includes('api/auth') || requestUrl.includes('api%2Fauth')) {
       return Promise.reject(error)
     }
 
@@ -273,13 +281,24 @@ export const preAdviceApi = {
   cancel: (id: number, reason?: string) =>
     api.post<PreAdvice>(`/preforecast/${id}/cancel`, reason ? { reason } : {}),
   documents: (id: number) => api.get<PreAdviceDocument[]>(`/preforecast/${id}/documents`),
-  uploadDocument: (id: number, file: File, category: string, comment?: string) => {
+  uploadDocument: (
+    id: number,
+    file: File,
+    category: string,
+    comment?: string,
+    onProgress?: (percent: number) => void,
+  ) => {
     const form = new FormData()
     form.append('file', file)
     form.append('category', category)
     if (comment) form.append('comment', comment)
     return api.post<PreAdviceDocument>(`/preforecast/${id}/documents`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+        ? (event) => {
+            if (event.total) onProgress(Math.round((event.loaded / event.total) * 100))
+          }
+        : undefined,
     })
   },
   deleteDocument: (preAdviceId: number, documentId: number) =>
@@ -1010,6 +1029,9 @@ export interface Schedule {
   depotRemarks?: string | null
   gateCheckedInAt?: string | null
   hasQrBooking?: boolean
+  /** False when trucker must not see date/time/depot until CY confirms or payment is verified. */
+  detailsVisible?: boolean
+  statusHint?: string | null
 }
 
 export type DepotGateIssueSeverity = 'error' | 'warning' | 'info'

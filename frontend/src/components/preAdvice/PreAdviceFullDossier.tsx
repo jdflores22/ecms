@@ -22,6 +22,10 @@ import type {
 } from '../../services/api'
 import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+} from '../../utils/truckerSchedule'
 import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
 import { truckerPaymentPath } from '../../utils/truckerPayment'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
@@ -208,12 +212,21 @@ export default function PreAdviceFullDossier({
                 </Box>
               )}
               <Box sx={infoGridSx}>
-                <InfoTile label="Depot (CY)" value={schedule.depotName} />
-                {schedule.date && (
-                  <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                {isScheduleDetailsVisible(schedule) ? (
+                  <>
+                    <InfoTile label="Depot (CY)" value={schedule.depotName} />
+                    {schedule.date && (
+                      <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                    )}
+                    {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
+                    {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
+                  </>
+                ) : (
+                  <InfoTile
+                    label="Return schedule"
+                    value={formatTruckerScheduleSlot(schedule, formatScheduleSlot)}
+                  />
                 )}
-                {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
-                {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
                 <InfoTile
                   label="Schedule status"
                   value={

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ensureSignedAssetUrl, isCrossOriginAssetUrl, resolveAssetUrl, warmAssetImages } from '../utils/assetUrl'
+import { ensureSignedAssetUrl, requiresSignedAssetUrl, resolveAssetUrl, warmAssetImages } from '../utils/assetUrl'
 
 function initialAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
-  if (isCrossOriginAssetUrl(path)) return ''
+  if (requiresSignedAssetUrl(path)) return ''
   return resolveAssetUrl(path)
 }
 
 function initialAssetLoading(path: string | null | undefined): boolean {
-  return Boolean(path && isCrossOriginAssetUrl(path))
+  return Boolean(path && requiresSignedAssetUrl(path))
 }
 
 export function useAssetUrlState(path: string | null | undefined): { url: string; loading: boolean } {
@@ -22,7 +22,7 @@ export function useAssetUrlState(path: string | null | undefined): { url: string
       return undefined
     }
 
-    if (!isCrossOriginAssetUrl(path)) {
+    if (!requiresSignedAssetUrl(path)) {
       setUrl(resolveAssetUrl(path))
       setLoading(false)
       return undefined
@@ -84,7 +84,7 @@ export function useAssetUrlsState(paths: (string | null | undefined)[]): {
     const sameOrigin: Record<string, string> = {}
     const crossOrigin: string[] = []
     for (const path of unique) {
-      if (isCrossOriginAssetUrl(path)) crossOrigin.push(path)
+      if (requiresSignedAssetUrl(path)) crossOrigin.push(path)
       else sameOrigin[path] = resolveAssetUrl(path)
     }
     setUrls(sameOrigin)

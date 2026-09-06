@@ -1,18 +1,34 @@
-# LiteSpeed/Hostinger: static JS/CSS must not be gzip-transformed or length-mismatched over HTTP/2.
-<IfModule mod_mime.c>
-  AddType application/javascript .js .mjs
-  AddType application/wasm .wasm
+# LiteSpeed/Hostinger: serve build-time pre-compressed assets to avoid CDN HTTP/2 double-compression.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteCond %{HTTP:Accept-Encoding} br
+  RewriteCond %{REQUEST_FILENAME}\.br -f
+  RewriteRule ^(.+)\.(js|mjs|css|wasm)$ $1.$2.br [E=br:1,L]
+
+  RewriteCond %{HTTP:Accept-Encoding} gzip
+  RewriteCond %{REQUEST_FILENAME}\.gz -f
+  RewriteRule ^(.+)\.(js|mjs|css|wasm)$ $1.$2.gz [E=gzip:1,L]
 </IfModule>
 
-<IfModule mod_setenvif.c>
-  SetEnvIf Request_URI "." no-gzip
-  SetEnvIf Request_URI "." dont-vary
+<IfModule mod_mime.c>
+  AddType application/javascript .js.br .js.gz .mjs.br .mjs.gz
+  AddType text/css .css.br .css.gz
+  AddType application/wasm .wasm.br .wasm.gz
 </IfModule>
 
 <IfModule mod_headers.c>
-  Header always unset Content-Length
+  Header always set Content-Encoding br env=br
+  Header always set Content-Encoding gzip env=gzip
+  Header always unset Content-Length env=br
+  Header always unset Content-Length env=gzip
   Header always set Cache-Control "public, max-age=31536000, immutable, no-transform"
   Header always set X-Content-Type-Options nosniff
+</IfModule>
+
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ no-gzip
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ dont-vary
 </IfModule>
 
 <IfModule LiteSpeed>

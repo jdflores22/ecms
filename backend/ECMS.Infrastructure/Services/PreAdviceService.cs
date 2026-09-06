@@ -612,8 +612,8 @@ public class PreAdviceService : IPreAdviceService
         if (preAdvice is null)
             return null;
 
-        if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.Submitted or PreAdviceStatus.ForCompliance))
-            throw new InvalidOperationException("Photos can only be added to draft, submitted, or for-compliance requests.");
+        if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
+            throw new InvalidOperationException("Photos can only be added to draft or for-compliance requests.");
 
         if (category == ContainerPhotoCategory.Damage)
         {

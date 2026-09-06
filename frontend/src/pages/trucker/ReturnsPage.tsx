@@ -20,6 +20,11 @@ import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import { paymentApi, scheduleApi, type Payment, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleDate, formatScheduleSlot, formatScheduleTime } from '../../utils/datetime'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+  truckerScheduleStatusLabel,
+} from '../../utils/truckerSchedule'
 
 const primaryDark = LIST_PRIMARY
 
@@ -39,7 +44,8 @@ const paymentStatusColor: Record<string, 'default' | 'warning' | 'success' | 'er
 }
 
 const statusLabel: Record<string, string> = {
-  WaitingSchedule: 'Waiting schedule',
+  WaitingSchedule: 'Awaiting CY confirmation',
+  Scheduled: 'For payment',
   ForVerification: 'For verification',
 }
 
@@ -214,18 +220,17 @@ export default function TruckerReturnsPage() {
                 return (
                   <ListMobileCard key={item.id} onClick={() => navigate(`/trucker/returns/${item.id}`)}>
                     <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
-                    <ListMobileMeta>{item.depotName}</ListMobileMeta>
+                    <ListMobileMeta>{isScheduleDetailsVisible(item) ? item.depotName : '—'}</ListMobileMeta>
                     <ListMobileMeta>
-                      {item.date
-                        ? `${formatScheduleDate(item.date)} · ${formatScheduleTime(item.time)}${item.slotNo ? ` · Slot ${item.slotNo}` : ''}`
-                        : 'Return date not set'}
+                      {isScheduleDetailsVisible(item)
+                        ? item.date
+                          ? `${formatScheduleDate(item.date)} · ${formatScheduleTime(item.time)}${item.slotNo ? ` · Slot ${item.slotNo}` : ''}`
+                          : 'Return date not set'
+                        : formatTruckerScheduleSlot(item, formatScheduleSlot)}
                     </ListMobileMeta>
-                    {item.date && (
-                      <ListMobileMeta>{formatScheduleSlot(item.date, item.time)}</ListMobileMeta>
-                    )}
                     <ListMobileChipRow>
                       <Chip
-                        label={statusLabel[item.status] ?? item.status}
+                        label={truckerScheduleStatusLabel(item)}
                         color={scheduleStatusColor[item.status] ?? 'default'}
                         size="small"
                         sx={{ fontWeight: 600 }}
@@ -272,11 +277,17 @@ export default function TruckerReturnsPage() {
                           onClick={() => navigate(`/trucker/returns/${item.id}`)}
                         >
                           <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
-                          <TableCell>{item.depotName}</TableCell>
-                          <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
-                          <TableCell>{formatScheduleTime(item.time)}</TableCell>
+                          <TableCell>{isScheduleDetailsVisible(item) ? item.depotName : '—'}</TableCell>
                           <TableCell>
-                            {item.slotNo ? (
+                            {isScheduleDetailsVisible(item) && item.date
+                              ? formatScheduleDate(item.date)
+                              : formatTruckerScheduleSlot(item, formatScheduleSlot)}
+                          </TableCell>
+                          <TableCell>
+                            {isScheduleDetailsVisible(item) ? formatScheduleTime(item.time) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {isScheduleDetailsVisible(item) && item.slotNo ? (
                               <Chip label={`Slot ${item.slotNo}`} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
                             ) : (
                               '—'

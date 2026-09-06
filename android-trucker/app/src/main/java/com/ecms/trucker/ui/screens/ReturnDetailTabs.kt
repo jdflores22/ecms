@@ -44,7 +44,9 @@ import com.ecms.trucker.ui.components.QrDownloadActions
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.util.AssetUrls
 import com.ecms.trucker.ui.util.isWaitingSchedule
-import com.ecms.trucker.util.buildReturnJourneySteps
+import com.ecms.trucker.util.formatTruckerScheduleSlot
+import com.ecms.trucker.util.isScheduleDetailsVisible
+import com.ecms.trucker.util.truckerScheduleStatusHint
 import com.ecms.trucker.util.canBookLogicteck
 import com.ecms.trucker.util.logicteckStatusFromBooking
 import com.ecms.trucker.util.needsPaymentUpload
@@ -83,7 +85,13 @@ internal fun ReturnDetailsTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (isWaitingSchedule(schedule.status)) {
+        if (!isScheduleDetailsVisible(schedule)) {
+            IcsSectionCard(title = stringResource(R.string.section_schedule)) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Text(truckerScheduleStatusHint(schedule), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else if (isWaitingSchedule(schedule.status)) {
             IcsSectionCard(title = stringResource(R.string.section_schedule)) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Text(stringResource(R.string.returns_waiting_schedule_message), style = MaterialTheme.typography.bodyMedium)
@@ -93,6 +101,12 @@ internal fun ReturnDetailsTabContent(
                         color = IcsColors.TextSecondary,
                         modifier = Modifier.padding(top = 8.dp),
                     )
+                }
+            }
+        } else if (!isScheduleDetailsVisible(schedule)) {
+            IcsSectionCard(title = stringResource(R.string.section_schedule)) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Text(truckerScheduleStatusHint(schedule), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         } else {

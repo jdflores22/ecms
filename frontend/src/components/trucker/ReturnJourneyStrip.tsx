@@ -2,6 +2,10 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { Box, Paper, Typography } from '@mui/material'
 import type { QrBooking, Schedule } from '../../services/api'
+import {
+  isScheduleDetailsVisible,
+  truckerScheduleStatusHint,
+} from '../../utils/truckerSchedule'
 import { ICS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
 
 type StepState = 'complete' | 'current' | 'upcoming'
@@ -27,7 +31,7 @@ export function buildReturnJourneySteps(
     ]
   }
 
-  const scheduleDone = schedule.status !== 'WaitingSchedule'
+  const scheduleDone = schedule.status !== 'WaitingSchedule' && isScheduleDetailsVisible(schedule)
   const paymentDone = paymentStatus === 'Paid'
   const paymentCurrent =
     schedule.status === 'Scheduled' &&
@@ -45,10 +49,10 @@ export function buildReturnJourneySteps(
     {
       label: 'Return assigned',
       detail: scheduleDone
-        ? schedule.date
-          ? 'Slot confirmed by depot'
-          : 'Assigned to you'
-        : 'Waiting for depot',
+        ? 'Slot confirmed by depot'
+        : !isScheduleDetailsVisible(schedule)
+          ? truckerScheduleStatusHint(schedule)
+          : 'Waiting for depot',
       state: scheduleDone ? 'complete' : 'current',
     },
     {

@@ -16,7 +16,9 @@ public record ScheduleDto(
     string? TruckerName,
     string? DepotRemarks,
     DateTime? GateCheckedInAt = null,
-    bool HasQrBooking = false);
+    bool HasQrBooking = false,
+    bool DetailsVisible = true,
+    string? StatusHint = null);
 
 public record CreateScheduleRequest(
     int PreAdviceId,

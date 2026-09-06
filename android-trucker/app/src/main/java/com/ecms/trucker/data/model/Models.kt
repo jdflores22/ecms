@@ -240,6 +240,8 @@ data class ScheduleDto(
     val truckerId: Int? = null,
     val truckerName: String? = null,
     val depotRemarks: String? = null,
+    val detailsVisible: Boolean = true,
+    val statusHint: String? = null,
 )
 
 @Serializable

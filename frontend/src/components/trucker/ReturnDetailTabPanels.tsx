@@ -24,6 +24,10 @@ import {
   paymentStatusLabel,
   truckerPaymentPath,
 } from '../../utils/truckerPayment'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+} from '../../utils/truckerSchedule'
 
 const primaryDark = ICS_PRIMARY
 
@@ -103,11 +107,20 @@ export default function ReturnDetailTabPanels({
             value={`${preAdvice.containerNo} (${preAdvice.containerSize}' ${preAdvice.containerType})`}
             mono
           />
-          <InfoTile label="Depot (CY)" value={schedule.depotName} />
-          {schedule.date && (
-            <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
+          <InfoTile label="Depot (CY)" value={isScheduleDetailsVisible(schedule) ? schedule.depotName : '—'} />
+          {isScheduleDetailsVisible(schedule) ? (
+            <>
+              {schedule.date && (
+                <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
+              )}
+              {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
+            </>
+          ) : (
+            <InfoTile
+              label="Return schedule"
+              value={formatTruckerScheduleSlot(schedule, formatScheduleSlot)}
+            />
           )}
-          {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
           {schedule.truckerName && <InfoTile label="Trucker" value={schedule.truckerName} />}
           <InfoTile label="Submitted" value={formatDateTime(preAdvice.createdAt)} />
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
@@ -308,8 +321,14 @@ export default function ReturnDetailTabPanels({
                 Booking reference: {qrBooking.qrCode}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                {qrBooking.payload.containerNo} · {qrBooking.payload.depot} ·{' '}
-                {formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
+                {qrBooking.payload.containerNo}
+                {isScheduleDetailsVisible(schedule) ? (
+                  <>
+                    {' · '}
+                    {qrBooking.payload.depot} ·{' '}
+                    {formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
+                  </>
+                ) : null}
               </Typography>
 
               <Box sx={infoGridSx}>

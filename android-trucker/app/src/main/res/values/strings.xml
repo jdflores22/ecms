@@ -189,6 +189,8 @@
     <string name="returns_title">My returns</string>
     <string name="returns_empty">No return schedules assigned</string>
     <string name="returns_waiting_schedule_list_subtitle">%1$s · Waiting for depot schedule</string>
+    <string name="returns_waiting_cy_confirmation">Awaiting Container Yard to confirm the date of return</string>
+    <string name="returns_awaiting_payment_schedule">Upload payment proof to view your confirmed return schedule</string>
     <string name="returns_waiting_schedule_message">Depot has not assigned your return date and time yet.</string>
     <string name="returns_waiting_schedule_hint">You will be notified when a slot is scheduled. Payment upload opens after the schedule is confirmed.</string>
     <string name="returns_status_waiting_schedule">Waiting schedule</string>

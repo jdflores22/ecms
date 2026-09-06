@@ -12,7 +12,7 @@ import {
   Typography,
 } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
-import ContainerIdentityPhotos from './ContainerIdentityPhotos'
+import ContainerIdentityPhotos, { type ContainerIdentityPhotosHandle } from './ContainerIdentityPhotos'
 import PreAdviceActivityLog from './PreAdviceActivityLog'
 import PreAdviceFullDossier from './PreAdviceFullDossier'
 import PreAdviceForm, { type PreAdviceFormSubmitValues } from './PreAdviceForm'
@@ -37,6 +37,11 @@ import { canBookLogicteck } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
 import { truckerPaymentPath } from '../../utils/truckerPayment'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+  truckerScheduleStatusHint,
+} from '../../utils/truckerSchedule'
 
 const primaryDark = ICS_PRIMARY
 
@@ -54,6 +59,9 @@ type PreAdviceDetailTabPanelsProps = {
   documents: PreAdviceDocument[]
   documentsLoading: boolean
   canManageDocuments: boolean
+  deferPhotoUpload?: boolean
+  photosRef?: React.RefObject<ContainerIdentityPhotosHandle | null>
+  onPendingPhotoCategoriesChange?: (categories: string[]) => void
   photoError: string
   onPhotoError: (message: string) => void
   editing: boolean
@@ -84,6 +92,9 @@ export default function PreAdviceDetailTabPanels({
   documents,
   documentsLoading,
   canManageDocuments,
+  deferPhotoUpload = false,
+  photosRef,
+  onPendingPhotoCategoriesChange,
   photoError,
   onPhotoError,
   editing,
@@ -191,12 +202,15 @@ export default function PreAdviceDetailTabPanels({
 
       <DetailTabPanel value="photos" activeTab={activeTab}>
         <ContainerIdentityPhotos
+          ref={photosRef}
           preAdviceId={preAdviceId}
           documents={documents}
           loading={documentsLoading}
           canManage={canManageDocuments}
+          deferUpload={deferPhotoUpload}
           onChange={onReloadDocuments}
           onDocumentsChange={onDocumentsChange}
+          onPendingCategoriesChange={onPendingPhotoCategoriesChange}
           error={photoError}
           onError={onPhotoError}
         />
@@ -211,39 +225,53 @@ export default function PreAdviceDetailTabPanels({
           <InlineLoadingSkeleton rows={3} />
         ) : schedule ? (
           <>
-            {schedule.status === 'WaitingSchedule' && (
+            {!isScheduleDetailsVisible(schedule) ? (
               <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                The depot is assigning a return date, time slot, and trucker. You will be notified when
-                the schedule is set.
+                {truckerScheduleStatusHint(schedule)}
               </Alert>
-            )}
-            {isScheduleForPayment(schedule.status) && (
-              <Alert
-                severity="warning"
-                sx={{ mb: 2, borderRadius: 2 }}
-                action={
-                  <Button
-                    component={RouterLink}
-                    to={truckerPaymentPath(schedule.id)}
-                    color="inherit"
-                    size="small"
-                    startIcon={<PaymentOutlinedIcon />}
-                    sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+            ) : (
+              <>
+                {schedule.status === 'WaitingSchedule' && (
+                  <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                    The depot is assigning a return date, time slot, and trucker. You will be notified when
+                    the schedule is set.
+                  </Alert>
+                )}
+                {isScheduleForPayment(schedule.status) && (
+                  <Alert
+                    severity="warning"
+                    sx={{ mb: 2, borderRadius: 2 }}
+                    action={
+                      <Button
+                        component={RouterLink}
+                        to={truckerPaymentPath(schedule.id)}
+                        color="inherit"
+                        size="small"
+                        startIcon={<PaymentOutlinedIcon />}
+                        sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                      >
+                        Go to payment
+                      </Button>
+                    }
                   >
-                    Go to payment
-                  </Button>
-                }
-              >
-                Return date assigned. Upload payment proof to confirm your return slot.
-              </Alert>
+                    Return date assigned. Upload payment proof to view your confirmed return schedule.
+                  </Alert>
+                )}
+              </>
             )}
             <Box sx={infoGridSx}>
-              <InfoTile label="Depot (CY)" value={schedule.depotName} />
-              {schedule.date && (
-                <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
+              {isScheduleDetailsVisible(schedule) ? (
+                <>
+                  <InfoTile label="Depot (CY)" value={schedule.depotName} />
+                  {schedule.date && (
+                    <InfoTile label="Return schedule" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                  )}
+                  {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
+                  {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
+                </>
+              ) : (
+                <InfoTile label="Return schedule" value={formatTruckerScheduleSlot(schedule, formatScheduleSlot)} />
               )}
-              {schedule.slotNo > 0 && <InfoTile label="Slot" value={`Slot ${schedule.slotNo}`} />}
-              {schedule.truckerName && <InfoTile label="Assigned trucker" value={schedule.truckerName} />}
               <InfoTile
                 label="Schedule status"
                 value={

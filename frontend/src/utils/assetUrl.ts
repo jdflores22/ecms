@@ -2,10 +2,21 @@
  * Resolve API-relative asset paths (e.g. /uploads/photo.jpg) to a full URL.
  * Required in production when the React app is on Hostinger and the API is on Railway.
  */
+import { toHostingerProxyUrl, USE_HOSTINGER_API_PROXY } from './hostingerApiProxy'
+
 export function resolveAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
     return path
+  }
+
+  if (USE_HOSTINGER_API_PROXY) {
+    const normalized = path.startsWith('/') ? path.slice(1) : path
+    const [pathname, query = ''] = normalized.split('?')
+    if (pathname.startsWith('api/') || pathname.startsWith('uploads/')) {
+      const proxied = toHostingerProxyUrl(pathname)
+      return query ? `${proxied}&${query}` : proxied
+    }
   }
 
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -28,6 +39,19 @@ export function isCrossOriginAssetUrl(path: string | null | undefined): boolean 
   } catch {
     return true
   }
+}
+
+function isUploadPath(path: string | null | undefined): boolean {
+  if (!path) return false
+  const base = (path.split('?')[0] ?? path).trim()
+  return base.startsWith('/uploads/') || base.startsWith('uploads/')
+}
+
+/** Uploads in <img> tags need HMAC sig when cross-origin or via Hostinger proxy (no JWT on image requests). */
+export function requiresSignedAssetUrl(path: string | null | undefined): boolean {
+  if (!isUploadPath(path)) return false
+  if (USE_HOSTINGER_API_PROXY) return true
+  return isCrossOriginAssetUrl(path)
 }
 
 function normalizeUploadPath(path: string): string {
@@ -75,7 +99,7 @@ function scheduleSignBatch(): Promise<void> {
 /** Returns a URL that works for cross-origin <img> tags (adds HMAC sig query params when needed). */
 export async function ensureSignedAssetUrl(path: string | null | undefined): Promise<string> {
   if (!path) return ''
-  if (!isCrossOriginAssetUrl(path)) return resolveAssetUrl(path)
+  if (!requiresSignedAssetUrl(path)) return resolveAssetUrl(path)
 
   const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
   const cached = signedCache.get(normalized)
@@ -90,7 +114,7 @@ export async function ensureSignedAssetUrl(path: string | null | undefined): Pro
 
 function resolvedUrlForPath(path: string): string {
   const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
-  if (!isCrossOriginAssetUrl(path)) return resolveAssetUrl(path)
+  if (!requiresSignedAssetUrl(path)) return resolveAssetUrl(path)
   const cached = signedCache.get(normalized)
   return cached ? resolveAssetUrl(cached) : ''
 }
@@ -103,7 +127,7 @@ export async function prefetchSignedAssetUrls(paths: (string | null | undefined)
   const needSign: string[] = []
   for (const path of unique) {
     const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
-    if (isCrossOriginAssetUrl(path) && !signedCache.has(normalized)) {
+    if (requiresSignedAssetUrl(path) && !signedCache.has(normalized)) {
       needSign.push(normalized)
     }
   }

@@ -26,7 +26,9 @@ import com.ecms.trucker.data.model.QrBookingDto
 import com.ecms.trucker.data.model.ScheduleDto
 import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.util.isScheduleConfirmed
+import com.ecms.trucker.util.isScheduleDetailsVisible
 import com.ecms.trucker.util.isScheduleForPayment
+import com.ecms.trucker.util.truckerScheduleStatusHint
 import com.ecms.trucker.util.scheduleStatusLabel
 
 enum class ProgressStepState { Complete, Current, Upcoming, Error }
@@ -92,7 +94,7 @@ fun buildPreForecastProgressSteps(
             },
             state = ProgressStepState.Current,
             actionLabel = if (item.status.equals("Submitted", true)) "Manage photos" else null,
-            onAction = if (item.status.equals("Submitted", true)) onManagePhotos else null,
+            onAction = null,
         )
         else -> ProgressStep("Shipping line evaluation", "Awaiting evaluator decision", ProgressStepState.Upcoming)
     }
@@ -101,9 +103,9 @@ fun buildPreForecastProgressSteps(
         !isApproved -> ProgressStep("Return scheduling", "Depot assigns date, slot, and trucker after approval", ProgressStepState.Upcoming)
         scheduleLoading -> ProgressStep("Return scheduling", "Loading schedule details…", ProgressStepState.Current, "View schedule", onOpenSchedule)
         schedule == null -> ProgressStep("Return scheduling", "Waiting for depot to create the return schedule", ProgressStepState.Current, "View schedule", onOpenSchedule)
-        schedule.status.equals("WaitingSchedule", true) -> ProgressStep(
+        schedule.status.equals("WaitingSchedule", true) || !isScheduleDetailsVisible(schedule) -> ProgressStep(
             "Return scheduling",
-            "Depot is assigning date, time slot, and trucker",
+            truckerScheduleStatusHint(schedule),
             ProgressStepState.Current,
             "View schedule",
             onOpenSchedule,
@@ -111,12 +113,14 @@ fun buildPreForecastProgressSteps(
         else -> {
             val slot = buildString {
                 append(scheduleStatusLabel(schedule.status))
-                append(" · ")
-                append(schedule.date)
-                append(" ")
-                append(schedule.time)
-                if (schedule.slotNo > 0) append(" · Slot ${schedule.slotNo}")
-                schedule.truckerName?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+                if (isScheduleDetailsVisible(schedule) && schedule.date.isNotBlank()) {
+                    append(" · ")
+                    append(schedule.date)
+                    append(" ")
+                    append(schedule.time)
+                    if (schedule.slotNo > 0) append(" · Slot ${schedule.slotNo}")
+                    schedule.truckerName?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+                }
             }
             ProgressStep("Return scheduling", slot, ProgressStepState.Complete, "View return schedule", onOpenSchedule)
         }

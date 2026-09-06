@@ -46,7 +46,7 @@ public class ScheduleService : IScheduleService
             query = query.Where(s => s.PreAdvice.TruckerId == userId);
 
         var items = await query.OrderBy(s => s.Date).ThenBy(s => s.Time).ToListAsync(cancellationToken);
-        return items.Select(MapToDto).ToList();
+        return items.Select(s => MapToDto(s, role)).ToList();
     }
 
     public async Task<ScheduleDto?> GetByIdAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
@@ -68,7 +68,7 @@ public class ScheduleService : IScheduleService
             query = query.Where(s => s.PreAdvice.TruckerId == userId);
 
         var schedule = await query.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
-        return schedule is null ? null : MapToDto(schedule);
+        return schedule is null ? null : MapToDto(schedule, role);
     }
 
     public async Task<ScheduleDto?> GetByPreAdviceIdAsync(int preAdviceId, int userId, string role, CancellationToken cancellationToken = default)
@@ -95,7 +95,7 @@ public class ScheduleService : IScheduleService
         }
 
         var schedule = await query.FirstOrDefaultAsync(cancellationToken);
-        return schedule is null ? null : MapToDto(schedule);
+        return schedule is null ? null : MapToDto(schedule, role);
     }
 
     public async Task<ScheduleDto> CreateAsync(CreateScheduleRequest request, int actorUserId, CancellationToken cancellationToken = default)
@@ -209,31 +209,34 @@ public class ScheduleService : IScheduleService
         var remarksSuffix = string.IsNullOrWhiteSpace(schedule.DepotRemarks)
             ? string.Empty
             : $" Depot note: {schedule.DepotRemarks.Trim()}";
-        var message = $"{refNo} scheduled on {dateStr} at {timeStr}.{remarksSuffix}";
+        var staffMessage = $"{refNo} scheduled on {dateStr} at {timeStr}.{remarksSuffix}";
+        var truckerMessage =
+            $"{refNo} return schedule is ready. Upload payment proof to view your confirmed return date and time.";
 
-        var recipients = new List<int> { schedule.PreAdvice.TruckerId };
+        var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
         await _notifications.NotifyUsersAsync(
-            recipients,
+            adminIds,
             title,
-            message,
+            staffMessage,
             "Schedule",
-            $"/preforecast/{schedule.PreAdviceId}",
+            $"/depot/schedules/{schedule.Id}",
             actorUserId,
             refNo,
             cancellationToken);
 
+        var truckerIds = new HashSet<int> { schedule.PreAdvice.TruckerId };
         if (schedule.TruckerId.HasValue)
-        {
-            await _notifications.NotifyUsersAsync(
-                new[] { schedule.TruckerId.Value },
-                title,
-                $"{refNo} scheduled on {dateStr} at {timeStr}. Upload payment proof to confirm your return.{remarksSuffix}",
-                "Schedule",
-                $"/trucker/payments/{schedule.Id}",
-                actorUserId,
-                refNo,
-                cancellationToken);
-        }
+            truckerIds.Add(schedule.TruckerId.Value);
+
+        await _notifications.NotifyUsersAsync(
+            truckerIds,
+            isNew ? "Return schedule ready for payment" : "Return schedule updated",
+            truckerMessage,
+            "Schedule",
+            $"/trucker/payments/{schedule.Id}",
+            actorUserId,
+            refNo,
+            cancellationToken);
     }
 
     public async Task<int> GetWaitingScheduleCountAsync(int userId, string role, CancellationToken cancellationToken = default)
@@ -273,11 +276,42 @@ public class ScheduleService : IScheduleService
         return Task.CompletedTask;
     }
 
-    private static ScheduleDto MapToDto(Schedule s) => new(
-        s.Id, s.PreAdviceId, s.PreAdvice.ReferenceNo, s.DepotId, s.Depot.Name,
-        s.Date, s.Time, s.SlotNo, s.Status, s.TruckerId,
-        s.Trucker?.FullName ?? s.Trucker?.Username,
-        s.DepotRemarks,
-        s.QRBooking?.GateCheckedInAt,
-        s.QRBooking is not null);
+    private static ScheduleDto MapToDto(Schedule s, string? viewerRole = null)
+    {
+        var dto = new ScheduleDto(
+            s.Id,
+            s.PreAdviceId,
+            s.PreAdvice.ReferenceNo,
+            s.DepotId,
+            s.Depot.Name,
+            s.Date,
+            s.Time,
+            s.SlotNo,
+            s.Status,
+            s.TruckerId,
+            s.Trucker?.FullName ?? s.Trucker?.Username,
+            s.DepotRemarks,
+            s.QRBooking?.GateCheckedInAt,
+            s.QRBooking is not null,
+            true,
+            null);
+
+        if (viewerRole is null || !RoleNames.IsPreAdviceManager(viewerRole))
+            return dto;
+
+        var (visible, hint) = TruckerScheduleVisibility.Resolve(s.Status);
+        if (visible)
+            return dto;
+
+        return dto with
+        {
+            DepotName = string.Empty,
+            Date = default,
+            Time = default,
+            SlotNo = 0,
+            DepotRemarks = null,
+            DetailsVisible = false,
+            StatusHint = hint,
+        };
+    }
 }

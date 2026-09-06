@@ -41,6 +41,11 @@ import { paymentApi, preAdviceApi, qrApi, scheduleApi, type Payment, type PreAdv
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
+import {
+  formatTruckerScheduleSlot,
+  isScheduleDetailsVisible,
+  truckerScheduleStatusHint,
+} from '../../utils/truckerSchedule'
 import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import {
@@ -347,7 +352,8 @@ export default function TruckerPaymentUploadPage() {
             title={`Payment — ${schedule.referenceNo}`}
             subtitle={
               <>
-                {preAdvice.containerNo} · {schedule.depotName}
+                {preAdvice.containerNo}
+                {isScheduleDetailsVisible(schedule) ? ` · ${schedule.depotName}` : ''}
               </>
             }
             chips={
@@ -363,12 +369,14 @@ export default function TruckerPaymentUploadPage() {
               </>
             }
             aside={
-              schedule.date ? (
+              isScheduleDetailsVisible(schedule) && schedule.date ? (
                 <DetailHeroAside
                   label="Return slot"
                   primary={formatScheduleSlot(schedule.date, schedule.time)}
                   secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
                 />
+              ) : !isScheduleDetailsVisible(schedule) ? (
+                <DetailHeroAside label="Return schedule" primary={truckerScheduleStatusHint(schedule)} />
               ) : undefined
             }
           />
@@ -529,14 +537,23 @@ export default function TruckerPaymentUploadPage() {
                   <Box sx={infoGridSx}>
                     <InfoTile label="Reference" value={schedule.referenceNo} mono />
                     <InfoTile label="Container" value={preAdvice.containerNo} mono />
-                    <InfoTile label="Depot (CY)" value={schedule.depotName} />
-                    {schedule.date && (
-                      <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
-                    )}
-                    {schedule.depotRemarks && (
-                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-                        <InfoTile label="Depot remarks" value={schedule.depotRemarks} />
-                      </Box>
+                    {isScheduleDetailsVisible(schedule) ? (
+                      <>
+                        <InfoTile label="Depot (CY)" value={schedule.depotName} />
+                        {schedule.date && (
+                          <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                        )}
+                        {schedule.depotRemarks && (
+                          <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                            <InfoTile label="Depot remarks" value={schedule.depotRemarks} />
+                          </Box>
+                        )}
+                      </>
+                    ) : (
+                      <InfoTile
+                        label="Return schedule"
+                        value={formatTruckerScheduleSlot(schedule, formatScheduleSlot)}
+                      />
                     )}
                     {payment?.paidAt && (
                       <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
@@ -827,7 +844,7 @@ export default function TruckerPaymentUploadPage() {
                     {file?.name ?? '—'}
                   </Typography>
                 </Box>
-                {schedule?.date && (
+                {schedule && isScheduleDetailsVisible(schedule) && schedule.date && (
                   <>
                     <Typography color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                       Return slot
