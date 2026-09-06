@@ -11,7 +11,7 @@ import {
 } from '@mui/material'
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import BookingQrScanner from '../../components/depot/BookingQrScanner'
 import PreAdviceFullDossier from '../../components/preAdvice/PreAdviceFullDossier'
@@ -25,10 +25,8 @@ import { listPageRootSx } from '../../components/layout/ListPagePrimitives'
 import { DEPOT_GATE, depotGateIssueColor } from '../../config/depotGate'
 import {
   depotGateApi,
-  preAdviceApi,
   type DepotGateCheckInResult,
   type DepotGateScanResult,
-  type PreAdviceLookups,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatDateTime } from '../../utils/datetime'
@@ -47,14 +45,6 @@ export default function GateScanPage() {
   const [success, setSuccess] = useState('')
   const [scan, setScan] = useState<DepotGateScanResult | null>(null)
   const [dossier, setDossier] = useState<PreAdviceDossierBundle | null>(null)
-  const [lookups, setLookups] = useState<PreAdviceLookups | null>(null)
-
-  useEffect(() => {
-    preAdviceApi
-      .lookups()
-      .then((res) => setLookups(res.data))
-      .catch(() => setLookups(null))
-  }, [])
 
   const runScan = useCallback(async (rawCode: string) => {
     const qrCode = normalizeBookingQrReference(rawCode)
@@ -249,7 +239,6 @@ export default function GateScanPage() {
           <PreAdviceFullDossier
             item={dossier.preAdvice}
             documents={dossier.documents}
-            lookups={lookups}
             schedule={dossier.schedule}
             qrBooking={dossier.qrBooking}
             qrImageUrl={dossier.qrImageUrl}
