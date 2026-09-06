@@ -19,6 +19,7 @@ public static class RolePageKeys
     public const string EvaluatorReports = "evaluatorReports";
     public const string TruckerReports = "truckerReports";
     public const string DepotDailyReturns = "depotDailyReturns";
+    public const string DepotGateScan = "depotGateScan";
     public const string DepotSchedules = "depotSchedules";
     public const string AdminPayments = "adminPayments";
     public const string TruckerReturns = "truckerReturns";
@@ -47,7 +48,7 @@ public static class RolePageKeys
     {
         Dashboard, Profile, Preforecast, Evaluations, CyAllocation, ContainerInventory, DemurrageBilling, DemurrageRates, StatementOfAccounts,
         AdminReports, DepotReports, EvaluatorReports, TruckerReports,
-        DepotDailyReturns, DepotSchedules,
+        DepotDailyReturns, DepotGateScan, DepotSchedules,
         AdminPayments,
         TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
         EvaluatorAtw, EvaluatorCro, DepotWithdrawals, DepotBroadcasts, TruckerNotifications,
@@ -152,6 +153,7 @@ public static class RoleCatalogDefaults
             new[]
             {
                 "Assign schedule slots",
+                "Scan trucker QR at CY gate for empty return check-in",
                 "Daily returns view",
                 "Send depot broadcasts to truckers",
                 "Depot reports",
@@ -159,7 +161,8 @@ public static class RoleCatalogDefaults
             new[]
             {
                 RolePageKeys.Dashboard, RolePageKeys.Profile,
-                RolePageKeys.DepotDailyReturns, RolePageKeys.DepotSchedules, RolePageKeys.DepotWithdrawals,
+                RolePageKeys.DepotDailyReturns, RolePageKeys.DepotGateScan, RolePageKeys.DepotSchedules,
+                RolePageKeys.DepotWithdrawals,
                 RolePageKeys.DepotBroadcasts,
                 RolePageKeys.DepotReports,
             }),

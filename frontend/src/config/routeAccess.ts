@@ -500,6 +500,11 @@ export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | n
         if (!keys.includes(key)) keys.push(key)
       }
     }
+    if (normalizedRole === 'DepotPersonnel') {
+      for (const key of ROLE_PAGE_ACCESS.DepotPersonnel) {
+        if (!keys.includes(key)) keys.push(key)
+      }
+    }
   } else {
     keys = getAccessiblePageKeys(normalizedRole)
   }
