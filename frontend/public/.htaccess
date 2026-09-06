@@ -8,5 +8,19 @@
 </IfModule>
 
 <IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType application/wasm .wasm
   AddType application/vnd.android.package-archive .apk
+</IfModule>
+
+# Hostinger/LiteSpeed HTTP/2 can reset streams when gzip + Content-Length disagree.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs|css|wasm|json|map)$">
+    Header always unset Content-Length
+    Header set X-Content-Type-Options nosniff
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ no-gzip dont-vary
 </IfModule>
