@@ -13,14 +13,24 @@
   AddType application/vnd.android.package-archive .apk
 </IfModule>
 
-# Hostinger/LiteSpeed HTTP/2 can reset streams when gzip + Content-Length disagree.
-<IfModule mod_headers.c>
-  <FilesMatch "\.(js|mjs|css|wasm|json|map)$">
-    Header always unset Content-Length
-    Header set X-Content-Type-Options nosniff
-  </FilesMatch>
+# Hostinger/LiteSpeed HTTP/2 rejects responses when gzip and Content-Length disagree.
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ static_asset
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ no-gzip
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ dont-vary
 </IfModule>
 
-<IfModule mod_setenvif.c>
-  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ no-gzip dont-vary
+<IfModule mod_headers.c>
+  Header always unset Content-Length env=static_asset
+  Header always set Cache-Control "public, max-age=31536000, immutable, no-transform" env=static_asset
+  Header always set X-Content-Type-Options nosniff env=static_asset
+</IfModule>
+
+<IfModule mod_deflate.c>
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)$ no-gzip
+</IfModule>
+
+<IfModule LiteSpeed>
+  RewriteEngine On
+  RewriteRule \.(js|mjs|css|wasm)$ - [E=cache-control:no-cache]
 </IfModule>
