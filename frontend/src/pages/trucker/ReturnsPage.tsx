@@ -17,7 +17,8 @@ import {
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
-import { paymentApi, scheduleApi, type Payment, type Schedule } from '../../services/api'
+import { type Schedule } from '../../services/api'
+import { fetchCachedScheduleList } from '../../utils/truckerListCache'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleDate, formatScheduleSlot, formatScheduleTime } from '../../utils/datetime'
 import {
@@ -76,7 +77,6 @@ export default function TruckerReturnsPage() {
   const navigate = useNavigate()
   const userRole = useAppSelector((s) => s.auth.user?.role)
   const [schedules, setSchedules] = useState<Schedule[]>([])
-  const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -86,11 +86,8 @@ export default function TruckerReturnsPage() {
       return
     }
     setLoading(true)
-    Promise.all([scheduleApi.list(), paymentApi.mine()])
-      .then(([s, p]) => {
-        setSchedules(s.data)
-        setPayments(p.data)
-      })
+    fetchCachedScheduleList()
+      .then((data) => setSchedules(data))
       .catch(() => setError('Failed to load your returns.'))
       .finally(() => setLoading(false))
   }, [userRole])
@@ -99,17 +96,18 @@ export default function TruckerReturnsPage() {
     load()
   }, [load])
 
-  const paymentFor = (scheduleId: number) => payments.find((p) => p.scheduleId === scheduleId)
+  const paymentStatusFor = (schedule: Schedule) =>
+    schedule.paymentStatus ?? (schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Paid' : 'Pending')
 
   const summary = useMemo(() => {
     const scheduled = schedules.filter((s) => s.status === 'Scheduled').length
     const confirmed = schedules.filter((s) => s.status === 'Confirmed' || s.status === 'Completed').length
     const paymentPending = schedules.filter((s) => {
-      const p = paymentFor(s.id)
-      return !p || p.status === 'Pending' || p.status === 'Rejected'
+      const status = paymentStatusFor(s)
+      return status === 'Pending' || status === 'Rejected'
     }).length
     return { total: schedules.length, scheduled, confirmed, paymentPending }
-  }, [schedules, payments])
+  }, [schedules])
 
   const emptyMessage = 'No assigned returns yet. Depot will assign you to a schedule.'
 
@@ -215,8 +213,7 @@ export default function TruckerReturnsPage() {
           <>
             <ListMobileOnly>
               {schedules.map((item) => {
-                const payment = paymentFor(item.id)
-                const paymentStatus = payment?.status ?? 'Pending'
+                const paymentStatus = paymentStatusFor(item)
                 return (
                   <ListMobileCard key={item.id} onClick={() => navigate(`/trucker/returns/${item.id}`)}>
                     <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
@@ -268,7 +265,7 @@ export default function TruckerReturnsPage() {
                   </TableHead>
                   <TableBody>
                     {schedules.map((item) => {
-                      const payment = paymentFor(item.id)
+                      const paymentStatus = paymentStatusFor(item)
                       return (
                         <TableRow
                           key={item.id}
@@ -303,8 +300,8 @@ export default function TruckerReturnsPage() {
                           </TableCell>
                           <TableCell>
                             <Chip
-                              label={statusLabel[payment?.status ?? 'Pending'] ?? payment?.status ?? 'Pending'}
-                              color={paymentStatusColor[payment?.status ?? 'Pending'] ?? 'default'}
+                              label={statusLabel[paymentStatus] ?? paymentStatus}
+                              color={paymentStatusColor[paymentStatus] ?? 'default'}
                               size="small"
                               sx={{ fontWeight: 600 }}
                             />

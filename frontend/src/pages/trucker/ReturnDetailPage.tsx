@@ -335,21 +335,23 @@ export default function TruckerReturnDetailPage() {
 
     setQrImageUrl(null)
 
-    Promise.all([scheduleApi.get(scheduleId), paymentApi.mine()])
-
-      .then(async ([scheduleRes, paymentsRes]) => {
-
+    scheduleApi
+      .get(scheduleId)
+      .then((scheduleRes) => {
         const item = scheduleRes.data
+        return Promise.all([
+          Promise.resolve(item),
+          paymentApi.getBySchedule(scheduleId),
+          preAdviceApi.get(item.preAdviceId),
+        ])
+      })
+      .then(async ([item, paymentRes, preAdviceRes]) => {
 
-        const existing = paymentsRes.data.find((p) => p.scheduleId === item.id) ?? null
+        const existing = paymentRes.data
 
         setSchedule(item)
 
         setPayment(existing)
-
-
-
-        const preAdviceRes = await preAdviceApi.get(item.preAdviceId)
 
         setPreAdvice(preAdviceRes.data)
 

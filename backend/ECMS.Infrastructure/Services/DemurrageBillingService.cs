@@ -146,15 +146,6 @@ public class DemurrageBillingService : IDemurrageBillingService
         if (role != RoleNames.Trucker)
             return 0;
 
-        try
-        {
-            await MaybeSyncExpiredBillingsAsync(cancellationToken);
-        }
-        catch
-        {
-            // Count badge must stay available even if demurrage sync fails (schema drift, etc.).
-        }
-
         return await _db.DemurrageBillings.CountAsync(
             b => b.TruckerId == userId && b.Status == PaymentStatus.Pending,
             cancellationToken);

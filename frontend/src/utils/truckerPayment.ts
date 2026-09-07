@@ -16,6 +16,7 @@ export const paymentStatusColor: Record<string, 'default' | 'warning' | 'success
 
 export function resolvePaymentStatus(schedule: Schedule, payment: Payment | null): string {
   if (payment) return payment.status
+  if (schedule.paymentStatus) return schedule.paymentStatus
   if (schedule.status === 'Confirmed' || schedule.status === 'Completed') return 'Paid'
   if (schedule.status === 'Scheduled') return 'Pending'
   return 'Pending'

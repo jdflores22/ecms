@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
-import { demurrageBillingApi } from '../services/api'
+import { fetchCachedDemurrageDueCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
+
+const POLL_MS = 60_000
 
 export function useTruckerDemurrageDueCount(
   role: string | undefined,
@@ -18,9 +20,8 @@ export function useTruckerDemurrageDueCount(
       setCount(0)
       return
     }
-    demurrageBillingApi
-      .paymentDueCount()
-      .then(({ data }) => setCount(data.count))
+    fetchCachedDemurrageDueCount()
+      .then((count) => setCount(count))
       .catch(() => {})
   }, [enabled])
 
@@ -30,7 +31,7 @@ export function useTruckerDemurrageDueCount(
       return undefined
     }
     const cancelDeferred = scheduleNonCritical(load)
-    const interval = setInterval(load, 30_000)
+    const interval = setInterval(load, POLL_MS)
     return () => {
       cancelDeferred()
       clearInterval(interval)

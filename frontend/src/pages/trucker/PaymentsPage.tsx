@@ -19,7 +19,8 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
-import { paymentApi, scheduleApi, type Payment, type Schedule } from '../../services/api'
+import { paymentApi, type Payment, type Schedule } from '../../services/api'
+import { fetchCachedPaymentMine, fetchCachedScheduleList } from '../../utils/truckerListCache'
 import { useAppSelector } from '../../store/hooks'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { formatPeso, formatScheduleSlot } from '../../utils/datetime'
@@ -172,10 +173,14 @@ export default function TruckerPaymentsPage() {
       return
     }
     setLoading(true)
-    Promise.all([scheduleApi.list(), paymentApi.mine(), paymentApi.getSettings()])
-      .then(([s, p, settings]) => {
-        setSchedules(s.data.filter((x) => x.status === 'Scheduled' || x.status === 'Confirmed'))
-        setPayments(p.data)
+    Promise.all([
+      fetchCachedScheduleList(),
+      fetchCachedPaymentMine(),
+      paymentApi.getSettings(),
+    ])
+      .then(([schedules, payments, settings]) => {
+        setSchedules(schedules.filter((x) => x.status === 'Scheduled' || x.status === 'Confirmed'))
+        setPayments(payments)
         setReturnFeeAmount(settings.data.returnFeeAmount)
       })
       .catch(() => setError('Failed to load payments.'))

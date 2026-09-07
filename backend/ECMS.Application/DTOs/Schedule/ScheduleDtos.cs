@@ -18,7 +18,8 @@ public record ScheduleDto(
     DateTime? GateCheckedInAt = null,
     bool HasQrBooking = false,
     bool DetailsVisible = true,
-    string? StatusHint = null);
+    string? StatusHint = null,
+    string? PaymentStatus = null);
 
 public record CreateScheduleRequest(
     int PreAdviceId,

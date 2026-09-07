@@ -22,8 +22,9 @@ import {
 } from '../components/layout/ListPagePrimitives'
 import { isPreAdviceManager } from '../config/roleConfig'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor } from '../config/logicteckQr'
-import { preAdviceApi, type PreAdvice, type PreAdviceLookups } from '../services/api'
+import { type PreAdvice, type PreAdviceLookups } from '../services/api'
 import { fetchPreAdviceLookups } from '../utils/preAdviceLookupsCache'
+import { fetchCachedPreAdviceList } from '../utils/truckerListCache'
 import { useAppSelector } from '../store/hooks'
 import { formatDateTime, parsePhEndOfDay, parsePhStartOfDay } from '../utils/datetime'
 import { PreAdviceStatusChip } from '../components/preAdvice/PreAdviceStatusChip'
@@ -73,9 +74,9 @@ export default function PreAdvicePage() {
       ? fetchPreAdviceLookups().then((data) => ({ data }))
       : Promise.resolve({ data: null as PreAdviceLookups | null })
 
-    Promise.all([preAdviceApi.list(), lookupsPromise])
-      .then(([listRes, lookupsRes]) => {
-        setItems(listRes.data)
+    Promise.all([fetchCachedPreAdviceList(), lookupsPromise])
+      .then(([list, lookupsRes]) => {
+        setItems(list)
         setLookups(lookupsRes.data)
       })
       .catch(() => setLoadError('Failed to load pre-forecast. Log out and sign in again if this continues.'))

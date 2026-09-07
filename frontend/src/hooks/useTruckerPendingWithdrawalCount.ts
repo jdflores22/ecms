@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
-import { withdrawalApi } from '../services/api'
+import { fetchCachedWithdrawalActionCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
+
+const POLL_MS = 60_000
 
 export function useTruckerPendingWithdrawalCount(
   role: string | undefined,
@@ -20,9 +22,8 @@ export function useTruckerPendingWithdrawalCount(
       setCount(0)
       return
     }
-    withdrawalApi
-      .pendingActionCount()
-      .then(({ data }) => setCount(data.count))
+    fetchCachedWithdrawalActionCount()
+      .then((count) => setCount(count))
       .catch(() => {})
   }, [enabled])
 
@@ -32,7 +33,7 @@ export function useTruckerPendingWithdrawalCount(
       return undefined
     }
     const cancelDeferred = scheduleNonCritical(load)
-    const interval = setInterval(load, 30_000)
+    const interval = setInterval(load, POLL_MS)
     return () => {
       cancelDeferred()
       clearInterval(interval)

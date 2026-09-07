@@ -64,7 +64,8 @@ import {
 
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 
-import { qrApi, scheduleApi, type QrBooking, type Schedule } from '../../services/api'
+import { qrApi, type QrBooking, type Schedule } from '../../services/api'
+import { fetchCachedScheduleList } from '../../utils/truckerListCache'
 
 import { store } from '../../store'
 
@@ -208,7 +209,7 @@ export default function TruckerQrPage() {
 
     try {
 
-      const { data } = await scheduleApi.list()
+      const data = await fetchCachedScheduleList()
 
       const confirmed = data.filter((s) => s.status === 'Confirmed' || s.status === 'Completed')
 

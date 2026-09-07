@@ -1,18 +1,20 @@
-import jsQR from 'jsqr'
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
-
 const VERIFY_PATH_RE = /\/verify\/cro-edo\/([^/?#]+)/i
 
 let pdfWorkerConfigured = false
+let pdfjsModule: typeof import('pdfjs-dist') | null = null
 
-function ensurePdfWorker() {
-  if (pdfWorkerConfigured) return
-  // Vite-friendly worker URL bundled with pdfjs-dist.
-  GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).toString()
-  pdfWorkerConfigured = true
+async function getPdfJs() {
+  if (!pdfjsModule) {
+    pdfjsModule = await import('pdfjs-dist')
+    if (!pdfWorkerConfigured) {
+      pdfjsModule.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url,
+      ).toString()
+      pdfWorkerConfigured = true
+    }
+  }
+  return pdfjsModule
 }
 
 /** Extract the opaque verify token from a pasted URL or raw token. */
@@ -34,7 +36,8 @@ export function extractCroEdoTokenFromText(raw: string): string | null {
   return null
 }
 
-function decodeQrFromImageData(imageData: ImageData): string | null {
+async function decodeQrFromImageData(imageData: ImageData): Promise<string | null> {
+  const { default: jsQR } = await import('jsqr')
   const code = jsQR(imageData.data, imageData.width, imageData.height, {
     inversionAttempts: 'attemptBoth',
   })
@@ -75,9 +78,9 @@ async function decodeQrFromImageFile(file: File): Promise<string | null> {
 }
 
 async function decodeQrFromPdfFile(file: File): Promise<string | null> {
-  ensurePdfWorker()
+  const pdfjs = await getPdfJs()
   const data = new Uint8Array(await file.arrayBuffer())
-  const pdf = await getDocument({ data }).promise
+  const pdf = await pdfjs.getDocument({ data }).promise
   const page = await pdf.getPage(1)
   const viewport = page.getViewport({ scale: 2.5 })
   const canvas = document.createElement('canvas')

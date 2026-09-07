@@ -207,15 +207,22 @@ export default function TruckerPaymentUploadPage() {
     setLoading(true)
     setError('')
 
-    Promise.all([scheduleApi.get(scheduleId), paymentApi.mine(), paymentApi.getSettings()])
-      .then(async ([scheduleRes, paymentsRes, settingsRes]) => {
+    scheduleApi
+      .get(scheduleId)
+      .then((scheduleRes) => {
         const item = scheduleRes.data
-        const existing = paymentsRes.data.find((p) => p.scheduleId === item.id) ?? null
+        return Promise.all([
+          Promise.resolve(item),
+          paymentApi.getBySchedule(scheduleId),
+          paymentApi.getSettings(),
+          preAdviceApi.get(item.preAdviceId),
+        ])
+      })
+      .then(async ([item, paymentRes, settingsRes, preAdviceRes]) => {
+        const existing = paymentRes.data
         setSchedule(item)
         setPayment(existing)
         setConfiguredFee(settingsRes.data.returnFeeAmount)
-
-        const preAdviceRes = await preAdviceApi.get(item.preAdviceId)
         setPreAdvice(preAdviceRes.data)
 
         const paid =

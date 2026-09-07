@@ -30,10 +30,12 @@ public class ScheduleService : IScheduleService
     public async Task<IReadOnlyList<ScheduleDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
         var query = _db.Schedules
+            .AsNoTracking()
             .Include(s => s.PreAdvice)
             .Include(s => s.Depot)
             .Include(s => s.Trucker)
             .Include(s => s.QRBooking)
+            .Include(s => s.Payment)
             .AsQueryable();
 
         if (role == RoleNames.DepotPersonnel)
@@ -52,10 +54,12 @@ public class ScheduleService : IScheduleService
     public async Task<ScheduleDto?> GetByIdAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
     {
         var query = _db.Schedules
+            .AsNoTracking()
             .Include(s => s.PreAdvice)
             .Include(s => s.Depot)
             .Include(s => s.Trucker)
             .Include(s => s.QRBooking)
+            .Include(s => s.Payment)
             .AsQueryable();
 
         if (role == RoleNames.DepotPersonnel)
@@ -294,7 +298,8 @@ public class ScheduleService : IScheduleService
             s.QRBooking?.GateCheckedInAt,
             s.QRBooking is not null,
             true,
-            null);
+            null,
+            s.Payment?.Status.ToString());
 
         if (viewerRole is null || !RoleNames.IsPreAdviceManager(viewerRole))
             return dto;

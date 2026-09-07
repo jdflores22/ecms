@@ -1048,6 +1048,7 @@ export interface Schedule {
   /** False when trucker must not see date/time/depot until CY confirms or payment is verified. */
   detailsVisible?: boolean
   statusHint?: string | null
+  paymentStatus?: string | null
 }
 
 export type DepotGateIssueSeverity = 'error' | 'warning' | 'info'

@@ -315,7 +315,7 @@ export default function PreAdviceDetailPage() {
   }, [loadCore])
 
   const scheduleDataNeeded =
-    activeTab === 'overview' || activeTab === 'schedule' || activeTab === 'qr'
+    activeTab === 'schedule' || activeTab === 'qr'
 
   useEffect(() => {
     if (item?.status !== 'Approved' || !scheduleDataNeeded) {
