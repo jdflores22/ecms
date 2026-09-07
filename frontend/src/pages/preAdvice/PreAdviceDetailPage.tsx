@@ -1,4 +1,21 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material'
+import {
+  Alert,
+  Backdrop,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Paper,
+  Tab,
+  Tabs,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import PaymentOutlinedIcon from '@mui/icons-material/PaymentOutlined'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 import CancelIcon from '@mui/icons-material/Cancel'
@@ -36,6 +53,7 @@ import { listMobileActionsSx } from '../../components/layout/ListPagePrimitives'
 import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel, qrLogicteckStatusFromPreAdvice } from '../../config/logicteckQr'
 import { isPreAdviceManager } from '../../config/roleConfig'
+import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
 import {
   demurrageBillingApi,
   paymentApi,
@@ -185,6 +203,8 @@ export default function PreAdviceDetailPage() {
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [submitPhase, setSubmitPhase] = useState<'idle' | 'uploading' | 'submitting'>('idle')
+  const submitInProgress = submitPhase !== 'idle'
   const [actionError, setActionError] = useState('')
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submitOpen, setSubmitOpen] = useState(false)
@@ -257,30 +277,34 @@ export default function PreAdviceDetailPage() {
           return
         }
         setSchedule(data)
+        const needsQr = data.status === 'Confirmed' || data.status === 'Completed'
+        const parallel: Promise<void>[] = []
         if (data.truckerId) {
-          try {
-            const { data: paymentData } = await paymentApi.getBySchedule(data.id)
-            setPayment(paymentData)
-          } catch {
-            setPayment(null)
-          }
-        } else {
-          setPayment(null)
+          parallel.push(
+            paymentApi
+              .getBySchedule(data.id)
+              .then(({ data: paymentData }) => setPayment(paymentData))
+              .catch(() => setPayment(null)),
+          )
         }
-        if (data.status === 'Confirmed' || data.status === 'Completed') {
+        if (needsQr) {
           setQrLoading(true)
-          try {
-            const qrRes = await qrApi.getBySchedule(data.id)
-            setQrBooking(qrRes.data)
-            const imageUrl = await loadQrImage(qrRes.data.id)
-            setQrImageUrl(imageUrl)
-          } catch {
-            setQrBooking(null)
-            setQrImageUrl(null)
-          } finally {
-            setQrLoading(false)
-          }
+          parallel.push(
+            qrApi
+              .getBySchedule(data.id)
+              .then(async (qrRes) => {
+                setQrBooking(qrRes.data)
+                const imageUrl = await loadQrImage(qrRes.data.id)
+                setQrImageUrl(imageUrl)
+              })
+              .catch(() => {
+                setQrBooking(null)
+                setQrImageUrl(null)
+              })
+              .finally(() => setQrLoading(false)),
+          )
         }
+        await Promise.all(parallel)
       })
       .catch(() => setSchedule(null))
       .finally(() => setScheduleLoading(false))
@@ -319,9 +343,8 @@ export default function PreAdviceDetailPage() {
 
   useEffect(() => {
     if (isPreAdviceManager(user?.role)) {
-      preAdviceApi
-        .lookups()
-        .then(({ data }) => setLookups(data))
+      fetchPreAdviceLookups()
+        .then((data) => setLookups(data))
         .catch(() => {})
     }
   }, [user?.role])
@@ -357,6 +380,7 @@ export default function PreAdviceDetailPage() {
   const showScheduleTabs = item?.status === 'Approved'
 
   const handleTabChange = (_: React.SyntheticEvent, value: PreAdviceDetailTab) => {
+    if (submitInProgress) return
     setActiveTab(value)
     if (value === 'overview') {
       setSearchParams({}, { replace: true })
@@ -454,27 +478,39 @@ export default function PreAdviceDetailPage() {
 
     ;(async () => {
       try {
-        const { data } = await demurrageBillingApi.list()
-        if (cancelled) return
-        let match = data.find((b) => b.preAdviceId === item.id)
-        if (!match && (item.status === 'Draft' || item.status === 'ForCompliance')) {
-          try {
-            const ensured = await demurrageBillingApi.ensureExpiredFreeTime(item.id)
-            match = ensured.data
-          } catch {
-            // Billing may already exist under another filter, or free time not expired server-side.
+        let match: {
+          id: number
+          referenceNo: string
+          status: string
+          totalAmount: number
+        } | undefined
+        try {
+          const { data } = await demurrageBillingApi.getByPreAdvice(item.id)
+          match = {
+            id: data.id,
+            referenceNo: data.referenceNo,
+            status: String(data.status),
+            totalAmount: data.totalAmount,
+          }
+        } catch (err) {
+          if (!axios.isAxiosError(err) || err.response?.status !== 404) {
+            throw err
+          }
+          if (item.status === 'Draft' || item.status === 'ForCompliance') {
+            try {
+              const ensured = await demurrageBillingApi.ensureExpiredFreeTime(item.id)
+              match = {
+                id: ensured.data.id,
+                referenceNo: ensured.data.referenceNo,
+                status: String(ensured.data.status),
+                totalAmount: ensured.data.totalAmount,
+              }
+            } catch {
+              // Billing may already exist under another filter, or free time not expired server-side.
+            }
           }
         }
-        applyMatch(
-          match
-            ? {
-                id: match.id,
-                referenceNo: match.referenceNo,
-                status: String(match.status),
-                totalAmount: match.totalAmount,
-              }
-            : undefined,
-        )
+        applyMatch(match)
       } catch {
         if (!cancelled) setLinkedDemurrage(null)
       }
@@ -538,7 +574,7 @@ export default function PreAdviceDetailPage() {
   const canSubmitRequest =
     (isDraft || isForCompliance) && photosComplete && (!freeTimeExpired || demurrageSettled)
   const canCancel = item?.status === 'Submitted' || item?.status === 'UnderEvaluation'
-  const canManageDocuments = item?.status === 'Draft' || isForCompliance
+  const canManageDocuments = (item?.status === 'Draft' || isForCompliance) && !submitInProgress
   const deferPhotoUpload = canManageDocuments
   const showHeroActions = !editing && (canCancel || isDraft || isForCompliance)
   const effectiveScheduleStatus = schedule?.status ?? item?.scheduleStatus ?? null
@@ -614,7 +650,9 @@ export default function PreAdviceDetailPage() {
   }
 
   const handleSubmit = async () => {
-    if (!item || !photosComplete) return
+    if (!item || !photosComplete || submitInProgress) return
+    const hasPendingUploads = pendingPhotoCategories.length > 0
+    setSubmitPhase(hasPendingUploads ? 'uploading' : 'submitting')
     setSubmitting(true)
     setActionError('')
     try {
@@ -622,6 +660,7 @@ export default function PreAdviceDetailPage() {
         const uploaded = await photosRef.current.uploadAllPending()
         if (!uploaded) return
       }
+      setSubmitPhase('submitting')
       const { data } = await preAdviceApi.submit(item.id)
       setItem(data)
       setSubmitOpen(false)
@@ -631,24 +670,20 @@ export default function PreAdviceDetailPage() {
       // Refresh linked demurrage if submit created billing for expired free time.
       if (freeTimeExpired) {
         try {
-          const { data } = await demurrageBillingApi.list()
-          const match = data.find((b) => b.preAdviceId === item.id)
-          setLinkedDemurrage(
-            match
-              ? {
-                  id: match.id,
-                  referenceNo: match.referenceNo,
-                  status: String(match.status),
-                  totalAmount: match.totalAmount,
-                }
-              : null,
-          )
+          const { data: billing } = await demurrageBillingApi.getByPreAdvice(item.id)
+          setLinkedDemurrage({
+            id: billing.id,
+            referenceNo: billing.referenceNo,
+            status: String(billing.status),
+            totalAmount: billing.totalAmount,
+          })
         } catch {
           /* ignore */
         }
       }
     } finally {
       setSubmitting(false)
+      setSubmitPhase('idle')
     }
   }
 
@@ -689,7 +724,7 @@ export default function PreAdviceDetailPage() {
 
   return (
     <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
-      <DetailBackButton to="/preforecast" label="Back to list" />
+      <DetailBackButton to="/preforecast" label="Back to list" disabled={submitInProgress} />
 
       {loading && !item ? (
         <DetailLoadingState />
@@ -1024,9 +1059,24 @@ export default function PreAdviceDetailPage() {
         bookLogicteckLoading={bookLogicteckLoading}
       />
 
+      <Backdrop
+        open={submitInProgress}
+        sx={{ zIndex: (theme) => theme.zIndex.modal + 1, color: '#fff', flexDirection: 'column', gap: 2 }}
+      >
+        <CircularProgress color="inherit" />
+        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+          {submitPhase === 'uploading' ? 'Uploading container photos…' : 'Submitting pre-forecast…'}
+        </Typography>
+        <Typography variant="body2" sx={{ opacity: 0.85 }}>
+          Please wait. Do not close or navigate away.
+        </Typography>
+      </Backdrop>
+
       <Dialog
         open={submitOpen}
-        onClose={() => {
+        onClose={(_, reason) => {
+          if (submitInProgress) return
+          if (reason === 'backdropClick') return
           setSubmitOpen(false)
           setActionError('')
         }}
@@ -1077,24 +1127,40 @@ export default function PreAdviceDetailPage() {
           <Alert severity="success" sx={{ mb: actionError ? 2 : 0, borderRadius: 2 }}>
             All {photoProgress.total} container identity photos are uploaded and ready for review.
           </Alert>
-          {actionError && submitOpen && (
+          {submitInProgress && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary">
+                {submitPhase === 'uploading'
+                  ? 'Uploading container photos…'
+                  : 'Submitting pre-forecast for evaluation…'}
+              </Typography>
+            </Box>
+          )}
+          {actionError && submitOpen && !submitInProgress && (
             <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
               {actionError}
             </Alert>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setSubmitOpen(false)} disabled={submitting}>
+          <Button onClick={() => setSubmitOpen(false)} disabled={submitInProgress}>
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={() => void handleSubmit()}
-            disabled={submitting || !photosComplete}
-            startIcon={<SendIcon />}
+            disabled={submitInProgress || !photosComplete}
+            startIcon={submitInProgress ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
-            {isForCompliance ? 'Resubmit for evaluation' : 'Submit for evaluation'}
+            {submitInProgress
+              ? submitPhase === 'uploading'
+                ? 'Uploading photos…'
+                : 'Submitting…'
+              : isForCompliance
+                ? 'Resubmit for evaluation'
+                : 'Submit for evaluation'}
           </Button>
         </DialogActions>
       </Dialog>

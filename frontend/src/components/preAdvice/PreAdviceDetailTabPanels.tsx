@@ -175,6 +175,7 @@ export default function PreAdviceDetailTabPanels({
             onSubmit={onUpdate}
             onCancel={onCancelEdit}
             submitting={submitting}
+            excludePreAdviceId={item.id}
           />
         ) : (
           <Box sx={infoGridSx}>

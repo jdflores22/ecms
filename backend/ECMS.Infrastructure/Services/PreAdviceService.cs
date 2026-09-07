@@ -2,39 +2,48 @@ using ECMS.Application;
 using ECMS.Domain.Common;
 using ECMS.Application.DTOs.Audit;
 using ECMS.Application.DTOs.ContainerReleaseOrder;
+using ECMS.Application.DTOs.DemurrageBilling;
 using ECMS.Application.DTOs.PreAdvice;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Entities;
 using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace ECMS.Infrastructure.Services;
 
 public class PreAdviceService : IPreAdviceService
 {
+    private const string LookupsCacheKey = "pre-advice-lookups";
+    private static readonly TimeSpan LookupsCacheDuration = TimeSpan.FromMinutes(10);
+
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
     private readonly IDemurrageBillingService _demurrageBilling;
     private readonly IContainerReleaseOrderService _croEdo;
+    private readonly IMemoryCache _cache;
 
     public PreAdviceService(
         IEcmsDbContext db,
         IAuditService auditService,
         INotificationService notifications,
         IDemurrageBillingService demurrageBilling,
-        IContainerReleaseOrderService croEdo)
+        IContainerReleaseOrderService croEdo,
+        IMemoryCache cache)
     {
         _db = db;
         _auditService = auditService;
         _notifications = notifications;
         _demurrageBilling = demurrageBilling;
         _croEdo = croEdo;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
         var query = _db.PreAdvices
+            .AsNoTracking()
             .Include(p => p.Trucker)
             .Include(p => p.ShippingLine)
             .Include(p => p.Container)
@@ -113,7 +122,6 @@ public class PreAdviceService : IPreAdviceService
 
         var rows = await _db.QRBookings
             .AsNoTracking()
-            .Include(q => q.Schedule)
             .Where(q => preAdviceIds.Contains(q.Schedule.PreAdviceId))
             .Select(q => new
             {
@@ -520,6 +528,16 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<PreAdviceLookupsDto> GetLookupsAsync(CancellationToken cancellationToken = default)
     {
+        if (_cache.TryGetValue(LookupsCacheKey, out PreAdviceLookupsDto? cached) && cached is not null)
+            return cached;
+
+        var lookups = await LoadLookupsAsync(cancellationToken);
+        _cache.Set(LookupsCacheKey, lookups, LookupsCacheDuration);
+        return lookups;
+    }
+
+    private async Task<PreAdviceLookupsDto> LoadLookupsAsync(CancellationToken cancellationToken)
+    {
         var lines = await _db.ShippingLines
             .Where(s => s.IsActive)
             .OrderBy(s => s.Name)
@@ -554,12 +572,6 @@ public class PreAdviceService : IPreAdviceService
             return new PreAdviceDuplicateCheckDto(false, null, null, null);
         }
 
-        if (!await _db.ContainerSizes.AnyAsync(s => s.Id == request.ContainerSizeId && s.IsActive, cancellationToken)
-            || !await _db.ContainerTypes.AnyAsync(t => t.Id == request.ContainerTypeId && t.IsActive, cancellationToken))
-        {
-            return new PreAdviceDuplicateCheckDto(false, null, null, null);
-        }
-
         var duplicate = await FindDuplicateAsync(
             PreAdviceDuplicateGuard.NormalizeContainerNo(request.ContainerNo),
             request.ContainerSizeId,
@@ -570,6 +582,25 @@ public class PreAdviceService : IPreAdviceService
         return duplicate is null
             ? new PreAdviceDuplicateCheckDto(false, null, null, null)
             : new PreAdviceDuplicateCheckDto(true, duplicate.ReferenceNo, duplicate.Status, duplicate.TruckerName);
+    }
+
+    public async Task<PreAdviceContainerValidationDto> ValidateContainerAsync(
+        int truckerId,
+        int shippingLineId,
+        CheckPreAdviceDuplicateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var duplicateTask = CheckDuplicateAsync(request, cancellationToken);
+        var demurrageTask = _demurrageBilling.CheckBlockAsync(
+            truckerId,
+            request.ContainerNo,
+            shippingLineId,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            cancellationToken);
+
+        await Task.WhenAll(duplicateTask, demurrageTask);
+        return new PreAdviceContainerValidationDto(await duplicateTask, await demurrageTask);
     }
 
     public async Task<IReadOnlyList<PreAdviceDocumentDto>> GetDocumentsAsync(

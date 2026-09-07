@@ -342,7 +342,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
   )
 
   const uploadAllPending = useCallback(async (): Promise<boolean> => {
-    const entries = CONTAINER_PHOTO_CATEGORIES.filter(
+    const entries = CONTAINER_PHOTO_GRID_CATEGORIES.filter(
       (c) => pendingFiles[c.value] && !identityByCategory.has(c.value),
     )
     if (entries.length === 0) return true

@@ -135,6 +135,48 @@ public class PreAdviceController : ControllerBase
 
 
 
+    [HttpGet("validate-container")]
+
+    [Authorize(Roles = RoleNames.PreAdviceManager)]
+
+    public async Task<ActionResult<PreAdviceContainerValidationDto>> ValidateContainer(
+
+        [FromQuery] string containerNo,
+
+        [FromQuery] int shippingLineId,
+
+        [FromQuery] int containerSizeId,
+
+        [FromQuery] int containerTypeId,
+
+        [FromQuery] int? excludePreAdviceId,
+
+        CancellationToken cancellationToken)
+
+    {
+
+        return Ok(await _service.ValidateContainerAsync(
+
+            UserId,
+
+            shippingLineId,
+
+            new CheckPreAdviceDuplicateRequest(
+
+                containerNo,
+
+                containerSizeId,
+
+                containerTypeId,
+
+                excludePreAdviceId),
+
+            cancellationToken));
+
+    }
+
+
+
     [HttpGet("{id:int}")]
 
     public async Task<ActionResult<PreAdviceDto>> GetById(int id, CancellationToken cancellationToken)

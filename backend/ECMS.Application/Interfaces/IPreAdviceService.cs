@@ -1,4 +1,5 @@
 using ECMS.Application.DTOs.Audit;
+using ECMS.Application.DTOs.DemurrageBilling;
 using ECMS.Application.DTOs.PreAdvice;
 using ECMS.Domain.Enums;
 
@@ -16,6 +17,11 @@ public interface IPreAdviceService
     Task<PreAdviceDto?> CancelAsync(int id, int userId, string role, string? reason = null, CancellationToken cancellationToken = default);
     Task<PreAdviceLookupsDto> GetLookupsAsync(CancellationToken cancellationToken = default);
     Task<PreAdviceDuplicateCheckDto> CheckDuplicateAsync(
+        CheckPreAdviceDuplicateRequest request,
+        CancellationToken cancellationToken = default);
+    Task<PreAdviceContainerValidationDto> ValidateContainerAsync(
+        int truckerId,
+        int shippingLineId,
         CheckPreAdviceDuplicateRequest request,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PreAdviceDocumentDto>> GetDocumentsAsync(int preAdviceId, int userId, string role, CancellationToken cancellationToken = default);

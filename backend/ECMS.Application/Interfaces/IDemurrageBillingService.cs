@@ -19,6 +19,11 @@ public interface IDemurrageBillingService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<DemurrageBillingLinkDto?> GetByPreAdviceIdAsync(
+        int preAdviceId,
+        int truckerId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EligibleDemurragePreAdviceDto>> GetEligiblePreAdvicesAsync(
         int userId,
         string role,

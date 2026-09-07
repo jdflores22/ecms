@@ -257,6 +257,22 @@ export const preAdviceApi = {
       status?: string | null
       truckerName?: string | null
     }>('/preforecast/check-duplicate', { params }),
+  validateContainer: (params: {
+    containerNo: string
+    shippingLineId: number
+    containerSizeId: number
+    containerTypeId: number
+    excludePreAdviceId?: number
+  }) =>
+    api.get<{
+      duplicate: {
+        isDuplicate: boolean
+        referenceNo?: string | null
+        status?: string | null
+        truckerName?: string | null
+      }
+      demurrageBlock: DemurrageBlockCheck
+    }>('/preforecast/validate-container', { params }),
   create: (data: {
     shippingLineId: number
     containerNo: string
@@ -1280,6 +1296,14 @@ export const demurrageBillingApi = {
   list: () => api.get<DemurrageBilling[]>('/demurrage-billing'),
   paymentDueCount: () => api.get<{ count: number }>('/demurrage-billing/payment-due/count'),
   get: (id: number) => api.get<DemurrageBilling>(`/demurrage-billing/${id}`),
+  getByPreAdvice: (preAdviceId: number) =>
+    api.get<{
+      id: number
+      referenceNo: string
+      status: string
+      totalAmount: number
+      preAdviceId: number
+    }>(`/demurrage-billing/by-pre-forecast/${preAdviceId}`),
   eligiblePreAdvices: () => api.get<EligibleDemurragePreAdvice[]>('/demurrage-billing/eligible-pre-forecasts'),
   create: (payload: { preAdviceId: number; feeLines?: DemurrageBillingFeeInput[] }) =>
     api.post<DemurrageBilling>('/demurrage-billing', payload),

@@ -1,3 +1,4 @@
+using ECMS.Application.DTOs.DemurrageBilling;
 using ECMS.Domain.Enums;
 
 namespace ECMS.Application.DTOs.PreAdvice;
@@ -57,6 +58,10 @@ public record PreAdviceDuplicateCheckDto(
     string? ReferenceNo,
     PreAdviceStatus? Status,
     string? TruckerName);
+
+public record PreAdviceContainerValidationDto(
+    PreAdviceDuplicateCheckDto Duplicate,
+    DemurrageBlockCheckDto DemurrageBlock);
 
 public record ShippingLineLookupDto(int Id, string Name, string Code);
 

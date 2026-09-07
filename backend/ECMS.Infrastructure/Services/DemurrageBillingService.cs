@@ -405,12 +405,6 @@ public class DemurrageBillingService : IDemurrageBillingService
         var normalized = NormalizeContainerNo(containerNo);
         var billing = await _db.DemurrageBillings
             .AsNoTracking()
-            .Include(b => b.FeeLines)
-            .Include(b => b.PreAdvice)
-            .Include(b => b.ShippingLine)
-            .Include(b => b.Trucker)
-            .Include(b => b.ContainerSize)
-            .Include(b => b.ContainerType)
             .Where(b =>
                 b.TruckerId == truckerId
                 && b.ContainerNoNormalized == normalized
@@ -419,17 +413,43 @@ public class DemurrageBillingService : IDemurrageBillingService
                 && b.ContainerTypeId == containerTypeId
                 && b.Status != PaymentStatus.Paid)
             .OrderByDescending(b => b.CreatedAt)
+            .Select(b => new
+            {
+                b.ContainerNoNormalized,
+                b.DemurrageValidUntil,
+                TotalAmount = b.FeeLines.Count > 0
+                    ? b.FeeLines.Sum(l => l.Amount)
+                    : b.DemurrageAmount + b.DetentionAmount,
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (billing is null)
             return new DemurrageBlockCheckDto(false, null, null);
 
-        var dto = MapToDto(billing);
         return new DemurrageBlockCheckDto(
             true,
             $"Container {billing.ContainerNoNormalized} has expired demurrage validity ({billing.DemurrageValidUntil:yyyy-MM-dd}). " +
-            $"Settle demurrage charges (₱{dto.TotalAmount:N0}) before submitting a new pre-forecast.",
-            dto);
+            $"Settle demurrage charges (₱{billing.TotalAmount:N0}) before submitting a new pre-forecast.",
+            null);
+    }
+
+    public async Task<DemurrageBillingLinkDto?> GetByPreAdviceIdAsync(
+        int preAdviceId,
+        int truckerId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _db.DemurrageBillings
+            .AsNoTracking()
+            .Where(b => b.PreAdviceId == preAdviceId && b.TruckerId == truckerId)
+            .Select(b => new DemurrageBillingLinkDto(
+                b.Id,
+                b.ReferenceNo,
+                b.Status,
+                b.FeeLines.Count > 0
+                    ? b.FeeLines.Sum(l => l.Amount)
+                    : b.DemurrageAmount + b.DetentionAmount,
+                b.PreAdviceId))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task EnsureTruckerCanCreatePreAdviceAsync(

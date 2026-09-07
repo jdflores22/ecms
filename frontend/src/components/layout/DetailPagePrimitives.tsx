@@ -88,11 +88,20 @@ export function InfoTile({ label, value, mono }: { label: string; value: ReactNo
   )
 }
 
-export function DetailBackButton({ to, label }: { to: string; label: string }) {
+export function DetailBackButton({
+  to,
+  label,
+  disabled = false,
+}: {
+  to: string
+  label: string
+  disabled?: boolean
+}) {
   return (
     <Button
-      component={RouterLink}
-      to={to}
+      component={disabled ? 'button' : RouterLink}
+      to={disabled ? undefined : to}
+      disabled={disabled}
       startIcon={<ArrowBackIcon />}
       sx={{
         mb: 2,

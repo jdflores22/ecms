@@ -23,6 +23,7 @@ import {
 import { isPreAdviceManager } from '../config/roleConfig'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor } from '../config/logicteckQr'
 import { preAdviceApi, type PreAdvice, type PreAdviceLookups } from '../services/api'
+import { fetchPreAdviceLookups } from '../utils/preAdviceLookupsCache'
 import { useAppSelector } from '../store/hooks'
 import { formatDateTime, parsePhEndOfDay, parsePhStartOfDay } from '../utils/datetime'
 import { PreAdviceStatusChip } from '../components/preAdvice/PreAdviceStatusChip'
@@ -69,7 +70,7 @@ export default function PreAdvicePage() {
     setLoading(true)
     setLoadError('')
     const lookupsPromise = isPreAdviceManager(user?.role)
-      ? preAdviceApi.lookups()
+      ? fetchPreAdviceLookups().then((data) => ({ data }))
       : Promise.resolve({ data: null as PreAdviceLookups | null })
 
     Promise.all([preAdviceApi.list(), lookupsPromise])

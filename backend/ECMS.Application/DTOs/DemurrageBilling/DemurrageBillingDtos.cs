@@ -60,6 +60,13 @@ public record DemurrageBlockCheckDto(
     string? Message,
     DemurrageBillingDto? Billing);
 
+public record DemurrageBillingLinkDto(
+    int Id,
+    string ReferenceNo,
+    PaymentStatus Status,
+    decimal TotalAmount,
+    int PreAdviceId);
+
 public record UploadDemurrageProofRequest(
     int BillingId,
     string? ProofReferenceNo,

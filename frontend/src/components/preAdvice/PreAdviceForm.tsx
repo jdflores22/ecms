@@ -1,7 +1,7 @@
 import { Alert, Box, Button, FormControl, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material'
 import { useEffect, useMemo, useState } from 'react'
 import type { PreAdviceLookups } from '../../services/api'
-import { demurrageBillingApi } from '../../services/api'
+import { preAdviceApi } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { croFreeTimeExpiredMessage } from '../../utils/croFreeTime'
 
@@ -42,6 +42,8 @@ interface PreAdviceFormProps {
   /** When true, free demurrage from CRO is expired — draft allowed, submit later blocked. */
   freeTimeExpired?: boolean
   freeTimeUntil?: string | null
+  /** When editing, exclude the current pre-forecast from duplicate detection. */
+  excludePreAdviceId?: number
 }
 
 export default function PreAdviceForm({
@@ -58,6 +60,7 @@ export default function PreAdviceForm({
   croLinked = false,
   freeTimeExpired = false,
   freeTimeUntil = null,
+  excludePreAdviceId,
 }: PreAdviceFormProps) {
   const [shippingLineId, setShippingLineId] = useState<number | ''>(initial.shippingLineId)
   const [containerNo, setContainerNo] = useState(initial.containerNo)
@@ -65,7 +68,8 @@ export default function PreAdviceForm({
   const [containerTypeId, setContainerTypeId] = useState<number | ''>(initial.containerTypeId)
   const [remarks, setRemarks] = useState(initial.remarks)
   const [demurrageBlock, setDemurrageBlock] = useState<string | null>(null)
-  const [checkingBlock, setCheckingBlock] = useState(false)
+  const [checkingValidation, setCheckingValidation] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
 
   useEffect(() => {
     setShippingLineId(initial.shippingLineId)
@@ -83,25 +87,41 @@ export default function PreAdviceForm({
       !containerNo.trim()
     ) {
       setDemurrageBlock(null)
+      setDuplicateWarning(null)
       return
     }
 
-    setCheckingBlock(true)
+    setCheckingValidation(true)
     const timer = window.setTimeout(() => {
-      demurrageBillingApi
-        .checkBlock({
+      preAdviceApi
+        .validateContainer({
           containerNo: containerNo.trim().toUpperCase(),
           shippingLineId,
           containerSizeId,
           containerTypeId,
+          excludePreAdviceId,
         })
-        .then(({ data }) => setDemurrageBlock(data.isBlocked ? data.message ?? 'Outstanding demurrage must be settled first.' : null))
-        .catch(() => setDemurrageBlock(null))
-        .finally(() => setCheckingBlock(false))
+        .then(({ data }) => {
+          setDuplicateWarning(
+            data.duplicate.isDuplicate
+              ? `A pre-forecast for this container already exists (${data.duplicate.referenceNo ?? '—'} · ${data.duplicate.status ?? '—'}).`
+              : null,
+          )
+          setDemurrageBlock(
+            data.demurrageBlock.isBlocked
+              ? data.demurrageBlock.message ?? 'Outstanding demurrage must be settled first.'
+              : null,
+          )
+        })
+        .catch(() => {
+          setDemurrageBlock(null)
+          setDuplicateWarning(null)
+        })
+        .finally(() => setCheckingValidation(false))
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [shippingLineId, containerNo, containerSizeId, containerTypeId])
+  }, [shippingLineId, containerNo, containerSizeId, containerTypeId, excludePreAdviceId])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,6 +131,7 @@ export default function PreAdviceForm({
       containerTypeId === '' ||
       !containerNo.trim() ||
       demurrageBlock ||
+      duplicateWarning ||
       (requireCroLink && !croLinked) ||
       (requireLegacyDocument && !legacyDocumentReady)
     ) {
@@ -131,7 +152,8 @@ export default function PreAdviceForm({
     containerTypeId !== '' &&
     containerNo.trim().length > 0 &&
     !demurrageBlock &&
-    !checkingBlock &&
+    !duplicateWarning &&
+    !checkingValidation &&
     (!requireCroLink || croLinked) &&
     (!requireLegacyDocument || legacyDocumentReady)
 
@@ -277,6 +299,12 @@ export default function PreAdviceForm({
         <Alert severity="error" sx={{ borderRadius: 2 }}>
           {demurrageBlock}{' '}
           <strong>Settle demurrage and detention under Demurrage in the menu before creating a new pre-forecast.</strong>
+        </Alert>
+      )}
+
+      {duplicateWarning && (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          {duplicateWarning} Wait for that request to finish or contact support before creating another draft.
         </Alert>
       )}
 

@@ -15,6 +15,7 @@ import PreAdviceForm, {
 } from '../../components/preAdvice/PreAdviceForm'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { preAdviceApi, type PreAdviceLookups } from '../../services/api'
+import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
 import type { CroEdoVerificationLine } from '../../services/publicApi'
 import { useAppSelector } from '../../store/hooks'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
@@ -128,9 +129,8 @@ export default function PreAdviceNewPage() {
   const [legacyFile, setLegacyFile] = useState<File | null>(null)
 
   useEffect(() => {
-    preAdviceApi
-      .lookups()
-      .then(({ data }) => setLookups(data))
+    fetchPreAdviceLookups()
+      .then((data) => setLookups(data))
       .catch((err) => {
         if (axios.isAxiosError(err) && err.response?.status === 403) {
           setError('Access denied. Log out and sign in again to refresh your session.')
