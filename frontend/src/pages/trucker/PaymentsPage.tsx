@@ -21,6 +21,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { paymentApi, type Payment, type Schedule } from '../../services/api'
 import { fetchCachedPaymentMine, fetchCachedScheduleList } from '../../utils/truckerListCache'
+import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { formatPeso, formatScheduleSlot } from '../../utils/datetime'
@@ -168,7 +169,7 @@ export default function TruckerPaymentsPage() {
   }, [location.pathname, location.state, navigate])
 
   const load = useCallback(() => {
-    if (userRole !== 'Trucker') {
+    if (!isTruckerOrBroker(userRole)) {
       setLoading(false)
       return
     }

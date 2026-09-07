@@ -231,6 +231,7 @@ export const dashboardApi = {
       ShippingLineEvaluator: '/dashboard/shipping-line',
       DepotPersonnel: '/dashboard/depot',
       Trucker: '/dashboard/trucker',
+      Broker: '/dashboard/trucker',
       Administrator: '/dashboard/admin',
     }
     const path = map[role]

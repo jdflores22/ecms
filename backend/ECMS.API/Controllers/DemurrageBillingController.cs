@@ -40,7 +40,7 @@ public class DemurrageBillingController : ControllerBase
         => Ok(await _service.GetAllAsync(UserId, UserRole, cancellationToken));
 
     [HttpGet("payment-due/count")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<CountDto>> PaymentDueCount(CancellationToken cancellationToken)
         => Ok(new CountDto(await _service.GetPaymentDueCountAsync(UserId, UserRole, cancellationToken)));
 
@@ -52,7 +52,7 @@ public class DemurrageBillingController : ControllerBase
     }
 
     [HttpGet("by-pre-forecast/{preAdviceId:int}")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<DemurrageBillingLinkDto>> GetByPreAdvice(
         int preAdviceId,
         CancellationToken cancellationToken)
@@ -112,7 +112,7 @@ public class DemurrageBillingController : ControllerBase
     }
 
     [HttpGet("check-block")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<DemurrageBlockCheckDto>> CheckBlock(
         [FromQuery] string containerNo,
         [FromQuery] int shippingLineId,
@@ -128,7 +128,7 @@ public class DemurrageBillingController : ControllerBase
             cancellationToken));
 
     [HttpPost("ensure-expired-free-time/{preAdviceId:int}")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<DemurrageBillingDto>> EnsureExpiredFreeTime(
         int preAdviceId,
         CancellationToken cancellationToken)
@@ -145,7 +145,7 @@ public class DemurrageBillingController : ControllerBase
     }
 
     [HttpPost("{id:int}/upload-proof")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     [RequestSizeLimit(10_485_760)]
     public async Task<ActionResult<DemurrageBillingDto>> UploadProof(
         int id,

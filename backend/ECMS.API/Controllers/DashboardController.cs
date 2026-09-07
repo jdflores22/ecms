@@ -35,7 +35,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("trucker")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<IActionResult> Trucker(CancellationToken cancellationToken)
         => Ok(await _service.GetTruckerDashboardAsync(UserId, cancellationToken));
 

@@ -162,7 +162,7 @@ public class StatementOfAccountsController : ControllerBase
         => Ok(await _service.GetAllAsync(UserId, UserRole, cancellationToken));
 
     [HttpGet("payment-due/count")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<CountDto>> PaymentDueCount(CancellationToken cancellationToken)
         => Ok(new CountDto(await _service.GetPaymentDueCountAsync(UserId, UserRole, cancellationToken)));
 
@@ -223,7 +223,7 @@ public class StatementOfAccountsController : ControllerBase
     }
 
     [HttpPost("{id:int}/upload-proof")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     [RequestSizeLimit(10_485_760)]
     public async Task<ActionResult<StatementOfAccountDto>> UploadProof(
         int id,

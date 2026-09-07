@@ -78,6 +78,7 @@ public static class RolePageKeys
             RoleNames.DepotPersonnel => DepotReports,
             RoleNames.ShippingLineEvaluator => EvaluatorReports,
             RoleNames.Trucker => TruckerReports,
+            RoleNames.Broker => TruckerReports,
             _ => null,
         };
     }
@@ -111,6 +112,29 @@ public static class RoleCatalogDefaults
             "Trucker",
             "Trucker",
             "Creates pre-forecast, submits ATW withdrawal requests, manages returns, uploads payment proof, and receives booking QR codes.",
+            new[]
+            {
+                "Create and submit pre-forecast",
+                "Submit ATW withdrawal requests for repositioning",
+                "Upload container identity photos",
+                "View assigned return schedules",
+                "Upload payment proof",
+                "Settle demurrage and detention charges",
+                "Download and print QR codes",
+                "View operational reports",
+            },
+            new[]
+            {
+                RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Preforecast, RolePageKeys.TruckerReports,
+                RolePageKeys.TruckerReturns, RolePageKeys.TruckerPayments, RolePageKeys.TruckerDemurrageBilling,
+                RolePageKeys.TruckerStatementOfAccounts,
+                RolePageKeys.TruckerWithdrawals, RolePageKeys.TruckerQr, RolePageKeys.TruckerQrPrint,
+                RolePageKeys.TruckerNotifications,
+            }),
+        new(
+            "Broker",
+            "Broker",
+            "Same trucker workflow for now: pre-forecast, returns, payments, demurrage, withdrawals, and booking QR.",
             new[]
             {
                 "Create and submit pre-forecast",
@@ -283,6 +307,7 @@ public static class RoleAllowedPagesJson
     private static bool ShouldMergeCatalogPages(string roleName) =>
         string.Equals(roleName, RoleNames.Administrator, StringComparison.Ordinal)
         || string.Equals(roleName, RoleNames.Trucker, StringComparison.Ordinal)
+        || string.Equals(roleName, RoleNames.Broker, StringComparison.Ordinal)
         || string.Equals(roleName, RoleNames.ShippingLineEvaluator, StringComparison.Ordinal)
         || string.Equals(roleName, RoleNames.DepotPersonnel, StringComparison.Ordinal);
 

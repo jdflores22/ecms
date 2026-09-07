@@ -21,6 +21,7 @@ export type UserRole =
   | 'ShippingLineEvaluator'
   | 'DepotPersonnel'
   | 'Trucker'
+  | 'Broker'
   | 'Administrator'
 
 export interface DashboardStatDef {
@@ -88,6 +89,35 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
   },
   Trucker: {
     title: 'Trucker overview',
+    subtitle: 'Pre-forecast, withdrawals, returns, payments, and booking QR',
+    workflow: [
+      'Create and submit pre-forecast for empty returns',
+      'Submit ATW withdrawal requests for repositioning',
+      'Review assigned return schedules',
+      'Upload payment proof',
+      'Download booking QR after verification',
+    ],
+    stats: [
+      { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'issuedWithdrawalsAwaitingUpload', label: 'ATW awaiting submit', description: 'Shipping line issued ATW — view certificate and submit', icon: UnarchiveOutlinedIcon, color: '#6a1b9a', highlightWhenPositive: true },
+      { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: '#1565c0', highlightWhenPositive: true },
+      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
+      { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: '#2e7d32' },
+      { key: 'approvedWithdrawals', label: 'Approved withdrawals', description: 'Released or completed repositioning', icon: CheckCircleIcon, color: '#2e7d32' },
+    ],
+    actions: [
+      { label: 'Pre-forecast', path: '/preforecast', icon: AssignmentIcon },
+      { label: 'New pre-forecast', path: '/preforecast/new', icon: AssignmentIcon },
+      { label: 'My withdrawals', path: '/trucker/withdrawals', icon: AssignmentIcon },
+      { label: 'My returns', path: '/trucker/returns', icon: LocalShippingIcon },
+      { label: 'Payments', path: '/trucker/payments', icon: PaymentsIcon },
+      { label: LOGICTECK_QR.menuLabel, path: '/trucker/qr', icon: QrCode2Icon },
+    ],
+  },
+  Broker: {
+    title: 'Broker overview',
     subtitle: 'Pre-forecast, withdrawals, returns, payments, and booking QR',
     workflow: [
       'Create and submit pre-forecast for empty returns',

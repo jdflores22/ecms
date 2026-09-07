@@ -20,7 +20,7 @@ public class UserService : IUserService
     {
         return await _db.Users
             .Include(u => u.Role)
-            .Where(u => u.Role.Name == RoleNames.Trucker && u.Status == UserStatus.Active)
+            .Where(u => (u.Role.Name == RoleNames.Trucker || u.Role.Name == RoleNames.Broker) && u.Status == UserStatus.Active)
             .OrderBy(u => u.FullName)
             .Select(u => new UserListItemDto(u.Id, u.Username, u.FullName ?? u.Username, u.Role.Name))
             .ToListAsync(cancellationToken);

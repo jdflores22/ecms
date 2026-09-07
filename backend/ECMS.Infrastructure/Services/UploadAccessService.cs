@@ -44,7 +44,7 @@ public class UploadAccessService : IUploadAccessService
             return role switch
             {
                 RoleNames.Administrator => true,
-                RoleNames.Trucker => payment.TruckerId == userId
+                RoleNames.Trucker or RoleNames.Broker => payment.TruckerId == userId
                     || payment.Schedule.PreAdvice.TruckerId == userId,
                 _ => false,
             };
@@ -79,7 +79,7 @@ public class UploadAccessService : IUploadAccessService
         return role switch
         {
             RoleNames.Administrator => true,
-            RoleNames.Trucker => billing.TruckerId == userId,
+            RoleNames.Trucker or RoleNames.Broker => billing.TruckerId == userId,
             RoleNames.ShippingLineEvaluator => await EvaluatorOwnsShippingLineAsync(
                 userId, billing.ShippingLineId, cancellationToken),
             _ => false,

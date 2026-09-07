@@ -573,7 +573,7 @@ public class ReportService : IReportService
         {
             RoleNames.DepotPersonnel when user.DepotId.HasValue =>
                 query.Where(s => s.DepotId == user.DepotId),
-            RoleNames.Trucker =>
+            RoleNames.Trucker or RoleNames.Broker =>
                 query.Where(s => s.PreAdvice.TruckerId == userId || s.TruckerId == userId),
             RoleNames.ShippingLineEvaluator when user.ShippingLineId.HasValue =>
                 query.Where(s => s.PreAdvice.ShippingLineId == user.ShippingLineId),

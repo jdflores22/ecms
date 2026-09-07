@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
+import { isTruckerOrBroker } from '../config/roleConfig'
 import { fetchCachedDemurrageDueCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 
@@ -12,7 +13,7 @@ export function useTruckerDemurrageDueCount(
   const [count, setCount] = useState(0)
 
   const enabled = Boolean(
-    role && role === 'Trucker' && canAccessPage(role, 'truckerDemurrageBilling', allowedPages),
+    role && isTruckerOrBroker(role) && canAccessPage(role, 'truckerDemurrageBilling', allowedPages),
   )
 
   const load = useCallback(() => {

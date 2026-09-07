@@ -189,7 +189,7 @@ public class NotificationService : INotificationService
     {
         return await db.Users
             .Include(u => u.Role)
-            .Where(u => u.Status == UserStatus.Active && u.Role.Name == RoleNames.Trucker)
+            .Where(u => u.Status == UserStatus.Active && (u.Role.Name == RoleNames.Trucker || u.Role.Name == RoleNames.Broker))
             .Select(u => u.Id)
             .ToListAsync(cancellationToken);
     }
@@ -220,7 +220,7 @@ public class NotificationService : INotificationService
             .Where(u =>
                 associatedIds.Contains(u.Id)
                 && u.Status == UserStatus.Active
-                && u.Role.Name == RoleNames.Trucker)
+                && (u.Role.Name == RoleNames.Trucker || u.Role.Name == RoleNames.Broker))
             .Select(u => u.Id)
             .ToListAsync(cancellationToken);
     }

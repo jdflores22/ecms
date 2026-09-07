@@ -120,12 +120,12 @@ public class DemurrageBillingService : IDemurrageBillingService
     {
         await MaybeSyncExpiredBillingsAsync(cancellationToken);
 
-        if (role is not (RoleNames.Trucker or RoleNames.ShippingLineEvaluator))
+        if (role is not (RoleNames.Trucker or RoleNames.Broker or RoleNames.ShippingLineEvaluator))
             return Array.Empty<DemurrageBillingDto>();
 
         var query = BillingQueryWithIncludes();
 
-        if (role == RoleNames.Trucker)
+        if (RoleNames.IsTruckerOrBroker(role))
             query = query.Where(b => b.TruckerId == userId);
         else if (role == RoleNames.ShippingLineEvaluator)
         {
@@ -143,7 +143,7 @@ public class DemurrageBillingService : IDemurrageBillingService
         string role,
         CancellationToken cancellationToken = default)
     {
-        if (role != RoleNames.Trucker)
+        if (!RoleNames.IsTruckerOrBroker(role))
             return 0;
 
         return await _db.DemurrageBillings.CountAsync(
@@ -719,7 +719,7 @@ public class DemurrageBillingService : IDemurrageBillingService
     {
         return role switch
         {
-            RoleNames.Trucker => billing.TruckerId == userId,
+            RoleNames.Trucker or RoleNames.Broker => billing.TruckerId == userId,
             RoleNames.ShippingLineEvaluator => await EvaluatorOwnsShippingLineAsync(
                 userId, billing.ShippingLineId, cancellationToken),
             _ => false,

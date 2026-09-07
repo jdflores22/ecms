@@ -34,12 +34,12 @@ public class TruckerNewsController : ControllerBase
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet("feed")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<IReadOnlyList<TruckerNewsFeedItemDto>>> GetFeed(CancellationToken cancellationToken)
         => Ok(await _news.GetPublishedFeedAsync(cancellationToken));
 
     [HttpGet("{id:int}")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<TruckerNewsDetailDto>> GetPublished(int id, CancellationToken cancellationToken)
     {
         var item = await _news.GetPublishedByIdAsync(id, cancellationToken);

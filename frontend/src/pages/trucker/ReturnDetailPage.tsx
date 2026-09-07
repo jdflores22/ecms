@@ -108,6 +108,7 @@ import {
 
 import { store } from '../../store'
 
+import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 
 import { useAssetUrl } from '../../hooks/useAssetUrl'
@@ -325,7 +326,7 @@ export default function TruckerReturnDetailPage() {
 
   const load = useCallback(() => {
 
-    if (!scheduleId || user?.role !== 'Trucker') return
+    if (!scheduleId || !isTruckerOrBroker(user?.role)) return
 
     setLoading(true)
 
@@ -443,7 +444,7 @@ export default function TruckerReturnDetailPage() {
 
 
 
-  if (user?.role !== 'Trucker') {
+  if (!isTruckerOrBroker(user?.role)) {
 
     return <Navigate to="/" replace />
 

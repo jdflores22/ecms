@@ -78,7 +78,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPost("upload")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     [RequestSizeLimit(10_485_760)]
     public async Task<ActionResult<PaymentDto>> Upload(
         [FromForm] int scheduleId,
@@ -132,7 +132,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("mine")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<IReadOnlyList<PaymentDto>>> GetMine(CancellationToken cancellationToken)
         => Ok(await _service.GetByTruckerAsync(UserId, cancellationToken));
 
@@ -147,7 +147,7 @@ public class PaymentsController : ControllerBase
         => Ok(new ECMS.Application.DTOs.Common.CountDto(await _service.GetPendingVerificationCountAsync(cancellationToken)));
 
     [HttpGet("due/count")]
-    [Authorize(Roles = RoleNames.Trucker)]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<ECMS.Application.DTOs.Common.CountDto>> GetDueCount(CancellationToken cancellationToken)
         => Ok(new ECMS.Application.DTOs.Common.CountDto(await _service.GetPaymentDueCountAsync(UserId, cancellationToken)));
 

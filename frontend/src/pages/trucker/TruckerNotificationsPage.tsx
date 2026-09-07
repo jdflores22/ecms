@@ -14,6 +14,7 @@ import { Navigate } from 'react-router-dom'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import { ListLoadingState, LIST_PRIMARY, listPageRootSx } from '../../components/layout/ListPagePrimitives'
 import { notificationApi, type Notification } from '../../services/api'
+import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 import { formatRelativeTime } from '../../utils/datetime'
 
@@ -42,7 +43,7 @@ export default function TruckerNotificationsPage() {
     setItems((prev) => prev.map((n) => ({ ...n, isRead: true })))
   }
 
-  if (currentUser?.role !== 'Trucker') {
+  if (!isTruckerOrBroker(currentUser?.role)) {
     return <Navigate to="/" replace />
   }
 

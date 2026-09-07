@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { listHeroActionSx } from '../components/layout/ListPagePrimitives'
 import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
 import CyAllocationDashboardPanel from '../components/dashboard/CyAllocationDashboardPanel'
-import { roleLabel } from '../config/roleConfig'
+import { isTruckerOrBroker, roleLabel } from '../config/roleConfig'
 import { cyAllocationApi, dashboardApi } from '../services/api'
 import type { CyAllocation } from '../services/api'
 import { useAppSelector } from '../store/hooks'
@@ -187,7 +187,7 @@ export default function DashboardPage() {
               {config.subtitle}
             </Typography>
           </Box>
-          {user.role === 'Trucker' && (
+          {isTruckerOrBroker(user.role) && (
             <Box
               sx={{
                 display: 'flex',
@@ -230,7 +230,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {actionable.length > 0 && !loading && user.role !== 'Trucker' && (
+      {actionable.length > 0 && !loading && !isTruckerOrBroker(user.role) && (
         <Alert
           severity="info"
           sx={{
@@ -355,7 +355,7 @@ export default function DashboardPage() {
             })}
           </Box>
 
-          {widgets && user.role !== 'Trucker' && (
+          {widgets && !isTruckerOrBroker(user.role) && (
             <Paper
               elevation={0}
               sx={{

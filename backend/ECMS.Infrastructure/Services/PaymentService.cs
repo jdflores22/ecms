@@ -124,7 +124,7 @@ public class PaymentService : IPaymentService
         var allowed = role switch
         {
             RoleNames.Administrator => true,
-            RoleNames.Trucker => payment.TruckerId == userId
+            RoleNames.Trucker or RoleNames.Broker => payment.TruckerId == userId
                 || payment.Schedule.PreAdvice.TruckerId == userId,
             _ => false,
         };
@@ -353,7 +353,7 @@ public class PaymentService : IPaymentService
         {
             RoleNames.Administrator => true,
             RoleNames.DepotPersonnel => depotId.HasValue && payment.Schedule.DepotId == depotId.Value,
-            RoleNames.Trucker => payment.TruckerId == userId
+            RoleNames.Trucker or RoleNames.Broker => payment.TruckerId == userId
                 || payment.Schedule.PreAdvice.TruckerId == userId,
             RoleNames.ShippingLineEvaluator => shippingLineId.HasValue
                 && payment.Schedule.PreAdvice.ShippingLineId == shippingLineId.Value,

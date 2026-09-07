@@ -20,6 +20,8 @@ import { formatDateTime, formatRelativeTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
 import { setupActivePolling } from '../utils/polling'
 import { InlineLoadingSkeleton } from './layout/SkeletonPrimitives'
+import { isTruckerOrBroker } from '../config/roleConfig'
+
 import { useAppSelector } from '../store/hooks'
 
 const primaryDark = '#0B3D91'
@@ -47,7 +49,7 @@ function hexToRgba(hex: string, alpha: number) {
 export default function NotificationBell() {
   const navigate = useNavigate()
   const role = useAppSelector((s) => s.auth.user?.role)
-  const notificationsPath = role === 'Trucker' ? '/trucker/notifications' : null
+  const notificationsPath = isTruckerOrBroker(role) ? '/trucker/notifications' : null
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [items, setItems] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)

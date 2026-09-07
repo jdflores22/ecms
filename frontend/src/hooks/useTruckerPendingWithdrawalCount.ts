@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
+import { isTruckerOrBroker } from '../config/roleConfig'
 import { fetchCachedWithdrawalActionCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 
@@ -13,7 +14,7 @@ export function useTruckerPendingWithdrawalCount(
 
   const enabled = Boolean(
     role
-      && (role === 'Trucker' || role === 'Broker')
+      && isTruckerOrBroker(role)
       && canAccessPage(role, 'truckerWithdrawals', allowedPages),
   )
 

@@ -52,13 +52,30 @@ export const ROLE_CATALOG: RoleInfo[] = [
       'View operational reports',
     ],
   },
+  {
+    name: 'Broker',
+    label: 'Broker',
+    description: 'Same trucker workflow for now: pre-forecast, returns, payments, withdrawals, and booking QR.',
+    capabilities: [
+      'Create and submit pre-forecast',
+      'Upload container identity photos',
+      'View assigned return schedules',
+      'Upload payment proof',
+      'Download and print QR codes',
+      'View operational reports',
+    ],
+  },
 ]
 
 export function roleLabel(role: string) {
   return ROLE_CATALOG.find((r) => r.name === role)?.label ?? role
 }
 
-/** Trucker-only pre-forecast access; legacy Broker JWTs are still accepted until re-login. */
-export function isPreAdviceManager(role?: string | null) {
+/** Trucker and broker pre-forecast access (same workflow for now). */
+export function isTruckerOrBroker(role?: string | null) {
   return role === 'Trucker' || role === 'Broker'
+}
+
+export function isPreAdviceManager(role?: string | null) {
+  return isTruckerOrBroker(role)
 }

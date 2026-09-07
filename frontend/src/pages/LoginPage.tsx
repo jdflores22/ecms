@@ -22,6 +22,7 @@ const primaryDark = '#0B3D91'
 
 const DEMO_ACCOUNTS = [
   { role: 'Trucker', username: 'trucker1', password: 'Trucker@123' },
+  { role: 'Broker', username: 'broker1', password: 'Broker@123' },
   { role: 'Admin', username: 'admin', password: 'Admin@123' },
   { role: 'Evaluator', username: 'evaluator1', password: 'Evaluator@123' },
   { role: 'Depot', username: 'depot1', password: 'Depot@123' },

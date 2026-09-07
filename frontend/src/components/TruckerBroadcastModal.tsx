@@ -11,6 +11,7 @@ import {
 } from '@mui/material'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { notificationApi, type Notification } from '../services/api'
+import { isTruckerOrBroker } from '../config/roleConfig'
 import { useAppSelector } from '../store/hooks'
 import { formatRelativeTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
@@ -41,7 +42,7 @@ export default function TruckerBroadcastModal() {
   }, [])
 
   const poll = useCallback(() => {
-    if (role !== 'Trucker') return
+    if (!isTruckerOrBroker(role)) return
 
     notificationApi
       .list({ unreadOnly: true, pageSize: 50 })
@@ -57,7 +58,7 @@ export default function TruckerBroadcastModal() {
   }, [role, pickNextBroadcast])
 
   useEffect(() => {
-    if (role !== 'Trucker') {
+    if (!isTruckerOrBroker(role)) {
       setActive(null)
       presentedRef.current.clear()
       return undefined
@@ -97,7 +98,7 @@ export default function TruckerBroadcastModal() {
     }
   }
 
-  if (role !== 'Trucker' || !active) return null
+  if (!isTruckerOrBroker(role) || !active) return null
 
   return (
     <Dialog

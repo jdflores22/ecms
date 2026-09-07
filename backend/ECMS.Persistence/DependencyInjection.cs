@@ -97,7 +97,8 @@ public class DbSeeder
                 await _context.SaveChangesAsync();
         }
 
-        await MigrateBrokerRoleToTruckerAsync();
+        await EnsureBrokerRoleFromCatalogAsync();
+        await EnsureDemoBrokerUserAsync();
         await SyncTruckerRoleFromCatalogAsync();
         await SyncAdministratorRoleFromCatalogAsync();
         await SyncDepotPersonnelRoleFromCatalogAsync();
@@ -225,7 +226,8 @@ public class DbSeeder
                 new User { Username = "admin", Email = "admin@ecms.local", PasswordHash = _passwordHasher.Hash("Admin@123"), RoleId = roles[RoleNames.Administrator], FullName = "System Admin" },
                 new User { Username = "evaluator1", Email = "evaluator@ecms.local", PasswordHash = _passwordHasher.Hash("Evaluator@123"), RoleId = roles[RoleNames.ShippingLineEvaluator], FullName = "Demo Evaluator", ShippingLineId = maersk.Id },
                 new User { Username = "depot1", Email = "depot@ecms.local", PasswordHash = _passwordHasher.Hash("Depot@123"), RoleId = roles[RoleNames.DepotPersonnel], FullName = "Demo Depot", DepotId = depot.Id },
-                new User { Username = "trucker1", Email = "trucker@ecms.local", PasswordHash = _passwordHasher.Hash("Trucker@123"), RoleId = roles[RoleNames.Trucker], FullName = "ABC Trucking" }
+                new User { Username = "trucker1", Email = "trucker@ecms.local", PasswordHash = _passwordHasher.Hash("Trucker@123"), RoleId = roles[RoleNames.Trucker], FullName = "ABC Trucking" },
+                new User { Username = "broker1", Email = "broker@ecms.local", PasswordHash = _passwordHasher.Hash("Broker@123"), RoleId = roles[RoleNames.Broker], FullName = "Demo Broker" }
             };
 
             _context.UsersSet.AddRange(users);
@@ -348,21 +350,51 @@ public class DbSeeder
         await _context.SaveChangesAsync();
     }
 
-    private async Task MigrateBrokerRoleToTruckerAsync()
+    private async Task EnsureBrokerRoleFromCatalogAsync()
     {
-        var brokerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == "Broker");
+        var defaults = RoleCatalogDefaults.Get(RoleNames.Broker);
+        if (defaults is null)
+            return;
+
+        var brokerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Broker);
+        if (brokerRole is null)
+        {
+            _context.RolesSet.Add(new Role
+            {
+                Name = defaults.Name,
+                Label = defaults.Label,
+                Description = defaults.Description,
+                CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities),
+                AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages),
+            });
+            await _context.SaveChangesAsync();
+            return;
+        }
+
+        brokerRole.Label = defaults.Label;
+        brokerRole.Description = defaults.Description;
+        brokerRole.CapabilitiesJson = JsonSerializer.Serialize(defaults.Capabilities);
+        brokerRole.AllowedPagesJson = JsonSerializer.Serialize(defaults.AllowedPages);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task EnsureDemoBrokerUserAsync()
+    {
+        if (await _context.UsersSet.AnyAsync(u => u.Username == "broker1"))
+            return;
+
+        var brokerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Broker);
         if (brokerRole is null)
             return;
 
-        var truckerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Trucker);
-        if (truckerRole is null)
-            return;
-
-        var brokerUsers = await _context.UsersSet.Where(u => u.RoleId == brokerRole.Id).ToListAsync();
-        foreach (var user in brokerUsers)
-            user.RoleId = truckerRole.Id;
-
-        _context.RolesSet.Remove(brokerRole);
+        _context.UsersSet.Add(new User
+        {
+            Username = "broker1",
+            Email = "broker@ecms.local",
+            PasswordHash = _passwordHasher.Hash("Broker@123"),
+            RoleId = brokerRole.Id,
+            FullName = "Demo Broker",
+        });
         await _context.SaveChangesAsync();
     }
 

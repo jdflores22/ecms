@@ -38,6 +38,7 @@ import {
 import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
 import AssetImage from '../../components/layout/AssetImage'
 import { paymentApi, preAdviceApi, qrApi, scheduleApi, type Payment, type PreAdvice, type QrBooking, type Schedule } from '../../services/api'
+import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatPeso, formatScheduleSlot } from '../../utils/datetime'
@@ -203,7 +204,7 @@ export default function TruckerPaymentUploadPage() {
   const proofFileUrl = useAssetUrl(payment?.proofFile)
 
   const load = useCallback(() => {
-    if (!scheduleId || user?.role !== 'Trucker') return
+    if (!scheduleId || !isTruckerOrBroker(user?.role)) return
     setLoading(true)
     setError('')
 
@@ -246,7 +247,7 @@ export default function TruckerPaymentUploadPage() {
     load()
   }, [load])
 
-  if (user?.role !== 'Trucker') {
+  if (!isTruckerOrBroker(user?.role)) {
     return <Navigate to="/" replace />
   }
 

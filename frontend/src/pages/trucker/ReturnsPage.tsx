@@ -19,6 +19,7 @@ import {
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import { type Schedule } from '../../services/api'
 import { fetchCachedScheduleList } from '../../utils/truckerListCache'
+import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleDate, formatScheduleSlot, formatScheduleTime } from '../../utils/datetime'
 import {
@@ -81,7 +82,7 @@ export default function TruckerReturnsPage() {
   const [error, setError] = useState('')
 
   const load = useCallback(() => {
-    if (userRole !== 'Trucker') {
+    if (!isTruckerOrBroker(userRole)) {
       setLoading(false)
       return
     }

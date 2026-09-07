@@ -105,7 +105,7 @@ public class WithdrawalService : IWithdrawalService
 
     public async Task<int> GetPendingActionCountAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
-        if (role != RoleNames.Trucker)
+        if (!RoleNames.IsTruckerOrBroker(role))
             return 0;
 
         return await _db.WithdrawalRequests.CountAsync(
@@ -406,7 +406,7 @@ public class WithdrawalService : IWithdrawalService
 
         var truckers = await _db.Users
             .Include(u => u.Role)
-            .Where(u => u.Status == UserStatus.Active && u.Role.Name == RoleNames.Trucker)
+            .Where(u => u.Status == UserStatus.Active && (u.Role.Name == RoleNames.Trucker || u.Role.Name == RoleNames.Broker))
             .OrderBy(u => u.FullName)
             .ThenBy(u => u.Username)
             .Select(u => new TruckerLookupDto(u.Id, u.FullName ?? u.Username, u.Username))
@@ -502,7 +502,11 @@ public class WithdrawalService : IWithdrawalService
         _auditService.QueueLog(truckerId, "Create", "Withdrawal", referenceNo);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return (await GetByIdAsync(entity.Id, truckerId, RoleNames.Trucker, cancellationToken))!;
+        var role = await _db.Users
+            .Where(u => u.Id == truckerId)
+            .Select(u => u.Role.Name)
+            .FirstAsync(cancellationToken);
+        return (await GetByIdAsync(entity.Id, truckerId, role, cancellationToken))!;
     }
 
     public async Task<WithdrawalDto> BookAsync(BookWithdrawalRequest request, int truckerId, CancellationToken cancellationToken = default)
@@ -580,7 +584,11 @@ public class WithdrawalService : IWithdrawalService
             referenceNo,
             cancellationToken);
 
-        return (await GetByIdAsync(entity.Id, truckerId, RoleNames.Trucker, cancellationToken))!;
+        var role = await _db.Users
+            .Where(u => u.Id == truckerId)
+            .Select(u => u.Role.Name)
+            .FirstAsync(cancellationToken);
+        return (await GetByIdAsync(entity.Id, truckerId, role, cancellationToken))!;
     }
 
     public async Task<WithdrawalBookingNumberPreviewDto> GetNextBookingNumberAsync(CancellationToken cancellationToken = default)
@@ -770,8 +778,8 @@ public class WithdrawalService : IWithdrawalService
             .FirstOrDefaultAsync(u => u.Id == request.AuthorizedTruckerId, cancellationToken)
             ?? throw new InvalidOperationException("Authorized trucker not found.");
 
-        if (trucker.Role.Name != RoleNames.Trucker)
-            throw new InvalidOperationException("Authorized user must be a trucker.");
+        if (!RoleNames.IsTruckerOrBroker(trucker.Role.Name))
+            throw new InvalidOperationException("Authorized user must be a trucker or broker.");
 
         var header = await ValidateHeaderAsync(
             string.IsNullOrWhiteSpace(request.AtwNumber)
@@ -863,7 +871,7 @@ public class WithdrawalService : IWithdrawalService
         if (entity.Status is not (WithdrawalStatus.Draft or WithdrawalStatus.Issued))
             throw new InvalidOperationException("Only draft or issued withdrawal requests can be edited.");
 
-        if (role == RoleNames.Trucker && entity.Status == WithdrawalStatus.Issued)
+        if (RoleNames.IsTruckerOrBroker(role) && entity.Status == WithdrawalStatus.Issued)
             throw new InvalidOperationException("This withdrawal was issued by the shipping line and cannot be edited.");
 
         var header = await ValidateHeaderAsync(
@@ -896,7 +904,11 @@ public class WithdrawalService : IWithdrawalService
 
     public async Task<WithdrawalDto?> SubmitAsync(int id, int userId, CancellationToken cancellationToken = default)
     {
-        var entity = await FindScopedAsync(id, userId, RoleNames.Trucker, cancellationToken);
+        var userRole = await _db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.Role.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? RoleNames.Trucker;
+        var entity = await FindScopedAsync(id, userId, userRole, cancellationToken);
         if (entity is null) return null;
 
         var isIssueFirstCyAssigned = entity.Status == WithdrawalStatus.CyAssigned && !entity.BookedAt.HasValue;
@@ -962,7 +974,7 @@ public class WithdrawalService : IWithdrawalService
             entity.ReferenceNo,
             cancellationToken);
 
-        return await GetByIdAsync(id, userId, RoleNames.Trucker, cancellationToken);
+        return await GetByIdAsync(id, userId, userRole, cancellationToken);
     }
 
     public async Task<WithdrawalDto?> ApproveAsync(

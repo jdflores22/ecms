@@ -406,6 +406,20 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'truckerQrPrint',
     'truckerNotifications',
   ],
+  Broker: [
+    'dashboard',
+    'profile',
+    'preforecast',
+    'truckerReports',
+    'truckerReturns',
+    'truckerPayments',
+    'truckerDemurrageBilling',
+    'truckerStatementOfAccounts',
+    'truckerWithdrawals',
+    'truckerQr',
+    'truckerQrPrint',
+    'truckerNotifications',
+  ],
   Administrator: ADMINISTRATOR_PAGES,
 }
 
@@ -480,11 +494,10 @@ function migrateLegacyAppPageKey(key: string): string {
 }
 
 export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | null): AppPageKey[] {
-  const normalizedRole = role === 'Broker' ? 'Trucker' : role
   const valid = (allowedPages ?? [])
     .map((key) => {
       const migrated = migrateLegacyAppPageKey(key)
-      return migrateLegacyReportPageKey(normalizedRole, migrated) ?? migrated
+      return migrateLegacyReportPageKey(role, migrated) ?? migrated
     })
     .filter((key): key is AppPageKey => key in APP_PAGES)
   let keys: AppPageKey[]
@@ -493,22 +506,23 @@ export function resolveAllowedPageKeys(role: string, allowedPages?: string[] | n
     if (withRequired.includes('truckerQr') && !withRequired.includes('truckerQrPrint')) {
       withRequired.push('truckerQrPrint')
     }
-    const pool = new Set(getAssignablePageKeys(normalizedRole))
+    const pool = new Set(getAssignablePageKeys(role))
     keys = withRequired.filter((key) => pool.has(key))
-    if (normalizedRole === 'Trucker') {
-      for (const key of ROLE_PAGE_ACCESS.Trucker) {
+    if (role === 'Trucker' || role === 'Broker') {
+      const catalog = ROLE_PAGE_ACCESS[role]
+      for (const key of catalog) {
         if (!keys.includes(key)) keys.push(key)
       }
     }
-    if (normalizedRole === 'DepotPersonnel') {
+    if (role === 'DepotPersonnel') {
       for (const key of ROLE_PAGE_ACCESS.DepotPersonnel) {
         if (!keys.includes(key)) keys.push(key)
       }
     }
   } else {
-    keys = getAccessiblePageKeys(normalizedRole)
+    keys = getAccessiblePageKeys(role)
   }
-  if (normalizedRole === 'Administrator') {
+  if (role === 'Administrator') {
     keys = keys.filter((key) => !ADMIN_RUNTIME_EXCLUDE.includes(key))
     for (const key of ROLE_PAGE_ACCESS.Administrator) {
       if (!ADMIN_RUNTIME_EXCLUDE.includes(key) && !keys.includes(key)) {

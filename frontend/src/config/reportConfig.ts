@@ -69,6 +69,7 @@ const ROLE_TO_REPORT_PAGE: Record<UserRole, ReportPageKey> = {
   DepotPersonnel: 'depotReports',
   ShippingLineEvaluator: 'evaluatorReports',
   Trucker: 'truckerReports',
+  Broker: 'truckerReports',
 }
 
 export function isReportPageKey(key: string): key is ReportPageKey {
@@ -76,7 +77,6 @@ export function isReportPageKey(key: string): key is ReportPageKey {
 }
 
 export function getReportPageKeyForRole(role: string): ReportPageKey | null {
-  if (role === 'Broker') return ROLE_TO_REPORT_PAGE.Trucker
   if (role in ROLE_TO_REPORT_PAGE) return ROLE_TO_REPORT_PAGE[role as UserRole]
   return null
 }

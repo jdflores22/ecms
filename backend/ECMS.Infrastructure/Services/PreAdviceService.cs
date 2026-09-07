@@ -352,7 +352,7 @@ public class PreAdviceService : IPreAdviceService
             request.ContainerTypeId,
             cancellationToken);
 
-        if (role == RoleNames.Trucker)
+        if (RoleNames.IsPreAdviceManager(role))
         {
             await _demurrageBilling.EnsureTruckerCanCreatePreAdviceAsync(
                 userId,
@@ -399,7 +399,11 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<PreAdviceDto?> SubmitAsync(int id, int userId, CancellationToken cancellationToken = default)
     {
-        var preAdvice = await GetQueryable(id, userId, RoleNames.Trucker).FirstOrDefaultAsync(cancellationToken);
+        var role = await _db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.Role.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? RoleNames.Trucker;
+        var preAdvice = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null || preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             return null;
 

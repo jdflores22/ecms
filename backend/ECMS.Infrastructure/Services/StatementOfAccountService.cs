@@ -185,7 +185,7 @@ public class StatementOfAccountService : IStatementOfAccountService
 
         var truckers = await _db.Users
             .Include(u => u.Role)
-            .Where(u => u.Role.Name == RoleNames.Trucker && u.Status == UserStatus.Active)
+            .Where(u => (u.Role.Name == RoleNames.Trucker || u.Role.Name == RoleNames.Broker) && u.Status == UserStatus.Active)
             .OrderBy(u => u.FullName ?? u.Username)
             .ToListAsync(cancellationToken);
 
@@ -217,7 +217,7 @@ public class StatementOfAccountService : IStatementOfAccountService
             .Include(u => u.Role)
             .FirstOrDefaultAsync(
                 u => u.Id == request.TruckerId
-                     && u.Role.Name == RoleNames.Trucker
+                     && (u.Role.Name == RoleNames.Trucker || u.Role.Name == RoleNames.Broker)
                      && u.Status == UserStatus.Active,
                 cancellationToken);
 
@@ -301,7 +301,7 @@ public class StatementOfAccountService : IStatementOfAccountService
     {
         var query = QueryWithIncludes();
 
-        if (role == RoleNames.Trucker)
+        if (RoleNames.IsTruckerOrBroker(role))
             query = query.Where(s => s.TruckerId == userId);
         else if (role == RoleNames.ShippingLineEvaluator)
         {
@@ -595,7 +595,7 @@ public class StatementOfAccountService : IStatementOfAccountService
         string role,
         CancellationToken cancellationToken = default)
     {
-        if (role != RoleNames.Trucker)
+        if (!RoleNames.IsTruckerOrBroker(role))
             return 0;
 
         return await _db.StatementOfAccounts.CountAsync(
@@ -812,7 +812,7 @@ public class StatementOfAccountService : IStatementOfAccountService
         string role,
         CancellationToken cancellationToken)
     {
-        if (role == RoleNames.Trucker)
+        if (RoleNames.IsTruckerOrBroker(role))
             return soa.TruckerId == userId;
         if (role == RoleNames.ShippingLineEvaluator)
         {
