@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>ICS → LOGICTECK API test</title>
+  <style>
+    :root {
+      --ics: #003366;
+      --ics-light: #004b7a;
+      --lt-bg: #edf7ef;
+      --lt-border: #b8dcc0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --ok: #15803d;
+      --warn: #b45309;
+      --err: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(160deg, #f0f7f2 0%, #e8f0f8 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      overflow-x: hidden;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; width: 100%; }
+    header {
+      background: linear-gradient(135deg, var(--ics) 0%, var(--ics-light) 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0, 51, 102, 0.2);
+    }
+    header h1 { margin: 0 0 8px; font-size: 1.5rem; font-weight: 800; line-height: 1.25; }
+    header p { margin: 0; opacity: 0.92; font-size: 0.95rem; line-height: 1.5; }
+    header code {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.15);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.35;
+    }
+    label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    input {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+    }
+    input.mono { font-family: ui-monospace, monospace; font-weight: 700; }
+    input:focus { outline: 2px solid var(--ics-light); border-color: var(--ics-light); }
+    .grid { display: grid; gap: 0 16px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .full { grid-column: 1 / -1; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-align: center;
+      min-height: 44px;
+    }
+    .btn-primary { background: var(--ics); color: #fff; }
+    .btn-primary:hover { background: var(--ics-light); }
+    .btn-outline { background: #fff; color: var(--ics); border: 2px solid var(--ics); }
+    .btn-outline:hover { background: #f0f7ff; }
+    .btn-ghost { background: #f1f5f9; color: var(--text); }
+    .note {
+      background: var(--lt-bg);
+      border: 1px solid var(--lt-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      margin-bottom: 16px;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .note code { font-size: 0.82em; }
+    .status {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-left: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .status.ok { background: #dcfce7; color: var(--ok); }
+    .status.warn { background: #fef3c7; color: var(--warn); }
+    .status.err { background: #fee2e2; color: var(--err); }
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      background: #f8fafc;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .fields {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+      margin: 12px 0;
+      font-size: 0.875rem;
+    }
+    .fields div {
+      padding: 8px 10px;
+      background: var(--lt-bg);
+      border-radius: 8px;
+      min-width: 0;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .fields strong { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+    .fields--stack { grid-template-columns: 1fr; }
+    .hint {
+      margin: -8px 0 14px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .hint code { font-size: 0.85em; }
+    .msg { margin: 12px 0 0; font-size: 0.875rem; }
+    .msg--ok { color: var(--ok); font-weight: 600; }
+    .msg--err { color: var(--err); }
+    footer { text-align: center; margin-top: 24px; font-size: 0.8rem; color: var(--muted); line-height: 1.5; padding: 0 4px; }
+    footer a { color: var(--ics-light); }
+    .hidden { display: none; }
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--ics);
+      margin: 0 0 12px;
+    }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .photo-card {
+      border: 1px solid var(--lt-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .photo-card img {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      display: block;
+      background: #f1f5f9;
+    }
+    .photo-card .cap {
+      padding: 8px 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--ics);
+    }
+    .photo-card .sub {
+      padding: 0 10px 8px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .qr-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      margin-top: 8px;
+    }
+    .qr-row img {
+      width: 120px;
+      height: 120px;
+      max-width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--lt-border);
+      background: #fff;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .qr-row .fields { flex: 1; min-width: 0; margin: 0; }
+    .doc-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--muted); word-break: break-word; }
+    .doc-text code { font-size: 0.85em; word-break: break-all; }
+    .raw-json { margin-top: 16px; }
+    .raw-json summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 4px 0;
+    }
+
+    @media (max-width: 639px) {
+      body { padding: 12px 12px 28px; }
+      header {
+        padding: 18px 16px;
+        margin-bottom: 16px;
+        border-radius: 12px;
+      }
+      header h1 { font-size: 1.2rem; }
+      header p { font-size: 0.875rem; }
+      .badge { font-size: 0.7rem; margin-top: 10px; }
+      .card {
+        padding: 16px 14px;
+        margin-bottom: 12px;
+        border-radius: 12px;
+      }
+      .card h2 { font-size: 0.95rem; }
+      .note { padding: 10px 12px; font-size: 0.8125rem; margin-bottom: 12px; }
+      input { font-size: 16px; margin-bottom: 12px; }
+      .fields { grid-template-columns: 1fr; }
+      .actions {
+        flex-direction: column;
+        gap: 8px;
+      }
+      .actions button { width: 100%; }
+      .photo-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .photo-card .cap { font-size: 0.7rem; padding: 6px 8px; }
+      .photo-card .sub { font-size: 0.68rem; padding: 0 8px 6px; }
+      .qr-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      .qr-row img {
+        width: min(200px, 100%);
+        height: auto;
+        aspect-ratio: 1;
+      }
+      .qr-row .fields { width: 100%; }
+      .section-title { font-size: 0.875rem; }
+      pre { padding: 10px; font-size: 0.72rem; }
+      footer { font-size: 0.75rem; }
+    }
+
+    @media (max-width: 359px) {
+      .photo-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>ICS → LOGICTECK API test</h1>
+      <p>
+        Standalone page — <strong>no ICS login</strong>. Look up ICS transfer data by
+        <strong>reference</strong> (e.g. <code>ICS-202600018</code>) to receive pre-forecast details and book the empty
+        return on <strong>LOGICTECK</strong> via the public Railway API.
+      </p>
+      <span class="badge">OUTSIDE ICS APP · PUBLIC API ONLY</span>
+    </header>
+
+    <div class="note">
+      <strong>Permanent connection:</strong> Every ICS transfer includes a <code>transferLink</code> block with the reference,
+      trucker name, and API URLs. LOGICTECK uses the reference to pull the dossier and create the empty-return booking.
+      ICS also auto-pushes data when the transfer QR is published (if <code>Logicteck:BookUrl</code> is set).
+      No shared user accounts or JWT — only the API key and ICS reference.
+    </div>
+
+    <div class="card">
+      <h2>Connection</h2>
+      <form id="connectionForm" onsubmit="return false">
+      <div class="grid">
+        <div class="full">
+          <label for="apiBase">ICS API base URL</label>
+          <input id="apiBase" type="url" placeholder="http://localhost:5275 or Railway URL" />
+        </div>
+        <div class="full">
+          <label for="apiKey">X-Logicteck-Api-Key</label>
+          <input id="apiKey" type="password" placeholder="Shared secret (Logicteck:ApiKey)" autocomplete="off" />
+          <p id="apiKeyHint" class="hint hidden">
+            Local dev: same value as <code>Logicteck:ApiKey</code> in <code>backend/ECMS.API/appsettings.Development.json</code>.
+            Production: set environment variable <code>LOGICTECK_API_KEY</code>.
+          </p>
+        </div>
+        <div class="full">
+          <label for="qrCode">ICS transfer reference (for LOGICTECK booking)</label>
+          <input id="qrCode" class="mono" type="text" placeholder="ICS-202600018" />
+        </div>
+      </div>
+      </form>
+      <div class="actions">
+        <button type="button" class="btn-primary" id="btnLookup">Load transfer dossier (book on LOGICTECK)</button>
+        <button type="button" class="btn-outline" id="btnValidate">Simulate depot gate QR check</button>
+        <button type="button" class="btn-ghost" id="btnCopyDossier">Copy dossier curl</button>
+        <button type="button" class="btn-ghost" id="btnCopyValidate">Copy validate curl</button>
+      </div>
+      <p id="toast" class="msg msg--ok hidden"></p>
+      <p id="error" class="msg msg--err hidden"></p>
+    </div>
+
+    <div class="card hidden" id="dossierCard">
+      <h2>Full transfer dossier <span id="dossierStatus" class="status"></span></h2>
+      <div id="dossierContent"></div>
+      <details class="raw-json">
+        <summary>Raw JSON response</summary>
+        <pre id="dossierJson"></pre>
+      </details>
+    </div>
+
+    <div class="card hidden" id="validateCard">
+      <h2>Validate result <span id="validateStatus" class="status"></span></h2>
+      <pre id="validateJson"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Documentation</h2>
+      <p class="doc-text">
+        Handoff for LOGICTECK team: <code>docs/LOGICTECK-API-HANDOFF.md</code> in the ICS repo.
+        Production API: <a href="https://ecms-production-42be.up.railway.app/health" target="_blank" rel="noopener">health check</a>
+      </p>
+    </div>
+
+    <footer>
+      Intelligent Container Solutions (ICS) · LOGICTECK booking integration test page
+    </footer>
+  </div>
+
+  <script>
+    const STORAGE_BASE = 'ics.logicteckTest.apiBase'
+    const STORAGE_KEY = 'ics.logicteckTest.apiKey'
+    const PRODUCTION_BASE = 'https://ecms-production-42be.up.railway.app'
+    const LOCAL_BASE = 'http://localhost:5275'
+    // Matches Logicteck:ApiKey in backend/ECMS.API/appsettings.Development.json (local dev only).
+    const LOCAL_DEV_API_KEY = 'dev-logicteck-local-key'
+    const LOOKUP_PATH = '/api/logicteck/booking'
+    const DOSSIER_PATH = '/api/logicteck/booking'
+    const VALIDATE_PATH = '/api/logicteck/validate-qr'
+    const KEY_HEADER = 'X-Logicteck-Api-Key'
+
+    const $ = (id) => document.getElementById(id)
+    const apiBase = $('apiBase')
+    const apiKey = $('apiKey')
+    const qrCode = $('qrCode')
+
+    function resolveApiBase() {
+      const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+      const stored = sessionStorage.getItem(STORAGE_BASE)?.trim()
+      if (onLocal) {
+        if (stored && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(stored))
+          return stored
+        return LOCAL_BASE
+      }
+      return stored || PRODUCTION_BASE
+    }
+
+    const params = new URLSearchParams(location.search)
+    const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    apiBase.value = resolveApiBase()
+    apiKey.value = sessionStorage.getItem(STORAGE_KEY) || (onLocal ? LOCAL_DEV_API_KEY : '')
+    if (onLocal) $('apiKeyHint').classList.remove('hidden')
+    qrCode.value = params.get('qr') || params.get('ref') || ''
+
+    function saveSettings() {
+      sessionStorage.setItem(STORAGE_BASE, apiBase.value.trim())
+      sessionStorage.setItem(STORAGE_KEY, apiKey.value)
+    }
+
+    apiBase.addEventListener('change', saveSettings)
+    apiKey.addEventListener('change', saveSettings)
+    apiKey.addEventListener('input', saveSettings)
+
+    function requireApiKey() {
+      const key = apiKey.value.trim()
+      if (key) return key
+      showError('Enter X-Logicteck-Api-Key (must match Logicteck:ApiKey on the API server).')
+      return null
+    }
+
+    function apiKeyErrorHint(status) {
+      if (status !== 401) return ''
+      const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+      return onLocal
+        ? ' Check backend/ECMS.API/appsettings.Development.json → Logicteck:ApiKey matches the value above.'
+        : ' Check environment variable LOGICTECK_API_KEY matches the value above.'
+    }
+
+    function showError(msg) {
+      const el = $('error')
+      el.textContent = msg
+      el.classList.remove('hidden')
+    }
+
+    function clearError() {
+      $('error').classList.add('hidden')
+    }
+
+    function toast(msg) {
+      const el = $('toast')
+      el.textContent = msg
+      el.classList.remove('hidden')
+      setTimeout(() => el.classList.add('hidden'), 2500)
+    }
+
+    function headers() {
+      const h = { Accept: 'application/json' }
+      const key = apiKey.value.trim()
+      if (key) h[KEY_HEADER] = key
+      return h
+    }
+
+    function base() {
+      return apiBase.value.trim().replace(/\/$/, '')
+    }
+
+    function ref() {
+      return qrCode.value.trim()
+    }
+
+    const PHOTO_VIEW_ORDER = [
+      'Flooring', 'RightSideIn', 'LeftSideIn', 'Back', 'Backdoor', 'Front', 'LeftSideOut', 'RightSideOut',
+      'Others', 'Damage',
+    ]
+
+    function photoSortKey(doc) {
+      const cat = (doc && doc.category) ? String(doc.category) : ''
+      const idx = PHOTO_VIEW_ORDER.indexOf(cat)
+      return idx >= 0 ? idx : 50
+    }
+
+    function countPhotoBuckets(docs) {
+      var required = 0
+      var optional = 0
+      var damage = 0
+      docs.forEach(function (doc) {
+        var cat = doc && doc.category ? String(doc.category) : ''
+        if (cat === 'Damage') damage++
+        else if (cat === 'Others') optional++
+        else if (PHOTO_VIEW_ORDER.indexOf(cat) >= 0 && cat !== 'Others') required++
+      })
+      return { required: required, optional: optional, damage: damage }
+    }
+
+    function externalStatus(data) {
+      if (!data || !data.found) return null
+      if (data.isRetrieved) return 'Retrieved'
+      if (data.isBooked) return 'Booked on LOGICTECK'
+      return 'Ready to send'
+    }
+
+    function tile(label, value) {
+      const v = value == null || value === '' ? '—' : String(value)
+      return '<div><strong>' + label + '</strong>' + escapeHtml(v) + '</div>'
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    }
+
+    function renderDossier(httpStatus, body) {
+      $('dossierCard').classList.remove('hidden')
+      $('dossierJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('dossierStatus')
+      const root = $('dossierContent')
+      root.innerHTML = ''
+
+      if (!body || !body.found) {
+        badge.textContent = httpStatus === 401 ? 'Unauthorized' : 'Not found'
+        badge.className = 'status err'
+        root.innerHTML = '<p style="color:var(--err);margin:0;">' + escapeHtml(body && body.message ? body.message : 'Booking not found.') + '</p>'
+        return
+      }
+
+      const st = externalStatus(body)
+      badge.textContent = st || 'Found'
+      badge.className = 'status ' + (body.isRetrieved ? 'warn' : body.isBooked ? 'ok' : 'ok')
+
+      const pa = body.preAdvice || {}
+      const sch = body.schedule || {}
+      const qr = body.qrBooking || {}
+      const link = body.transferLink || {}
+
+      let html = ''
+      if (link.transferReference) {
+        html += '<p class="section-title">Permanent transfer link (store on LOGICTECK)</p>'
+        html += '<div class="fields">'
+        html += tile('Transfer reference', link.transferReference)
+        html += tile('ICS trucker', link.icsTruckerName)
+        html += tile('ICS trucker ID', link.icsTruckerId)
+        html += tile('Pre-forecast ref', link.icsPreAdviceReference)
+        html += tile('Lookup URL', link.lookupUrl)
+        html += tile('Dossier URL', link.dossierUrl)
+        html += tile('Validate URL', link.validateUrl)
+        html += '</div>'
+      }
+
+      html += '<p class="section-title"' + (link.transferReference ? ' style="margin-top:20px;"' : '') + '>Pre-forecast summary</p>'
+      html += '<div class="fields">'
+      html += tile('Reference', pa.referenceNo)
+      html += tile('Status', pa.status)
+      html += tile('Trucker', pa.truckerName)
+      html += tile('Shipping line', pa.shippingLineName)
+      html += tile('Container', pa.containerNo)
+      html += tile('Size', pa.containerSize)
+      html += tile('Type', pa.containerType)
+      html += tile('Submitted', pa.createdAt ? new Date(pa.createdAt).toLocaleString() : '')
+      html += tile('Remarks', pa.remarks)
+      html += tile('Damage report', pa.hasDamageReport ? 'Yes' : 'No')
+      if (pa.complianceRemarks) html += tile('Compliance', pa.complianceRemarks)
+      html += tile('isBooked', String(body.isBooked))
+      html += tile('isRetrieved', String(body.isRetrieved))
+      html += '</div>'
+
+      if (sch && sch.depotName) {
+        html += '<p class="section-title" style="margin-top:20px;">Return schedule</p>'
+        html += '<div class="fields">'
+        html += tile('Depot (CY)', sch.depotName)
+        html += tile('Return slot', (sch.scheduledDate || '') + ' ' + (sch.scheduledTime || ''))
+        html += tile('Slot', sch.slotNo ? 'Slot ' + sch.slotNo : '')
+        html += tile('Schedule status', sch.status)
+        html += tile('Trucker', sch.truckerName)
+        if (sch.depotRemarks) html += tile('Depot remarks', sch.depotRemarks)
+        html += '</div>'
+      }
+
+      if (qr && qr.qrCode) {
+        html += '<p class="section-title" style="margin-top:20px;">ICS transfer QR</p>'
+        html += '<div class="qr-row">'
+        if (qr.qrImageBase64) {
+          html += '<img src="' + qr.qrImageBase64 + '" alt="QR ' + escapeHtml(qr.qrCode) + '" />'
+        }
+        html += '<div class="fields">'
+        html += tile('ICS reference', qr.qrCode)
+        html += tile('LOGICTECK status', qr.logicteckStatus)
+        html += tile('Generated', qr.generatedAt ? new Date(qr.generatedAt).toLocaleString() : '')
+        html += '</div></div>'
+      }
+
+      const docs = (body.documents || []).slice().sort(function (a, b) {
+        var diff = photoSortKey(a) - photoSortKey(b)
+        if (diff !== 0) return diff
+        return String(a.fileName || '').localeCompare(String(b.fileName || ''))
+      })
+      const buckets = countPhotoBuckets(docs)
+      var photoTitle = 'Container identity photos (' + docs.length + ')'
+      if (docs.length > 0) {
+        photoTitle += ' — ' + buckets.required + '/8 required'
+        if (buckets.optional) photoTitle += ', ' + buckets.optional + ' optional'
+        if (buckets.damage) photoTitle += ', ' + buckets.damage + ' damage'
+      }
+      html += '<p class="section-title" style="margin-top:20px;">' + escapeHtml(photoTitle) + '</p>'
+      html += '<p class="hint" style="margin-top:-6px;">Includes all ICS uploads: 8 standard views, optional <strong>Others</strong> (if trucker added extra photos), and damage photos.</p>'
+      if (docs.length === 0) {
+        html += '<p style="color:var(--muted);margin:0;font-size:0.875rem;">No photos on file.</p>'
+      } else {
+        html += '<div class="photo-grid">'
+        docs.forEach(function (doc) {
+          html += '<div class="photo-card">'
+          if (doc.url) {
+            html += '<a href="' + escapeHtml(doc.url) + '" target="_blank" rel="noopener">'
+            html += '<img src="' + escapeHtml(doc.url) + '" alt="' + escapeHtml(doc.categoryLabel || doc.fileName) + '" loading="lazy" onerror="this.alt=\'Image unavailable\';this.style.objectFit=\'contain\'" />'
+            html += '</a>'
+          }
+          html += '<div class="cap">' + escapeHtml(doc.categoryLabel || doc.category || 'Photo') + '</div>'
+          if (doc.category === 'Others') {
+            html += '<div class="sub">Optional extra photo</div>'
+          } else if (doc.comment) html += '<div class="sub">' + escapeHtml(doc.comment) + '</div>'
+          html += '</div>'
+        })
+        html += '</div>'
+      }
+
+      root.innerHTML = html
+    }
+
+    function renderValidate(httpStatus, body) {
+      $('validateCard').classList.remove('hidden')
+      $('validateJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('validateStatus')
+      if (body && body.valid) {
+        badge.textContent = 'Valid'
+        badge.className = 'status ok'
+      } else {
+        badge.textContent = body && body.message ? body.message : 'Invalid'
+        badge.className = 'status err'
+      }
+    }
+
+    async function runLookup() {
+      clearError()
+      saveSettings()
+      if (!requireApiKey()) return
+      const code = ref()
+      if (!code) return showError('Enter an ICS transfer reference (e.g. ICS-202600018).')
+      const url = base() + DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier'
+      try {
+        const res = await fetch(url, { method: 'GET', headers: headers() })
+        const text = await res.text()
+        let body = text
+        try { body = JSON.parse(text) } catch (_) {}
+        if (res.status === 401) {
+          return showError((body && body.message ? body.message : 'Unauthorized.') + apiKeyErrorHint(401))
+        }
+        renderDossier(res.status, body)
+      } catch (e) {
+        const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        const hint = onLocal && base().includes('railway.app')
+          ? ' On localhost, use ' + LOCAL_BASE + ' (not Railway) unless production is redeployed with Logicteck CORS.'
+          : ''
+        showError('Dossier request failed. Check API URL, CORS, and that the API is running.' + hint)
+      }
+    }
+
+    async function runValidate() {
+      clearError()
+      saveSettings()
+      if (!requireApiKey()) return
+      const code = ref()
+      if (!code) return showError('Enter an ICS transfer reference first.')
+      const url = base() + VALIDATE_PATH
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { ...headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qrCode: code }),
+        })
+        const text = await res.text()
+        let body = text
+        try { body = JSON.parse(text) } catch (_) {}
+        if (res.status === 401) {
+          return showError((body && body.message ? body.message : 'Unauthorized.') + apiKeyErrorHint(401))
+        }
+        renderValidate(res.status, body)
+        await runLookup()
+      } catch (e) {
+        showError('Validate failed. Check API URL and network.')
+      }
+    }
+
+    function curlDossier() {
+      const code = ref()
+      if (!code) return ''
+      const url = base() + DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier'
+      const key = apiKey.value.trim()
+      const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
+      return 'curl -s -X GET "' + url + '" \\\n' + keyLine + '  -H "Accept: application/json"'
+    }
+
+    function curlValidate() {
+      const code = ref()
+      if (!code) return ''
+      const url = base() + VALIDATE_PATH
+      const key = apiKey.value.trim()
+      const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
+      return 'curl -s -X POST "' + url + '" \\\n  -H "Content-Type: application/json" \\\n' + keyLine + '  -d "{\\"qrCode\\":\\"' + code + '\\"}"'
+    }
+
+    $('btnLookup').addEventListener('click', runLookup)
+    $('btnValidate').addEventListener('click', runValidate)
+    $('btnCopyDossier').addEventListener('click', () => {
+      const c = curlDossier()
+      if (!c) return showError('Enter ICS reference first.')
+      navigator.clipboard.writeText(c).then(() => toast('Dossier curl copied'))
+    })
+    $('btnCopyValidate').addEventListener('click', () => {
+      const c = curlValidate()
+      if (!c) return showError('Enter ICS reference first.')
+      navigator.clipboard.writeText(c).then(() => toast('Validate curl copied'))
+    })
+
+    if (qrCode.value) runLookup()
+  </script>
+</body>
+</html>

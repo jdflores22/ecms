@@ -1,0 +1,1 @@
+import{ay as t,B as a,E as n,v as s}from"./index-JhwPxtEk.js";const c=6e4,h=t(()=>a.list().then(({data:e})=>e),c),i=t(()=>n.mine().then(({data:e})=>e),c),f=t(()=>s.list().then(({data:e})=>e),c);function d(e=!1){return h.fetch(e)}function o(e=!1){return i.fetch(e)}function u(e=!1){return f.fetch(e)}export{d as a,o as b,u as f};

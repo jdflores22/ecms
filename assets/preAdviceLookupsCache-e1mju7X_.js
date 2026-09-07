@@ -1,0 +1,1 @@
+import{v as o}from"./index-JhwPxtEk.js";const i=600*1e3;let t=null,e=null;function u(n=!1){const l=Date.now();return!n&&t&&l<t.expiresAt?Promise.resolve(t.data):(!n&&e||(e=o.lookups().then(({data:r})=>(t={data:r,expiresAt:Date.now()+i},r)).finally(()=>{e=null})),e)}export{u as f};

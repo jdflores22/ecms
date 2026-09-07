@@ -1,0 +1,1 @@
+import{c as e}from"./vendor-Dz-89OgX.js";import{C as o}from"./mui-B1FyIGSv.js";const r="#C62828";function i(){return e.jsx(o,{label:"Damage reported",size:"small",sx:{fontWeight:700,bgcolor:r,color:"#fff","& .MuiChip-label":{px:1}}})}function l(){return e.jsx(o,{label:"—",size:"small",variant:"outlined",sx:{color:"text.disabled",borderColor:"divider"}})}export{i as D,l as a};

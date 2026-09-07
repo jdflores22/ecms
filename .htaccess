@@ -1,0 +1,36 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Preserve Authorization for the PHP API proxy (LiteSpeed/Apache).
+  RewriteCond %{HTTP:Authorization} ^(.+)$
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType application/wasm .wasm
+  AddType application/vnd.android.package-archive .apk
+</IfModule>
+
+# Hostinger/LiteSpeed HTTP/2: serve pre-compressed .br/.gz from /assets/ (see assets/.htaccess).
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ static_asset
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ no-gzip
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ dont-vary
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always unset Content-Length env=static_asset
+  Header always set Cache-Control "public, max-age=31536000, immutable, no-transform" env=static_asset
+  Header always set X-Content-Type-Options nosniff env=static_asset
+</IfModule>
+
+<IfModule mod_deflate.c>
+  SetEnvIfNoCase Request_URI \.(js|mjs|css|wasm)(\.br|\.gz)?$ no-gzip
+</IfModule>
