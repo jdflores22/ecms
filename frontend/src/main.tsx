@@ -10,6 +10,30 @@ import { installApiPreconnect } from './utils/apiPreconnect'
 
 installApiPreconnect()
 
+// After a deploy, browsers may still have an old entry bundle that references removed chunks.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  const key = 'ecms-chunk-reload'
+  if (!sessionStorage.getItem(key)) {
+    sessionStorage.setItem(key, '1')
+    window.location.reload()
+    return
+  }
+  sessionStorage.removeItem(key)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason
+  const message = reason instanceof Error ? reason.message : String(reason ?? '')
+  if (!/Failed to fetch dynamically imported module/i.test(message)) return
+  const key = 'ecms-chunk-reload'
+  if (!sessionStorage.getItem(key)) {
+    event.preventDefault()
+    sessionStorage.setItem(key, '1')
+    window.location.reload()
+  }
+})
+
 async function clearStaleServiceWorkersInDev() {
   if (!import.meta.env.DEV || !('serviceWorker' in navigator)) return
 
