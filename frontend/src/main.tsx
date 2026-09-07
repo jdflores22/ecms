@@ -6,6 +6,9 @@ import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
 import App from './App'
 import { ToastProvider } from './components/feedback/ToastProvider'
 import { store } from './store'
+import { installApiPreconnect } from './utils/apiPreconnect'
+
+installApiPreconnect()
 
 async function clearStaleServiceWorkersInDev() {
   if (!import.meta.env.DEV || !('serviceWorker' in navigator)) return

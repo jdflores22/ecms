@@ -9,7 +9,7 @@
     SshPassword = ''  # Hostinger SSH Access password
     RemotePath  = '/home/u910121167/websites/HVdBWy0pE/public_html'
     AppUrl      = 'https://deepskyblue-marten-415020.hostingersite.com'
-    # Hostinger build uses same-origin /api (proxied to Railway in ecms-api-proxy.php).
+    # Production frontend calls Railway API directly (CORS). ecms-api-proxy.php is fallback only.
     ApiBaseUrl  = 'https://ecms-production-42be.up.railway.app/api'
     GitBranch   = 'main'                 # source branch pushed for Railway API
     HostingerGitBranch = 'hostinger'     # orphan branch with frontend/dist contents
