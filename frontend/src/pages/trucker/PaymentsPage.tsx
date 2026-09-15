@@ -2,7 +2,7 @@ import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
 import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
-import UploadFileIcon from '@mui/icons-material/UploadFile'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
@@ -128,11 +128,11 @@ function PaymentRowActions({
         <Button
           size="small"
           variant="contained"
-          startIcon={<UploadFileIcon />}
+          startIcon={<PaymentsOutlinedIcon />}
           onClick={() => navigate(truckerPaymentPath(item.id))}
           sx={{ fontWeight: 600, borderRadius: 2 }}
         >
-          Upload proof
+          Pay
         </Button>
       ) : (
         <Button
@@ -267,7 +267,7 @@ export default function TruckerPaymentsPage() {
                 flexShrink: 0,
               }}
             >
-              <UploadFileIcon />
+              <PaymentsOutlinedIcon />
             </Box>
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>

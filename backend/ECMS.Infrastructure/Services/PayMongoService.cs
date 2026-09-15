@@ -17,6 +17,7 @@ namespace ECMS.Infrastructure.Services;
 public class PayMongoService : IPayMongoService
 {
     private const string ApiBase = "https://api.paymongo.com/v1";
+    private static readonly string[] CheckoutPaymentMethodTypes = { "card", "gcash", "paymaya", "qrph" };
 
     private readonly IEcmsDbContext _db;
     private readonly IPaymentSettingsService _paymentSettings;
@@ -76,6 +77,7 @@ public class PayMongoService : IPayMongoService
             throw new InvalidOperationException("This return payment is already settled.");
 
         var frontend = ResolveFrontendBaseUrl();
+        EnsureCheckoutRedirectBaseUrl(frontend);
         var successUrl = $"{frontend}/trucker/payments/{scheduleId}?paymongo=success";
         var cancelUrl = $"{frontend}/trucker/payments/{scheduleId}?paymongo=cancel";
         var description = $"Pre-forecast fee · {schedule.PreAdvice.ReferenceNo}";
@@ -139,6 +141,7 @@ public class PayMongoService : IPayMongoService
             throw new InvalidOperationException("Demurrage amount must be greater than zero.");
 
         var frontend = ResolveFrontendBaseUrl();
+        EnsureCheckoutRedirectBaseUrl(frontend);
         var successUrl = $"{frontend}/trucker/demurrage-billing/{billingId}?paymongo=success";
         var cancelUrl = $"{frontend}/trucker/demurrage-billing/{billingId}?paymongo=cancel";
         var description = $"Demurrage · {billing.ReferenceNo}";
@@ -244,7 +247,7 @@ public class PayMongoService : IPayMongoService
                     billing = new
                     {
                         name = "ICS ECMS",
-                        email = "payments@ics.local",
+                        email = "payments@ics-ecms.com",
                     },
                     send_email_receipt = false,
                     show_description = true,
@@ -260,7 +263,7 @@ public class PayMongoService : IPayMongoService
                             quantity = 1,
                         },
                     },
-                    payment_method_types = new[] { "gcash", "paymaya", "card", "qrph", "dob", "billease" },
+                    payment_method_types = CheckoutPaymentMethodTypes,
                     success_url = successUrl,
                     cancel_url = cancelUrl,
                     metadata,
@@ -278,8 +281,12 @@ public class PayMongoService : IPayMongoService
 
         if (!response.IsSuccessStatusCode)
         {
+            var detail = ReadPayMongoError(body);
             _logger.LogError("PayMongo checkout session failed ({Status}): {Body}", response.StatusCode, body);
-            throw new InvalidOperationException("Unable to start PayMongo checkout. Please try again or upload proof instead.");
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(detail)
+                    ? "Unable to start PayMongo checkout. Please try again or upload proof instead."
+                    : $"Unable to start PayMongo checkout: {detail}");
         }
 
         using var doc = JsonDocument.Parse(body);
@@ -390,10 +397,55 @@ public class PayMongoService : IPayMongoService
 
     private string ResolveFrontendBaseUrl()
     {
+        var envUrl = Environment.GetEnvironmentVariable("PUBLIC_FRONTEND_URL");
+        if (!string.IsNullOrWhiteSpace(envUrl))
+            return envUrl.Trim().TrimEnd('/');
+
         var url = _appOptions.PublicFrontendUrl?.Trim();
         if (string.IsNullOrWhiteSpace(url))
             url = "http://localhost:5173";
         return url.TrimEnd('/');
+    }
+
+    private static void EnsureCheckoutRedirectBaseUrl(string frontendBaseUrl)
+    {
+        if (!Uri.TryCreate(frontendBaseUrl, UriKind.Absolute, out var uri))
+            throw new InvalidOperationException(
+                "Public frontend URL is invalid. Set PUBLIC_FRONTEND_URL (or App__PublicFrontendUrl) on the API server.");
+
+        if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || uri.Host == "127.0.0.1")
+        {
+            throw new InvalidOperationException(
+                "PayMongo checkout needs a public HTTPS site URL for payment redirects. Set PUBLIC_FRONTEND_URL (or App__PublicFrontendUrl) on the API server.");
+        }
+
+        if (!string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "PayMongo checkout redirect URL must use HTTPS. Set PUBLIC_FRONTEND_URL to your production https:// site URL.");
+        }
+    }
+
+    private static string ReadPayMongoError(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("errors", out var errors)
+                || errors.ValueKind != JsonValueKind.Array
+                || errors.GetArrayLength() == 0)
+                return string.Empty;
+
+            var first = errors[0];
+            if (first.TryGetProperty("detail", out var detail))
+                return detail.GetString() ?? string.Empty;
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
+
+        return string.Empty;
     }
 
     private static string EncodeBasicAuth(string secretKey)

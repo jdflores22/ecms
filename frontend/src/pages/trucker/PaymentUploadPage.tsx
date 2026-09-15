@@ -8,6 +8,8 @@ import {
   DialogContent,
   DialogTitle,
   Paper,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   useMediaQuery,
   useTheme,
@@ -130,7 +132,7 @@ function statusAlert(
   if (paymentUploadNeeded && paymentStatus === 'Pending') {
     return {
       severity: 'warning',
-      message: 'Payment proof is required. Upload your proof in the panel on the right.',
+      message: 'Payment is required. Complete payment in the panel on the right.',
     }
   }
   if (paymentStatus === 'ForVerification') {
@@ -200,6 +202,7 @@ export default function TruckerPaymentUploadPage() {
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [payMongoLoading, setPayMongoLoading] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'online' | 'manual'>('online')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [qrBooking, setQrBooking] = useState<QrBooking | null>(null)
@@ -296,6 +299,17 @@ export default function TruckerPaymentUploadPage() {
     schedule && showPaymentContent ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status) : null
 
   const displayAmount = payment?.amount ?? configuredFee ?? 0
+
+  const payOnlineAvailable = Boolean(
+    paymentOptions?.payMongoEnabled && paymentOptions.payMongoConfigured,
+  )
+  const manualUploadAvailable = Boolean(paymentOptions?.allowProofUpload)
+  const showPaymentMethodChoice = payOnlineAvailable && manualUploadAvailable
+
+  useEffect(() => {
+    if (payOnlineAvailable) setPaymentMethod('online')
+    else if (manualUploadAvailable) setPaymentMethod('manual')
+  }, [payOnlineAvailable, manualUploadAvailable, scheduleId])
 
   const handlePayMongoCheckout = async () => {
     if (!schedule) return
@@ -600,10 +614,10 @@ export default function TruckerPaymentUploadPage() {
                   </Box>
                 </Paper>
 
-                {/* Proof / Upload */}
+                {/* Payment / proof */}
                 <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0, overflow: 'hidden' }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {paymentUploadNeeded ? 'Upload payment proof' : 'Payment proof'}
+                    {paymentUploadNeeded ? 'Complete payment' : 'Payment proof'}
                   </Typography>
                   <Typography
                     variant="body2"
@@ -611,7 +625,9 @@ export default function TruckerPaymentUploadPage() {
                     sx={{ mb: 2.5, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                   >
                     {paymentUploadNeeded
-                      ? 'Attach a clear image or PDF of your payment receipt for depot verification.'
+                      ? payOnlineAvailable
+                        ? 'Pay online with PayMongo, or upload proof if you paid via bank transfer.'
+                        : 'Attach a clear image or PDF of your payment receipt for depot verification.'
                       : 'Your submitted proof of payment for this return.'}
                   </Typography>
 
@@ -677,103 +693,174 @@ export default function TruckerPaymentUploadPage() {
 
                   {paymentUploadNeeded && (
                     <>
-                      <Alert severity="info" sx={{ mb: 2, borderRadius: 2, '& .MuiAlert-message': { overflowWrap: 'anywhere', wordBreak: 'break-word' } }}>
-                        Pay {formatPeso(displayAmount)} as the pre-forecasted fee set by the administrator.
-                        {paymentOptions?.payMongoEnabled && paymentOptions.allowProofUpload
-                          ? ' Pay online with PayMongo or upload proof below.'
-                          : paymentOptions?.payMongoEnabled
-                            ? ' Pay online with PayMongo below.'
-                            : ' Upload your proof below — you cannot change the fee amount here.'}
-                      </Alert>
-
-                      {paymentOptions?.payMongoEnabled && paymentOptions.payMongoConfigured && (
-                        <Button
+                      {showPaymentMethodChoice && (
+                        <ToggleButtonGroup
+                          value={paymentMethod}
+                          exclusive
                           fullWidth
-                          variant="contained"
-                          color="secondary"
-                          startIcon={<PaymentsOutlinedIcon />}
-                          disabled={payMongoLoading || submitting}
-                          onClick={() => void handlePayMongoCheckout()}
-                          sx={{ fontWeight: 700, borderRadius: 2, mb: 2 }}
+                          onChange={(_, value) => {
+                            if (value) setPaymentMethod(value)
+                          }}
+                          sx={{ mb: 2.5 }}
                         >
-                          {payMongoLoading ? 'Redirecting to PayMongo…' : `Pay ${formatPeso(displayAmount)} with PayMongo`}
-                        </Button>
+                          <ToggleButton value="online" sx={{ flex: 1, py: 1.25, fontWeight: 600 }}>
+                            Pay online
+                          </ToggleButton>
+                          <ToggleButton value="manual" sx={{ flex: 1, py: 1.25, fontWeight: 600 }}>
+                            Upload proof
+                          </ToggleButton>
+                        </ToggleButtonGroup>
                       )}
 
-                      {paymentOptions?.allowProofUpload && (
-                      <>
-                      <Button
-                        component="label"
-                        fullWidth
-                        sx={{
-                          display: 'block',
-                          p: 0,
-                          mb: 2,
-                          minWidth: 0,
-                          maxWidth: '100%',
-                          textTransform: 'none',
-                          '&:hover': { bgcolor: 'transparent' },
-                        }}
-                      >
+                      {payOnlineAvailable && (!showPaymentMethodChoice || paymentMethod === 'online') && (
                         <Paper
                           elevation={0}
                           sx={{
-                            ...uploadDropzoneSx,
-                            borderColor: file ? primaryDark : 'divider',
-                            bgcolor: file ? hexToRgba(primaryDark, 0.04) : hexToRgba(primaryDark, 0.02),
-                            '&:hover': {
-                              borderColor: primaryDark,
-                              bgcolor: hexToRgba(primaryDark, 0.06),
-                            },
+                            p: 2.5,
+                            mb: manualUploadAvailable && showPaymentMethodChoice ? 0 : manualUploadAvailable ? 2.5 : 0,
+                            borderRadius: 2.5,
+                            border: '1px solid',
+                            borderColor: hexToRgba(primaryDark, 0.2),
+                            bgcolor: hexToRgba(primaryDark, 0.03),
                           }}
                         >
-                          <CloudUploadOutlinedIcon
-                            sx={{ fontSize: 40, color: file ? primaryDark : 'text.secondary', mb: 1 }}
-                          />
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            Pay online with PayMongo
+                          </Typography>
                           <Typography
                             variant="body2"
-                            sx={{
-                              fontWeight: 700,
-                              color: file ? primaryDark : 'text.primary',
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-all',
-                              px: { xs: 0.5, sm: 1 },
-                            }}
+                            color="text.secondary"
+                            sx={{ mb: 2, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                           >
-                            {file ? file.name : 'Choose proof file'}
+                            Pay {formatPeso(displayAmount)} securely by card or e-wallet. You will be redirected to
+                            PayMongo to complete checkout.
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, px: 1 }}>
-                            Image or PDF · max recommended 10 MB
-                          </Typography>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            color="secondary"
+                            size="large"
+                            startIcon={<PaymentsOutlinedIcon />}
+                            disabled={payMongoLoading || submitting || displayAmount <= 0}
+                            onClick={() => void handlePayMongoCheckout()}
+                            sx={{ fontWeight: 700, borderRadius: 2 }}
+                          >
+                            {payMongoLoading
+                              ? 'Redirecting to PayMongo…'
+                              : `Pay ${formatPeso(displayAmount)} with PayMongo`}
+                          </Button>
                         </Paper>
-                        <input
-                          type="file"
-                          hidden
-                          accept="image/*,.pdf"
-                          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                        />
-                      </Button>
+                      )}
 
-                      <Box sx={formActionRowSx}>
-                        <Button onClick={() => navigate('/trucker/payments')} disabled={submitting} sx={{ fontWeight: 600 }}>
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="contained"
-                          startIcon={<UploadFileIcon sx={{ display: { xs: 'none', sm: 'inline-flex' } }} />}
-                          onClick={openConfirm}
-                          disabled={submitting || !file}
+                      {manualUploadAvailable && (!showPaymentMethodChoice || paymentMethod === 'manual') && (
+                        <Paper
+                          elevation={0}
                           sx={{
-                            fontWeight: 700,
-                            borderRadius: 2,
-                            px: { xs: 2, sm: 3 },
-                            whiteSpace: 'normal',
+                            p: 2.5,
+                            borderRadius: 2.5,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            bgcolor: hexToRgba(primaryDark, 0.02),
                           }}
                         >
-                          Submit proof
-                        </Button>
-                      </Box>
-                      </>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            {payOnlineAvailable ? 'Paid via bank transfer?' : 'Upload payment proof'}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ mb: 2, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+                          >
+                            Upload a clear image or PDF of your receipt. Depot staff will verify before your return
+                            schedule is confirmed.
+                          </Typography>
+
+                          <Button
+                            component="label"
+                            fullWidth
+                            sx={{
+                              display: 'block',
+                              p: 0,
+                              mb: 2,
+                              minWidth: 0,
+                              maxWidth: '100%',
+                              textTransform: 'none',
+                              '&:hover': { bgcolor: 'transparent' },
+                            }}
+                          >
+                            <Paper
+                              elevation={0}
+                              sx={{
+                                ...uploadDropzoneSx,
+                                borderColor: file ? primaryDark : 'divider',
+                                bgcolor: file ? hexToRgba(primaryDark, 0.04) : 'background.paper',
+                                '&:hover': {
+                                  borderColor: primaryDark,
+                                  bgcolor: hexToRgba(primaryDark, 0.06),
+                                },
+                              }}
+                            >
+                              <CloudUploadOutlinedIcon
+                                sx={{ fontSize: 40, color: file ? primaryDark : 'text.secondary', mb: 1 }}
+                              />
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: file ? primaryDark : 'text.primary',
+                                  overflowWrap: 'anywhere',
+                                  wordBreak: 'break-all',
+                                  px: { xs: 0.5, sm: 1 },
+                                }}
+                              >
+                                {file ? file.name : 'Choose proof file'}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: 'block', mt: 0.5, px: 1 }}
+                              >
+                                Image or PDF · max recommended 10 MB
+                              </Typography>
+                            </Paper>
+                            <input
+                              type="file"
+                              hidden
+                              accept="image/*,.pdf"
+                              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                            />
+                          </Button>
+
+                          <Box sx={formActionRowSx}>
+                            <Button
+                              onClick={() => navigate('/trucker/payments')}
+                              disabled={submitting}
+                              sx={{ fontWeight: 600 }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="contained"
+                              startIcon={<UploadFileIcon sx={{ display: { xs: 'none', sm: 'inline-flex' } }} />}
+                              onClick={openConfirm}
+                              disabled={submitting || !file}
+                              sx={{
+                                fontWeight: 700,
+                                borderRadius: 2,
+                                px: { xs: 2, sm: 3 },
+                                whiteSpace: 'normal',
+                              }}
+                            >
+                              Submit proof
+                            </Button>
+                          </Box>
+                        </Paper>
+                      )}
+
+                      {!payOnlineAvailable && !manualUploadAvailable && paymentOptions && (
+                        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                          Online payment and proof upload are not configured. Contact your administrator.
+                        </Alert>
                       )}
                     </>
                   )}

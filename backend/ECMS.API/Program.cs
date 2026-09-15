@@ -54,6 +54,12 @@ builder.Services.PostConfigure<ECMS.Infrastructure.Options.PayMongoOptions>(opti
     if (!string.IsNullOrWhiteSpace(publicKey))
         options.PublicKey = publicKey;
 });
+builder.Services.PostConfigure<ECMS.Application.Configuration.IcsAppOptions>(options =>
+{
+    var frontendUrl = Environment.GetEnvironmentVariable("PUBLIC_FRONTEND_URL");
+    if (!string.IsNullOrWhiteSpace(frontendUrl))
+        options.PublicFrontendUrl = frontendUrl.Trim();
+});
 builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>
 {
     var envKey = Environment.GetEnvironmentVariable("LOGICTECK_API_KEY");
