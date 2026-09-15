@@ -628,8 +628,9 @@ public class PreAdviceService : IPreAdviceService
         CheckPreAdviceDuplicateRequest request,
         CancellationToken cancellationToken = default)
     {
-        var duplicateTask = CheckDuplicateAsync(request, cancellationToken);
-        var demurrageTask = _demurrageBilling.CheckBlockAsync(
+        // DbContext is not thread-safe — run checks sequentially on the shared scoped instance.
+        var duplicate = await CheckDuplicateAsync(request, cancellationToken);
+        var demurrage = await _demurrageBilling.CheckBlockAsync(
             truckerId,
             request.ContainerNo,
             shippingLineId,
@@ -637,8 +638,7 @@ public class PreAdviceService : IPreAdviceService
             request.ContainerTypeId,
             cancellationToken);
 
-        await Task.WhenAll(duplicateTask, demurrageTask);
-        return new PreAdviceContainerValidationDto(await duplicateTask, await demurrageTask);
+        return new PreAdviceContainerValidationDto(duplicate, demurrage);
     }
 
     public async Task<IReadOnlyList<PreAdviceDocumentDto>> GetDocumentsAsync(
@@ -989,7 +989,11 @@ public class PreAdviceService : IPreAdviceService
             .Where(p => p.ContainerNoNormalized == normalizedNo)
             .Where(p => p.ContainerSizeId == containerSizeId)
             .Where(p => p.ContainerTypeId == containerTypeId)
-            .Where(p => PreAdviceDuplicateGuard.BlockingStatuses.Contains(p.Status))
+            .Where(p =>
+                p.Status == PreAdviceStatus.Submitted
+                || p.Status == PreAdviceStatus.UnderEvaluation
+                || p.Status == PreAdviceStatus.Approved
+                || p.Status == PreAdviceStatus.ForCompliance)
             .Where(p => excludePreAdviceId == null || p.Id != excludePreAdviceId.Value)
             .OrderByDescending(p => p.Id)
             .Select(p => new DuplicateMatch(

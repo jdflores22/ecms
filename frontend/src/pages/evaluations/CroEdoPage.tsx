@@ -1,4 +1,4 @@
-import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { ListLoadingState, ListTablePagination } from '../../components/layout/ListPagePrimitives'
 import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
@@ -18,6 +18,7 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
+import { useClientPagination } from '../../hooks/useClientPagination'
 import { croEdoApi, type CroEdo, type CroEdoLine } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatDate, formatDateTime } from '../../utils/datetime'
@@ -90,6 +91,7 @@ function DataTable({
   children,
   mobile,
   isEmpty,
+  pagination,
 }: {
   loading: boolean
   emptyMessage: string
@@ -97,6 +99,7 @@ function DataTable({
   children: React.ReactNode
   mobile?: React.ReactNode
   isEmpty: boolean
+  pagination?: { count: number; page: number; onPageChange: (page: number) => void }
 }) {
   return (
     <Paper elevation={0} sx={listTablePaperSx}>
@@ -108,7 +111,18 @@ function DataTable({
         </Typography>
       ) : (
         <>
-          {mobile && <ListMobileOnly>{mobile}</ListMobileOnly>}
+          {mobile && (
+            <ListMobileOnly>
+              {mobile}
+              {pagination && (
+                <ListTablePagination
+                  count={pagination.count}
+                  page={pagination.page}
+                  onPageChange={pagination.onPageChange}
+                />
+              )}
+            </ListMobileOnly>
+          )}
           <ListDesktopOnly>
             <TableContainer>
               <Table>
@@ -125,6 +139,13 @@ function DataTable({
                 <TableBody>{children}</TableBody>
               </Table>
             </TableContainer>
+            {pagination && (
+              <ListTablePagination
+                count={pagination.count}
+                page={pagination.page}
+                onPageChange={pagination.onPageChange}
+              />
+            )}
           </ListDesktopOnly>
         </>
       )}
@@ -166,6 +187,8 @@ export default function CroEdoPage() {
     () => items.filter((item) => item.status === activeStatus),
     [items, activeStatus],
   )
+
+  const { page, setPage, total: filteredTotal, paginatedItems } = useClientPagination(filtered, activeStatus)
 
   const activeTabMeta = STATUS_TABS.find((t) => t.key === activeStatus)!
 
@@ -416,7 +439,8 @@ export default function CroEdoPage() {
         loading={loading}
         emptyMessage={`No ${activeTabMeta.label.toLowerCase()} CRO/eDO documents.`}
         isEmpty={!loading && filtered.length === 0}
-        mobile={filtered.map(renderMobileCard)}
+        mobile={paginatedItems.map(renderMobileCard)}
+        pagination={{ count: filteredTotal, page, onPageChange: setPage }}
         headCells={
           <>
             <TableCell>Reference</TableCell>
@@ -432,7 +456,7 @@ export default function CroEdoPage() {
           </>
         }
       >
-        {filtered.map(renderDesktopRow)}
+        {paginatedItems.map(renderDesktopRow)}
       </DataTable>
     </Box>
   )
