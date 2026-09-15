@@ -1,11 +1,12 @@
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:7.0-bookworm-slim AS build
 WORKDIR /src
 COPY backend/ ./backend/
 COPY ECMS.sln ./
 RUN dotnet restore backend/ECMS.API/ECMS.API.csproj
 RUN dotnet publish backend/ECMS.API/ECMS.API.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
+# bookworm-slim: bullseye security mirrors often 404 stale package versions on Railway builders
+FROM mcr.microsoft.com/dotnet/aspnet:7.0-bookworm-slim AS runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
