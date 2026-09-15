@@ -67,7 +67,7 @@ export default function PreAdviceCroEdoContextPanel({
       <Stack spacing={1.5}>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
           <Typography variant={compact ? 'subtitle2' : 'subtitle1'} sx={{ fontWeight: 800, color: primaryDark }}>
-            CRO / eDO reference
+            CRO / eDO — return CY & free time
           </Typography>
           {ctx?.linkType && (
             <Chip
@@ -87,9 +87,9 @@ export default function PreAdviceCroEdoContextPanel({
         )}
 
         <Box sx={infoGridSx}>
-          {reference && <InfoTile label="CRO/eDO reference" value={reference} mono />}
-          {ctx?.blNumber && <InfoTile label="BL number" value={ctx.blNumber} mono />}
-          {ctx?.vesselVoyageNumber && <InfoTile label="Vessel / voyage" value={ctx.vesselVoyageNumber} />}
+          {ctx?.returnEmptyToName && (
+            <InfoTile label="Return CY (from CRO/eDO)" value={ctx.returnEmptyToName} />
+          )}
           {freeTime && (
             <InfoTile
               label="CRO free demurrage until"
@@ -105,9 +105,9 @@ export default function PreAdviceCroEdoContextPanel({
               }
             />
           )}
-          {ctx?.returnEmptyToName && (
-            <InfoTile label="Return empty to (CRO/eDO)" value={ctx.returnEmptyToName} />
-          )}
+          {reference && <InfoTile label="CRO/eDO no." value={reference} mono />}
+          {ctx?.blNumber && <InfoTile label="BL number" value={ctx.blNumber} mono />}
+          {ctx?.vesselVoyageNumber && <InfoTile label="Vessel / voyage" value={ctx.vesselVoyageNumber} />}
         </Box>
 
         {ctx?.returnEmptyToName && compact && (

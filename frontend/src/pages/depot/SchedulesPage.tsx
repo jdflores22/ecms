@@ -22,7 +22,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { depotApi, scheduleApi, type Depot, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { formatScheduleDate, startOfWeekMondayIso, todayIsoDate } from '../../utils/datetime'
+import { formatScheduleDate, startOfMonthIso, todayIsoDate } from '../../utils/datetime'
 import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 
 const primaryDark = LIST_PRIMARY
@@ -101,7 +101,7 @@ export default function DepotSchedulesPage() {
   const [activeStatus, setActiveStatus] = useState<ScheduleStatusTab>('WaitingSchedule')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
-  const [weekStart, setWeekStart] = useState(() => startOfWeekMondayIso(todayIsoDate()))
+  const [monthStart, setMonthStart] = useState(() => startOfMonthIso(todayIsoDate()))
   const [depotFilterId, setDepotFilterId] = useState<number | 'all'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -215,10 +215,10 @@ export default function DepotSchedulesPage() {
             </Box>
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                Return slot schedule
+                Return container schedule
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Schedule and manage empty container return slots.
+                Schedule and manage empty container returns.
               </Typography>
             </Box>
           </Box>
@@ -274,9 +274,9 @@ export default function DepotSchedulesPage() {
           <DepotScheduleCalendar
             schedules={schedules}
             depots={depots}
-            weekStart={weekStart}
+            monthStart={monthStart}
             depotFilterId={depotFilterId}
-            onWeekStartChange={setWeekStart}
+            onMonthStartChange={setMonthStart}
             onDepotFilterChange={setDepotFilterId}
             onOpenSchedule={(id) => navigate(`/depot/schedules/${id}`)}
             onOpenDay={(date, depotId) => navigate(`/depot/daily-returns?date=${date}&depotId=${depotId}`)}

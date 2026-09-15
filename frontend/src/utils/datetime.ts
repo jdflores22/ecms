@@ -217,6 +217,50 @@ export function weekIsoDates(weekStartMonday: string): string[] {
   return Array.from({ length: 7 }, (_, i) => shiftIsoDate(weekStartMonday, i))
 }
 
+/** First day of the month (YYYY-MM-DD) for the given calendar date. */
+export function startOfMonthIso(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`
+}
+
+/** Last day of the month (YYYY-MM-DD) for the given month start. */
+export function endOfMonthIso(monthStart: string): string {
+  const year = Number(monthStart.slice(0, 4))
+  const month = Number(monthStart.slice(5, 7))
+  const lastDay = new Date(year, month, 0).getDate()
+  return `${monthStart.slice(0, 7)}-${String(lastDay).padStart(2, '0')}`
+}
+
+/** Move month start by delta months (negative = previous). */
+export function shiftMonth(monthStart: string, deltaMonths: number): string {
+  const d = calendarDate(monthStart)
+  d.setMonth(d.getMonth() + deltaMonths)
+  d.setDate(1)
+  return isoDateInTimezone(d)
+}
+
+/** e.g. "September 2026" */
+export function formatMonthYearLabel(monthStart: string): string {
+  return new Intl.DateTimeFormat(SYSTEM_TIMEZONE.locale, {
+    timeZone: SYSTEM_TIMEZONE.id,
+    month: 'long',
+    year: 'numeric',
+  }).format(calendarDate(monthStart))
+}
+
+/** All dates for a month grid (Mon-start weeks, includes leading/trailing padding days). */
+export function monthCalendarGridDates(monthStart: string): string[] {
+  const monthEnd = endOfMonthIso(monthStart)
+  const gridStart = startOfWeekMondayIso(monthStart)
+  const gridEnd = shiftIsoDate(startOfWeekMondayIso(monthEnd), 6)
+  const dates: string[] = []
+  let cur = gridStart
+  while (cur <= gridEnd) {
+    dates.push(cur)
+    cur = shiftIsoDate(cur, 1)
+  }
+  return dates
+}
+
 /** e.g. "May 20 – May 26, 2024" */
 export function formatWeekRangeLabel(weekStartMonday: string): string {
   const end = shiftIsoDate(weekStartMonday, 6)
