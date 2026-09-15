@@ -231,8 +231,7 @@ public class PayMongoService : IPayMongoService
         IReadOnlyDictionary<string, string> metadata,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(secretKey))
-            throw new InvalidOperationException("PayMongo secret key is not configured.");
+        PayMongoKeyHelper.EnsureSecretKey(secretKey);
 
         var centavos = (int)Math.Round(amount * 100m, MidpointRounding.AwayFromZero);
         if (centavos <= 0)
@@ -373,27 +372,22 @@ public class PayMongoService : IPayMongoService
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.ShippingLineId == shippingLineId, cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(config?.PayMongoSecretKey))
-            return config.PayMongoSecretKey.Trim();
+        var lineKey = PayMongoKeyHelper.Sanitize(config?.PayMongoSecretKey);
+        if (!string.IsNullOrWhiteSpace(lineKey))
+            return lineKey;
 
         return ResolvePlatformSecretKey();
     }
 
     private string ResolvePlatformSecretKey()
-    {
-        var env = Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY");
-        if (!string.IsNullOrWhiteSpace(env))
-            return env.Trim();
-        return _options.SecretKey?.Trim() ?? string.Empty;
-    }
+        => PayMongoKeyHelper.Sanitize(Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY"))
+            ?? PayMongoKeyHelper.Sanitize(_options.SecretKey)
+            ?? string.Empty;
 
     private string ResolveWebhookSecret()
-    {
-        var env = Environment.GetEnvironmentVariable("PAYMONGO_WEBHOOK_SECRET");
-        if (!string.IsNullOrWhiteSpace(env))
-            return env.Trim();
-        return _options.WebhookSecret?.Trim() ?? string.Empty;
-    }
+        => PayMongoKeyHelper.Sanitize(Environment.GetEnvironmentVariable("PAYMONGO_WEBHOOK_SECRET"))
+            ?? PayMongoKeyHelper.Sanitize(_options.WebhookSecret)
+            ?? string.Empty;
 
     private string ResolveFrontendBaseUrl()
     {
