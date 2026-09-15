@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Paper, Select, Tab, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormHelperText, InputLabel, MenuItem, Paper, Select, Tab, Tabs, TextField, Typography } from '@mui/material'
 import CancelIcon from '@mui/icons-material/Cancel'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn'
@@ -54,6 +54,7 @@ import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { formatCySizeOptionLabel, getCapacityDisplayLabel } from '../../utils/cyAllocation'
+import PreAdviceCroEdoContextPanel from '../../components/preAdvice/PreAdviceCroEdoContextPanel'
 
 const primaryDark = ICS_PRIMARY
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
@@ -198,7 +199,12 @@ export default function EvaluationDetailPage() {
       .forApproval(item.id)
       .then(({ data }) => {
         setApprovalAllocations(data)
-        const firstFit = data.allocations.find((a) => a.hasCapacity)
+        const croDepotId = item.croEdoContext?.returnEmptyToDepotId
+        const croDepotMatch =
+          croDepotId != null
+            ? data.allocations.find((a) => a.depotId === croDepotId && a.hasCapacity)
+            : undefined
+        const firstFit = croDepotMatch ?? data.allocations.find((a) => a.hasCapacity)
         setDepotId(firstFit?.depotId ?? data.allocations[0]?.depotId ?? '')
       })
       .catch(() => setApprovalAllocations(null))
@@ -540,7 +546,11 @@ export default function EvaluationDetailPage() {
                     variant="contained"
                     onClick={() => {
                       setRemarks('')
-                      setDemurrageValidUntil(defaultDemurrageValidUntil())
+                      setDemurrageValidUntil(
+                        item.croEdoContext?.demurrageValidUntil
+                          ?? item.demurrageValidUntil
+                          ?? defaultDemurrageValidUntil(),
+                      )
                       setActionError('')
                       setApproveOpen(true)
                     }}
@@ -643,6 +653,9 @@ export default function EvaluationDetailPage() {
               </Typography>
             </Paper>
           )}
+          {item && (
+            <PreAdviceCroEdoContextPanel item={item} documents={documents} compact />
+          )}
           {approvalAllocations && (
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
               Container {approvalAllocations.containerNo} (
@@ -694,6 +707,12 @@ export default function EvaluationDetailPage() {
                     </MenuItem>
                   ))}
             </Select>
+            {item?.croEdoContext?.returnEmptyToName && (
+              <FormHelperText>
+                CRO/eDO return CY: <strong>{item.croEdoContext.returnEmptyToName}</strong> — assign the matching
+                operational CY when possible.
+              </FormHelperText>
+            )}
           </FormControl>
           <TextField
             fullWidth

@@ -29,6 +29,7 @@ import {
 import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
 import { truckerPaymentPath } from '../../utils/truckerPayment'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
+import PreAdviceCroEdoContextPanel from './PreAdviceCroEdoContextPanel'
 
 const primaryDark = ICS_PRIMARY
 
@@ -130,9 +131,6 @@ export default function PreAdviceFullDossier({
               }
             />
           )}
-          {item.croEdoReferenceNo && (
-            <InfoTile label="CRO/eDO reference" value={item.croEdoReferenceNo} mono />
-          )}
           {item.qrCode && <InfoTile label="ICS QR reference" value={item.qrCode} mono />}
           <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
             <InfoTile label="Remarks" value={item.remarks || '—'} />
@@ -144,6 +142,8 @@ export default function PreAdviceFullDossier({
           )}
         </Box>
       </Paper>
+
+      <PreAdviceCroEdoContextPanel item={item} documents={documents} />
 
       {decision && (
         <Paper

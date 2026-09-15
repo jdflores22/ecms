@@ -81,7 +81,12 @@ public class PreAdviceService : IPreAdviceService
         if (item is null) return null;
         var damageIds = await LoadDamageReportIdsAsync(new[] { item.Id }, cancellationToken);
         var qrByPreAdvice = await LoadQrInfoByPreAdviceIdsAsync(new[] { item.Id }, cancellationToken);
-        return MapToDto(item, damageIds.Contains(item.Id), qrByPreAdvice.GetValueOrDefault(item.Id));
+        var croEdoContext = await LoadCroEdoContextAsync(item, cancellationToken);
+        return MapToDto(
+            item,
+            damageIds.Contains(item.Id),
+            qrByPreAdvice.GetValueOrDefault(item.Id),
+            croEdoContext);
     }
 
     public async Task<IReadOnlyList<AuditLogDto>?> GetActivityAsync(
@@ -1020,7 +1025,98 @@ public class PreAdviceService : IPreAdviceService
         || ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true
         || ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true;
 
-    private static PreAdviceDto MapToDto(PreAdvice p, bool hasDamageReport, PreAdviceQrInfo? qrInfo = null) => new(
+    private async Task<PreAdviceCroEdoContextDto?> LoadCroEdoContextAsync(
+        PreAdvice preAdvice,
+        CancellationToken cancellationToken)
+    {
+        var hasUploadedDocument = await _db.PreAdviceDocuments
+            .AsNoTracking()
+            .AnyAsync(
+                d => d.PreAdviceId == preAdvice.Id && d.Category == ContainerPhotoCategory.CroEdo,
+                cancellationToken);
+
+        if (preAdvice.ContainerReleaseOrderId is int croId)
+        {
+            var cro = await _db.ContainerReleaseOrders
+                .AsNoTracking()
+                .Include(c => c.Lines)
+                    .ThenInclude(l => l.ReturnEmptyToDepot)
+                .FirstOrDefaultAsync(c => c.Id == croId, cancellationToken);
+
+            if (cro is null)
+            {
+                return hasUploadedDocument || !string.IsNullOrWhiteSpace(preAdvice.CroEdoReferenceNo)
+                    ? BuildLegacyCroEdoContext(preAdvice, hasUploadedDocument)
+                    : null;
+            }
+
+            var line = ResolveCroLineForPreAdvice(cro.Lines, preAdvice.ContainerNoNormalized);
+            var returnCy = ResolveReturnEmptyToLabel(line);
+
+            return new PreAdviceCroEdoContextDto(
+                "IcsVerified",
+                croId,
+                cro.ReferenceNo,
+                line?.DemurrageValidUntil.ToString("yyyy-MM-dd")
+                    ?? preAdvice.DemurrageValidUntil?.ToString("yyyy-MM-dd"),
+                returnCy,
+                line?.ReturnEmptyToDepotId,
+                cro.BlNumber,
+                cro.VesselVoyageNumber,
+                !string.IsNullOrWhiteSpace(cro.PdfPath),
+                hasUploadedDocument);
+        }
+
+        if (hasUploadedDocument || !string.IsNullOrWhiteSpace(preAdvice.CroEdoReferenceNo))
+            return BuildLegacyCroEdoContext(preAdvice, hasUploadedDocument);
+
+        return null;
+    }
+
+    private static PreAdviceCroEdoContextDto BuildLegacyCroEdoContext(
+        PreAdvice preAdvice,
+        bool hasUploadedDocument) =>
+        new(
+            "LegacyUpload",
+            null,
+            preAdvice.CroEdoReferenceNo,
+            preAdvice.DemurrageValidUntil?.ToString("yyyy-MM-dd"),
+            null,
+            null,
+            null,
+            null,
+            false,
+            hasUploadedDocument);
+
+    private static ContainerReleaseOrderLine? ResolveCroLineForPreAdvice(
+        IEnumerable<ContainerReleaseOrderLine> lines,
+        string containerNoNormalized)
+    {
+        var normalized = PreAdviceDuplicateGuard.NormalizeContainerNo(containerNoNormalized);
+        return lines.FirstOrDefault(l =>
+                string.Equals(
+                    PreAdviceDuplicateGuard.NormalizeContainerNo(l.ContainerNumber),
+                    normalized,
+                    StringComparison.Ordinal))
+            ?? lines.FirstOrDefault();
+    }
+
+    private static string? ResolveReturnEmptyToLabel(ContainerReleaseOrderLine? line)
+    {
+        if (line is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(line.ReturnEmptyToName))
+            return line.ReturnEmptyToName.Trim();
+
+        return line.ReturnEmptyToDepot?.Name;
+    }
+
+    private static PreAdviceDto MapToDto(
+        PreAdvice p,
+        bool hasDamageReport,
+        PreAdviceQrInfo? qrInfo = null,
+        PreAdviceCroEdoContextDto? croEdoContext = null) => new(
         p.Id, p.ReferenceNo, p.TruckerId, p.Trucker.FullName ?? p.Trucker.Username,
         p.ShippingLineId, p.ShippingLine.Name, p.ContainerId, p.Container.ContainerNo,
         p.Container.Size, p.Container.Type, p.Status,
@@ -1036,7 +1132,8 @@ public class PreAdviceService : IPreAdviceService
         qrInfo?.QrBookingId,
         qrInfo?.LogicteckStatus,
         p.Evaluation?.EvaluatedAt,
-        p.Schedule?.Status.ToString());
+        p.Schedule?.Status.ToString(),
+        croEdoContext);
 
     private string SignAssetPath(string path) => _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
 

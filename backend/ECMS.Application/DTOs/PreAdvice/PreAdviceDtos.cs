@@ -27,7 +27,20 @@ public record PreAdviceDto(
     int? QrBookingId,
     string? LogicteckStatus,
     DateTime? EvaluatedAt,
-    string? ScheduleStatus);
+    string? ScheduleStatus,
+    PreAdviceCroEdoContextDto? CroEdoContext = null);
+
+public record PreAdviceCroEdoContextDto(
+    string LinkType,
+    int? ContainerReleaseOrderId,
+    string? ReferenceNo,
+    string? DemurrageValidUntil,
+    string? ReturnEmptyToName,
+    int? ReturnEmptyToDepotId,
+    string? BlNumber,
+    string? VesselVoyageNumber,
+    bool HasGeneratedPdf,
+    bool HasUploadedDocument);
 
 public record CreatePreAdviceRequest(
     int ShippingLineId,

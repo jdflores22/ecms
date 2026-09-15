@@ -672,6 +672,19 @@ export interface PreAdviceLookups {
   containerTypes: { id: number; code: string; label: string }[]
 }
 
+export interface PreAdviceCroEdoContext {
+  linkType: 'IcsVerified' | 'LegacyUpload' | string
+  containerReleaseOrderId?: number | null
+  referenceNo?: string | null
+  demurrageValidUntil?: string | null
+  returnEmptyToName?: string | null
+  returnEmptyToDepotId?: number | null
+  blNumber?: string | null
+  vesselVoyageNumber?: string | null
+  hasGeneratedPdf: boolean
+  hasUploadedDocument: boolean
+}
+
 export interface PreAdvice {
   id: number
   referenceNo: string
@@ -688,6 +701,7 @@ export interface PreAdvice {
   evaluatedAt?: string | null
   remarks?: string | null
   croEdoReferenceNo?: string | null
+  croEdoContext?: PreAdviceCroEdoContext | null
   createdAt: string
   complianceRemarks?: string | null
   complianceRequestedAt?: string | null
