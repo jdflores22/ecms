@@ -4,6 +4,7 @@ import type { PreAdviceLookups } from '../../services/api'
 import { preAdviceApi } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { croFreeTimeExpiredMessage } from '../../utils/croFreeTime'
+import { formatPreAdviceDuplicateWarning } from '../../utils/preAdviceDuplicate'
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': { borderRadius: 2 },
@@ -103,9 +104,7 @@ export default function PreAdviceForm({
         })
         .then(({ data }) => {
           setDuplicateWarning(
-            data.duplicate.isDuplicate
-              ? `A pre-forecast for this container already exists (${data.duplicate.referenceNo ?? '—'} · ${data.duplicate.status ?? '—'}).`
-              : null,
+            data.duplicate.isDuplicate ? formatPreAdviceDuplicateWarning(data.duplicate) : null,
           )
           setDemurrageBlock(
             data.demurrageBlock.isBlocked

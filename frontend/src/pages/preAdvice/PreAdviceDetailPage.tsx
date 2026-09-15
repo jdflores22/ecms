@@ -54,6 +54,7 @@ import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategorie
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel, qrLogicteckStatusFromPreAdvice } from '../../config/logicteckQr'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
+import { formatPreAdviceDuplicateWarning } from '../../utils/preAdviceDuplicate'
 import {
   demurrageBillingApi,
   paymentApi,
@@ -229,6 +230,7 @@ export default function PreAdviceDetailPage() {
     status: string
     totalAmount: number
   } | null>(null)
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
   const tabContextRef = useRef<{ id: number; status: string } | null>(null)
 
   const handleDocumentsChange = useCallback((next: PreAdviceDocument[]) => {
@@ -350,6 +352,35 @@ export default function PreAdviceDetailPage() {
         .catch(() => {})
     }
   }, [user?.role])
+
+  useEffect(() => {
+    if (!item || !lookups || (item.status !== 'Draft' && item.status !== 'ForCompliance')) {
+      setDuplicateWarning(null)
+      return
+    }
+
+    const containerSizeId = lookups.containerSizes.find((s) => s.label === item.containerSize)?.id
+    const containerTypeId = lookups.containerTypes.find(
+      (t) => t.code === item.containerType || t.label === item.containerType,
+    )?.id
+
+    if (!containerSizeId || !containerTypeId || !item.containerNo.trim()) {
+      setDuplicateWarning(null)
+      return
+    }
+
+    preAdviceApi
+      .checkDuplicate({
+        containerNo: item.containerNo.trim().toUpperCase(),
+        containerSizeId,
+        containerTypeId,
+        excludePreAdviceId: item.id,
+      })
+      .then(({ data }) => {
+        setDuplicateWarning(data.isDuplicate ? formatPreAdviceDuplicateWarning(data) : null)
+      })
+      .catch(() => setDuplicateWarning(null))
+  }, [item, lookups])
 
   useEffect(() => {
     if (!item) return
@@ -574,7 +605,10 @@ export default function PreAdviceDetailPage() {
   const isDraft = item?.status === 'Draft'
   const isForCompliance = item?.status === 'ForCompliance'
   const canSubmitRequest =
-    (isDraft || isForCompliance) && photosComplete && (!freeTimeExpired || demurrageSettled)
+    (isDraft || isForCompliance) &&
+    photosComplete &&
+    (!freeTimeExpired || demurrageSettled) &&
+    !duplicateWarning
   const canCancel = item?.status === 'Submitted' || item?.status === 'UnderEvaluation'
   const canManageDocuments = (item?.status === 'Draft' || isForCompliance) && !submitInProgress
   const deferPhotoUpload = canManageDocuments
@@ -839,11 +873,13 @@ export default function PreAdviceDetailPage() {
                       </Button>
                       <Tooltip
                         title={
-                          demurragePending
-                            ? 'Settle demurrage and detention charges with the shipping line before you can submit.'
-                            : !photosComplete
-                              ? `Upload all ${photoProgress.total} container identity photos before submitting (${photoProgress.uploaded}/${photoProgress.total})`
-                              : ''
+                          duplicateWarning
+                            ? duplicateWarning
+                            : demurragePending
+                              ? 'Settle demurrage and detention charges with the shipping line before you can submit.'
+                              : !photosComplete
+                                ? `Upload all ${photoProgress.total} container identity photos before submitting (${photoProgress.uploaded}/${photoProgress.total})`
+                                : ''
                         }
                       >
                         <span>
@@ -910,11 +946,13 @@ export default function PreAdviceDetailPage() {
                       </Button>
                       <Tooltip
                         title={
-                          demurragePending
-                            ? 'Settle demurrage and detention charges with the shipping line before you can resubmit.'
-                            : !photosComplete
-                              ? `Upload all ${photoProgress.total} container identity photos before resubmitting (${photoProgress.uploaded}/${photoProgress.total})`
-                              : ''
+                          duplicateWarning
+                            ? duplicateWarning
+                            : demurragePending
+                              ? 'Settle demurrage and detention charges with the shipping line before you can resubmit.'
+                              : !photosComplete
+                                ? `Upload all ${photoProgress.total} container identity photos before resubmitting (${photoProgress.uploaded}/${photoProgress.total})`
+                                : ''
                         }
                       >
                         <span>
@@ -992,6 +1030,12 @@ export default function PreAdviceDetailPage() {
           />
 
           <EvaluationProgressStrip steps={progressSteps} />
+
+          {duplicateWarning && (
+            <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+              {duplicateWarning} Wait for that request to finish or contact support before submitting.
+            </Alert>
+          )}
 
           <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
             <Tabs

@@ -197,6 +197,13 @@ public class PreAdviceService : IPreAdviceService
             request.ContainerTypeId,
             cancellationToken);
 
+        await EnsureNoDuplicateAsync(
+            catalog.NormalizedNo,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            excludePreAdviceId: null,
+            cancellationToken);
+
         var container = await ResolveOrTrackContainerAsync(
             croLink.ShippingLineId,
             catalog.NormalizedNo,
@@ -261,6 +268,13 @@ public class PreAdviceService : IPreAdviceService
             request.ShippingLineId,
             request.ContainerSizeId,
             request.ContainerTypeId,
+            cancellationToken);
+
+        await EnsureNoDuplicateAsync(
+            catalog.NormalizedNo,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            excludePreAdviceId: null,
             cancellationToken);
 
         var container = await ResolveOrTrackContainerAsync(
@@ -372,6 +386,13 @@ public class PreAdviceService : IPreAdviceService
                 request.ContainerTypeId,
                 cancellationToken);
         }
+
+        await EnsureNoDuplicateAsync(
+            catalog.NormalizedNo,
+            request.ContainerSizeId,
+            request.ContainerTypeId,
+            excludePreAdviceId: id,
+            cancellationToken);
 
         var containerId = await ResolveContainerIdAsync(
             request.ShippingLineId,
@@ -963,12 +984,14 @@ public class PreAdviceService : IPreAdviceService
         int? excludePreAdviceId,
         CancellationToken cancellationToken)
     {
-        var key = PreAdviceDuplicateGuard.BuildKey(normalizedNo, containerSizeId, containerTypeId);
-
         return await _db.PreAdvices
             .AsNoTracking()
-            .Where(p => p.ActiveRequestKey == key)
+            .Where(p => p.ContainerNoNormalized == normalizedNo)
+            .Where(p => p.ContainerSizeId == containerSizeId)
+            .Where(p => p.ContainerTypeId == containerTypeId)
+            .Where(p => PreAdviceDuplicateGuard.BlockingStatuses.Contains(p.Status))
             .Where(p => excludePreAdviceId == null || p.Id != excludePreAdviceId.Value)
+            .OrderByDescending(p => p.Id)
             .Select(p => new DuplicateMatch(
                 p.ReferenceNo,
                 p.Status,
