@@ -10,6 +10,8 @@ using ECMS.Domain.Enums;
 using ECMS.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace ECMS.Infrastructure.Services;
 
@@ -25,6 +27,7 @@ public class PreAdviceService : IPreAdviceService
     private readonly IContainerReleaseOrderService _croEdo;
     private readonly IMemoryCache _cache;
     private readonly IUploadUrlSigner _uploadUrlSigner;
+    private readonly string _uploadRoot;
     private static readonly TimeSpan SignedAssetTtl = TimeSpan.FromHours(24);
 
     public PreAdviceService(
@@ -34,7 +37,9 @@ public class PreAdviceService : IPreAdviceService
         IDemurrageBillingService demurrageBilling,
         IContainerReleaseOrderService croEdo,
         IMemoryCache cache,
-        IUploadUrlSigner uploadUrlSigner)
+        IUploadUrlSigner uploadUrlSigner,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         _db = db;
         _auditService = auditService;
@@ -43,6 +48,9 @@ public class PreAdviceService : IPreAdviceService
         _croEdo = croEdo;
         _cache = cache;
         _uploadUrlSigner = uploadUrlSigner;
+        _uploadRoot = Path.Combine(
+            environment.ContentRootPath,
+            configuration["FileStorage:UploadPath"] ?? "uploads");
     }
 
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
@@ -1005,7 +1013,7 @@ public class PreAdviceService : IPreAdviceService
 
     private string SignAssetPath(string path) => _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
 
-    private static PreAdviceDocumentDto MapDocumentToDto(
+    private PreAdviceDocumentDto MapDocumentToDto(
         PreAdviceDocument d,
         Func<string, string> signPath) => new(
         d.Id,
@@ -1021,6 +1029,11 @@ public class PreAdviceService : IPreAdviceService
         d.UploadedBy.FullName ?? d.UploadedBy.Username,
         d.CreatedAt);
 
-    private static string? ResolveThumbPath(string filePath, Func<string, string> signPath)
-        => signPath(UploadImageProcessor.ThumbRelativePath(filePath));
+    private string? ResolveThumbPath(string filePath, Func<string, string> signPath)
+    {
+        if (!UploadImageProcessor.CanGenerateThumbnail(_uploadRoot, filePath))
+            return null;
+
+        return signPath(UploadImageProcessor.ThumbRelativePath(filePath));
+    }
 }

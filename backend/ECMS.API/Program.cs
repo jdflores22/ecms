@@ -202,6 +202,7 @@ app.UseRateLimiter();
 var uploadPath = Path.Combine(app.Environment.ContentRootPath, builder.Configuration["FileStorage:UploadPath"] ?? "uploads");
 Directory.CreateDirectory(uploadPath);
 app.UseMiddleware<UploadAccessMiddleware>();
+app.UseMiddleware<UploadThumbMiddleware>();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadPath),

@@ -16,6 +16,72 @@ public static class UploadImageProcessor
         return $"/uploads/thumbs/{stem}.webp";
     }
 
+    public static string AbsoluteThumbPath(string uploadRoot, string thumbRelativePath)
+    {
+        var fileName = Path.GetFileName(thumbRelativePath.Split('?')[0]);
+        return Path.Combine(uploadRoot, "thumbs", fileName);
+    }
+
+    public static string? ResolveOriginalAbsolutePath(string uploadRoot, string uploadRelativePath)
+    {
+        var fileName = Path.GetFileName(uploadRelativePath.Split('?')[0]);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        var direct = Path.Combine(uploadRoot, fileName);
+        if (File.Exists(direct))
+            return direct;
+
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrWhiteSpace(stem))
+            return null;
+
+        foreach (var match in Directory.EnumerateFiles(uploadRoot, $"{stem}.*", SearchOption.TopDirectoryOnly))
+        {
+            if (File.Exists(match))
+                return match;
+        }
+
+        return null;
+    }
+
+    public static bool CanGenerateThumbnail(string uploadRoot, string uploadRelativePath)
+    {
+        var original = ResolveOriginalAbsolutePath(uploadRoot, uploadRelativePath);
+        if (original is null)
+            return false;
+
+        var contentType = GuessContentType(original);
+        return contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            && !contentType.Contains("pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool TryEnsureThumbnail(string uploadRoot, string thumbRelativePath, string? uploadRelativePath = null)
+    {
+        var thumbAbs = AbsoluteThumbPath(uploadRoot, thumbRelativePath);
+        if (File.Exists(thumbAbs))
+            return true;
+
+        var originalAbs = uploadRelativePath is not null
+            ? ResolveOriginalAbsolutePath(uploadRoot, uploadRelativePath)
+            : null;
+
+        if (originalAbs is null)
+        {
+            var stem = Path.GetFileNameWithoutExtension(thumbRelativePath);
+            foreach (var match in Directory.EnumerateFiles(uploadRoot, $"{stem}.*", SearchOption.TopDirectoryOnly))
+            {
+                originalAbs = match;
+                break;
+            }
+        }
+
+        if (originalAbs is null)
+            return false;
+
+        return TryCreateThumbnail(originalAbs, thumbAbs);
+    }
+
     public static bool TryCreateThumbnail(string absoluteSourcePath, string absoluteThumbPath)
     {
         if (!File.Exists(absoluteSourcePath))
