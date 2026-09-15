@@ -7,4 +7,10 @@ public interface IUploadAccessService
         int userId,
         string role,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlySet<string>> FilterAccessiblePathsAsync(
+        IReadOnlyList<string> relativePaths,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
 }

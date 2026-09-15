@@ -33,6 +33,8 @@ export default function AssetImage({
       component="img"
       src={url}
       alt={alt}
+      loading="lazy"
+      decoding="async"
       onClick={onClick}
       sx={onClick ? { cursor: 'pointer', ...sx } : sx}
     />

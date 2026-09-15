@@ -89,6 +89,7 @@ public record PreAdviceDocumentDto(
     string? Comment,
     string FileName,
     string FilePath,
+    string? ThumbPath,
     string ContentType,
     long FileSize,
     string UploadedByName,

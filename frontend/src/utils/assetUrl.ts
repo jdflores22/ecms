@@ -4,6 +4,9 @@
  */
 import { toHostingerProxyUrl, USE_HOSTINGER_API_PROXY } from './hostingerApiProxy'
 
+const SIGNED_CACHE_KEY = 'ecms.signedAssetUrls.v1'
+const SIGNED_CACHE_SKEW_MS = 60_000
+
 export function resolveAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
@@ -47,8 +50,14 @@ function isUploadPath(path: string | null | undefined): boolean {
   return base.startsWith('/uploads/') || base.startsWith('uploads/')
 }
 
+export function isAlreadySignedAssetPath(path: string | null | undefined): boolean {
+  if (!path) return false
+  return path.includes('sig=') && path.includes('exp=')
+}
+
 /** Uploads in <img> tags need HMAC sig when cross-origin or via Hostinger proxy (no JWT on image requests). */
 export function requiresSignedAssetUrl(path: string | null | undefined): boolean {
+  if (!path || isAlreadySignedAssetPath(path)) return false
   if (!isUploadPath(path)) return false
   if (USE_HOSTINGER_API_PROXY) return true
   return isCrossOriginAssetUrl(path)
@@ -56,10 +65,61 @@ export function requiresSignedAssetUrl(path: string | null | undefined): boolean
 
 function normalizeUploadPath(path: string): string {
   const trimmed = path.trim()
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  const base = (trimmed.split('?')[0] ?? trimmed).trim()
+  return base.startsWith('/') ? base : `/${base}`
+}
+
+function signedExpiryMs(path: string): number | null {
+  try {
+    const query = path.includes('?') ? path.split('?')[1] : ''
+    const exp = new URLSearchParams(query).get('exp')
+    if (!exp) return null
+    const unix = Number(exp)
+    return Number.isFinite(unix) ? unix * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+function isSignedCacheEntryValid(signedPath: string): boolean {
+  const expiryMs = signedExpiryMs(signedPath)
+  if (expiryMs === null) return false
+  return Date.now() < expiryMs - SIGNED_CACHE_SKEW_MS
 }
 
 const signedCache = new Map<string, string>()
+
+function loadPersistedSignedCache(): void {
+  try {
+    const raw = sessionStorage.getItem(SIGNED_CACHE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Record<string, string>
+    for (const [path, signed] of Object.entries(parsed)) {
+      if (isSignedCacheEntryValid(signed)) {
+        signedCache.set(path, signed)
+      }
+    }
+  } catch {
+    /* ignore corrupt cache */
+  }
+}
+
+function persistSignedCache(): void {
+  try {
+    const payload: Record<string, string> = {}
+    for (const [path, signed] of signedCache.entries()) {
+      if (isSignedCacheEntryValid(signed)) {
+        payload[path] = signed
+      }
+    }
+    sessionStorage.setItem(SIGNED_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    /* storage full or private mode */
+  }
+}
+
+loadPersistedSignedCache()
+
 let batchTimer: ReturnType<typeof setTimeout> | null = null
 let batchPromise: Promise<void> | null = null
 const pendingPaths = new Set<string>()
@@ -74,6 +134,7 @@ async function flushSignBatch(): Promise<void> {
   for (const [path, signed] of Object.entries(data.paths ?? {})) {
     signedCache.set(normalizeUploadPath(path), signed)
   }
+  persistSignedCache()
 }
 
 function scheduleSignBatch(): Promise<void> {
@@ -96,27 +157,40 @@ function scheduleSignBatch(): Promise<void> {
   return batchPromise
 }
 
+export function readCachedSignedAssetUrl(path: string | null | undefined): string {
+  if (!path) return ''
+  if (!requiresSignedAssetUrl(path)) return resolveAssetUrl(path)
+  if (isAlreadySignedAssetPath(path)) return resolveAssetUrl(path)
+
+  const normalized = normalizeUploadPath(path)
+  const cached = signedCache.get(normalized)
+  if (cached && isSignedCacheEntryValid(cached)) {
+    return resolveAssetUrl(cached)
+  }
+  return ''
+}
+
 /** Returns a URL that works for cross-origin <img> tags (adds HMAC sig query params when needed). */
 export async function ensureSignedAssetUrl(path: string | null | undefined): Promise<string> {
   if (!path) return ''
   if (!requiresSignedAssetUrl(path)) return resolveAssetUrl(path)
+  if (isAlreadySignedAssetPath(path)) return resolveAssetUrl(path)
 
-  const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
+  const normalized = normalizeUploadPath(path)
   const cached = signedCache.get(normalized)
-  if (cached) return resolveAssetUrl(cached)
+  if (cached && isSignedCacheEntryValid(cached)) {
+    return resolveAssetUrl(cached)
+  }
 
   pendingPaths.add(normalized)
   await scheduleSignBatch()
 
   const signed = signedCache.get(normalized)
-  return signed ? resolveAssetUrl(signed) : ''
+  return signed && isSignedCacheEntryValid(signed) ? resolveAssetUrl(signed) : ''
 }
 
 function resolvedUrlForPath(path: string): string {
-  const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
-  if (!requiresSignedAssetUrl(path)) return resolveAssetUrl(path)
-  const cached = signedCache.get(normalized)
-  return cached ? resolveAssetUrl(cached) : ''
+  return readCachedSignedAssetUrl(path) || resolveAssetUrl(path)
 }
 
 /** Eagerly sign and browser-prefetch document images (call when document list arrives). */
@@ -126,8 +200,10 @@ export async function prefetchSignedAssetUrls(paths: (string | null | undefined)
 
   const needSign: string[] = []
   for (const path of unique) {
-    const normalized = normalizeUploadPath(path.split('?')[0] ?? path)
-    if (requiresSignedAssetUrl(path) && !signedCache.has(normalized)) {
+    if (!requiresSignedAssetUrl(path)) continue
+    const normalized = normalizeUploadPath(path)
+    const cached = signedCache.get(normalized)
+    if (!cached || !isSignedCacheEntryValid(cached)) {
       needSign.push(normalized)
     }
   }

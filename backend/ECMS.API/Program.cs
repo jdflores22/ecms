@@ -195,11 +195,23 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = ctx =>
     {
         var origin = ctx.Context.Request.Headers.Origin.ToString();
-        if (string.IsNullOrEmpty(origin)) return;
-        if (!allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) return;
-        ctx.Context.Response.Headers.AccessControlAllowOrigin = origin;
-        ctx.Context.Response.Headers.AccessControlAllowCredentials = "true";
-        ctx.Context.Response.Headers.Vary = "Origin";
+        if (!string.IsNullOrEmpty(origin)
+            && allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.AccessControlAllowOrigin = origin;
+            ctx.Context.Response.Headers.AccessControlAllowCredentials = "true";
+            ctx.Context.Response.Headers.Vary = "Origin";
+        }
+
+        var expRaw = ctx.Context.Request.Query["exp"].ToString();
+        if (long.TryParse(expRaw, out var expUnix))
+        {
+            var remaining = expUnix - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (remaining > 0)
+            {
+                ctx.Context.Response.Headers.CacheControl = $"private, max-age={remaining}, immutable";
+            }
+        }
     },
 });
 

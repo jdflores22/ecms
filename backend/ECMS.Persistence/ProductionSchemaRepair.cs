@@ -96,6 +96,44 @@ public static class ProductionSchemaRepair
         await EnsureStatementOfAccountsAsync(db, logger, cancellationToken);
 
         await EnsureSoaTruckerRegistrationsAsync(db, logger, cancellationToken);
+
+        await EnsureUploadPathIndexesAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsureUploadPathIndexesAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        await EnsureIndexAsync(db, logger, "PreAdviceDocumentsSet", "IX_PreAdviceDocumentsSet_FilePath", "FilePath", cancellationToken);
+        await EnsureIndexAsync(db, logger, "PaymentsSet", "IX_PaymentsSet_ProofFile", "ProofFile", cancellationToken);
+        await EnsureIndexAsync(db, logger, "UsersSet", "IX_UsersSet_ProfilePhoto", "ProfilePhoto", cancellationToken);
+        await EnsureIndexAsync(db, logger, "DemurrageBillingsSet", "IX_DemurrageBillingsSet_ProofFile", "ProofFile", cancellationToken);
+        await EnsureIndexAsync(db, logger, "WithdrawalDocumentsSet", "IX_WithdrawalDocumentsSet_FilePath", "FilePath", cancellationToken);
+    }
+
+    private static async Task EnsureIndexAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        string table,
+        string indexName,
+        string column,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                $"""
+                 CREATE INDEX `{indexName}`
+                 ON `{table}` (`{column}`)
+                 """,
+                cancellationToken);
+            logger.LogInformation("Created index {Index} on {Table}.{Column}", indexName, table, column);
+        }
+        catch
+        {
+            /* may already exist */
+        }
     }
 
     private static async Task EnsurePreAdviceCroLinkAsync(

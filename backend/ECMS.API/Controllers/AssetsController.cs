@@ -11,6 +11,8 @@ namespace ECMS.API.Controllers;
 [Authorize]
 public class AssetsController : ControllerBase
 {
+    private static readonly TimeSpan SignedAssetTtl = TimeSpan.FromHours(24);
+
     private readonly IUploadUrlSigner _uploadUrlSigner;
     private readonly IUploadAccessService _uploadAccess;
 
@@ -34,24 +36,29 @@ public class AssetsController : ControllerBase
         if (!await _uploadAccess.CanAccessPathAsync(path, UserId, Role, cancellationToken))
             return NotFound();
 
-        var signed = _uploadUrlSigner.SignRelativePath(path, TimeSpan.FromHours(8));
+        var signed = _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
         return Ok(new { path = signed });
     }
 
     [HttpPost("sign-batch")]
     public async Task<IActionResult> SignBatch([FromBody] SignAssetBatchRequest request, CancellationToken cancellationToken)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var normalized = new List<string>();
         foreach (var raw in request.Paths ?? Array.Empty<string>())
         {
-            if (!TryNormalizeUploadPath(raw, out var path, out _))
-                continue;
-
-            if (!await _uploadAccess.CanAccessPathAsync(path, UserId, Role, cancellationToken))
-                continue;
-
-            result[path] = _uploadUrlSigner.SignRelativePath(path, TimeSpan.FromHours(8));
+            if (TryNormalizeUploadPath(raw, out var path, out _))
+                normalized.Add(path);
         }
+
+        var accessible = await _uploadAccess.FilterAccessiblePathsAsync(
+            normalized,
+            UserId,
+            Role,
+            cancellationToken);
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in accessible)
+            result[path] = _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
 
         return Ok(new { paths = result });
     }

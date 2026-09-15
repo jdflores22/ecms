@@ -1,14 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ensureSignedAssetUrl, requiresSignedAssetUrl, resolveAssetUrl, warmAssetImages } from '../utils/assetUrl'
+import {
+  ensureSignedAssetUrl,
+  readCachedSignedAssetUrl,
+  requiresSignedAssetUrl,
+  resolveAssetUrl,
+  warmAssetImages,
+} from '../utils/assetUrl'
 
 function initialAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
+  const cached = readCachedSignedAssetUrl(path)
+  if (cached) return cached
   if (requiresSignedAssetUrl(path)) return ''
   return resolveAssetUrl(path)
 }
 
 function initialAssetLoading(path: string | null | undefined): boolean {
-  return Boolean(path && requiresSignedAssetUrl(path))
+  if (!path) return false
+  if (readCachedSignedAssetUrl(path)) return false
+  return requiresSignedAssetUrl(path)
 }
 
 export function useAssetUrlState(path: string | null | undefined): { url: string; loading: boolean } {
@@ -81,13 +91,19 @@ export function useAssetUrlsState(paths: (string | null | undefined)[]): {
       return undefined
     }
 
-    const sameOrigin: Record<string, string> = {}
+    const resolved: Record<string, string> = {}
     const crossOrigin: string[] = []
     for (const path of unique) {
-      if (requiresSignedAssetUrl(path)) crossOrigin.push(path)
-      else sameOrigin[path] = resolveAssetUrl(path)
+      const cached = readCachedSignedAssetUrl(path)
+      if (cached) {
+        resolved[path] = cached
+      } else if (requiresSignedAssetUrl(path)) {
+        crossOrigin.push(path)
+      } else {
+        resolved[path] = resolveAssetUrl(path)
+      }
     }
-    setUrls(sameOrigin)
+    setUrls(resolved)
     setLoading(crossOrigin.length > 0)
 
     if (crossOrigin.length === 0) return undefined

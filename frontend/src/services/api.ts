@@ -659,6 +659,7 @@ export interface PreAdviceDocument {
   comment?: string | null
   fileName: string
   filePath: string
+  thumbPath?: string | null
   contentType: string
   fileSize: number
   uploadedByName: string

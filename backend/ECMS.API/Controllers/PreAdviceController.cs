@@ -5,6 +5,7 @@ using ECMS.Application;
 using ECMS.Application.DTOs.PreAdvice;
 
 using ECMS.Application.Interfaces;
+using ECMS.Infrastructure.Services;
 
 using ECMS.Domain.Enums;
 
@@ -441,7 +442,9 @@ public class PreAdviceController : ControllerBase
 
             await file.CopyToAsync(stream, cancellationToken);
 
-
+        var thumbDir = Path.Combine(uploadDir, "thumbs");
+        var thumbPath = Path.Combine(thumbDir, $"{Path.GetFileNameWithoutExtension(storedName)}.webp");
+        UploadImageProcessor.TryCreateThumbnail(filePath, thumbPath);
 
         try
 

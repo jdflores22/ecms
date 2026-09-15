@@ -7,6 +7,7 @@ using ECMS.Application.DTOs.PreAdvice;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Entities;
 using ECMS.Domain.Enums;
+using ECMS.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -23,6 +24,8 @@ public class PreAdviceService : IPreAdviceService
     private readonly IDemurrageBillingService _demurrageBilling;
     private readonly IContainerReleaseOrderService _croEdo;
     private readonly IMemoryCache _cache;
+    private readonly IUploadUrlSigner _uploadUrlSigner;
+    private static readonly TimeSpan SignedAssetTtl = TimeSpan.FromHours(24);
 
     public PreAdviceService(
         IEcmsDbContext db,
@@ -30,7 +33,8 @@ public class PreAdviceService : IPreAdviceService
         INotificationService notifications,
         IDemurrageBillingService demurrageBilling,
         IContainerReleaseOrderService croEdo,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        IUploadUrlSigner uploadUrlSigner)
     {
         _db = db;
         _auditService = auditService;
@@ -38,6 +42,7 @@ public class PreAdviceService : IPreAdviceService
         _demurrageBilling = demurrageBilling;
         _croEdo = croEdo;
         _cache = cache;
+        _uploadUrlSigner = uploadUrlSigner;
     }
 
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
@@ -624,7 +629,7 @@ public class PreAdviceService : IPreAdviceService
         return documents
             .OrderBy(d => ContainerPhotoCatalog.GetDisplaySortOrder(d.Category))
             .ThenByDescending(d => d.CreatedAt)
-            .Select(MapDocumentToDto)
+            .Select(d => MapDocumentToDto(d, SignAssetPath))
             .ToList();
     }
 
@@ -701,7 +706,7 @@ public class PreAdviceService : IPreAdviceService
             .Include(d => d.UploadedBy)
             .FirstAsync(d => d.Id == document.Id, cancellationToken);
 
-        return MapDocumentToDto(saved);
+        return MapDocumentToDto(saved, SignAssetPath);
     }
 
     public async Task<bool> DeleteDocumentAsync(
@@ -998,16 +1003,24 @@ public class PreAdviceService : IPreAdviceService
         p.Evaluation?.EvaluatedAt,
         p.Schedule?.Status.ToString());
 
-    private static PreAdviceDocumentDto MapDocumentToDto(PreAdviceDocument d) => new(
+    private string SignAssetPath(string path) => _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
+
+    private static PreAdviceDocumentDto MapDocumentToDto(
+        PreAdviceDocument d,
+        Func<string, string> signPath) => new(
         d.Id,
         d.PreAdviceId,
         d.Category?.ToString(),
         d.Category.HasValue ? ContainerPhotoCatalog.GetLabel(d.Category.Value) : null,
         d.Comment,
         d.FileName,
-        d.FilePath,
+        signPath(d.FilePath),
+        ResolveThumbPath(d.FilePath, signPath),
         d.ContentType,
         d.FileSize,
         d.UploadedBy.FullName ?? d.UploadedBy.Username,
         d.CreatedAt);
+
+    private static string? ResolveThumbPath(string filePath, Func<string, string> signPath)
+        => signPath(UploadImageProcessor.ThumbRelativePath(filePath));
 }

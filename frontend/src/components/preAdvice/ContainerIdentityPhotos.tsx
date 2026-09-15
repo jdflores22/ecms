@@ -26,6 +26,7 @@ import axios from 'axios'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
 import { useToast } from '../feedback/ToastProvider'
 import { useAssetUrlsState } from '../../hooks/useAssetUrl'
+import { resolveAssetUrl } from '../../utils/assetUrl'
 import {
   CONTAINER_PHOTO_CATEGORIES,
   CONTAINER_PHOTO_GRID_CATEGORIES,
@@ -71,21 +72,25 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 function ResolvedDocumentImage({
   url,
+  fallbackUrl,
   alt,
   onError,
   sx,
   priority = false,
 }: {
   url: string
+  fallbackUrl?: string
   alt: string
   onError?: () => void
   sx?: object
   priority?: boolean
 }) {
   const [loaded, setLoaded] = useState(false)
+  const [src, setSrc] = useState(url)
 
   useEffect(() => {
     setLoaded(false)
+    setSrc(url)
   }, [url])
 
   if (!url) {
@@ -122,13 +127,19 @@ function ResolvedDocumentImage({
       )}
       <Box
         component="img"
-        src={url}
+        src={src}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
         fetchPriority={priority ? 'high' : 'auto'}
         onLoad={() => setLoaded(true)}
-        onError={onError}
+        onError={() => {
+          if (fallbackUrl && src !== fallbackUrl) {
+            setSrc(fallbackUrl)
+            return
+          }
+          onError?.()
+        }}
         sx={{
           ...sx,
           opacity: loaded ? 1 : 0,
@@ -260,8 +271,22 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
   )
   const hasDamageSection = damageCategories.length > 0 || legacyDamagePhotos.length > 0
 
-  const { urls: assetUrls, loading: assetUrlsLoading } = useAssetUrlsState(documents.map((d) => d.filePath))
-  const assetUrl = (path: string | null | undefined) => (path ? assetUrls[path] ?? '' : '')
+  const documentImagePaths = useMemo(
+    () =>
+      documents.flatMap((d) => {
+        const paths = [d.filePath]
+        if (d.thumbPath) paths.push(d.thumbPath)
+        return paths
+      }),
+    [documents],
+  )
+  const { urls: assetUrls, loading: assetUrlsLoading } = useAssetUrlsState(documentImagePaths)
+  const assetUrl = (path: string | null | undefined) => {
+    if (!path) return ''
+    return assetUrls[path] ?? resolveAssetUrl(path)
+  }
+  const gridImageUrl = (doc: PreAdviceDocument) => assetUrl(doc.thumbPath ?? doc.filePath)
+  const fullImageUrl = (doc: PreAdviceDocument) => assetUrl(doc.filePath)
 
   const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter(
     (c) => identityByCategory.has(c.value) || pendingFiles[c.value],
@@ -564,7 +589,8 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
                 </Box>
               ) : (
                 <ResolvedDocumentImage
-                  url={assetUrl(identityDoc.filePath)}
+                  url={gridImageUrl(identityDoc)}
+                  fallbackUrl={identityDoc.thumbPath ? fullImageUrl(identityDoc) : undefined}
                   alt={category.label}
                   priority={slotIndex < 4}
                   onError={() => markImageBroken(identityDoc.filePath)}
@@ -588,7 +614,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
                     <IconButton
                       size="small"
                         onClick={() => {
-                          const url = assetUrl(identityDoc.filePath)
+                          const url = fullImageUrl(identityDoc)
                           if (url) setPreview({ url, title: category.label })
                         }}
                       sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: '#fff' } }}
@@ -838,7 +864,8 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
             ) : (
               <>
                 <ResolvedDocumentImage
-                  url={assetUrl(damageDoc.filePath)}
+                  url={gridImageUrl(damageDoc)}
+                  fallbackUrl={damageDoc.thumbPath ? fullImageUrl(damageDoc) : undefined}
                   alt={`${category.label} damage`}
                   onError={() => markImageBroken(damageDoc.filePath)}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -904,7 +931,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
                       <IconButton
                         size="small"
                         onClick={() => {
-                          const url = assetUrl(damageDoc.filePath)
+                          const url = fullImageUrl(damageDoc)
                           if (!url) return
                           setPreview({
                             url,

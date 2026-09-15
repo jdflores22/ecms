@@ -100,6 +100,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         modelBuilder.Entity<User>(e =>
         {
             e.Property(x => x.ProfilePhoto).HasMaxLength(512);
+            e.HasIndex(x => x.ProfilePhoto);
             e.HasIndex(x => x.Username).IsUnique();
             e.HasIndex(x => x.Email).IsUnique();
             e.HasOne(x => x.Role).WithMany(x => x.Users).HasForeignKey(x => x.RoleId);
@@ -166,6 +167,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
 
         modelBuilder.Entity<PreAdviceDocument>(e =>
         {
+            e.HasIndex(x => x.FilePath);
             e.HasIndex(x => new { x.PreAdviceId, x.Category });
             e.HasOne(x => x.PreAdvice).WithMany(x => x.Documents).HasForeignKey(x => x.PreAdviceId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedById);
@@ -190,6 +192,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         modelBuilder.Entity<Payment>(e =>
         {
             e.HasIndex(x => new { x.Status, x.PaidAt });
+            e.HasIndex(x => x.ProofFile);
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
             e.Property(x => x.ProofPaymentId).HasMaxLength(64);
             e.Property(x => x.ProofQrphInvoiceNo).HasMaxLength(32);
@@ -264,6 +267,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasIndex(x => x.ReferenceNo).IsUnique();
             e.HasIndex(x => x.PreAdviceId).IsUnique();
+            e.HasIndex(x => x.ProofFile);
             e.HasIndex(x => new { x.ContainerNoNormalized, x.ShippingLineId, x.ContainerSizeId, x.ContainerTypeId });
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
             e.Property(x => x.DemurrageAmount).HasPrecision(18, 2);
@@ -395,6 +399,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         modelBuilder.Entity<WithdrawalDocument>(e =>
         {
             e.HasIndex(x => new { x.WithdrawalRequestId, x.DocumentType });
+            e.HasIndex(x => x.FilePath);
             e.Property(x => x.FileName).HasMaxLength(512);
             e.Property(x => x.FilePath).HasMaxLength(512);
             e.Property(x => x.ContentType).HasMaxLength(128);

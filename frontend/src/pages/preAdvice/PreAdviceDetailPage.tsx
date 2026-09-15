@@ -332,7 +332,9 @@ export default function PreAdviceDetailPage() {
 
   useEffect(() => {
     if (!documents.length) return
-    void prefetchSignedAssetUrls(documents.map((d) => d.filePath))
+    void prefetchSignedAssetUrls(
+      documents.flatMap((d) => (d.thumbPath ? [d.thumbPath, d.filePath] : [d.filePath])),
+    )
   }, [documents])
 
   useEffect(() => {
