@@ -14,17 +14,20 @@ public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _service;
     private readonly IPaymentSettingsService _settings;
+    private readonly IPayMongoService _payMongoService;
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _configuration;
 
     public PaymentsController(
         IPaymentService service,
         IPaymentSettingsService settings,
+        IPayMongoService payMongoService,
         IWebHostEnvironment env,
         IConfiguration configuration)
     {
         _service = service;
         _settings = settings;
+        _payMongoService = payMongoService;
         _env = env;
         _configuration = configuration;
     }
@@ -57,6 +60,30 @@ public class PaymentsController : ControllerBase
         }
     }
 
+    [HttpGet("options")]
+    public async Task<ActionResult<ReturnPaymentOptionsDto>> GetPaymentOptions(CancellationToken cancellationToken)
+        => Ok(await _settings.GetReturnPaymentOptionsAsync(cancellationToken));
+
+    [HttpPut("settings/paymongo")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<PaymentSettingsDto>> UpdatePayMongoSettings(
+        [FromBody] UpdatePayMongoSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _settings.UpdatePayMongoSettingsAsync(
+                request.PayMongoEnabled,
+                request.AllowProofUpload,
+                UserId,
+                cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPut("settings/demurrage")]
     [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<PaymentSettingsDto>> UpdateDemurrageSettings(
@@ -77,6 +104,22 @@ public class PaymentsController : ControllerBase
         }
     }
 
+    [HttpPost("schedule/{scheduleId:int}/paymongo/checkout")]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
+    public async Task<ActionResult<PayMongoCheckoutDto>> CreatePayMongoCheckout(
+        int scheduleId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _payMongoService.CreateReturnCheckoutAsync(scheduleId, UserId, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("upload")]
     [Authorize(Roles = RoleNames.TruckerOrBroker)]
     [RequestSizeLimit(10_485_760)]
@@ -88,6 +131,7 @@ public class PaymentsController : ControllerBase
         [FromForm] string? proofProvider,
         [FromForm] string? proofQrphInvoiceNo,
         [FromForm] string? proofPaymentId,
+        [FromForm] string? paymentChannel,
         CancellationToken cancellationToken)
     {
         if (proof is null || proof.Length == 0)
@@ -115,8 +159,12 @@ public class PaymentsController : ControllerBase
                 : ECMS.Domain.Common.PhilippinesTime.ToUtcFromPhilippines(parsed);
         }
 
+        var channel = PaymentChannel.ProofUpload;
+        if (string.Equals(paymentChannel, "CashOffice", StringComparison.OrdinalIgnoreCase))
+            channel = PaymentChannel.CashOffice;
+
         return Ok(await _service.UploadProofAsync(
-            new UploadPaymentRequest(scheduleId, proofReferenceNo, transactionAt, proofProvider, proofQrphInvoiceNo, proofPaymentId),
+            new UploadPaymentRequest(scheduleId, proofReferenceNo, transactionAt, proofProvider, proofQrphInvoiceNo, proofPaymentId, channel),
             UserId,
             relativePath,
             filePath,

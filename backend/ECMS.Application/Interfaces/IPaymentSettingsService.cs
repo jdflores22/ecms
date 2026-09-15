@@ -14,4 +14,10 @@ public interface IPaymentSettingsService
         decimal detentionFeeAmount,
         int adminUserId,
         CancellationToken cancellationToken = default);
+    Task<PaymentSettingsDto> UpdatePayMongoSettingsAsync(
+        bool payMongoEnabled,
+        bool allowProofUpload,
+        int adminUserId,
+        CancellationToken cancellationToken = default);
+    Task<ReturnPaymentOptionsDto> GetReturnPaymentOptionsAsync(CancellationToken cancellationToken = default);
 }

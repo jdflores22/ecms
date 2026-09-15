@@ -44,6 +44,10 @@ public class PaymentService : IPaymentService
             .FirstOrDefaultAsync(s => s.Id == request.ScheduleId && s.TruckerId == truckerId, cancellationToken)
             ?? throw new InvalidOperationException("Schedule not found.");
 
+        var paymentOptions = await _paymentSettings.GetReturnPaymentOptionsAsync(cancellationToken);
+        if (!paymentOptions.AllowProofUpload)
+            throw new InvalidOperationException("Manual proof upload is disabled. Pay online with PayMongo instead.");
+
         var configuredAmount = await _paymentSettings.GetReturnFeeAmountAsync(cancellationToken);
 
         var payment = await _db.Payments.FirstOrDefaultAsync(p => p.ScheduleId == request.ScheduleId, cancellationToken)
@@ -51,6 +55,9 @@ public class PaymentService : IPaymentService
 
         payment.Amount = configuredAmount;
         payment.ProofFile = proofFilePath;
+        payment.PaymentChannel = request.PaymentChannel;
+        payment.PayMongoCheckoutSessionId = null;
+        payment.PayMongoPaymentIntentId = null;
         payment.Status = PaymentStatus.ForVerification;
         payment.PaidAt = PhilippinesTime.UtcNow;
         ApplyProofMetadata(
@@ -433,6 +440,54 @@ public class PaymentService : IPaymentService
             _ => "application/octet-stream",
         };
 
+    public async Task<bool> CompletePayMongoReturnAsync(
+        int scheduleId,
+        string? checkoutSessionId,
+        string? paymentIntentId,
+        CancellationToken cancellationToken = default)
+    {
+        var payment = await _db.Payments
+            .Include(p => p.Schedule).ThenInclude(s => s.PreAdvice)
+            .Include(p => p.Trucker)
+            .FirstOrDefaultAsync(p => p.ScheduleId == scheduleId, cancellationToken);
+
+        if (payment is null || payment.Status == PaymentStatus.Paid)
+            return payment is not null;
+
+        if (!string.IsNullOrWhiteSpace(checkoutSessionId)
+            && !string.IsNullOrWhiteSpace(payment.PayMongoCheckoutSessionId)
+            && !string.Equals(payment.PayMongoCheckoutSessionId, checkoutSessionId, StringComparison.Ordinal))
+            return false;
+
+        payment.PaymentChannel = PaymentChannel.PayMongo;
+        payment.PayMongoPaymentIntentId = paymentIntentId;
+        payment.ProofProvider = "paymongo";
+        payment.Status = PaymentStatus.Paid;
+        payment.PaidAt = PhilippinesTime.UtcNow;
+        payment.Schedule.Status = ScheduleStatus.Confirmed;
+        _db.Update(payment.Schedule);
+        _db.Update(payment);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _qrService.GenerateForScheduleAsync(payment.ScheduleId, payment.TruckerId, RoleNames.Administrator, cancellationToken);
+
+        var refNo = payment.Schedule.PreAdvice.ReferenceNo;
+        if (payment.TruckerId > 0)
+        {
+            await _notifications.NotifyUsersAsync(
+                new[] { payment.TruckerId },
+                "Payment received — return confirmed",
+                $"{refNo} PayMongo payment confirmed. Your return is confirmed — download your booking confirmation PDF and QR.",
+                "Payment",
+                $"/trucker/returns/{payment.ScheduleId}",
+                payment.TruckerId,
+                refNo,
+                cancellationToken);
+        }
+
+        return true;
+    }
+
     private static PaymentDto MapToDto(Payment p) => new(
         p.Id,
         p.ScheduleId,
@@ -445,6 +500,8 @@ public class PaymentService : IPaymentService
         p.ProofQrphInvoiceNo,
         p.ProofTransactionAt,
         p.ProofProvider,
+        p.PaymentChannel,
+        p.PayMongoCheckoutSessionId,
         p.Status,
         p.PaidAt);
 }

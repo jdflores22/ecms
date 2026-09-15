@@ -1,4 +1,5 @@
 using ECMS.Application.DTOs.DemurrageBilling;
+using ECMS.Domain.Enums;
 
 namespace ECMS.Application.Interfaces;
 
@@ -57,6 +58,7 @@ public interface IDemurrageBillingService
         string? absoluteProofPath,
         string? proofReferenceNo,
         DateTime? proofTransactionAt,
+        PaymentChannel paymentChannel = PaymentChannel.ProofUpload,
         CancellationToken cancellationToken = default);
 
     Task<DemurrageBillingDto?> VerifyAsync(
@@ -89,5 +91,11 @@ public interface IDemurrageBillingService
     Task<DemurrageBillingDto> EnsureBillingForTruckerExpiredFreeTimeAsync(
         int preAdviceId,
         int truckerId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> CompletePayMongoAsync(
+        int billingId,
+        string? checkoutSessionId,
+        string? paymentIntentId,
         CancellationToken cancellationToken = default);
 }

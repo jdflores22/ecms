@@ -35,6 +35,9 @@ public static class DependencyInjection
         services.AddScoped<ICertificateGenerationService, CertificateGenerationService>();
         services.AddScoped<ICertificateVerificationService, CertificateVerificationService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
+        services.AddScoped<IPayMongoService, PayMongoService>();
+        services.AddScoped<IShippingLinePaymentConfigService, ShippingLinePaymentConfigService>();
+        services.AddHttpClient(nameof(PayMongoService));
         services.AddScoped<IDemurrageDetentionRateService, DemurrageDetentionRateService>();
         services.AddScoped<IStatementOfAccountService, StatementOfAccountService>();
         services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();

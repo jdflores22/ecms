@@ -20,7 +20,7 @@ import UploadFileIcon from '@mui/icons-material/UploadFile'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import axios from 'axios'
 import { useCallback, useEffect, useState } from 'react'
-import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link as RouterLink, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import PaymentProgressStrip, { buildPaymentProgressSteps } from '../../components/trucker/PaymentProgressStrip'
 import {
   DetailBackButton,
@@ -37,7 +37,7 @@ import {
 } from '../../components/layout/DetailPagePrimitives'
 import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
 import AssetImage from '../../components/layout/AssetImage'
-import { paymentApi, preAdviceApi, qrApi, scheduleApi, type Payment, type PreAdvice, type QrBooking, type Schedule } from '../../services/api'
+import { paymentApi, preAdviceApi, qrApi, scheduleApi, type Payment, type PreAdvice, type QrBooking, type ReturnPaymentOptions, type Schedule } from '../../services/api'
 import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
@@ -182,6 +182,7 @@ export default function TruckerPaymentUploadPage() {
   const theme = useTheme()
   const confirmFullScreen = useMediaQuery(theme.breakpoints.down('sm'))
   const { scheduleId: scheduleIdParam } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
   const scheduleId = Number(scheduleIdParam)
@@ -194,9 +195,11 @@ export default function TruckerPaymentUploadPage() {
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [configuredFee, setConfiguredFee] = useState<number | null>(null)
+  const [paymentOptions, setPaymentOptions] = useState<ReturnPaymentOptions | null>(null)
 
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [payMongoLoading, setPayMongoLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [qrBooking, setQrBooking] = useState<QrBooking | null>(null)
@@ -216,14 +219,16 @@ export default function TruckerPaymentUploadPage() {
           Promise.resolve(item),
           paymentApi.getBySchedule(scheduleId),
           paymentApi.getSettings(),
+          paymentApi.getPaymentOptions(),
           preAdviceApi.get(item.preAdviceId),
         ])
       })
-      .then(async ([item, paymentRes, settingsRes, preAdviceRes]) => {
+      .then(async ([item, paymentRes, settingsRes, optionsRes, preAdviceRes]) => {
         const existing = paymentRes.data
         setSchedule(item)
         setPayment(existing)
         setConfiguredFee(settingsRes.data.returnFeeAmount)
+        setPaymentOptions(optionsRes.data)
         setPreAdvice(preAdviceRes.data)
 
         const paid =
@@ -246,6 +251,17 @@ export default function TruckerPaymentUploadPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    const result = searchParams.get('paymongo')
+    if (!result) return
+    if (result === 'success') {
+      setSaveSuccess(true)
+      load()
+    }
+    searchParams.delete('paymongo')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams, load])
 
   if (!isTruckerOrBroker(user?.role)) {
     return <Navigate to="/" replace />
@@ -280,6 +296,19 @@ export default function TruckerPaymentUploadPage() {
     schedule && showPaymentContent ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status) : null
 
   const displayAmount = payment?.amount ?? configuredFee ?? 0
+
+  const handlePayMongoCheckout = async () => {
+    if (!schedule) return
+    setPayMongoLoading(true)
+    setActionError('')
+    try {
+      const { data } = await paymentApi.createPayMongoCheckout(schedule.id)
+      window.location.href = data.checkoutUrl
+    } catch (err) {
+      setActionError(apiErrorMessage(err, 'Unable to start PayMongo checkout.'))
+      setPayMongoLoading(false)
+    }
+  }
 
   const handleDownloadConfirmationPdf = async () => {
     if (!qrBooking) return
@@ -649,10 +678,30 @@ export default function TruckerPaymentUploadPage() {
                   {paymentUploadNeeded && (
                     <>
                       <Alert severity="info" sx={{ mb: 2, borderRadius: 2, '& .MuiAlert-message': { overflowWrap: 'anywhere', wordBreak: 'break-word' } }}>
-                        Pay {formatPeso(displayAmount)} as the pre-forecasted fee set by the administrator. Upload your
-                        proof below — you cannot change the fee amount here.
+                        Pay {formatPeso(displayAmount)} as the pre-forecasted fee set by the administrator.
+                        {paymentOptions?.payMongoEnabled && paymentOptions.allowProofUpload
+                          ? ' Pay online with PayMongo or upload proof below.'
+                          : paymentOptions?.payMongoEnabled
+                            ? ' Pay online with PayMongo below.'
+                            : ' Upload your proof below — you cannot change the fee amount here.'}
                       </Alert>
 
+                      {paymentOptions?.payMongoEnabled && paymentOptions.payMongoConfigured && (
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          color="secondary"
+                          startIcon={<PaymentsOutlinedIcon />}
+                          disabled={payMongoLoading || submitting}
+                          onClick={() => void handlePayMongoCheckout()}
+                          sx={{ fontWeight: 700, borderRadius: 2, mb: 2 }}
+                        >
+                          {payMongoLoading ? 'Redirecting to PayMongo…' : `Pay ${formatPeso(displayAmount)} with PayMongo`}
+                        </Button>
+                      )}
+
+                      {paymentOptions?.allowProofUpload && (
+                      <>
                       <Button
                         component="label"
                         fullWidth
@@ -724,6 +773,8 @@ export default function TruckerPaymentUploadPage() {
                           Submit proof
                         </Button>
                       </Box>
+                      </>
+                      )}
                     </>
                   )}
 

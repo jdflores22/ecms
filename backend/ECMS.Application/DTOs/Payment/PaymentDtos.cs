@@ -14,6 +14,8 @@ public record PaymentDto(
     string? ProofQrphInvoiceNo,
     DateTime? ProofTransactionAt,
     string? ProofProvider,
+    PaymentChannel PaymentChannel,
+    string? PayMongoCheckoutSessionId,
     PaymentStatus Status,
     DateTime? PaidAt);
 
@@ -38,7 +40,15 @@ public record PaymentSettingsDto(
     decimal ReturnFeeAmount,
     decimal DemurrageFeeAmount,
     decimal DetentionFeeAmount,
+    bool PayMongoEnabled,
+    bool AllowProofUpload,
+    bool PayMongoConfigured,
     DateTime UpdatedAt);
+
+public record ReturnPaymentOptionsDto(
+    bool PayMongoEnabled,
+    bool AllowProofUpload,
+    bool PayMongoConfigured);
 
 public record UpdatePaymentSettingsRequest(decimal ReturnFeeAmount);
 
@@ -52,6 +62,7 @@ public record UploadPaymentRequest(
     DateTime? ProofTransactionAt = null,
     string? ProofProvider = null,
     string? ProofQrphInvoiceNo = null,
-    string? ProofPaymentId = null);
+    string? ProofPaymentId = null,
+    PaymentChannel PaymentChannel = PaymentChannel.ProofUpload);
 
 public record PaymentProofFileInfo(string AbsolutePath, string ContentType, string FileName);

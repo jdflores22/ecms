@@ -19,6 +19,9 @@ public class Payment : BaseEntity
     public DateTime? ProofTransactionAt { get; set; }
     /// <summary>Payment channel detected from proof (gcash, maya, unionbank, grabpay, bancnet).</summary>
     public string? ProofProvider { get; set; }
+    public PaymentChannel PaymentChannel { get; set; } = PaymentChannel.ProofUpload;
+    public string? PayMongoCheckoutSessionId { get; set; }
+    public string? PayMongoPaymentIntentId { get; set; }
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
     public DateTime? PaidAt { get; set; }
 

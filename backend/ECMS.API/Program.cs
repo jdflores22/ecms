@@ -40,6 +40,20 @@ builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
 builder.Services.Configure<ECMS.Application.Configuration.IcsAppOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.IcsAppOptions.SectionName));
+builder.Services.Configure<ECMS.Infrastructure.Options.PayMongoOptions>(
+    builder.Configuration.GetSection(ECMS.Infrastructure.Options.PayMongoOptions.SectionName));
+builder.Services.PostConfigure<ECMS.Infrastructure.Options.PayMongoOptions>(options =>
+{
+    var secret = Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY");
+    if (!string.IsNullOrWhiteSpace(secret))
+        options.SecretKey = secret;
+    var webhook = Environment.GetEnvironmentVariable("PAYMONGO_WEBHOOK_SECRET");
+    if (!string.IsNullOrWhiteSpace(webhook))
+        options.WebhookSecret = webhook;
+    var publicKey = Environment.GetEnvironmentVariable("PAYMONGO_PUBLIC_KEY");
+    if (!string.IsNullOrWhiteSpace(publicKey))
+        options.PublicKey = publicKey;
+});
 builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>
 {
     var envKey = Environment.GetEnvironmentVariable("LOGICTECK_API_KEY");

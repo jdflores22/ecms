@@ -2,8 +2,10 @@ using ECMS.Application.DTOs.Payment;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Entities;
+using ECMS.Infrastructure.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 
 namespace ECMS.Infrastructure.Services;
 
@@ -16,12 +18,18 @@ public class PaymentSettingsService : IPaymentSettingsService
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
     private readonly IMemoryCache _cache;
+    private readonly PayMongoOptions _payMongoOptions;
 
-    public PaymentSettingsService(IEcmsDbContext db, IAuditService auditService, IMemoryCache cache)
+    public PaymentSettingsService(
+        IEcmsDbContext db,
+        IAuditService auditService,
+        IMemoryCache cache,
+        IOptions<PayMongoOptions> payMongoOptions)
     {
         _db = db;
         _auditService = auditService;
         _cache = cache;
+        _payMongoOptions = payMongoOptions.Value;
     }
 
     public Task<PaymentSettingsDto> GetAsync(CancellationToken cancellationToken = default)
@@ -108,6 +116,42 @@ public class PaymentSettingsService : IPaymentSettingsService
         return MapToDto(settings);
     }
 
+    public async Task<PaymentSettingsDto> UpdatePayMongoSettingsAsync(
+        bool payMongoEnabled,
+        bool allowProofUpload,
+        int adminUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (payMongoEnabled && !allowProofUpload && !IsPayMongoConfigured())
+            throw new InvalidOperationException("Configure PayMongo API keys before disabling proof upload.");
+
+        var settings = await EnsureSettingsAsync(cancellationToken, bypassCache: true);
+        settings.PayMongoEnabled = payMongoEnabled;
+        settings.AllowProofUpload = allowProofUpload;
+        settings.UpdatedAt = PhilippinesTime.UtcNow;
+        _db.Update(settings);
+        await _db.SaveChangesAsync(cancellationToken);
+        InvalidateCache();
+
+        await _auditService.LogAsync(
+            adminUserId,
+            "Update",
+            "PaymentSettings",
+            $"PayMongo={(payMongoEnabled ? "on" : "off")}, proof upload={(allowProofUpload ? "on" : "off")}",
+            cancellationToken);
+
+        return MapToDto(settings);
+    }
+
+    public async Task<ReturnPaymentOptionsDto> GetReturnPaymentOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await EnsureSettingsAsync(cancellationToken);
+        return new ReturnPaymentOptionsDto(
+            settings.PayMongoEnabled,
+            settings.AllowProofUpload,
+            IsPayMongoConfigured());
+    }
+
     private async Task<PaymentSettingsDto> MapDtoAsync(CancellationToken cancellationToken)
     {
         var settings = await EnsureSettingsAsync(cancellationToken);
@@ -144,6 +188,20 @@ public class PaymentSettingsService : IPaymentSettingsService
 
     private void InvalidateCache() => _cache.Remove(SettingsCacheKey);
 
-    private static PaymentSettingsDto MapToDto(PaymentSettings settings)
-        => new(settings.ReturnFeeAmount, settings.DemurrageFeeAmount, settings.DetentionFeeAmount, settings.UpdatedAt);
+    private PaymentSettingsDto MapToDto(PaymentSettings settings)
+        => new(
+            settings.ReturnFeeAmount,
+            settings.DemurrageFeeAmount,
+            settings.DetentionFeeAmount,
+            settings.PayMongoEnabled,
+            settings.AllowProofUpload,
+            IsPayMongoConfigured(),
+            settings.UpdatedAt);
+
+    private bool IsPayMongoConfigured()
+    {
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY")))
+            return true;
+        return !string.IsNullOrWhiteSpace(_payMongoOptions.SecretKey);
+    }
 }

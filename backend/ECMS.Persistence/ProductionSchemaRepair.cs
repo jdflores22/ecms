@@ -98,6 +98,46 @@ public static class ProductionSchemaRepair
         await EnsureSoaTruckerRegistrationsAsync(db, logger, cancellationToken);
 
         await EnsureUploadPathIndexesAsync(db, logger, cancellationToken);
+
+        await EnsurePayMongoAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsurePayMongoAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260915120000_AddPayMongoPayments";
+
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PayMongoEnabled", "tinyint(1) NOT NULL DEFAULT 0", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "AllowProofUpload", "tinyint(1) NOT NULL DEFAULT 1", migrationId, cancellationToken);
+
+        await EnsureColumnAsync(db, logger, "PaymentsSet", "PaymentChannel", "int NOT NULL DEFAULT 0", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentsSet", "PayMongoCheckoutSessionId", "varchar(64) CHARACTER SET utf8mb4 NULL", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentsSet", "PayMongoPaymentIntentId", "varchar(64) CHARACTER SET utf8mb4 NULL", migrationId, cancellationToken);
+
+        await EnsureColumnAsync(db, logger, "DemurrageBillingsSet", "PaymentChannel", "int NOT NULL DEFAULT 0", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "DemurrageBillingsSet", "PayMongoCheckoutSessionId", "varchar(64) CHARACTER SET utf8mb4 NULL", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "DemurrageBillingsSet", "PayMongoPaymentIntentId", "varchar(64) CHARACTER SET utf8mb4 NULL", migrationId, cancellationToken);
+
+        if (!await TableExistsAsync(db, "ShippingLinePaymentConfigsSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table ShippingLinePaymentConfigsSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `ShippingLinePaymentConfigsSet` (
+                    `ShippingLineId` int NOT NULL,
+                    `PayMongoEnabled` tinyint(1) NOT NULL DEFAULT 0,
+                    `AllowProofUpload` tinyint(1) NOT NULL DEFAULT 1,
+                    `PayMongoSecretKey` varchar(256) CHARACTER SET utf8mb4 NULL,
+                    `UpdatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`ShippingLineId`),
+                    CONSTRAINT `FK_ShippingLinePaymentConfigs_ShippingLineId`
+                        FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
     }
 
     private static async Task EnsureUploadPathIndexesAsync(

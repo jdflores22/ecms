@@ -6,10 +6,11 @@ import UploadFileIcon from '@mui/icons-material/UploadFile'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Paper, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
+import { Link as RouterLink, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import DemurrageFeeLineEditor from '../../components/demurrage/DemurrageFeeLineEditor'
 import { BillingContextCard } from '../../components/demurrage/DemurrageBillingPrimitives'
 import {
@@ -32,7 +33,7 @@ import {
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
 import AssetImage from '../../components/layout/AssetImage'
-import { demurrageBillingApi, type DemurrageBilling } from '../../services/api'
+import { demurrageBillingApi, type DemurrageBilling, type DemurragePaymentOptions } from '../../services/api'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { openSignedAsset } from '../../utils/openSignedAsset'
 import { formatDate, formatDateTime, formatPeso } from '../../utils/datetime'
@@ -98,6 +99,7 @@ type VerifyAction = 'approve' | 'reject'
 export default function DemurrageBillingDetailPage() {
   const { id } = useParams()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const billingId = Number(id)
   const isTrucker = location.pathname.startsWith('/trucker/')
   const listPath = isTrucker ? '/trucker/demurrage-billing' : '/evaluations/demurrage-billing'
@@ -108,6 +110,9 @@ export default function DemurrageBillingDetailPage() {
   const [successMessage, setSuccessMessage] = useState('')
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [payMongoLoading, setPayMongoLoading] = useState(false)
+  const [paymentOptions, setPaymentOptions] = useState<DemurragePaymentOptions | null>(null)
+  const [cashOfficeUpload, setCashOfficeUpload] = useState(false)
   const [proofPreviewOpen, setProofPreviewOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const proofFileUrl = useAssetUrl(item?.proofFile)
@@ -127,9 +132,14 @@ export default function DemurrageBillingDetailPage() {
     if (!billingId) return
     setLoading(true)
     setError('')
-    demurrageBillingApi
-      .get(billingId)
-      .then(({ data }) => setItem(data))
+    Promise.all([
+      demurrageBillingApi.get(billingId),
+      demurrageBillingApi.getPaymentOptions(billingId),
+    ])
+      .then(([billingRes, optionsRes]) => {
+        setItem(billingRes.data)
+        setPaymentOptions(optionsRes.data)
+      })
       .catch(() => setError('Demurrage billing not found or not accessible.'))
       .finally(() => setLoading(false))
   }, [billingId])
@@ -137,6 +147,17 @@ export default function DemurrageBillingDetailPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    const result = searchParams.get('paymongo')
+    if (!result) return
+    if (result === 'success') {
+      setSuccessMessage('PayMongo payment received. Refreshing billing status…')
+      load()
+    }
+    searchParams.delete('paymongo')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams, load])
 
   const feeLines = useMemo(() => {
     if (!item) return []
@@ -221,6 +242,19 @@ export default function DemurrageBillingDetailPage() {
     }
   }
 
+  const handlePayMongoCheckout = async () => {
+    if (!item) return
+    setPayMongoLoading(true)
+    setUploadError('')
+    try {
+      const { data } = await demurrageBillingApi.createPayMongoCheckout(item.id)
+      window.location.href = data.checkoutUrl
+    } catch (err: unknown) {
+      setUploadError(apiErrorMessage(err, 'Unable to start PayMongo checkout.'))
+      setPayMongoLoading(false)
+    }
+  }
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -229,9 +263,15 @@ export default function DemurrageBillingDetailPage() {
     setUploading(true)
     setUploadError('')
     try {
-      const { data } = await demurrageBillingApi.uploadProof(item.id, file)
+      const { data } = await demurrageBillingApi.uploadProof(item.id, file, {
+        paymentChannel: cashOfficeUpload ? 'CashOffice' : 'ProofUpload',
+      })
       setItem(data)
-      setSuccessMessage('Payment proof uploaded. Shipping line or ICS admin will verify shortly.')
+      setSuccessMessage(
+        cashOfficeUpload
+          ? 'Cash/office payment proof uploaded. Shipping line will verify shortly.'
+          : 'Payment proof uploaded. Shipping line or ICS admin will verify shortly.',
+      )
     } catch (err: unknown) {
       setUploadError(apiErrorMessage(err, 'Upload failed. Try again with a clear payment proof.'))
     } finally {
@@ -524,15 +564,47 @@ export default function DemurrageBillingDetailPage() {
         )}
 
         {canUpload && (
-          <Button
-            variant="contained"
-            startIcon={uploading ? undefined : <UploadFileIcon />}
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-            sx={{ fontWeight: 700, borderRadius: 2 }}
-          >
-            {uploading ? 'Uploading…' : `Upload proof · ${formatPeso(item.totalAmount)}`}
-          </Button>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'flex-start' }}>
+            {paymentOptions?.payMongoEnabled && paymentOptions.payMongoConfigured && (
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<PaymentsOutlinedIcon />}
+                disabled={payMongoLoading || uploading}
+                onClick={() => void handlePayMongoCheckout()}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                {payMongoLoading ? 'Redirecting…' : `Pay ${formatPeso(item.totalAmount)} with PayMongo`}
+              </Button>
+            )}
+            {paymentOptions?.allowProofUpload && (
+              <>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={cashOfficeUpload}
+                      onChange={(e) => setCashOfficeUpload(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Paid cash at shipping line office"
+                />
+                <Button
+                  variant="contained"
+                  startIcon={uploading ? undefined : <UploadFileIcon />}
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  sx={{ fontWeight: 700, borderRadius: 2 }}
+                >
+                  {uploading
+                    ? 'Uploading…'
+                    : cashOfficeUpload
+                      ? `Upload office receipt · ${formatPeso(item.totalAmount)}`
+                      : `Upload proof · ${formatPeso(item.totalAmount)}`}
+                </Button>
+              </>
+            )}
+          </Box>
         )}
       </Paper>
 

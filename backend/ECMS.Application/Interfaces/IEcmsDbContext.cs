@@ -25,6 +25,7 @@ public interface IEcmsDbContext
     IQueryable<PasswordResetToken> PasswordResetTokens { get; }
     IQueryable<ManualYardInventoryEntry> ManualYardInventoryEntries { get; }
     IQueryable<PaymentSettings> PaymentSettings { get; }
+    IQueryable<ShippingLinePaymentConfig> ShippingLinePaymentConfigs { get; }
     IQueryable<DemurrageBilling> DemurrageBillings { get; }
     IQueryable<DemurrageBillingFeeLine> DemurrageBillingFeeLines { get; }
     IQueryable<DemurrageDetentionRate> DemurrageDetentionRates { get; }

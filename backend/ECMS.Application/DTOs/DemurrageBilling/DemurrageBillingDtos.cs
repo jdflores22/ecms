@@ -28,6 +28,8 @@ public record DemurrageBillingDto(
     decimal TotalAmount,
     IReadOnlyList<DemurrageBillingFeeLineDto> FeeLines,
     PaymentStatus Status,
+    PaymentChannel PaymentChannel,
+    string? PayMongoCheckoutSessionId,
     string? ProofFile,
     string? ProofReferenceNo,
     DateTime? ProofTransactionAt,
@@ -70,7 +72,8 @@ public record DemurrageBillingLinkDto(
 public record UploadDemurrageProofRequest(
     int BillingId,
     string? ProofReferenceNo,
-    DateTime? ProofTransactionAt);
+    DateTime? ProofTransactionAt,
+    PaymentChannel PaymentChannel = PaymentChannel.ProofUpload);
 
 public record VerifyDemurrageBillingRequest(
     bool Approved,

@@ -1,5 +1,5 @@
 import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Paper, Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import CyContractsMasterTab from '../../components/admin/CyContractsMasterTab'
 import {
   ListDesktopOnly,
@@ -25,6 +25,7 @@ import {
   depotApi,
   paymentApi,
   shippingLineApi,
+  shippingLinePaymentConfigApi,
   type ContainerSizeMaster,
   type ContainerTypeMaster,
   type Depot,
@@ -114,6 +115,14 @@ export default function MasterDataPage() {
   const [returnFeeAmount, setReturnFeeAmount] = useState('5000')
   const [returnFeeUpdatedAt, setReturnFeeUpdatedAt] = useState<string | null>(null)
   const [paymentSettingsSaving, setPaymentSettingsSaving] = useState(false)
+  const [payMongoEnabled, setPayMongoEnabled] = useState(false)
+  const [allowProofUpload, setAllowProofUpload] = useState(true)
+  const [payMongoConfigured, setPayMongoConfigured] = useState(false)
+  const [linePayMongoEnabled, setLinePayMongoEnabled] = useState(false)
+  const [lineAllowProofUpload, setLineAllowProofUpload] = useState(true)
+  const [linePayMongoSecretKey, setLinePayMongoSecretKey] = useState('')
+  const [lineHasPayMongoSecretKey, setLineHasPayMongoSecretKey] = useState(false)
+  const [linePayMongoPlatformConfigured, setLinePayMongoPlatformConfigured] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -132,6 +141,9 @@ export default function MasterDataPage() {
         setContainerTypes(types.data)
         setReturnFeeAmount(String(paymentSettings.data.returnFeeAmount))
         setReturnFeeUpdatedAt(paymentSettings.data.updatedAt)
+        setPayMongoEnabled(paymentSettings.data.payMongoEnabled)
+        setAllowProofUpload(paymentSettings.data.allowProofUpload)
+        setPayMongoConfigured(paymentSettings.data.payMongoConfigured)
       })
       .catch(() => setError('Failed to load master data.'))
       .finally(() => setLoading(false))
@@ -154,6 +166,27 @@ export default function MasterDataPage() {
     }),
     [lines, depots, containerSizes, containerTypes],
   )
+
+  const savePayMongoSettings = async () => {
+    setPaymentSettingsSaving(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const { data } = await paymentApi.updatePayMongoSettings(payMongoEnabled, allowProofUpload)
+      setPayMongoEnabled(data.payMongoEnabled)
+      setAllowProofUpload(data.allowProofUpload)
+      setPayMongoConfigured(data.payMongoConfigured)
+      setSuccessMessage(
+        data.payMongoEnabled
+          ? 'PayMongo enabled for pre-forecast payments.'
+          : 'PayMongo disabled for pre-forecast payments.',
+      )
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to update PayMongo settings.'))
+    } finally {
+      setPaymentSettingsSaving(false)
+    }
+  }
 
   const saveReturnFee = async () => {
     const amount = Number(returnFeeAmount)
@@ -191,10 +224,23 @@ export default function MasterDataPage() {
     setLineDialog('create')
   }
 
-  const openEditLine = (line: ShippingLine) => {
+  const openEditLine = async (line: ShippingLine) => {
     setSelectedLine(line)
     setLineForm({ name: line.name, code: line.code, isActive: line.isActive })
+    setLinePayMongoSecretKey('')
     setLineDialog('edit')
+    try {
+      const { data } = await shippingLinePaymentConfigApi.get(line.id)
+      setLinePayMongoEnabled(data.payMongoEnabled)
+      setLineAllowProofUpload(data.allowProofUpload)
+      setLineHasPayMongoSecretKey(data.hasPayMongoSecretKey)
+      setLinePayMongoPlatformConfigured(data.payMongoPlatformConfigured)
+    } catch {
+      setLinePayMongoEnabled(false)
+      setLineAllowProofUpload(true)
+      setLineHasPayMongoSecretKey(false)
+      setLinePayMongoPlatformConfigured(false)
+    }
   }
 
   const saveLine = async () => {
@@ -205,6 +251,11 @@ export default function MasterDataPage() {
         await shippingLineApi.create({ name: lineForm.name, code: lineForm.code })
       } else if (selectedLine) {
         await shippingLineApi.update(selectedLine.id, lineForm)
+        await shippingLinePaymentConfigApi.update(selectedLine.id, {
+          payMongoEnabled: linePayMongoEnabled,
+          allowProofUpload: lineAllowProofUpload,
+          payMongoSecretKey: linePayMongoSecretKey.trim() || undefined,
+        })
       }
       setLineDialog(null)
       load()
@@ -1021,6 +1072,52 @@ export default function MasterDataPage() {
               </Typography>
             </Paper>
           </Box>
+
+          <Divider sx={{ my: 4 }} />
+
+          <Box sx={{ maxWidth: 520 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
+              PayMongo (pre-forecast payments)
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Enable online checkout for truckers. API keys are set in Railway env vars
+              (<code>PAYMONGO_SECRET_KEY</code>, <code>PAYMONGO_WEBHOOK_SECRET</code>).
+              Truckers can still upload proof when manual payment is allowed.
+            </Typography>
+            {!payMongoConfigured && (
+              <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                PayMongo secret key is not configured on the server yet.
+              </Alert>
+            )}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={payMongoEnabled}
+                  onChange={(e) => setPayMongoEnabled(e.target.checked)}
+                />
+              }
+              label="Enable PayMongo for pre-forecast fee"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={allowProofUpload}
+                  onChange={(e) => setAllowProofUpload(e.target.checked)}
+                />
+              }
+              label="Allow manual proof upload (e-wallet, bank transfer, cash)"
+            />
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={() => void savePayMongoSettings()}
+                disabled={paymentSettingsSaving}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                {paymentSettingsSaving ? 'Saving…' : 'Save PayMongo settings'}
+              </Button>
+            </Box>
+          </Box>
         </Paper>
       )}
 
@@ -1052,15 +1149,61 @@ export default function MasterDataPage() {
             sx={fieldSx}
           />
           {lineDialog === 'edit' && (
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={lineForm.isActive}
-                  onChange={(e) => setLineForm({ ...lineForm, isActive: e.target.checked })}
-                />
-              }
-              label="Active"
-            />
+            <>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={lineForm.isActive}
+                    onChange={(e) => setLineForm({ ...lineForm, isActive: e.target.checked })}
+                  />
+                }
+                label="Active"
+              />
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Demurrage payments
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Per-line PayMongo for demurrage charges. Leave secret key blank to use the platform key.
+              </Typography>
+              {!linePayMongoPlatformConfigured && !lineHasPayMongoSecretKey && (
+                <Alert severity="warning" sx={{ mb: 1.5, borderRadius: 2 }}>
+                  No PayMongo key configured for this line yet.
+                </Alert>
+              )}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={linePayMongoEnabled}
+                    onChange={(e) => setLinePayMongoEnabled(e.target.checked)}
+                  />
+                }
+                label="Enable PayMongo for demurrage"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={lineAllowProofUpload}
+                    onChange={(e) => setLineAllowProofUpload(e.target.checked)}
+                  />
+                }
+                label="Allow cash/office proof upload"
+              />
+              <TextField
+                fullWidth
+                margin="normal"
+                label="PayMongo secret key (optional)"
+                type="password"
+                value={linePayMongoSecretKey}
+                onChange={(e) => setLinePayMongoSecretKey(e.target.value)}
+                helperText={
+                  lineHasPayMongoSecretKey
+                    ? 'A key is saved. Enter a new value to replace it, or leave blank to keep.'
+                    : 'Use platform key when empty.'
+                }
+                sx={fieldSx}
+              />
+            </>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using ECMS.Application.DTOs.DemurrageBilling;
 using ECMS.Application.DTOs.Common;
+using ECMS.Application.DTOs.Payment;
+using ECMS.Application.DTOs.ShippingLine;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -14,15 +16,21 @@ namespace ECMS.API.Controllers;
 public class DemurrageBillingController : ControllerBase
 {
     private readonly IDemurrageBillingService _service;
+    private readonly IPayMongoService _payMongoService;
+    private readonly IShippingLinePaymentConfigService _shippingLinePaymentConfig;
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _configuration;
 
     public DemurrageBillingController(
         IDemurrageBillingService service,
+        IPayMongoService payMongoService,
+        IShippingLinePaymentConfigService shippingLinePaymentConfig,
         IWebHostEnvironment env,
         IConfiguration configuration)
     {
         _service = service;
+        _payMongoService = payMongoService;
+        _shippingLinePaymentConfig = shippingLinePaymentConfig;
         _env = env;
         _configuration = configuration;
     }
@@ -144,6 +152,30 @@ public class DemurrageBillingController : ControllerBase
         }
     }
 
+    [HttpGet("{id:int}/payment-options")]
+    public async Task<ActionResult<DemurragePaymentOptionsDto>> GetPaymentOptions(int id, CancellationToken cancellationToken)
+    {
+        var item = await _service.GetByIdAsync(id, UserId, UserRole, cancellationToken);
+        if (item is null)
+            return NotFound();
+
+        return Ok(await _shippingLinePaymentConfig.GetDemurrageOptionsAsync(item.ShippingLineId, cancellationToken));
+    }
+
+    [HttpPost("{id:int}/paymongo/checkout")]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
+    public async Task<ActionResult<PayMongoCheckoutDto>> CreatePayMongoCheckout(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _payMongoService.CreateDemurrageCheckoutAsync(id, UserId, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:int}/upload-proof")]
     [Authorize(Roles = RoleNames.TruckerOrBroker)]
     [RequestSizeLimit(10_485_760)]
@@ -152,6 +184,7 @@ public class DemurrageBillingController : ControllerBase
         IFormFile proof,
         [FromForm] string? proofReferenceNo,
         [FromForm] string? proofTransactionAt,
+        [FromForm] string? paymentChannel,
         CancellationToken cancellationToken)
     {
         if (proof is null || proof.Length == 0)
@@ -173,6 +206,10 @@ public class DemurrageBillingController : ControllerBase
 
         try
         {
+            var channel = PaymentChannel.ProofUpload;
+            if (string.Equals(paymentChannel, "CashOffice", StringComparison.OrdinalIgnoreCase))
+                channel = PaymentChannel.CashOffice;
+
             return Ok(await _service.UploadProofAsync(
                 id,
                 UserId,
@@ -180,6 +217,7 @@ public class DemurrageBillingController : ControllerBase
                 filePath,
                 proofReferenceNo,
                 parsedAt,
+                channel,
                 cancellationToken));
         }
         catch (InvalidOperationException ex)

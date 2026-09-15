@@ -961,6 +961,20 @@ export const shippingLineApi = {
   deactivate: (id: number) => api.delete(`/shipping-lines/${id}`),
 }
 
+export const shippingLinePaymentConfigApi = {
+  get: (shippingLineId: number) =>
+    api.get<ShippingLinePaymentConfig>(`/shipping-line-payment-config/${shippingLineId}`),
+  update: (
+    shippingLineId: number,
+    data: {
+      payMongoEnabled: boolean
+      allowProofUpload: boolean
+      payMongoSecretKey?: string | null
+      clearPayMongoSecretKey?: boolean
+    },
+  ) => api.put<ShippingLinePaymentConfig>(`/shipping-line-payment-config/${shippingLineId}`, data),
+}
+
 export interface ContainerMaster {
   id: number
   containerNo: string
@@ -1115,6 +1129,7 @@ export interface PaymentProofMetadataInput {
   proofQrphInvoiceNo?: string | null
   proofTransactionAt?: string | null
   proofProvider?: string | null
+  paymentChannel?: 'ProofUpload' | 'CashOffice'
 }
 
 export interface QrBooking {
@@ -1203,7 +1218,37 @@ export interface PaymentSettings {
   returnFeeAmount: number
   demurrageFeeAmount: number
   detentionFeeAmount: number
+  payMongoEnabled: boolean
+  allowProofUpload: boolean
+  payMongoConfigured: boolean
   updatedAt: string
+}
+
+export interface ReturnPaymentOptions {
+  payMongoEnabled: boolean
+  allowProofUpload: boolean
+  payMongoConfigured: boolean
+}
+
+export interface PayMongoCheckout {
+  checkoutUrl: string
+  checkoutSessionId: string
+}
+
+export interface ShippingLinePaymentConfig {
+  shippingLineId: number
+  shippingLineName: string
+  payMongoEnabled: boolean
+  allowProofUpload: boolean
+  hasPayMongoSecretKey: boolean
+  payMongoPlatformConfigured: boolean
+  updatedAt: string
+}
+
+export interface DemurragePaymentOptions {
+  payMongoEnabled: boolean
+  allowProofUpload: boolean
+  payMongoConfigured: boolean
 }
 
 export const paymentApi = {
@@ -1213,10 +1258,15 @@ export const paymentApi = {
   dueCount: () => api.get<{ count: number }>('/payments/due/count'),
   depot: () => api.get<Payment[]>('/payments/depot'),
   getSettings: () => api.get<PaymentSettings>('/payments/settings'),
+  getPaymentOptions: () => api.get<ReturnPaymentOptions>('/payments/options'),
   updateSettings: (returnFeeAmount: number) =>
     api.put<PaymentSettings>('/payments/settings', { returnFeeAmount }),
+  updatePayMongoSettings: (payMongoEnabled: boolean, allowProofUpload: boolean) =>
+    api.put<PaymentSettings>('/payments/settings/paymongo', { payMongoEnabled, allowProofUpload }),
   updateDemurrageSettings: (demurrageFeeAmount: number, detentionFeeAmount: number) =>
     api.put<PaymentSettings>('/payments/settings/demurrage', { demurrageFeeAmount, detentionFeeAmount }),
+  createPayMongoCheckout: (scheduleId: number) =>
+    api.post<PayMongoCheckout>(`/payments/schedule/${scheduleId}/paymongo/checkout`),
   getBySchedule: (scheduleId: number) => api.get<Payment | null>(`/payments/by-schedule/${scheduleId}`),
   upload: (
     scheduleId: number,
@@ -1231,6 +1281,7 @@ export const paymentApi = {
     if (metadata?.proofQrphInvoiceNo) form.append('proofQrphInvoiceNo', metadata.proofQrphInvoiceNo)
     if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
     if (metadata?.proofProvider) form.append('proofProvider', metadata.proofProvider)
+    if (metadata?.paymentChannel) form.append('paymentChannel', metadata.paymentChannel)
     return api.post<Payment>('/payments/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -1278,6 +1329,8 @@ export interface DemurrageBilling {
   totalAmount: number
   feeLines: DemurrageBillingFeeLine[]
   status: string
+  paymentChannel?: string
+  payMongoCheckoutSessionId?: string | null
   proofFile?: string | null
   proofReferenceNo?: string | null
   proofTransactionAt?: string | null
@@ -1314,6 +1367,10 @@ export const demurrageBillingApi = {
   list: () => api.get<DemurrageBilling[]>('/demurrage-billing'),
   paymentDueCount: () => api.get<{ count: number }>('/demurrage-billing/payment-due/count'),
   get: (id: number) => api.get<DemurrageBilling>(`/demurrage-billing/${id}`),
+  getPaymentOptions: (id: number) =>
+    api.get<DemurragePaymentOptions>(`/demurrage-billing/${id}/payment-options`),
+  createPayMongoCheckout: (id: number) =>
+    api.post<PayMongoCheckout>(`/demurrage-billing/${id}/paymongo/checkout`),
   getByPreAdvice: (preAdviceId: number) =>
     api.get<{
       id: number
@@ -1346,6 +1403,7 @@ export const demurrageBillingApi = {
     if (metadata?.proofQrphInvoiceNo) form.append('proofQrphInvoiceNo', metadata.proofQrphInvoiceNo)
     if (metadata?.proofTransactionAt) form.append('proofTransactionAt', metadata.proofTransactionAt)
     if (metadata?.proofProvider) form.append('proofProvider', metadata.proofProvider)
+    if (metadata?.paymentChannel) form.append('paymentChannel', metadata.paymentChannel)
     return api.post<DemurrageBilling>(`/demurrage-billing/${id}/upload-proof`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

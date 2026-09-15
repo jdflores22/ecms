@@ -46,4 +46,9 @@ public interface IPaymentService
         CancellationToken cancellationToken = default);
     Task<int> GetPendingVerificationCountAsync(CancellationToken cancellationToken = default);
     Task<int> GetPaymentDueCountAsync(int truckerId, CancellationToken cancellationToken = default);
+    Task<bool> CompletePayMongoReturnAsync(
+        int scheduleId,
+        string? checkoutSessionId,
+        string? paymentIntentId,
+        CancellationToken cancellationToken = default);
 }

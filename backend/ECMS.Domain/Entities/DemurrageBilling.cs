@@ -20,6 +20,9 @@ public class DemurrageBilling : BaseEntity
     public decimal DemurrageAmount { get; set; }
     public decimal DetentionAmount { get; set; }
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
+    public PaymentChannel PaymentChannel { get; set; } = PaymentChannel.ProofUpload;
+    public string? PayMongoCheckoutSessionId { get; set; }
+    public string? PayMongoPaymentIntentId { get; set; }
     public string? ProofFile { get; set; }
     public string? ProofReferenceNo { get; set; }
     public DateTime? ProofTransactionAt { get; set; }

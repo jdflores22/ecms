@@ -29,6 +29,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<PasswordResetToken> PasswordResetTokensSet => Set<PasswordResetToken>();
     public DbSet<ManualYardInventoryEntry> ManualYardInventoryEntriesSet => Set<ManualYardInventoryEntry>();
     public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
+    public DbSet<ShippingLinePaymentConfig> ShippingLinePaymentConfigsSet => Set<ShippingLinePaymentConfig>();
     public DbSet<DemurrageBilling> DemurrageBillingsSet => Set<DemurrageBilling>();
     public DbSet<DemurrageBillingFeeLine> DemurrageBillingFeeLinesSet => Set<DemurrageBillingFeeLine>();
     public DbSet<DemurrageDetentionRate> DemurrageDetentionRatesSet => Set<DemurrageDetentionRate>();
@@ -68,6 +69,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<PasswordResetToken> IEcmsDbContext.PasswordResetTokens => PasswordResetTokensSet;
     IQueryable<ManualYardInventoryEntry> IEcmsDbContext.ManualYardInventoryEntries => ManualYardInventoryEntriesSet;
     IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
+    IQueryable<ShippingLinePaymentConfig> IEcmsDbContext.ShippingLinePaymentConfigs => ShippingLinePaymentConfigsSet;
     IQueryable<DemurrageBilling> IEcmsDbContext.DemurrageBillings => DemurrageBillingsSet;
     IQueryable<DemurrageBillingFeeLine> IEcmsDbContext.DemurrageBillingFeeLines => DemurrageBillingFeeLinesSet;
     IQueryable<DemurrageDetentionRate> IEcmsDbContext.DemurrageDetentionRates => DemurrageDetentionRatesSet;
@@ -197,6 +199,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.ProofPaymentId).HasMaxLength(64);
             e.Property(x => x.ProofQrphInvoiceNo).HasMaxLength(32);
             e.Property(x => x.ProofProvider).HasMaxLength(32);
+            e.Property(x => x.PayMongoCheckoutSessionId).HasMaxLength(64);
+            e.Property(x => x.PayMongoPaymentIntentId).HasMaxLength(64);
             e.HasOne(x => x.Schedule).WithOne(x => x.Payment).HasForeignKey<Payment>(x => x.ScheduleId);
             e.HasOne(x => x.Trucker).WithMany(x => x.Payments).HasForeignKey(x => x.TruckerId);
         });
@@ -263,6 +267,13 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.DetentionFeeAmount).HasPrecision(18, 2);
         });
 
+        modelBuilder.Entity<ShippingLinePaymentConfig>(e =>
+        {
+            e.HasKey(x => x.ShippingLineId);
+            e.Property(x => x.PayMongoSecretKey).HasMaxLength(256);
+            e.HasOne(x => x.ShippingLine).WithOne().HasForeignKey<ShippingLinePaymentConfig>(x => x.ShippingLineId);
+        });
+
         modelBuilder.Entity<DemurrageBilling>(e =>
         {
             e.HasIndex(x => x.ReferenceNo).IsUnique();
@@ -270,6 +281,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasIndex(x => x.ProofFile);
             e.HasIndex(x => new { x.ContainerNoNormalized, x.ShippingLineId, x.ContainerSizeId, x.ContainerTypeId });
             e.Property(x => x.ProofReferenceNo).HasMaxLength(64);
+            e.Property(x => x.PayMongoCheckoutSessionId).HasMaxLength(64);
+            e.Property(x => x.PayMongoPaymentIntentId).HasMaxLength(64);
             e.Property(x => x.DemurrageAmount).HasPrecision(18, 2);
             e.Property(x => x.DetentionAmount).HasPrecision(18, 2);
             e.Property(x => x.AppliedRateLabel).HasMaxLength(256);

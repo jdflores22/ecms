@@ -20,19 +20,22 @@ public class DemurrageBillingService : IDemurrageBillingService
     private readonly IAuditService _auditService;
     private readonly INotificationService _notifications;
     private readonly IPaymentProofExtractionService _proofExtraction;
+    private readonly IShippingLinePaymentConfigService _shippingLinePaymentConfig;
 
     public DemurrageBillingService(
         IEcmsDbContext db,
         IDemurrageDetentionRateService rateService,
         IAuditService auditService,
         INotificationService notifications,
-        IPaymentProofExtractionService proofExtraction)
+        IPaymentProofExtractionService proofExtraction,
+        IShippingLinePaymentConfigService shippingLinePaymentConfig)
     {
         _db = db;
         _rateService = rateService;
         _auditService = auditService;
         _notifications = notifications;
         _proofExtraction = proofExtraction;
+        _shippingLinePaymentConfig = shippingLinePaymentConfig;
     }
 
     public async Task SyncExpiredBillingsAsync(CancellationToken cancellationToken = default)
@@ -573,6 +576,7 @@ public class DemurrageBillingService : IDemurrageBillingService
         string? absoluteProofPath,
         string? proofReferenceNo,
         DateTime? proofTransactionAt,
+        PaymentChannel paymentChannel = PaymentChannel.ProofUpload,
         CancellationToken cancellationToken = default)
     {
         var billing = await BillingQueryWithIncludes()
@@ -582,7 +586,14 @@ public class DemurrageBillingService : IDemurrageBillingService
         if (billing.Status == PaymentStatus.Paid)
             throw new InvalidOperationException("This demurrage billing is already paid.");
 
+        var options = await _shippingLinePaymentConfig.GetDemurrageOptionsAsync(billing.ShippingLineId, cancellationToken);
+        if (!options.AllowProofUpload)
+            throw new InvalidOperationException("Manual proof upload is disabled. Pay online with PayMongo instead.");
+
         billing.ProofFile = proofFilePath;
+        billing.PaymentChannel = paymentChannel;
+        billing.PayMongoCheckoutSessionId = null;
+        billing.PayMongoPaymentIntentId = null;
         billing.Status = PaymentStatus.ForVerification;
         billing.PaidAt = PhilippinesTime.UtcNow;
         ApplyProofMetadata(billing, proofReferenceNo, proofTransactionAt);
@@ -631,6 +642,46 @@ public class DemurrageBillingService : IDemurrageBillingService
         }
 
         return MapToDto(billing);
+    }
+
+    public async Task<bool> CompletePayMongoAsync(
+        int billingId,
+        string? checkoutSessionId,
+        string? paymentIntentId,
+        CancellationToken cancellationToken = default)
+    {
+        var billing = await BillingQueryWithIncludes()
+            .FirstOrDefaultAsync(b => b.Id == billingId, cancellationToken);
+
+        if (billing is null || billing.Status == PaymentStatus.Paid)
+            return billing is not null;
+
+        if (!string.IsNullOrWhiteSpace(checkoutSessionId)
+            && !string.IsNullOrWhiteSpace(billing.PayMongoCheckoutSessionId)
+            && !string.Equals(billing.PayMongoCheckoutSessionId, checkoutSessionId, StringComparison.Ordinal))
+            return false;
+
+        billing.PaymentChannel = PaymentChannel.PayMongo;
+        billing.PayMongoPaymentIntentId = paymentIntentId;
+        billing.Status = PaymentStatus.Paid;
+        billing.PaidAt = PhilippinesTime.UtcNow;
+        _db.Update(billing);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (billing.TruckerId > 0)
+        {
+            await _notifications.NotifyUsersAsync(
+                new[] { billing.TruckerId },
+                "Demurrage payment received",
+                $"{billing.ReferenceNo} PayMongo payment confirmed. You may submit a new pre-forecast for this container.",
+                "DemurrageBilling",
+                $"/trucker/demurrage-billing/{billing.Id}",
+                billing.TruckerId,
+                billing.ReferenceNo,
+                cancellationToken);
+        }
+
+        return true;
     }
 
     public async Task<DemurrageBillingDto?> VerifyAsync(
@@ -882,6 +933,8 @@ public class DemurrageBillingService : IDemurrageBillingService
             total,
             feeLines,
             b.Status,
+            b.PaymentChannel,
+            b.PayMongoCheckoutSessionId,
             b.ProofFile,
             b.ProofReferenceNo,
             b.ProofTransactionAt,
