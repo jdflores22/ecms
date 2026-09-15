@@ -134,6 +134,7 @@ type DepotScheduleTabPanelsProps = {
   onDepotRemarksChange: (value: string) => void
   onCancelEdit: () => void
   onOpenConfirm: () => void
+  onOpenPhotosTab?: () => void
 }
 
 export default function DepotScheduleTabPanels({
@@ -166,6 +167,7 @@ export default function DepotScheduleTabPanels({
   onDepotRemarksChange,
   onCancelEdit,
   onOpenConfirm,
+  onOpenPhotosTab,
 }: DepotScheduleTabPanelsProps) {
   const truckerName = requestingTruckerName(schedule, preAdvice)
   const proofFileUrl = useAssetUrl(payment?.proofFile)
@@ -215,17 +217,20 @@ export default function DepotScheduleTabPanels({
         </Box>
       </DetailTabPanel>
 
-      {!depotView && (
-        <DetailTabPanel value="photos" activeTab={activeTab}>
-          <ContainerIdentityPhotos
-            preAdviceId={preAdvice.id}
-            documents={documents}
-            loading={documentsLoading}
-            canManage={false}
-            onChange={onReloadDocuments}
-          />
-        </DetailTabPanel>
-      )}
+      <DetailTabPanel value="photos" activeTab={activeTab}>
+        {depotView && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+            Review the container identity photos uploaded by the trucker before assigning the return date.
+          </Alert>
+        )}
+        <ContainerIdentityPhotos
+          preAdviceId={preAdvice.id}
+          documents={documents}
+          loading={documentsLoading}
+          canManage={false}
+          onChange={onReloadDocuments}
+        />
+      </DetailTabPanel>
 
       <DetailTabPanel value="schedule" activeTab={activeTab}>
         {!canAssign ? (
@@ -268,6 +273,19 @@ export default function DepotScheduleTabPanels({
 
             {showAssignForm && (
               <>
+                {depotView && onOpenPhotosTab && (
+                  <Alert
+                    severity="info"
+                    sx={{ mb: 2, borderRadius: 2 }}
+                    action={
+                      <Button color="inherit" size="small" onClick={onOpenPhotosTab} sx={{ fontWeight: 600 }}>
+                        View photos
+                      </Button>
+                    }
+                  >
+                    Review container identity photos before confirming the return date.
+                  </Alert>
+                )}
                 {actionError && (
                   <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
                     {actionError}

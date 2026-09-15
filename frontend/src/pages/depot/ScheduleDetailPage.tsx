@@ -222,7 +222,7 @@ export default function ScheduleDetailPage() {
 
   useEffect(() => {
     if (!isDepotView) return
-    if (activeTab === 'photos' || activeTab === 'payment' || activeTab === 'qr') {
+    if (activeTab === 'payment' || activeTab === 'qr') {
       setActiveTab('schedule')
     }
   }, [isDepotView, activeTab])
@@ -430,18 +430,18 @@ export default function ScheduleDetailPage() {
                         }}
                       />
                     )}
-                    {!isDepotView && (
-                      <Chip
-                        label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
-                        size="small"
-                        sx={{
-                          bgcolor: 'rgba(255,255,255,0.12)',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          fontWeight: 600,
-                        }}
-                      />
-                    )}
+                    <Chip
+                      label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
+                      size="small"
+                      onClick={() => setActiveTab('photos')}
+                      sx={{
+                        bgcolor: 'rgba(255,255,255,0.12)',
+                        color: '#fff',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    />
                     <Chip
                       label={SYSTEM_TIMEZONE.labelLong}
                       size="small"
@@ -517,12 +517,10 @@ export default function ScheduleDetailPage() {
               sx={detailTabsSx}
             >
               <Tab label="Request details" value="details" />
-              {!isDepotView && (
-                <Tab
-                  label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
-                  value="photos"
-                />
-              )}
+              <Tab
+                label={`Container photos (${photoProgress.uploaded}/${photoProgress.total})`}
+                value="photos"
+              />
               <Tab label="Schedule assignment" value="schedule" />
               {!isDepotView && <Tab label="Payment" value="payment" />}
               {!isDepotView && <Tab label={LOGICTECK_QR.tabLabel} value="qr" />}
@@ -558,6 +556,7 @@ export default function ScheduleDetailPage() {
               onDepotRemarksChange={setDepotRemarks}
               onCancelEdit={cancelEdit}
               onOpenConfirm={openConfirm}
+              onOpenPhotosTab={() => setActiveTab('photos')}
             />
           </Paper>
         </>
