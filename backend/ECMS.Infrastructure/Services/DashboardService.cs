@@ -84,37 +84,43 @@ public class DashboardService : IDashboardService
 
     public async Task<TruckerDashboardDto> GetTruckerDashboardAsync(int truckerId, CancellationToken cancellationToken = default)
     {
-        var schedules = await _db.Schedules
-            .Include(s => s.Payment)
-            .Where(s => s.TruckerId == truckerId)
-            .ToListAsync(cancellationToken);
+        var schedulesQuery = _db.Schedules.AsNoTracking().Where(s => s.TruckerId == truckerId);
+        var preAdvicesQuery = _db.PreAdvices.AsNoTracking().Where(p => p.TruckerId == truckerId);
+        var withdrawalsQuery = _db.WithdrawalRequests.AsNoTracking().Where(w => w.TruckerId == truckerId);
 
-        var preAdvices = await _db.PreAdvices.Where(p => p.TruckerId == truckerId).ToListAsync(cancellationToken);
-        var completedPreAdviceReturns = await _db.Schedules
-            .Include(s => s.PreAdvice)
-            .CountAsync(s => s.PreAdvice.TruckerId == truckerId && s.Status == ScheduleStatus.Completed, cancellationToken);
-
-        var withdrawals = await _db.WithdrawalRequests.Where(w => w.TruckerId == truckerId).ToListAsync(cancellationToken);
-        var widgets = await BuildWithdrawalWidgetsAsync(
-            _db.WithdrawalRequests.Where(w => w.TruckerId == truckerId),
-            cancellationToken);
+        var widgets = await BuildWithdrawalWidgetsAsync(withdrawalsQuery, cancellationToken);
 
         return new TruckerDashboardDto(
-            schedules.Count(s => s.Status == ScheduleStatus.Scheduled),
-            schedules.Count(s => s.Payment == null || s.Payment.Status == PaymentStatus.Pending),
-            schedules.Count(s => s.Status == ScheduleStatus.Confirmed),
-            schedules.Count(s => s.Status == ScheduleStatus.Completed),
-            preAdvices.Count,
-            preAdvices.Count(p => p.Status is PreAdviceStatus.Draft or PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation),
-            preAdvices.Count(p => p.Status == PreAdviceStatus.Approved),
-            preAdvices.Count(p => p.Status == PreAdviceStatus.Rejected),
-            completedPreAdviceReturns,
-            withdrawals.Count(w => w.Status == WithdrawalStatus.Draft),
-            withdrawals.Count(w =>
-                w.Status == WithdrawalStatus.Issued
-                || (w.Status == WithdrawalStatus.CyAssigned && w.BookedAt == null)),
-            withdrawals.Count(w => w.Status is WithdrawalStatus.Submitted or WithdrawalStatus.UnderReview),
-            withdrawals.Count(w => w.Status is WithdrawalStatus.Approved or WithdrawalStatus.Released or WithdrawalStatus.Completed),
+            await schedulesQuery.CountAsync(s => s.Status == ScheduleStatus.Scheduled, cancellationToken),
+            await schedulesQuery.CountAsync(
+                s => s.Payment == null || s.Payment!.Status == PaymentStatus.Pending,
+                cancellationToken),
+            await schedulesQuery.CountAsync(s => s.Status == ScheduleStatus.Confirmed, cancellationToken),
+            await schedulesQuery.CountAsync(s => s.Status == ScheduleStatus.Completed, cancellationToken),
+            await preAdvicesQuery.CountAsync(cancellationToken),
+            await preAdvicesQuery.CountAsync(
+                p => p.Status == PreAdviceStatus.Draft
+                    || p.Status == PreAdviceStatus.Submitted
+                    || p.Status == PreAdviceStatus.UnderEvaluation,
+                cancellationToken),
+            await preAdvicesQuery.CountAsync(p => p.Status == PreAdviceStatus.Approved, cancellationToken),
+            await preAdvicesQuery.CountAsync(p => p.Status == PreAdviceStatus.Rejected, cancellationToken),
+            await _db.Schedules.AsNoTracking().CountAsync(
+                s => s.PreAdvice.TruckerId == truckerId && s.Status == ScheduleStatus.Completed,
+                cancellationToken),
+            await withdrawalsQuery.CountAsync(w => w.Status == WithdrawalStatus.Draft, cancellationToken),
+            await withdrawalsQuery.CountAsync(
+                w => w.Status == WithdrawalStatus.Issued
+                    || (w.Status == WithdrawalStatus.CyAssigned && w.BookedAt == null),
+                cancellationToken),
+            await withdrawalsQuery.CountAsync(
+                w => w.Status == WithdrawalStatus.Submitted || w.Status == WithdrawalStatus.UnderReview,
+                cancellationToken),
+            await withdrawalsQuery.CountAsync(
+                w => w.Status == WithdrawalStatus.Approved
+                    || w.Status == WithdrawalStatus.Released
+                    || w.Status == WithdrawalStatus.Completed,
+                cancellationToken),
             widgets);
     }
 

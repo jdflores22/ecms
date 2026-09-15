@@ -36,7 +36,15 @@ public class EvaluationService : IEvaluationService
             .AsQueryable();
 
         if (role == RoleNames.ShippingLineEvaluator)
-            query = query.Where(e => e.EvaluatorId == userId);
+        {
+            var shippingLineId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.ShippingLineId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!shippingLineId.HasValue)
+                return Array.Empty<EvaluationDto>();
+            query = query.Where(e => e.PreAdvice.ShippingLineId == shippingLineId);
+        }
 
         var items = await query.OrderByDescending(e => e.EvaluatedAt).ToListAsync(cancellationToken);
         return items.Select(MapToDto).ToList();
@@ -121,6 +129,9 @@ public class EvaluationService : IEvaluationService
         string role,
         CancellationToken cancellationToken = default)
     {
+        if (!await CanAccessPreAdviceAsync(request.PreAdviceId, evaluatorId, role, cancellationToken))
+            throw new UnauthorizedAccessException("You are not allowed to evaluate this pre-forecast.");
+
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
@@ -207,6 +218,9 @@ public class EvaluationService : IEvaluationService
 
     public async Task<EvaluationDto> RejectAsync(RejectEvaluationRequest request, int evaluatorId, CancellationToken cancellationToken = default)
     {
+        if (!await CanAccessPreAdviceAsync(request.PreAdviceId, evaluatorId, RoleNames.ShippingLineEvaluator, cancellationToken))
+            throw new UnauthorizedAccessException("You are not allowed to evaluate this pre-forecast.");
+
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
@@ -255,6 +269,9 @@ public class EvaluationService : IEvaluationService
     {
         if (string.IsNullOrWhiteSpace(request.Remarks))
             throw new InvalidOperationException("Compliance instructions are required.");
+
+        if (!await CanAccessPreAdviceAsync(request.PreAdviceId, evaluatorId, RoleNames.ShippingLineEvaluator, cancellationToken))
+            throw new UnauthorizedAccessException("You are not allowed to evaluate this pre-forecast.");
 
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)

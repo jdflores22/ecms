@@ -568,7 +568,7 @@ export function canAccessPage(role: string, pageKey: AppPageKey, allowedPages?: 
 
 export function canAccessPath(role: string, pathname: string, allowedPages?: string[] | null): boolean {
   const pageKey = resolvePageKey(pathname)
-  if (!pageKey) return true
+  if (!pageKey) return false
   return canAccessPage(role, pageKey, allowedPages)
 }
 

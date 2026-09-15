@@ -274,7 +274,7 @@ public partial class DepotGateService : IDepotGateService
 
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
         if (user?.DepotId is null)
-            return true;
+            return false;
 
         return booking.Schedule.DepotId == user.DepotId.Value;
     }

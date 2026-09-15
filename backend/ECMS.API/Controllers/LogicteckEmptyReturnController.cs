@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using ECMS.Application.DTOs.Logicteck;
 using ECMS.Application.Interfaces;
+using ECMS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 [Route("api/logicteck/empty-return")]
-[Authorize]
+[Authorize(Roles = RoleNames.TruckerOrBroker)]
 public class LogicteckEmptyReturnController : ControllerBase
 {
     private readonly ILogicteckEmptyReturnService _service;

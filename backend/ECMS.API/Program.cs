@@ -216,7 +216,9 @@ await using (var scope = app.Services.CreateAsyncScope())
     try
     {
         var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
-        await seeder.SeedAsync();
+        var seedDemoUsers = app.Environment.IsDevelopment()
+            || string.Equals(Environment.GetEnvironmentVariable("ECMS_SEED_DEMO_USERS"), "true", StringComparison.OrdinalIgnoreCase);
+        await seeder.SeedAsync(seedDemoUsers);
         startupLogger.LogInformation("Database migrate/seed completed.");
     }
     catch (Exception ex)

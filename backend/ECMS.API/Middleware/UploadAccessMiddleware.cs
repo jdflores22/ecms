@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using ECMS.Application.Interfaces;
 using ECMS.Infrastructure.Security;
 using Microsoft.IdentityModel.Tokens;
 
@@ -21,7 +22,10 @@ public class UploadAccessMiddleware
         _configuration = configuration;
     }
 
-    public async Task InvokeAsync(HttpContext context, IUploadUrlSigner uploadUrlSigner)
+    public async Task InvokeAsync(
+        HttpContext context,
+        IUploadUrlSigner uploadUrlSigner,
+        IUploadAccessService uploadAccess)
     {
         if (!context.Request.Path.StartsWithSegments("/uploads", out var uploadsPath))
         {
@@ -41,8 +45,22 @@ public class UploadAccessMiddleware
         }
 
         var token = ExtractBearerToken(context);
-        if (token is not null && TryValidateJwt(token))
+        if (token is not null && TryValidateJwt(token, out var principal) && principal is not null)
         {
+            var userIdRaw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var role = principal.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+            if (!int.TryParse(userIdRaw, out var userId))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+
+            if (!await uploadAccess.CanAccessPathAsync(relativePath, userId, role, context.RequestAborted))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
             await _next(context);
             return;
         }
@@ -62,8 +80,9 @@ public class UploadAccessMiddleware
         return null;
     }
 
-    private bool TryValidateJwt(string token)
+    private bool TryValidateJwt(string token, out ClaimsPrincipal? principal)
     {
+        principal = null;
         var jwtKey = _configuration["Jwt:Key"];
         if (string.IsNullOrWhiteSpace(jwtKey))
             return false;
@@ -83,7 +102,7 @@ public class UploadAccessMiddleware
 
         try
         {
-            new JwtSecurityTokenHandler().ValidateToken(token, parameters, out _);
+            principal = new JwtSecurityTokenHandler().ValidateToken(token, parameters, out _);
             return true;
         }
         catch

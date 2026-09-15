@@ -33,7 +33,7 @@ public class DbSeeder
         _passwordHasher = passwordHasher;
     }
 
-    public async Task SeedAsync()
+    public async Task SeedAsync(bool seedDemoUsers = false)
     {
         try
         {
@@ -215,7 +215,7 @@ public class DbSeeder
             await _context.SaveChangesAsync();
         }
 
-        if (!await _context.UsersSet.AnyAsync())
+        if (seedDemoUsers && !await _context.UsersSet.AnyAsync())
         {
             var roles = await _context.RolesSet.ToDictionaryAsync(x => x.Name, x => x.Id);
             var maersk = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MAERSK");
@@ -234,9 +234,12 @@ public class DbSeeder
             await _context.SaveChangesAsync();
         }
 
-        await SeedDemurrageBillingTestDataAsync();
-        await DemurrageDetentionRateDemoSeeder.SeedAsync(_context);
-        await YardInventoryDemoSeeder.SeedAsync(_context);
+        if (seedDemoUsers)
+        {
+            await SeedDemurrageBillingTestDataAsync();
+            await DemurrageDetentionRateDemoSeeder.SeedAsync(_context);
+            await YardInventoryDemoSeeder.SeedAsync(_context);
+        }
     }
 
     /// <summary>

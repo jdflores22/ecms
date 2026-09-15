@@ -55,6 +55,10 @@ public class EvaluationsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
     }
 
     [HttpPost("reject")]
@@ -67,6 +71,10 @@ public class EvaluationsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
     }
 
@@ -82,6 +90,10 @@ public class EvaluationsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
     }
 }

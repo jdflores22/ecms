@@ -158,13 +158,20 @@ public class UploadAccessService : IUploadAccessService
         if (string.IsNullOrWhiteSpace(raw))
             return null;
 
-        var path = raw.Trim();
+        var path = raw.Trim().Replace('\\', '/');
         if (!path.StartsWith('/'))
             path = $"/{path}";
 
-        if (!path.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+        if (path.Contains("..", StringComparison.Ordinal))
             return null;
 
-        return path;
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length < 2
+            || !string.Equals(segments[0], "uploads", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return "/" + string.Join('/', segments);
     }
 }

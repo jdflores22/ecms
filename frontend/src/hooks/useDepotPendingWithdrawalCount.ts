@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
-import { withdrawalApi } from '../services/api'
+import { COUNT_POLL_MS, fetchCachedDepotWithdrawalReviewCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 
 export function useDepotPendingWithdrawalCount(
@@ -18,9 +18,8 @@ export function useDepotPendingWithdrawalCount(
       setCount(0)
       return
     }
-    withdrawalApi
-      .pendingReviewCount()
-      .then(({ data }) => setCount(data.count))
+    fetchCachedDepotWithdrawalReviewCount()
+      .then((count) => setCount(count))
       .catch(() => {})
   }, [enabled])
 
@@ -30,7 +29,7 @@ export function useDepotPendingWithdrawalCount(
       return undefined
     }
     const cancelDeferred = scheduleNonCritical(load)
-    const interval = setInterval(load, 30_000)
+    const interval = setInterval(load, COUNT_POLL_MS)
     return () => {
       cancelDeferred()
       clearInterval(interval)

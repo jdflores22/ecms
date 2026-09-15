@@ -50,7 +50,7 @@ public static class RolePageKeys
         AdminReports, DepotReports, EvaluatorReports, TruckerReports,
         DepotDailyReturns, DepotGateScan, DepotSchedules,
         AdminPayments,
-        TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
+        TruckerReturns, TruckerPayments, TruckerDemurrageBilling, TruckerStatementOfAccounts, TruckerWithdrawals, TruckerQr, TruckerQrPrint,
         EvaluatorAtw, EvaluatorCro, DepotWithdrawals, DepotBroadcasts, TruckerNotifications,
         AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue, AdminTruckerNews,
     };

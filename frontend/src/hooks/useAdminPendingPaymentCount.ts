@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
-import { paymentApi } from '../services/api'
+import { COUNT_POLL_MS, fetchCachedAdminPendingPaymentCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 import { setupActivePolling } from '../utils/polling'
 
@@ -19,9 +19,8 @@ export function useAdminPendingPaymentCount(
       setCount(0)
       return
     }
-    paymentApi
-      .pendingCount()
-      .then(({ data }) => setCount(data.count))
+    fetchCachedAdminPendingPaymentCount()
+      .then((count) => setCount(count))
       .catch(() => {})
   }, [enabled])
 
@@ -31,7 +30,7 @@ export function useAdminPendingPaymentCount(
       return undefined
     }
     const cancelDeferred = scheduleNonCritical(load)
-    const stopPolling = setupActivePolling(load, 30_000)
+    const stopPolling = setupActivePolling(load, COUNT_POLL_MS)
     return () => {
       cancelDeferred()
       stopPolling()

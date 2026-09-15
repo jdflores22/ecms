@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { canAccessPage } from '../config/routeAccess'
-import { evaluationApi } from '../services/api'
+import { COUNT_POLL_MS, fetchCachedPendingEvaluationCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 
 export function useEvaluatorPendingEvaluationCount(
@@ -18,9 +18,8 @@ export function useEvaluatorPendingEvaluationCount(
       setCount(0)
       return
     }
-    evaluationApi
-      .pendingCount()
-      .then(({ data }) => setCount(data.count))
+    fetchCachedPendingEvaluationCount()
+      .then((count) => setCount(count))
       .catch(() => {})
   }, [enabled])
 
@@ -30,7 +29,7 @@ export function useEvaluatorPendingEvaluationCount(
       return undefined
     }
     const cancelDeferred = scheduleNonCritical(load)
-    const interval = setInterval(load, 30_000)
+    const interval = setInterval(load, COUNT_POLL_MS)
     return () => {
       cancelDeferred()
       clearInterval(interval)

@@ -42,23 +42,18 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<IReadOnlyList<PreAdviceDto>> GetAllAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
-        var query = _db.PreAdvices
-            .AsNoTracking()
-            .Include(p => p.Trucker)
-            .Include(p => p.ShippingLine)
-            .Include(p => p.Container)
-            .Include(p => p.Evaluation)
-            .Include(p => p.Schedule)
-            .AsQueryable();
-
-        if (RoleNames.IsPreAdviceManager(role))
-            query = query.Where(p => p.TruckerId == userId);
-        else if (role == RoleNames.ShippingLineEvaluator)
-        {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            if (user.ShippingLineId.HasValue)
-                query = query.Where(p => p.ShippingLineId == user.ShippingLineId);
-        }
+        var scope = await GetRoleScopeAsync(userId, role, cancellationToken);
+        var query = ApplyRoleScope(
+            _db.PreAdvices
+                .AsNoTracking()
+                .Include(p => p.Trucker)
+                .Include(p => p.ShippingLine)
+                .Include(p => p.Container)
+                .Include(p => p.Evaluation)
+                .Include(p => p.Schedule),
+            userId,
+            role,
+            scope);
 
         var items = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(cancellationToken);
         var damageIds = await LoadDamageReportIdsAsync(items.Select(p => p.Id).ToList(), cancellationToken);
@@ -68,7 +63,8 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<PreAdviceDto?> GetByIdAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
     {
-        var item = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var item = await (await GetQueryableAsync(id, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (item is null) return null;
         var damageIds = await LoadDamageReportIdsAsync(new[] { item.Id }, cancellationToken);
         var qrByPreAdvice = await LoadQrInfoByPreAdviceIdsAsync(new[] { item.Id }, cancellationToken);
@@ -81,7 +77,7 @@ public class PreAdviceService : IPreAdviceService
         string role,
         CancellationToken cancellationToken = default)
     {
-        var item = await GetQueryable(id, userId, role)
+        var item = await (await GetQueryableAsync(id, userId, role, cancellationToken))
             .Include(p => p.Schedule!)
                 .ThenInclude(s => s.QRBooking)
             .FirstOrDefaultAsync(cancellationToken);
@@ -341,7 +337,8 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<PreAdviceDto?> UpdateAsync(int id, UpdatePreAdviceRequest request, int userId, string role, CancellationToken cancellationToken = default)
     {
-        var preAdvice = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var preAdvice = await (await GetQueryableAsync(id, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null || preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             return null;
 
@@ -387,7 +384,8 @@ public class PreAdviceService : IPreAdviceService
 
     public async Task<bool> DeleteAsync(int id, int userId, string role, CancellationToken cancellationToken = default)
     {
-        var preAdvice = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var preAdvice = await (await GetQueryableAsync(id, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null || preAdvice.Status != PreAdviceStatus.Draft)
             return false;
 
@@ -403,7 +401,8 @@ public class PreAdviceService : IPreAdviceService
             .Where(u => u.Id == userId)
             .Select(u => u.Role.Name)
             .FirstOrDefaultAsync(cancellationToken) ?? RoleNames.Trucker;
-        var preAdvice = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var preAdvice = await (await GetQueryableAsync(id, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null || preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             return null;
 
@@ -500,7 +499,8 @@ public class PreAdviceService : IPreAdviceService
         string? reason = null,
         CancellationToken cancellationToken = default)
     {
-        var preAdvice = await GetQueryable(id, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var preAdvice = await (await GetQueryableAsync(id, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null)
             return null;
 
@@ -643,7 +643,8 @@ public class PreAdviceService : IPreAdviceService
         if (!RoleNames.IsPreAdviceManager(role))
             throw new InvalidOperationException("Only truckers can upload container photos.");
 
-        var preAdvice = await GetQueryable(preAdviceId, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var preAdvice = await (await GetQueryableAsync(preAdviceId, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null)
             return null;
 
@@ -713,7 +714,8 @@ public class PreAdviceService : IPreAdviceService
         if (!RoleNames.IsPreAdviceManager(role))
             return false;
 
-        var preAdvice = await GetQueryable(preAdviceId, userId, role).FirstOrDefaultAsync(cancellationToken);
+        var preAdvice = await (await GetQueryableAsync(preAdviceId, userId, role, cancellationToken))
+            .FirstOrDefaultAsync(cancellationToken);
         if (preAdvice is null)
             return false;
 
@@ -735,7 +737,8 @@ public class PreAdviceService : IPreAdviceService
 
     private async Task<bool> CanAccessPreAdviceAsync(int preAdviceId, int userId, string role, CancellationToken cancellationToken)
     {
-        var preAdvice = await _db.PreAdvices.FirstOrDefaultAsync(p => p.Id == preAdviceId, cancellationToken);
+        var preAdvice = await _db.PreAdvices.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == preAdviceId, cancellationToken);
         if (preAdvice is null)
             return false;
 
@@ -744,15 +747,78 @@ public class PreAdviceService : IPreAdviceService
 
         if (role == RoleNames.ShippingLineEvaluator)
         {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            return !user.ShippingLineId.HasValue || preAdvice.ShippingLineId == user.ShippingLineId;
+            var user = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, cancellationToken);
+            return user.ShippingLineId.HasValue && preAdvice.ShippingLineId == user.ShippingLineId;
         }
 
-        return true;
+        if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue)
+                return false;
+
+            var schedule = await _db.Schedules.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.PreAdviceId == preAdviceId, cancellationToken);
+            return schedule?.DepotId == user.DepotId;
+        }
+
+        return role == RoleNames.Administrator;
     }
 
-    private IQueryable<PreAdvice> GetQueryable(int id, int userId, string role)
+    private sealed record PreAdviceRoleScope(int? ShippingLineId, int? DepotId);
+
+    private async Task<PreAdviceRoleScope> GetRoleScopeAsync(
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
     {
+        if (role is not (RoleNames.ShippingLineEvaluator or RoleNames.DepotPersonnel))
+            return new PreAdviceRoleScope(null, null);
+
+        var user = await _db.Users.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => new { u.ShippingLineId, u.DepotId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return new PreAdviceRoleScope(user?.ShippingLineId, user?.DepotId);
+    }
+
+    private static IQueryable<PreAdvice> ApplyRoleScope(
+        IQueryable<PreAdvice> query,
+        int userId,
+        string role,
+        PreAdviceRoleScope scope)
+    {
+        if (RoleNames.IsPreAdviceManager(role))
+            return query.Where(p => p.TruckerId == userId);
+
+        if (role == RoleNames.ShippingLineEvaluator)
+        {
+            if (!scope.ShippingLineId.HasValue)
+                return query.Where(_ => false);
+            return query.Where(p => p.ShippingLineId == scope.ShippingLineId);
+        }
+
+        if (role == RoleNames.DepotPersonnel)
+        {
+            if (!scope.DepotId.HasValue)
+                return query.Where(_ => false);
+            return query.Where(p => p.Schedule != null && p.Schedule.DepotId == scope.DepotId);
+        }
+
+        if (role == RoleNames.Administrator)
+            return query;
+
+        return query.Where(_ => false);
+    }
+
+    private async Task<IQueryable<PreAdvice>> GetQueryableAsync(
+        int id,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        var scope = await GetRoleScopeAsync(userId, role, cancellationToken);
         var query = _db.PreAdvices
             .Include(p => p.Trucker)
             .Include(p => p.ShippingLine)
@@ -760,10 +826,7 @@ public class PreAdviceService : IPreAdviceService
             .Include(p => p.Evaluation)
             .Where(p => p.Id == id);
 
-        if (RoleNames.IsPreAdviceManager(role))
-            query = query.Where(p => p.TruckerId == userId);
-
-        return query;
+        return ApplyRoleScope(query, userId, role, scope);
     }
 
     private async Task<string> GenerateReferenceNoAsync(CancellationToken cancellationToken)

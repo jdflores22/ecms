@@ -51,13 +51,27 @@ export interface LoginResponse {
 
 const TOKEN_EXPIRY_SKEW_MS = 30_000
 
+const tokenExpiryCache = new Map<string, number | null>()
+
 function getAccessTokenExpiryMs(token: string): number | null {
+  const cached = tokenExpiryCache.get(token)
+  if (cached !== undefined) return cached
+
+  let expiryMs: number | null = null
   try {
     const payload = JSON.parse(atob(token.split('.')[1] ?? '')) as { exp?: number }
-    return typeof payload.exp === 'number' ? payload.exp * 1000 : null
+    expiryMs = typeof payload.exp === 'number' ? payload.exp * 1000 : null
   } catch {
-    return null
+    expiryMs = null
   }
+
+  tokenExpiryCache.set(token, expiryMs)
+  if (tokenExpiryCache.size > 8) {
+    const oldest = tokenExpiryCache.keys().next().value
+    if (oldest) tokenExpiryCache.delete(oldest)
+  }
+
+  return expiryMs
 }
 
 export function isAccessTokenExpired(token: string, skewMs = TOKEN_EXPIRY_SKEW_MS): boolean {
@@ -72,6 +86,7 @@ let refreshBlocked = false
 export function resetAuthRefreshState() {
   refreshBlocked = false
   refreshPromise = null
+  tokenExpiryCache.clear()
 }
 
 function requestRefreshAccessToken(): Promise<string | null> {

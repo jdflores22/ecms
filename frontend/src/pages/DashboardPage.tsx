@@ -18,7 +18,8 @@ import { listHeroActionSx } from '../components/layout/ListPagePrimitives'
 import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
 import CyAllocationDashboardPanel from '../components/dashboard/CyAllocationDashboardPanel'
 import { isTruckerOrBroker, roleLabel } from '../config/roleConfig'
-import { cyAllocationApi, dashboardApi } from '../services/api'
+import { cyAllocationApi } from '../services/api'
+import { fetchCachedDashboard } from '../utils/dashboardApiCache'
 import type { CyAllocation } from '../services/api'
 import { useAppSelector } from '../store/hooks'
 
@@ -69,9 +70,8 @@ export default function DashboardPage() {
     if (!user) return
     setLoading(true)
     setError('')
-    dashboardApi
-      .get(user.role)
-      .then(({ data: payload }) => setData(payload as DashboardPayload))
+    fetchCachedDashboard(user.role)
+      .then((payload) => setData(payload as DashboardPayload))
       .catch((err) => {
         const msg = err instanceof Error ? err.message : 'Failed to load dashboard data.'
         setError(msg)

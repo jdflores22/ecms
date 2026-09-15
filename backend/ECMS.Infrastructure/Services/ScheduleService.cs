@@ -40,9 +40,23 @@ public class ScheduleService : IScheduleService
 
         if (role == RoleNames.DepotPersonnel)
         {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            if (user.DepotId.HasValue)
-                query = query.Where(s => s.DepotId == user.DepotId);
+            var depotId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.DepotId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!depotId.HasValue)
+                return Array.Empty<ScheduleDto>();
+            query = query.Where(s => s.DepotId == depotId);
+        }
+        else if (role == RoleNames.ShippingLineEvaluator)
+        {
+            var shippingLineId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.ShippingLineId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!shippingLineId.HasValue)
+                return Array.Empty<ScheduleDto>();
+            query = query.Where(s => s.PreAdvice.ShippingLineId == shippingLineId);
         }
         else if (RoleNames.IsPreAdviceManager(role))
             query = query.Where(s => s.PreAdvice.TruckerId == userId);
@@ -64,9 +78,23 @@ public class ScheduleService : IScheduleService
 
         if (role == RoleNames.DepotPersonnel)
         {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            if (user.DepotId.HasValue)
-                query = query.Where(s => s.DepotId == user.DepotId);
+            var depotId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.DepotId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!depotId.HasValue)
+                return null;
+            query = query.Where(s => s.DepotId == depotId);
+        }
+        else if (role == RoleNames.ShippingLineEvaluator)
+        {
+            var shippingLineId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.ShippingLineId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!shippingLineId.HasValue)
+                return null;
+            query = query.Where(s => s.PreAdvice.ShippingLineId == shippingLineId);
         }
         else if (RoleNames.IsPreAdviceManager(role))
             query = query.Where(s => s.PreAdvice.TruckerId == userId);
@@ -87,15 +115,23 @@ public class ScheduleService : IScheduleService
             query = query.Where(s => s.PreAdvice.TruckerId == userId);
         else if (role == RoleNames.DepotPersonnel)
         {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            if (user.DepotId.HasValue)
-                query = query.Where(s => s.DepotId == user.DepotId);
+            var depotId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.DepotId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!depotId.HasValue)
+                return null;
+            query = query.Where(s => s.DepotId == depotId);
         }
         else if (role == RoleNames.ShippingLineEvaluator)
         {
-            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
-            if (user.ShippingLineId.HasValue)
-                query = query.Where(s => s.PreAdvice.ShippingLineId == user.ShippingLineId);
+            var shippingLineId = await _db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.ShippingLineId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!shippingLineId.HasValue)
+                return null;
+            query = query.Where(s => s.PreAdvice.ShippingLineId == shippingLineId);
         }
 
         var schedule = await query.FirstOrDefaultAsync(cancellationToken);

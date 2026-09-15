@@ -51,7 +51,7 @@ public class QrCodeService : IQrService
         var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
-        if (booking is null || !CanAccessBooking(booking, userId, role))
+        if (booking is null || !await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return null;
 
         return MapToDto(booking);
@@ -66,7 +66,7 @@ public class QrCodeService : IQrService
         var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
-        if (booking is null || !CanAccessBooking(booking, userId, role))
+        if (booking is null || !await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return null;
 
         return RenderQrPng(booking.PayloadJson);
@@ -82,7 +82,7 @@ public class QrCodeService : IQrService
             .Include(x => x.Schedule).ThenInclude(s => s.Payment)
             .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
 
-        if (booking is null || !CanAccessBooking(booking, userId, role))
+        if (booking is null || !await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return null;
 
         // Confirmation PDF is only available after payment is approved / schedule confirmed.
@@ -251,7 +251,7 @@ public class QrCodeService : IQrService
         if (schedule.QRBooking is not null)
         {
             schedule.QRBooking.Schedule ??= schedule;
-            if (!CanAccessBooking(schedule.QRBooking, userId, role))
+            if (!await CanAccessBookingAsync(schedule.QRBooking, userId, role, cancellationToken))
                 throw new UnauthorizedAccessException("You are not allowed to access this QR booking.");
 
             await EnsureConfirmationPdfByBookingIdAsync(schedule.QRBooking.Id, cancellationToken);
@@ -325,7 +325,7 @@ public class QrCodeService : IQrService
         var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.ScheduleId == scheduleId, cancellationToken);
 
-        if (booking is null || !CanAccessBooking(booking, userId, role))
+        if (booking is null || !await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return null;
 
         return MapToDto(booking);
@@ -342,7 +342,7 @@ public class QrCodeService : IQrService
         var booking = await LoadBookingQuery()
             .FirstOrDefaultAsync(x => x.QRCode == qrCode.Trim(), cancellationToken);
 
-        if (booking is null || !CanAccessBooking(booking, userId, role))
+        if (booking is null || !await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return null;
 
         return MapToDto(booking);
@@ -520,7 +520,7 @@ public class QrCodeService : IQrService
         if (booking is null)
             return new BookLogicteckResponse(false, "Transfer QR not found.", null, null, null);
 
-        if (!CanAccessBooking(booking, userId, role))
+        if (!await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return new BookLogicteckResponse(false, "You are not allowed to send this pre-forecast data to LOGICTECK.", null, null, null);
 
         if (booking.IsUsed)
@@ -702,17 +702,39 @@ public class QrCodeService : IQrService
         return $"{baseUrl}/api/logicteck/validate-qr";
     }
 
-    private static bool CanAccessBooking(Domain.Entities.QRBooking booking, int userId, string role)
+    private async Task<bool> CanAccessBookingAsync(
+        Domain.Entities.QRBooking booking,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
     {
         var normalized = RoleNames.NormalizeTransactionRole(role);
-        if (string.Equals(normalized, RoleNames.Administrator, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(normalized, RoleNames.DepotPersonnel, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(normalized, RoleNames.ShippingLineEvaluator, StringComparison.OrdinalIgnoreCase))
-        {
+        if (string.Equals(normalized, RoleNames.Administrator, StringComparison.OrdinalIgnoreCase))
             return true;
+
+        if (RoleNames.IsTruckerOrBroker(normalized))
+            return booking.Schedule.PreAdvice.TruckerId == userId;
+
+        if (string.Equals(normalized, RoleNames.DepotPersonnel, StringComparison.OrdinalIgnoreCase))
+        {
+            var depotId = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.DepotId)
+                .FirstOrDefaultAsync(cancellationToken);
+            return depotId.HasValue && booking.Schedule.DepotId == depotId.Value;
         }
 
-        return booking.Schedule.PreAdvice.TruckerId == userId;
+        if (string.Equals(normalized, RoleNames.ShippingLineEvaluator, StringComparison.OrdinalIgnoreCase))
+        {
+            var shippingLineId = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.ShippingLineId)
+                .FirstOrDefaultAsync(cancellationToken);
+            return shippingLineId.HasValue
+                && booking.Schedule.PreAdvice.ShippingLineId == shippingLineId.Value;
+        }
+
+        return false;
     }
 
     private static ValidateQrResponse BuildValidateResponse(Domain.Entities.QRBooking booking, bool valid, string message)

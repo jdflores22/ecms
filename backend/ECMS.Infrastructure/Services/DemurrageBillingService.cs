@@ -118,8 +118,6 @@ public class DemurrageBillingService : IDemurrageBillingService
         string role,
         CancellationToken cancellationToken = default)
     {
-        await MaybeSyncExpiredBillingsAsync(cancellationToken);
-
         if (role is not (RoleNames.Trucker or RoleNames.Broker or RoleNames.ShippingLineEvaluator))
             return Array.Empty<DemurrageBillingDto>();
 
@@ -157,8 +155,6 @@ public class DemurrageBillingService : IDemurrageBillingService
         string role,
         CancellationToken cancellationToken = default)
     {
-        await MaybeSyncExpiredBillingsAsync(cancellationToken);
-
         var billing = await BillingQueryWithIncludes()
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
 
@@ -393,6 +389,8 @@ public class DemurrageBillingService : IDemurrageBillingService
         int containerTypeId,
         CancellationToken cancellationToken = default)
     {
+        await MaybeSyncExpiredBillingsAsync(cancellationToken);
+
         var normalized = NormalizeContainerNo(containerNo);
         var billing = await _db.DemurrageBillings
             .AsNoTracking()
