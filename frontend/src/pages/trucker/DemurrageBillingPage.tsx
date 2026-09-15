@@ -37,6 +37,7 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
+  ListTablePagination,
   LIST_PRIMARY,
   listMobileActionsSx,
   listPageRootSx,
@@ -45,6 +46,7 @@ import {
 import { demurrageBillingApi, type DemurrageBilling } from '../../services/api'
 import { formatDate, formatPeso } from '../../utils/datetime'
 import { paymentStatusColor, paymentStatusLabel } from '../../utils/truckerPayment'
+import { useClientPagination } from '../../hooks/useClientPagination'
 
 const STATUS_TABS = [
   { key: 'Pending', label: 'Payment due', summaryColor: '#ED6C02' },
@@ -102,6 +104,8 @@ export default function TruckerDemurrageBillingPage() {
     () => items.filter((item) => item.status === activeTab).sort((a, b) => b.totalAmount - a.totalAmount),
     [items, activeTab],
   )
+
+  const { page, setPage, total: filteredTotal, paginatedItems } = useClientPagination(filtered, activeTab)
 
   const startUpload = (id: number) => {
     setSelectedId(id)
@@ -234,7 +238,7 @@ export default function TruckerDemurrageBillingPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filtered.map((item) => {
+                  {paginatedItems.map((item) => {
                     const canUpload = item.status === 'Pending' || item.status === 'Rejected'
                     return (
                       <TableRow key={item.id} hover>
@@ -300,10 +304,11 @@ export default function TruckerDemurrageBillingPage() {
                 </TableBody>
               </Table>
             </TableContainer>
+            <ListTablePagination count={filteredTotal} page={page} onPageChange={setPage} />
           </ListDesktopOnly>
 
           <ListMobileOnly>
-            {filtered.map((item) => {
+            {paginatedItems.map((item) => {
               const canUpload = item.status === 'Pending' || item.status === 'Rejected'
               return (
                 <ListMobileCard key={item.id} onClick={() => navigate(demurrageBillingDetailPath(item.id, 'trucker'))}>
@@ -344,6 +349,7 @@ export default function TruckerDemurrageBillingPage() {
                 </ListMobileCard>
               )
             })}
+            <ListTablePagination count={filteredTotal} page={page} onPageChange={setPage} />
           </ListMobileOnly>
         </>
       )}

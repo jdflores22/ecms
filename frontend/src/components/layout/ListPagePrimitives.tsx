@@ -1,5 +1,6 @@
-import { Box, Paper, Typography } from '@mui/material'
+import { Box, Paper, TablePagination, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
+import { LIST_PAGE_SIZE } from '../../hooks/useClientPagination'
 import { ICS_PRIMARY, hexToRgba } from './DetailPagePrimitives'
 
 export const LIST_PRIMARY = ICS_PRIMARY
@@ -122,6 +123,35 @@ export function ListMobileChipRow({ children }: { children: ReactNode }) {
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.25, minWidth: 0 }}>
       {children}
     </Box>
+  )
+}
+
+type ListTablePaginationProps = {
+  count: number
+  page: number
+  onPageChange: (page: number) => void
+}
+
+export function ListTablePagination({ count, page, onPageChange }: ListTablePaginationProps) {
+  if (count <= LIST_PAGE_SIZE) return null
+
+  return (
+    <TablePagination
+      component="div"
+      count={count}
+      page={page}
+      onPageChange={(_, nextPage) => onPageChange(nextPage)}
+      rowsPerPage={LIST_PAGE_SIZE}
+      rowsPerPageOptions={[LIST_PAGE_SIZE]}
+      labelDisplayedRows={({ from, to, count: total }) => `${from}–${to} of ${total}`}
+      sx={{
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        '& .MuiTablePagination-selectLabel': { display: 'none' },
+        '& .MuiTablePagination-select': { display: 'none' },
+        '& .MuiTablePagination-input': { display: 'none' },
+      }}
+    />
   )
 }
 

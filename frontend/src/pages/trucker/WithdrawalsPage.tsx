@@ -13,6 +13,7 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
+  ListTablePagination,
   LIST_PRIMARY,
   listHeroActionSx,
   listPageRootSx,
@@ -22,6 +23,7 @@ import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type Withdrawal } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatDateTime } from '../../utils/datetime'
+import { useClientPagination } from '../../hooks/useClientPagination'
 
 const primaryDark = LIST_PRIMARY
 
@@ -95,6 +97,11 @@ export default function TruckerWithdrawalsPage() {
     if (widget === 'turnaround') return items.filter((w) => ['Approved', 'Rejected', 'Released', 'Completed'].includes(w.status))
     return items
   }, [items, widget])
+
+  const { page, setPage, total: filteredTotal, paginatedItems } = useClientPagination(
+    filteredItems,
+    widget ?? 'all',
+  )
 
   const load = useCallback(() => {
     setLoading(true)
@@ -284,7 +291,7 @@ export default function TruckerWithdrawalsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredItems.map((row) => (
+                  {paginatedItems.map((row) => (
                     <TableRow key={row.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/trucker/withdrawals/${row.id}`)}>
                       <TableCell sx={{ fontWeight: 700 }}>{row.referenceNo}</TableCell>
                       <TableCell>{row.atwNumber}</TableCell>
@@ -325,10 +332,11 @@ export default function TruckerWithdrawalsPage() {
                 </TableBody>
               </Table>
             </TableContainer>
+            <ListTablePagination count={filteredTotal} page={page} onPageChange={setPage} />
           </ListDesktopOnly>
 
           <ListMobileOnly>
-            {filteredItems.map((row) => (
+            {paginatedItems.map((row) => (
               <ListMobileCard key={row.id} onClick={() => navigate(`/trucker/withdrawals/${row.id}`)}>
                 <ListMobileTitle>{row.referenceNo}</ListMobileTitle>
                 <ListMobileMeta>ATW {row.atwNumber}</ListMobileMeta>
@@ -345,6 +353,7 @@ export default function TruckerWithdrawalsPage() {
                 </Typography>
               </ListMobileCard>
             ))}
+            <ListTablePagination count={filteredTotal} page={page} onPageChange={setPage} />
           </ListMobileOnly>
         </>
       )}

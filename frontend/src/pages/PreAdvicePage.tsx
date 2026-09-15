@@ -14,6 +14,7 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
+  ListTablePagination,
   LIST_PRIMARY,
   listHeroActionSx,
   listMobileActionsSx,
@@ -28,6 +29,7 @@ import { fetchCachedPreAdviceList } from '../utils/truckerListCache'
 import { useAppSelector } from '../store/hooks'
 import { formatDateTime, parsePhEndOfDay, parsePhStartOfDay } from '../utils/datetime'
 import { PreAdviceStatusChip } from '../components/preAdvice/PreAdviceStatusChip'
+import { useClientPagination } from '../hooks/useClientPagination'
 
 const primaryDark = LIST_PRIMARY
 const primaryLight = '#00A3E0'
@@ -97,6 +99,9 @@ export default function PreAdvicePage() {
       return true
     })
   }, [items, statusFilter, shippingLineFilter, dateFrom, dateTo])
+
+  const filterKey = `${statusFilter}|${shippingLineFilter}|${dateFrom}|${dateTo}`
+  const { page, setPage, total: filteredTotal, paginatedItems } = useClientPagination(filteredItems, filterKey)
 
   const summary = useMemo(() => {
     const forCompliance = items.filter((i) => i.status === 'ForCompliance').length
@@ -369,7 +374,7 @@ export default function PreAdvicePage() {
         ) : (
           <>
             <ListMobileOnly>
-              {filteredItems.map((item) => (
+              {paginatedItems.map((item) => (
                 <ListMobileCard key={item.id}>
                   <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                   <ListMobileMeta>{item.shippingLineName}</ListMobileMeta>
@@ -456,7 +461,7 @@ export default function PreAdvicePage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredItems.map((item) => (
+                    {paginatedItems.map((item) => (
                       <TableRow
                         key={item.id}
                         hover
@@ -554,6 +559,7 @@ export default function PreAdvicePage() {
                 </Table>
               </TableContainer>
             </ListDesktopOnly>
+            <ListTablePagination count={filteredTotal} page={page} onPageChange={setPage} />
           </>
         )}
       </Paper>
