@@ -87,6 +87,9 @@
     <string name="preforecast_submit_confirm_body">This will send the pre-forecast to a shipping-line evaluator. You will not be able to edit container details after submission, but you can still cancel while evaluation is in progress.</string>
     <string name="preforecast_submit_confirm_resubmit_body">This will send your corrected pre-forecast back to the shipping-line evaluator for another review.</string>
     <string name="preforecast_submit_confirm_photos_ready">All container identity photos are uploaded and ready for review.</string>
+    <string name="preforecast_submit_uploading">Uploading container photos…</string>
+    <string name="preforecast_submit_submitting">Submitting pre-forecast…</string>
+    <string name="preforecast_submit_please_wait">Please wait. Do not close or navigate away.</string>
     <string name="preforecast_pay_demurrage">Pay demurrage</string>
     <string name="preforecast_view_schedule_tab">View schedule</string>
     <string name="preforecast_view_qr_tab">View QR</string>

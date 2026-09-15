@@ -48,6 +48,7 @@ import com.ecms.trucker.util.formatTruckerScheduleSlot
 import com.ecms.trucker.util.isScheduleDetailsVisible
 import com.ecms.trucker.util.truckerScheduleStatusHint
 import com.ecms.trucker.util.canBookLogicteck
+import com.ecms.trucker.util.buildReturnJourneySteps
 import com.ecms.trucker.util.logicteckStatusFromBooking
 import com.ecms.trucker.util.needsPaymentUpload
 import com.ecms.trucker.util.resolvePaymentStatus

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -445,6 +446,8 @@ fun PreForecastDetailScreen(
     var cancelRequestOpen by remember { mutableStateOf(false) }
     var cancelReason by remember { mutableStateOf("") }
     var submitConfirmOpen by remember { mutableStateOf(false) }
+    var submitInProgress by remember { mutableStateOf(false) }
+    var submitStatusMessage by remember { mutableStateOf("") }
     var pendingPhotos by remember { mutableStateOf<Map<String, Uri>>(emptyMap()) }
     var uploadProgress by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var tabInitialized by remember(id) { mutableStateOf(false) }
@@ -589,11 +592,13 @@ fun PreForecastDetailScreen(
         }
     }
 
+    BackHandler(enabled = submitInProgress) { }
+
     IcsScreenScaffold(
         title = stringResource(R.string.preforecast_detail_title),
-        onBack = onBack,
+        onBack = if (submitInProgress) null else onBack,
         refreshing = loadState.refreshing,
-        onRefresh = { load() },
+        onRefresh = if (submitInProgress) null else ({ load() }),
         snackbarHost = { _ -> SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
         when {
@@ -604,7 +609,7 @@ fun PreForecastDetailScreen(
                 val isDraft = p.status.equals("Draft", true)
                 val isForCompliance = p.status.equals("ForCompliance", true)
                 val isSubmitted = p.status.equals("Submitted", true)
-                val canManagePhotos = isDraft || isForCompliance
+                val canManagePhotos = (isDraft || isForCompliance) && !submitInProgress
                 val canSubmit = (isDraft || isForCompliance) && (!freeTimeExpired || demurrageSettled)
                 val docsByCategory = docs.associateBy { it.category.orEmpty() }
                 val damageByView = docs
@@ -744,13 +749,13 @@ fun PreForecastDetailScreen(
                     }
                     item(key = "hero") {
                         PreForecastHeroActions(
-                            canEdit = canEdit && !editing,
+                            canEdit = canEdit && !editing && !submitInProgress,
                             canDelete = canDelete,
                             canCancel = canCancel,
                             canSubmit = canSubmitEnabled,
                             submitLabel = submitLabel,
                             showPayDemurrage = showPayDemurrage,
-                            loading = actionLoading,
+                            loading = actionLoading || submitInProgress,
                             onEdit = {
                                 scope.launch {
                                     if (lookups == null) {
@@ -774,7 +779,7 @@ fun PreForecastDetailScreen(
                                 tabs.forEach { tab ->
                                     Tab(
                                         selected = activeTab == tab,
-                                        onClick = { selectedTab = tab },
+                                        onClick = { if (!submitInProgress) selectedTab = tab },
                                         text = {
                                             Text(
                                                 preForecastDetailTabLabel(
@@ -912,7 +917,7 @@ fun PreForecastDetailScreen(
         val p = item!!
         val isForComplianceSubmit = p.status.equals("ForCompliance", true)
         AlertDialog(
-            onDismissRequest = { submitConfirmOpen = false },
+            onDismissRequest = { if (!submitInProgress) submitConfirmOpen = false },
             title = {
                 Text(
                     stringResource(
@@ -964,18 +969,40 @@ fun PreForecastDetailScreen(
                         color = IcsColors.Success,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    if (submitInProgress) {
+                        Row(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Text(
+                                submitStatusMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IcsColors.TextSecondary,
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = !actionLoading,
+                    enabled = !submitInProgress,
                     onClick = {
                         scope.launch {
+                            submitInProgress = true
                             actionLoading = true
-                            val categoriesToUpload = REQUIRED_PHOTO_CATEGORY_VALUES.filter { key ->
-                                pendingPhotos.containsKey(key) && docs.none { it.category == key }
-                            }.mapNotNull { key ->
-                                CONTAINER_PHOTO_GRID_CATEGORIES.find { it.value == key }
+                            val categoriesToUpload = CONTAINER_PHOTO_GRID_CATEGORIES.filter { category ->
+                                pendingPhotos.containsKey(category.value) &&
+                                    docs.none { it.category == category.value }
+                            }
+                            submitStatusMessage = if (categoriesToUpload.isEmpty()) {
+                                context.getString(R.string.preforecast_submit_submitting)
+                            } else {
+                                context.getString(R.string.preforecast_submit_uploading)
                             }
                             var uploadFailed = false
                             for (category in categoriesToUpload) {
@@ -995,6 +1022,7 @@ fun PreForecastDetailScreen(
                             }
                             if (!uploadFailed) {
                                 docs = repository.getPreAdviceDocuments(id)
+                                submitStatusMessage = context.getString(R.string.preforecast_submit_submitting)
                                 runCatching { repository.submitPreAdvice(id) }
                                     .onSuccess {
                                         submitConfirmOpen = false
@@ -1006,12 +1034,16 @@ fun PreForecastDetailScreen(
                                     .onFailure { error = it.message }
                             }
                             uploadProgress = emptyMap()
+                            submitInProgress = false
                             actionLoading = false
+                            submitStatusMessage = ""
                         }
                     },
                 ) {
                     Text(
-                        if (isForComplianceSubmit) {
+                        if (submitInProgress) {
+                            submitStatusMessage
+                        } else if (isForComplianceSubmit) {
                             stringResource(R.string.preforecast_resubmit_for_evaluation)
                         } else {
                             stringResource(R.string.preforecast_submit_for_evaluation)
@@ -1020,11 +1052,40 @@ fun PreForecastDetailScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { submitConfirmOpen = false }) {
+                TextButton(
+                    onClick = { submitConfirmOpen = false },
+                    enabled = !submitInProgress,
+                ) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
         )
+    }
+
+    if (submitInProgress) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CircularProgressIndicator(color = Color.White)
+                Text(
+                    submitStatusMessage,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    stringResource(R.string.preforecast_submit_please_wait),
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
     }
 
     if (cancelRequestOpen) {
