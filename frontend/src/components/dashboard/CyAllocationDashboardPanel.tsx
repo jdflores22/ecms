@@ -117,11 +117,11 @@ function YardCapacityRow({ row }: { row: CyAllocation }) {
         }}
       >
         <Box component="span" sx={{ color: '#2E7D32' }}>
-          {row.availableCount} avail
+          {row.atYardCount} at yard
         </Box>
         {' · '}
         <Box component="span" sx={{ color: '#ED6C02' }}>
-          {row.preAdvisedCount} pre-forecasted
+          +{row.confirmedCount} confirmed · +{row.preForecastCount} pre-forecast
         </Box>
         {' · '}
         <Box component="span" sx={{ color: '#6A1B9A' }}>

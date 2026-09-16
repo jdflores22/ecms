@@ -249,23 +249,43 @@ public class CyAllocationService : ICyAllocationService
         var catalogSizes = await GetActiveSizesAsync(cancellationToken);
         var catalogTypes = await GetActiveTypesAsync(cancellationToken);
         var releasedDetails = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(_db, shippingLineId, cancellationToken);
-        var preAdvisedByDepot = await GetPreAdvisedUsageByDepotAsync(
+        var workflowAtYardByDepot = await GetWorkflowAtYardUsageByDepotAsync(
             shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
         var manualByDepot = await GetManualYardUsageByDepotAsync(
+            shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
+        var (confirmedByDepot, preForecastByDepot) = await GetPipelineUsageByDepotAsync(
             shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
         var bookingByDepot = await GetBookingUsageByDepotAsync(shippingLineId, depotIds, teuByLabel, cancellationToken);
 
         return contracts.Select(contract =>
         {
-            var yardUsage = MergeDepotUsage(
-                preAdvisedByDepot.GetValueOrDefault(contract.DepotId),
+            var atYardUsage = MergeDepotUsage(
+                workflowAtYardByDepot.GetValueOrDefault(contract.DepotId),
                 manualByDepot.GetValueOrDefault(contract.DepotId));
+            var confirmedUsage = confirmedByDepot.GetValueOrDefault(contract.DepotId);
+            var preForecastUsage = preForecastByDepot.GetValueOrDefault(contract.DepotId);
+            var committedUsage = MergeDepotUsage(
+                MergeDepotUsage(atYardUsage, confirmedUsage),
+                preForecastUsage);
             var booking = bookingByDepot.GetValueOrDefault(contract.DepotId);
-            var breakdown = BuildBreakdown(contract, yardUsage, booking, catalogSizes, catalogTypes);
+            var breakdown = BuildBreakdown(
+                contract,
+                atYardUsage,
+                confirmedUsage,
+                preForecastUsage,
+                booking,
+                catalogSizes,
+                catalogTypes);
 
-            var preAdvisedTeu = yardUsage?.UsedTeu ?? 0m;
+            var atYardTeu = atYardUsage?.UsedTeu ?? 0m;
+            var confirmedTeu = confirmedUsage?.UsedTeu ?? 0m;
+            var preForecastTeu = preForecastUsage?.UsedTeu ?? 0m;
+            var preAdvisedTeu = committedUsage?.UsedTeu ?? 0m;
             var bookingTeu = booking?.UsedTeu ?? 0m;
-            var preAdvisedCount = yardUsage?.Count ?? 0;
+            var atYardCount = atYardUsage?.Count ?? 0;
+            var confirmedCount = confirmedUsage?.Count ?? 0;
+            var preForecastCount = preForecastUsage?.Count ?? 0;
+            var preAdvisedCount = committedUsage?.Count ?? 0;
             var bookingCount = booking?.Count ?? 0;
             var contractTeu = contract.ContractTeu;
             var availableTeu = Math.Max(0m, contractTeu - preAdvisedTeu);
@@ -289,10 +309,16 @@ public class CyAllocationService : ICyAllocationService
                 contract.ShippingLine.Name,
                 contractTeu,
                 contractCount,
+                atYardTeu,
+                confirmedTeu,
+                preForecastTeu,
                 preAdvisedTeu,
                 bookingTeu,
                 availableTeu,
                 availableCount,
+                atYardCount,
+                confirmedCount,
+                preForecastCount,
                 preAdvisedSlotCount,
                 bookingCount,
                 hasCapacity,
@@ -316,7 +342,9 @@ public class CyAllocationService : ICyAllocationService
 
     private static IReadOnlyList<CyAllocationBreakdownRowDto> BuildBreakdown(
         ShippingLineDepotContract contract,
-        DepotUsage? preAdvised,
+        DepotUsage? atYard,
+        DepotUsage? confirmed,
+        DepotUsage? preForecast,
         DepotUsage? booking,
         IReadOnlyList<ContainerSize> sizes,
         IReadOnlyList<ContainerType> types)
@@ -333,19 +361,32 @@ public class CyAllocationService : ICyAllocationService
             var groupKey = CyCapacityGroups.GetGroupKey(sizeKey);
             contractByGroup.TryGetValue(groupKey, out var contractCount);
 
-            var preAdvisedSizeCount = SumGroupCount(preAdvised, groupKey);
+            var atYardSizeCount = SumGroupCount(atYard, groupKey);
+            var confirmedSizeCount = SumGroupCount(confirmed, groupKey);
+            var preForecastSizeCount = SumGroupCount(preForecast, groupKey);
+            var preAdvisedSizeCount = atYardSizeCount + confirmedSizeCount + preForecastSizeCount;
             var bookingSizeCount = SumGroupCount(booking, groupKey);
             var availableCount = Math.Max(0, contractCount - preAdvisedSizeCount);
 
             var cells = types.Select(type =>
             {
-                var preCell = SumGroupCell(preAdvised, groupKey, type.Code);
+                var yardCell = SumGroupCell(atYard, groupKey, type.Code);
+                var confirmedCell = SumGroupCell(confirmed, groupKey, type.Code);
+                var preForecastCell = SumGroupCell(preForecast, groupKey, type.Code);
                 var bookCell = SumGroupCell(booking, groupKey, type.Code);
+                var preAdvisedCount = yardCell.Count + confirmedCell.Count + preForecastCell.Count;
+                var preAdvisedTeu = yardCell.UsedTeu + confirmedCell.UsedTeu + preForecastCell.UsedTeu;
                 return new CyAllocationBreakdownCellDto(
                     type.Code,
                     type.Label,
-                    preCell.Count,
-                    preCell.UsedTeu,
+                    yardCell.Count,
+                    yardCell.UsedTeu,
+                    confirmedCell.Count,
+                    confirmedCell.UsedTeu,
+                    preForecastCell.Count,
+                    preForecastCell.UsedTeu,
+                    preAdvisedCount,
+                    preAdvisedTeu,
                     bookCell.Count,
                     bookCell.UsedTeu);
             }).ToList();
@@ -355,6 +396,9 @@ public class CyAllocationService : ICyAllocationService
                 size.Teu,
                 size.Id,
                 contractCount,
+                atYardSizeCount,
+                confirmedSizeCount,
+                preForecastSizeCount,
                 preAdvisedSizeCount,
                 availableCount,
                 bookingSizeCount,
@@ -404,26 +448,69 @@ public class CyAllocationService : ICyAllocationService
         return sizes.ToDictionary(s => TeuCalculator.NormalizeLabel(s.Label), s => s.Teu);
     }
 
-    private async Task<Dictionary<int, DepotUsage>> GetPreAdvisedUsageByDepotAsync(
+    private async Task<Dictionary<int, DepotUsage>> GetWorkflowAtYardUsageByDepotAsync(
         int shippingLineId,
         IReadOnlyList<int> depotIds,
         IReadOnlyDictionary<string, decimal> teuByLabel,
         IReadOnlyDictionary<string, ReleasedYardDetail> releasedDetails,
         CancellationToken cancellationToken)
     {
+        var schedules = await _db.Schedules
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.Container)
+            .Include(s => s.QRBooking)
+            .Where(s => s.Status == ScheduleStatus.Completed)
+            .Where(s => s.QRBooking != null && s.QRBooking.GateCheckedInAt != null)
+            .Where(s => s.PreAdvice.Status == PreAdviceStatus.Approved)
+            .Where(s => s.PreAdvice.ShippingLineId == shippingLineId)
+            .Where(s => depotIds.Contains(s.DepotId))
+            .ToListAsync(cancellationToken);
+
+        var result = new Dictionary<int, DepotUsage>();
+        foreach (var schedule in schedules)
+        {
+            var releaseKey = YardInventoryReleaseHelper.BuildKey(
+                schedule.DepotId,
+                schedule.PreAdvice.ContainerNoNormalized,
+                schedule.PreAdvice.ContainerSizeId,
+                schedule.PreAdvice.ContainerTypeId);
+            if (releasedDetails.ContainsKey(releaseKey))
+                continue;
+
+            AddUsage(
+                result,
+                schedule.DepotId,
+                schedule.PreAdvice.Container.Size,
+                schedule.PreAdvice.Container.Type,
+                teuByLabel);
+        }
+
+        return result;
+    }
+
+    private async Task<(Dictionary<int, DepotUsage> Confirmed, Dictionary<int, DepotUsage> PreForecast)>
+        GetPipelineUsageByDepotAsync(
+            int shippingLineId,
+            IReadOnlyList<int> depotIds,
+            IReadOnlyDictionary<string, decimal> teuByLabel,
+            IReadOnlyDictionary<string, ReleasedYardDetail> releasedDetails,
+            CancellationToken cancellationToken)
+    {
         var preAdvices = await _db.PreAdvices
             .Include(p => p.Container)
             .Include(p => p.Evaluation)
             .Include(p => p.Schedule)
+            .ThenInclude(s => s!.Payment)
+            .Include(p => p.Schedule)
+            .ThenInclude(s => s!.QRBooking)
             .Where(p => p.ShippingLineId == shippingLineId && p.Status == PreAdviceStatus.Approved)
             .Where(p =>
                 (p.Evaluation != null && p.Evaluation.DepotId != null && depotIds.Contains(p.Evaluation.DepotId.Value))
                 || (p.Schedule != null && depotIds.Contains(p.Schedule.DepotId)))
-            .Where(p => p.Schedule == null
-                || (p.Schedule.Status != ScheduleStatus.Completed && p.Schedule.Status != ScheduleStatus.NoShow))
             .ToListAsync(cancellationToken);
 
-        var result = new Dictionary<int, DepotUsage>();
+        var confirmed = new Dictionary<int, DepotUsage>();
+        var preForecast = new Dictionary<int, DepotUsage>();
         foreach (var preAdvice in preAdvices)
         {
             var depotId = preAdvice.Schedule?.DepotId ?? preAdvice.Evaluation?.DepotId;
@@ -438,10 +525,27 @@ public class CyAllocationService : ICyAllocationService
             if (releasedDetails.ContainsKey(releaseKey))
                 continue;
 
-            AddUsage(result, depotId.Value, preAdvice.Container.Size, preAdvice.Container.Type, teuByLabel);
+            var schedule = preAdvice.Schedule;
+            if (schedule?.Status == ScheduleStatus.NoShow)
+                continue;
+
+            if (schedule?.Status == ScheduleStatus.Completed && schedule.QRBooking?.GateCheckedInAt != null)
+                continue;
+
+            if (schedule?.Status == ScheduleStatus.Confirmed
+                && schedule.Payment?.Status == PaymentStatus.Paid)
+            {
+                AddUsage(confirmed, depotId.Value, preAdvice.Container.Size, preAdvice.Container.Type, teuByLabel);
+                continue;
+            }
+
+            if (schedule?.Status == ScheduleStatus.Completed)
+                continue;
+
+            AddUsage(preForecast, depotId.Value, preAdvice.Container.Size, preAdvice.Container.Type, teuByLabel);
         }
 
-        return result;
+        return (confirmed, preForecast);
     }
 
     private async Task<Dictionary<int, DepotUsage>> GetManualYardUsageByDepotAsync(

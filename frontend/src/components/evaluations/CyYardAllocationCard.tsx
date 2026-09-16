@@ -3,11 +3,14 @@ import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 import type { CyAllocation } from '../../services/api'
 import {
-  breakdownBookingTeu,
+  breakdownAtYardTeu,
+  breakdownCommittedTeu,
+  breakdownConfirmedTeu,
   breakdownContractTeu,
-  breakdownUsedTeu,
+  breakdownPreForecastTeu,
   cyUtilizationPctCapped,
   depotMonogram,
+  formatCyPipelineTeuSuffix,
   formatUtilizationPctLabel,
   getAllocationReturnsLabel,
   getAllocationSizeLabel,
@@ -23,22 +26,27 @@ interface CyYardAllocationCardProps {
 
 const primaryDark = ICS_PRIMARY
 
-function UtilizationRow({
+function PipelineRow({
   label,
-  usedTeu,
+  atYardTeu,
+  confirmedTeu,
+  preForecastTeu,
   limitTeu,
-  pendingTeu = 0,
   atLimit = false,
 }: {
   label: string
-  usedTeu: number
+  atYardTeu: number
+  confirmedTeu: number
+  preForecastTeu: number
   limitTeu: number
-  pendingTeu?: number
   atLimit?: boolean
 }) {
   if (limitTeu <= 0) return null
-  const pct = cyUtilizationPctCapped(usedTeu, limitTeu)
-  const over = usedTeu > limitTeu
+
+  const committedTeu = atYardTeu + confirmedTeu + preForecastTeu
+  const pct = cyUtilizationPctCapped(committedTeu, limitTeu)
+  const over = committedTeu > limitTeu
+  const pipelineSuffix = formatCyPipelineTeuSuffix(confirmedTeu, preForecastTeu)
 
   return (
     <Box sx={{ mb: 1.75 }}>
@@ -62,16 +70,16 @@ function UtilizationRow({
           )}
         </Box>
         <Typography variant="body2" sx={{ fontWeight: 700, color: over ? '#C62828' : 'text.primary' }}>
-          {formatUtilizationPctLabel(usedTeu, limitTeu)}
+          {formatUtilizationPctLabel(committedTeu, limitTeu)}
         </Typography>
       </Box>
       <Typography variant="body2" sx={{ mb: 0.75 }}>
         <Box component="span" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>
-          {usedTeu}
+          {atYardTeu}
         </Box>
-        {pendingTeu > 0 && (
+        {pipelineSuffix && (
           <Box component="span" sx={{ color: '#ED6C02', fontWeight: 600, ml: 0.5 }}>
-            +{pendingTeu} pending
+            {pipelineSuffix}
           </Box>
         )}
         <Box component="span" color="text.secondary">
@@ -103,14 +111,18 @@ export default function CyYardAllocationCard({
 }: CyYardAllocationCardProps) {
   const row20 = getGroupBreakdownRow(allocation, '20')
   const row40 = getGroupBreakdownRow(allocation, '40')
-  const teuUsed = Math.round(allocation.preAdvisedTeu)
+  const teuAtYard = Math.round(allocation.atYardTeu)
+  const teuConfirmed = Math.round(allocation.confirmedTeu)
+  const teuPreForecast = Math.round(allocation.preForecastTeu)
+  const teuCommitted = Math.round(allocation.preAdvisedTeu)
   const teuLimit = allocation.contractTeu
-  const teuUsed20 = breakdownUsedTeu(row20)
-  const teuUsed40 = breakdownUsedTeu(row40)
+  const teuAtYard20 = breakdownAtYardTeu(row20)
+  const teuAtYard40 = breakdownAtYardTeu(row40)
   const teuLimit20 = breakdownContractTeu(row20)
   const teuLimit40 = breakdownContractTeu(row40)
-  const teuPct = cyUtilizationPctCapped(teuUsed, teuLimit)
-  const teuOver = teuLimit > 0 && teuUsed > teuLimit
+  const teuPct = cyUtilizationPctCapped(teuCommitted, teuLimit)
+  const teuOver = teuLimit > 0 && teuCommitted > teuLimit
+  const pipelineSuffix = formatCyPipelineTeuSuffix(teuConfirmed, teuPreForecast)
 
   return (
     <Paper
@@ -174,15 +186,20 @@ export default function CyYardAllocationCard({
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.75 }}>
             <Typography sx={{ fontWeight: 800 }}>
               <Box component="span" sx={{ fontSize: '1.5rem' }}>
-                {teuUsed}
+                {teuAtYard}
               </Box>
+              {pipelineSuffix && (
+                <Box component="span" sx={{ color: '#ED6C02', fontWeight: 700, fontSize: '0.95rem', ml: 0.75 }}>
+                  {pipelineSuffix}
+                </Box>
+              )}
               <Typography component="span" color="text.secondary" sx={{ fontWeight: 600 }}>
                 {' '}
                 / {teuLimit} TEU
               </Typography>
             </Typography>
             <Typography sx={{ fontWeight: 800, color: teuOver ? '#C62828' : 'text.primary' }}>
-              {formatUtilizationPctLabel(teuUsed, teuLimit)}
+              {formatUtilizationPctLabel(teuCommitted, teuLimit)}
             </Typography>
           </Box>
           <LinearProgress
@@ -200,30 +217,38 @@ export default function CyYardAllocationCard({
           />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
             <Typography variant="caption" sx={{ fontWeight: 600 }}>
-              {getAllocationSizeLabel('20')}: {teuUsed20} TEU
+              {getAllocationSizeLabel('20')}: {teuAtYard20} TEU
+              {formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row20), breakdownPreForecastTeu(row20))
+                ? ` (${formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row20), breakdownPreForecastTeu(row20))})`
+                : ''}
             </Typography>
             <Typography variant="caption" sx={{ fontWeight: 600 }}>
-              {getAllocationSizeLabel('40')}: {teuUsed40} TEU
+              {getAllocationSizeLabel('40')}: {teuAtYard40} TEU
+              {formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row40), breakdownPreForecastTeu(row40))
+                ? ` (${formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row40), breakdownPreForecastTeu(row40))})`
+                : ''}
             </Typography>
           </Box>
         </Box>
 
         {row20 && (
-          <UtilizationRow
+          <PipelineRow
             label={getAllocationReturnsLabel('20')}
-            usedTeu={teuUsed20}
+            atYardTeu={breakdownAtYardTeu(row20)}
+            confirmedTeu={breakdownConfirmedTeu(row20)}
+            preForecastTeu={breakdownPreForecastTeu(row20)}
             limitTeu={teuLimit20}
-            pendingTeu={breakdownBookingTeu(row20)}
-            atLimit={teuLimit20 > 0 && teuUsed20 >= teuLimit20}
+            atLimit={teuLimit20 > 0 && breakdownCommittedTeu(row20) >= teuLimit20}
           />
         )}
         {row40 && (
-          <UtilizationRow
+          <PipelineRow
             label={getAllocationReturnsLabel('40')}
-            usedTeu={teuUsed40}
+            atYardTeu={breakdownAtYardTeu(row40)}
+            confirmedTeu={breakdownConfirmedTeu(row40)}
+            preForecastTeu={breakdownPreForecastTeu(row40)}
             limitTeu={teuLimit40}
-            pendingTeu={breakdownBookingTeu(row40)}
-            atLimit={teuLimit40 > 0 && teuUsed40 >= teuLimit40}
+            atLimit={teuLimit40 > 0 && breakdownCommittedTeu(row40) >= teuLimit40}
           />
         )}
       </Box>

@@ -16,9 +16,40 @@ export function formatCyTeuSplit(preAdvisedTeu: number, bookingTeu: number): str
   return `${Math.round(preAdvisedTeu)} TEU pre-forecasted · ${Math.round(bookingTeu)} TEU booking`
 }
 
-type BreakdownTeuRow = Pick<CyAllocationBreakdownRow, 'preAdvisedCount' | 'contractCount' | 'bookingCount' | 'availableCount' | 'teuPerContainer'>
+type BreakdownTeuRow = Pick<
+  CyAllocationBreakdownRow,
+  | 'atYardCount'
+  | 'confirmedCount'
+  | 'preForecastCount'
+  | 'preAdvisedCount'
+  | 'contractCount'
+  | 'bookingCount'
+  | 'availableCount'
+  | 'teuPerContainer'
+>
 
+export function breakdownAtYardTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.atYardCount * row.teuPerContainer)
+}
+
+export function breakdownConfirmedTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.confirmedCount * row.teuPerContainer)
+}
+
+export function breakdownPreForecastTeu(row: BreakdownTeuRow | null | undefined): number {
+  if (!row) return 0
+  return Math.round(row.preForecastCount * row.teuPerContainer)
+}
+
+/** Physical at-yard TEU (gate-checked returns + manual inventory). */
 export function breakdownUsedTeu(row: BreakdownTeuRow | null | undefined): number {
+  return breakdownAtYardTeu(row)
+}
+
+/** Total committed TEU (at yard + confirmed + pre-forecast). */
+export function breakdownCommittedTeu(row: BreakdownTeuRow | null | undefined): number {
   if (!row) return 0
   return Math.round(row.preAdvisedCount * row.teuPerContainer)
 }
@@ -87,6 +118,21 @@ export function aggregatePreAdvisedBySize(items: { breakdown: CyAllocationBreakd
   return { total: size20 + size40, size20, size40 }
 }
 
+/** At-yard TEU totals by size group across yards. */
+export function aggregateAtYardTeuBySize(items: { breakdown: CyAllocationBreakdownRow[] }[]): {
+  total: number
+  teu20: number
+  teu40: number
+} {
+  let teu20 = 0
+  let teu40 = 0
+  for (const item of items) {
+    teu20 += breakdownAtYardTeu(getGroupBreakdownRow(item, '20'))
+    teu40 += breakdownAtYardTeu(getGroupBreakdownRow(item, '40'))
+  }
+  return { total: teu20 + teu40, teu20, teu40 }
+}
+
 /** Pre-advised TEU totals by size group across yards. */
 export function aggregatePreAdvisedTeuBySize(items: { breakdown: CyAllocationBreakdownRow[] }[]): {
   total: number
@@ -96,10 +142,17 @@ export function aggregatePreAdvisedTeuBySize(items: { breakdown: CyAllocationBre
   let teu20 = 0
   let teu40 = 0
   for (const item of items) {
-    teu20 += breakdownUsedTeu(getGroupBreakdownRow(item, '20'))
-    teu40 += breakdownUsedTeu(getGroupBreakdownRow(item, '40'))
+    teu20 += breakdownCommittedTeu(getGroupBreakdownRow(item, '20'))
+    teu40 += breakdownCommittedTeu(getGroupBreakdownRow(item, '40'))
   }
   return { total: teu20 + teu40, teu20, teu40 }
+}
+
+export function formatCyPipelineTeuSuffix(confirmedTeu: number, preForecastTeu: number): string {
+  const parts: string[] = []
+  if (confirmedTeu > 0) parts.push(`+${confirmedTeu} confirmed`)
+  if (preForecastTeu > 0) parts.push(`+${preForecastTeu} pre-forecast`)
+  return parts.join(' · ')
 }
 
 export function progressBarColor(pct: number): string {

@@ -7,7 +7,7 @@ import type { CyAllocation, Withdrawal } from '../../services/api'
 import {
   breakdownAvailableTeu,
   breakdownContractTeu,
-  breakdownUsedTeu,
+  breakdownCommittedTeu,
   countWithdrawalLinesBySizeGroup,
   cyUtilizationPctUncapped,
   depotHasCapacityForWithdrawal,
@@ -110,7 +110,7 @@ export default function AssignCyAllocationPreview({ allocation, item }: AssignCy
         const row = getGroupBreakdownRow(allocation, group)
         if (!row || row.contractCount <= 0) return null
         const need = needed[group]
-        const usedTeu = breakdownUsedTeu(row)
+        const usedTeu = breakdownCommittedTeu(row)
         const limitTeu = breakdownContractTeu(row)
         const availableTeu = breakdownAvailableTeu(row)
         const needTeu = need * row.teuPerContainer

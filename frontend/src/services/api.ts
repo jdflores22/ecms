@@ -755,6 +755,12 @@ export const evaluationApi = {
 export interface CyAllocationBreakdownCell {
   typeCode: string
   typeLabel: string
+  atYardCount: number
+  atYardTeu: number
+  confirmedCount: number
+  confirmedTeu: number
+  preForecastCount: number
+  preForecastTeu: number
   preAdvisedCount: number
   preAdvisedTeu: number
   bookingCount: number
@@ -766,6 +772,9 @@ export interface CyAllocationBreakdownRow {
   teuPerContainer: number
   containerSizeId: number
   contractCount: number
+  atYardCount: number
+  confirmedCount: number
+  preForecastCount: number
   preAdvisedCount: number
   availableCount: number
   bookingCount: number
@@ -782,10 +791,16 @@ export interface CyAllocation {
   shippingLineName: string
   contractTeu: number
   contractCount: number
+  atYardTeu: number
+  confirmedTeu: number
+  preForecastTeu: number
   preAdvisedTeu: number
   bookingTeu: number
   availableTeu: number
   availableCount: number
+  atYardCount: number
+  confirmedCount: number
+  preForecastCount: number
   preAdvisedCount: number
   bookingCount: number
   hasCapacity: boolean

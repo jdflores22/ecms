@@ -12,6 +12,7 @@ import { canAccessPage } from '../../config/routeAccess'
 import { cyAllocationApi, type CyAllocation, type CyAllocationForApproval } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import {
+  aggregateAtYardTeuBySize,
   aggregatePreAdvisedTeuBySize,
   cyUtilizationPctCapped,
   formatUtilizationPctLabel,
@@ -105,14 +106,30 @@ export default function CyAllocationPage() {
   const shippingLineName = items[0]?.shippingLineName ?? ''
 
   const totals = useMemo(() => {
-    const sizeTotals = aggregatePreAdvisedTeuBySize(items)
+    const sizeTotals = aggregateAtYardTeuBySize(items)
+    const committedTotals = aggregatePreAdvisedTeuBySize(items)
     const contractTeu = items.reduce((sum, i) => sum + i.contractTeu, 0)
-    const usedTeu = Math.round(items.reduce((sum, i) => sum + i.preAdvisedTeu, 0))
+    const atYardTeu = Math.round(items.reduce((sum, i) => sum + i.atYardTeu, 0))
+    const confirmedTeu = Math.round(items.reduce((sum, i) => sum + i.confirmedTeu, 0))
+    const preForecastTeu = Math.round(items.reduce((sum, i) => sum + i.preForecastTeu, 0))
+    const committedTeu = Math.round(items.reduce((sum, i) => sum + i.preAdvisedTeu, 0))
     const bookingTeu = Math.round(items.reduce((sum, i) => sum + i.bookingTeu, 0))
     const yardsAtLimit = items.filter((i) => !i.hasCapacity).length
-    const teuPct = cyUtilizationPctCapped(usedTeu, contractTeu)
-    const teuOver = contractTeu > 0 && usedTeu > contractTeu
-    return { ...sizeTotals, contractTeu, usedTeu, bookingTeu, yardsAtLimit, teuPct, teuOver }
+    const teuPct = cyUtilizationPctCapped(committedTeu, contractTeu)
+    const teuOver = contractTeu > 0 && committedTeu > contractTeu
+    return {
+      ...sizeTotals,
+      committedTotals,
+      contractTeu,
+      atYardTeu,
+      confirmedTeu,
+      preForecastTeu,
+      committedTeu,
+      bookingTeu,
+      yardsAtLimit,
+      teuPct,
+      teuOver,
+    }
   }, [items])
 
   if (user?.role && !canAccessPage(user.role, 'cyAllocation', user.allowedPages)) {
@@ -152,8 +169,9 @@ export default function CyAllocationPage() {
                 CY allocation
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 640 }}>
-                Read-only view of your shipping line&apos;s contracted yard capacity and current utilization.
-                In-yard counts exclude containers released on an ATW — see{' '}
+                Read-only view of your shipping line&apos;s contracted yard capacity. At-yard counts are physical
+                gate check-ins; orange +confirmed and +pre-forecast show pipeline units not yet at the CY. Released ATW
+                units are excluded — see{' '}
                 <Box
                   component={RouterLink}
                   to="/evaluations/container-inventory"
@@ -218,14 +236,15 @@ export default function CyAllocationPage() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, 1fr)' },
+              gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' },
               gap: { xs: 1.5, sm: 2 },
               mb: 2,
             }}
           >
             <SummaryCard label="Contract (TEU)" value={totals.contractTeu} color={primaryDark} />
-            <SummaryCard label="In yard (TEU)" value={totals.usedTeu} color="#ED6C02" />
-            <SummaryCard label="Booking (TEU)" value={totals.bookingTeu} color="#546E7A" />
+            <SummaryCard label="At yard (TEU)" value={totals.atYardTeu} color="#2E7D32" />
+            <SummaryCard label="+ Confirmed (TEU)" value={totals.confirmedTeu} color="#ED6C02" />
+            <SummaryCard label="+ Pre-forecast (TEU)" value={totals.preForecastTeu} color="#FB8C00" />
             <SummaryCard label="Yards at limit" value={totals.yardsAtLimit} color="#D32F2F" />
           </Box>
 
@@ -247,8 +266,8 @@ export default function CyAllocationPage() {
                   Overall utilization
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {getAllocationSizeLabel('20')}: {totals.teu20} TEU · {getAllocationSizeLabel('40')}: {totals.teu40} TEU ·{' '}
-                  {formatUtilizationPctLabel(totals.usedTeu, totals.contractTeu)}
+                  {getAllocationSizeLabel('20')}: {totals.teu20} at yard · {getAllocationSizeLabel('40')}: {totals.teu40} at yard ·{' '}
+                  {formatUtilizationPctLabel(totals.committedTeu, totals.contractTeu)} committed
                 </Typography>
               </Box>
             </Box>

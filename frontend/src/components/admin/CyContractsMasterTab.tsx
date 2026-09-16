@@ -80,6 +80,9 @@ function sizeFormFromContract(contract: ShippingLineDepotContract, sizes: Contai
 function formatContractSizeLabel(size: { sizeLabel: string; contractCount: number; teuPerContainer: number }) {
   const teu = breakdownContractTeu({
     contractCount: size.contractCount,
+    atYardCount: 0,
+    confirmedCount: 0,
+    preForecastCount: 0,
     preAdvisedCount: 0,
     bookingCount: 0,
     availableCount: 0,
