@@ -1,24 +1,33 @@
-import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import AndroidOutlinedIcon from '@mui/icons-material/AndroidOutlined'
+import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined'
 import {
-  Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
+  FormControlLabel,
+  Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { useState } from 'react'
-import { Navigate, Link as RouterLink } from 'react-router-dom'
-import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
+import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
+import AuthShell, {
+  AuthAlert,
+  AuthInlineLink,
+  AuthLink,
+  authFieldSx,
+  authPrimaryButtonSx,
+  authColors,
+} from '../components/auth/AuthShell'
 import { TRUCKER_APP_DOWNLOAD } from '../config/truckerAppDownload'
 import axios from 'axios'
 import { authApi, resetAuthRefreshState } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
 
-const primaryDark = '#0B3D91'
+const REMEMBER_USERNAME_KEY = 'ics.rememberUsername'
 
 const DEMO_ACCOUNTS = [
   { role: 'Trucker', username: 'trucker1', password: 'Trucker@123' },
@@ -31,10 +40,19 @@ const DEMO_ACCOUNTS = [
 export default function LoginPage() {
   const token = useAppSelector((s) => s.auth.accessToken)
   const dispatch = useAppDispatch()
-  const [username, setUsername] = useState('trucker1')
-  const [password, setPassword] = useState('Trucker@123')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem(REMEMBER_USERNAME_KEY)
+    if (saved) {
+      setUsername(saved)
+      setRememberMe(true)
+    }
+  }, [])
 
   if (token) return <Navigate to="/" replace />
 
@@ -43,6 +61,12 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_USERNAME_KEY, username.trim())
+      } else {
+        localStorage.removeItem(REMEMBER_USERNAME_KEY)
+      }
+
       const { data } = await authApi.login(username, password)
       resetAuthRefreshState()
       dispatch(
@@ -56,7 +80,7 @@ export default function LoginPage() {
       if (axios.isAxiosError(err) && err.response?.status === 429) {
         setError('Too many login attempts. Please wait about a minute and try again.')
       } else {
-        setError('Invalid username or password.')
+        setError('Unable to sign in. Check your credentials and try again.')
       }
     } finally {
       setLoading(false)
@@ -72,27 +96,23 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Enter your credentials to access the ICS portal."
+      subtitle={
+        <>
+          Sign in to ICS.{' '}
+          <AuthLink to="/signup/trucker">Create trucker account</AuthLink>{' '}
+          if you need an account.
+        </>
+      }
+      alerts={error ? <AuthAlert>{error}</AuthAlert> : null}
       footer={
-        <Box
-          sx={{
-            mt: { xs: 2, sm: 3 },
-            pt: 2.5,
-            borderTop: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
+        <Box sx={{ mt: 3, pt: 2.5, borderTop: `1px solid ${authColors.border}` }}>
+          <Typography
+            variant="caption"
+            sx={{ fontWeight: 600, color: authColors.textMuted, display: 'block', mb: 1 }}
+          >
             Quick demo access
           </Typography>
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 0.75,
-              maxWidth: '100%',
-            }}
-          >
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
             {DEMO_ACCOUNTS.map((account) => (
               <Chip
                 key={account.username}
@@ -102,7 +122,6 @@ export default function LoginPage() {
                 onClick={() => fillDemo(account)}
                 sx={{
                   fontWeight: 600,
-                  maxWidth: '100%',
                   bgcolor: 'rgba(11, 61, 145, 0.06)',
                   '&:hover': { bgcolor: 'rgba(11, 61, 145, 0.12)' },
                 }}
@@ -112,19 +131,21 @@ export default function LoginPage() {
         </Box>
       }
     >
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-          {error}
-        </Alert>
-      )}
-      <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}
+      >
         <TextField
           fullWidth
           label="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          placeholder="Enter your username"
           required
+          autoFocus
           autoComplete="username"
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <TextField
@@ -133,108 +154,71 @@ export default function LoginPage() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          placeholder="Enter your password"
           required
           autoComplete="current-password"
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
+
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              sx={{
+                color: authColors.textMuted,
+                '&.Mui-checked': { color: authColors.primary },
+              }}
+            />
+          }
+          label={
+            <Typography sx={{ fontSize: '0.875rem', color: authColors.textMuted }}>
+              Remember me
+            </Typography>
+          }
+          sx={{ m: 0, alignItems: 'flex-start' }}
+        />
+
         <Button
           fullWidth
           type="submit"
           variant="contained"
-          size="large"
+          disableElevation
           disabled={loading}
+          startIcon={loading ? undefined : <LoginOutlinedIcon />}
           sx={authPrimaryButtonSx}
         >
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign in'}
         </Button>
-        <Button
-          component={RouterLink}
-          to="/forgot-password"
-          fullWidth
-          sx={{ fontWeight: 600, color: primaryDark }}
-        >
-          Forgot password?
-        </Button>
 
-        <Box
+        <Stack
+          direction="row"
+          spacing={1}
           sx={{
-            mt: 0.5,
-            pt: 2,
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            textAlign: 'center',
+            pt: 0.5,
+            fontSize: '0.875rem',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            New to ICS?
+          <AuthInlineLink to="/forgot-password">Forgot your password?</AuthInlineLink>
+          <Typography component="span" sx={{ color: authColors.linkDivider, fontSize: 'inherit' }}>
+            ·
           </Typography>
-          <Button
-            component={RouterLink}
-            to="/signup/trucker"
-            variant="outlined"
-            fullWidth
-            sx={{ fontWeight: 700, borderRadius: 2 }}
+          <AuthInlineLink to="/trucker/faq">Trucker FAQ</AuthInlineLink>
+          <Typography component="span" sx={{ color: authColors.linkDivider, fontSize: 'inherit' }}>
+            ·
+          </Typography>
+          <AuthInlineLink
+            to={TRUCKER_APP_DOWNLOAD.publicPagePath}
+            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
           >
-            Create trucker account
-          </Button>
-          <Box
-            sx={{
-              mt: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 1,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Button
-              component={RouterLink}
-              to="/"
-              size="small"
-              sx={{ fontWeight: 600, color: 'text.secondary', minWidth: 0, px: 1 }}
-            >
-              Back to home
-            </Button>
-            <Typography variant="caption" color="text.disabled" aria-hidden>
-              ·
-            </Typography>
-            <Button
-              component={RouterLink}
-              to="/trucker/faq"
-              size="small"
-              startIcon={<HelpOutlineOutlinedIcon sx={{ fontSize: 15 }} />}
-              sx={{
-                fontWeight: 600,
-                color: 'text.secondary',
-                textTransform: 'none',
-                minWidth: 0,
-                px: 1,
-                '&:hover': { color: primaryDark, bgcolor: 'transparent' },
-              }}
-            >
-              Trucker FAQ
-            </Button>
-            <Typography variant="caption" color="text.disabled" aria-hidden>
-              ·
-            </Typography>
-            <Button
-              component={RouterLink}
-              to={TRUCKER_APP_DOWNLOAD.publicPagePath}
-              size="small"
-              startIcon={<AndroidOutlinedIcon sx={{ fontSize: 15 }} />}
-              sx={{
-                fontWeight: 600,
-                color: 'text.secondary',
-                textTransform: 'none',
-                minWidth: 0,
-                px: 1,
-                '&:hover': { color: primaryDark, bgcolor: 'transparent' },
-              }}
-            >
-              Android app
-            </Button>
-          </Box>
-        </Box>
+            <AndroidOutlinedIcon sx={{ fontSize: 16 }} />
+            Android app
+          </AuthInlineLink>
+        </Stack>
       </Box>
     </AuthShell>
   )

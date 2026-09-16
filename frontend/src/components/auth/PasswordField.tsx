@@ -113,6 +113,7 @@ export default function PasswordField({
         autoComplete={autoComplete}
         sx={authFieldSx}
         slotProps={{
+          inputLabel: { shrink: true },
           input: {
             endAdornment: (
               <InputAdornment position="end">

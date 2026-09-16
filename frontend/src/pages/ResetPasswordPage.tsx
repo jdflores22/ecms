@@ -1,16 +1,14 @@
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  TextField,
-} from '@mui/material'
+import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material'
 import { useState } from 'react'
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom'
-import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import AuthShell, {
+  AuthAlert,
+  AuthInlineLink,
+  authFieldSx,
+  authPrimaryButtonSx,
+  authColors,
+} from '../components/auth/AuthShell'
 import { authApi } from '../services/api'
-
-const primaryDark = '#0B3D91'
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -52,24 +50,28 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <AuthShell title="Reset password" subtitle="Choose a new password for your account.">
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-          {error}
-        </Alert>
-      )}
-      {success && (
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
-          {success}
-        </Alert>
-      )}
-      <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <AuthShell
+      title="Reset password"
+      subtitle="Choose a new password for your account."
+      alerts={
+        <>
+          {error ? <AuthAlert>{error}</AuthAlert> : null}
+          {success ? <AuthAlert severity="success">{success}</AuthAlert> : null}
+        </>
+      }
+    >
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}
+      >
         <TextField
           fullWidth
           label="Reset token"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           required
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <TextField
@@ -79,6 +81,7 @@ export default function ResetPasswordPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <TextField
@@ -88,22 +91,23 @@ export default function ResetPasswordPage() {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <Button
           fullWidth
           type="submit"
           variant="contained"
-          size="large"
+          disableElevation
           disabled={loading || !!success}
           sx={authPrimaryButtonSx}
         >
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Update password'}
         </Button>
+        <Typography sx={{ textAlign: 'center', fontSize: '0.875rem', color: authColors.textMuted }}>
+          <AuthInlineLink to="/login">Back to sign in</AuthInlineLink>
+        </Typography>
       </Box>
-      <Button component={RouterLink} to="/login" fullWidth sx={{ mt: 2, fontWeight: 600, color: primaryDark }}>
-        Back to sign in
-      </Button>
     </AuthShell>
   )
 }

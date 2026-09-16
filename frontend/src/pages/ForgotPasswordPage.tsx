@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   CircularProgress,
@@ -9,10 +8,14 @@ import {
 } from '@mui/material'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
+import AuthShell, {
+  AuthAlert,
+  AuthInlineLink,
+  authFieldSx,
+  authPrimaryButtonSx,
+  authColors,
+} from '../components/auth/AuthShell'
 import { authApi } from '../services/api'
-
-const primaryDark = '#0B3D91'
 
 export default function ForgotPasswordPage() {
   const [emailOrUsername, setEmailOrUsername] = useState('')
@@ -41,49 +44,63 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       title="Forgot password"
-      subtitle="Enter your username or email. If an account exists, you will receive reset instructions."
+      subtitle={
+        <>
+          Enter your username or email.{' '}
+          <AuthInlineLink to="/login">Back to sign in</AuthInlineLink>
+        </>
+      }
+      alerts={
+        <>
+          {error ? <AuthAlert>{error}</AuthAlert> : null}
+          {message ? (
+            <AuthAlert severity="success">
+              {message}
+              {resetToken && (
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Dev reset link:{' '}
+                  <Link
+                    component={RouterLink}
+                    to={`/reset-password?token=${encodeURIComponent(resetToken)}`}
+                  >
+                    Set new password
+                  </Link>
+                </Typography>
+              )}
+            </AuthAlert>
+          ) : null}
+        </>
+      }
     >
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-          {error}
-        </Alert>
-      )}
-      {message && (
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
-          {message}
-          {resetToken && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Dev reset link:{' '}
-              <Link component={RouterLink} to={`/reset-password?token=${encodeURIComponent(resetToken)}`}>
-                Set new password
-              </Link>
-            </Typography>
-          )}
-        </Alert>
-      )}
-      <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}
+      >
         <TextField
           fullWidth
           label="Username or email"
           value={emailOrUsername}
           onChange={(e) => setEmailOrUsername(e.target.value)}
+          placeholder="you@company.com"
           required
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <Button
           fullWidth
           type="submit"
           variant="contained"
-          size="large"
+          disableElevation
           disabled={loading}
           sx={authPrimaryButtonSx}
         >
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Send reset link'}
         </Button>
+        <Typography sx={{ textAlign: 'center', fontSize: '0.875rem', color: authColors.textMuted }}>
+          <AuthInlineLink to="/login">Back to sign in</AuthInlineLink>
+        </Typography>
       </Box>
-      <Button component={RouterLink} to="/login" fullWidth sx={{ mt: 2, fontWeight: 600, color: primaryDark }}>
-        Back to sign in
-      </Button>
     </AuthShell>
   )
 }

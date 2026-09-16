@@ -1,5 +1,5 @@
+import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined'
 import {
-  Alert,
   Box,
   Button,
   CircularProgress,
@@ -8,8 +8,14 @@ import {
 } from '@mui/material'
 import axios from 'axios'
 import { useMemo, useState } from 'react'
-import { Link as RouterLink, Navigate, useParams } from 'react-router-dom'
-import AuthShell, { authFieldSx, authPrimaryButtonSx } from '../components/auth/AuthShell'
+import { Navigate, useParams } from 'react-router-dom'
+import AuthShell, {
+  AuthAlert,
+  AuthLink,
+  authFieldSx,
+  authPrimaryButtonSx,
+  authColors,
+} from '../components/auth/AuthShell'
 import PasswordField from '../components/auth/PasswordField'
 import { ICS_BRAND } from '../config/brandCopy'
 import { authApi, resetAuthRefreshState } from '../services/api'
@@ -17,13 +23,10 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
 import { evaluatePasswordStrength, passwordStrengthMessage } from '../utils/passwordStrength'
 
-const primaryDark = '#0B3D91'
-
 const TRUCKER_SIGNUP = {
   apiRole: 'Trucker' as const,
-  title: 'Create trucker account',
-  subtitle:
-    'Register to submit pre-forecast, manage assigned returns, upload payments, and access booking QR codes.',
+  title: 'Sign up',
+  subtitle: ICS_BRAND.truckerSignup,
 }
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -91,51 +94,63 @@ export default function SignUpPage() {
         }),
       )
     } catch (err) {
-      setError(apiErrorMessage(err, 'Sign-up failed. Please try again.'))
+      setError(apiErrorMessage(err, 'Registration failed. Please review your details.'))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <AuthShell title={config.title} subtitle={config.subtitle}>
+    <AuthShell
+      title={config.title}
+      maxWidth="32rem"
+      subtitle={
+        <>
+          Create your ICS trucker account.{' '}
+          <AuthLink to="/login">Sign in</AuthLink>{' '}
+          if you already have an account.
+        </>
+      }
+      alerts={error ? <AuthAlert>{error}</AuthAlert> : null}
+    >
       <Box
         component="form"
         onSubmit={handleSubmit}
-        sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}
       >
-        {error && (
-          <Alert severity="error" sx={{ borderRadius: 2 }}>
-            {error}
-          </Alert>
-        )}
-
         <TextField
           label="Full name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
+          placeholder="Juan Dela Cruz"
           required
           fullWidth
+          autoFocus
           autoComplete="name"
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <TextField
           label="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          placeholder="Choose a username"
           required
           fullWidth
           autoComplete="username"
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <TextField
-          label="Email"
+          label="Email address"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@company.com"
           required
           fullWidth
           autoComplete="email"
+          slotProps={{ inputLabel: { shrink: true } }}
           sx={authFieldSx}
         />
         <PasswordField
@@ -158,27 +173,20 @@ export default function SignUpPage() {
           type="submit"
           variant="contained"
           fullWidth
-          size="large"
+          disableElevation
           disabled={loading || !passwordStrength.isValid || passwordsMismatch}
-          sx={{ ...authPrimaryButtonSx, mt: 0 }}
+          startIcon={loading ? undefined : <PersonAddAltOutlinedIcon />}
+          sx={authPrimaryButtonSx}
         >
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Create account'}
         </Button>
 
-        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-          <Button component={RouterLink} to="/trucker/faq" sx={{ fontWeight: 600, color: primaryDark, p: 0, minWidth: 0 }}>
-            Read trucker FAQ
-          </Button>
-          {' '}before you register.
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-          Already have an account?{' '}
-          <Button component={RouterLink} to="/login" sx={{ fontWeight: 700, color: primaryDark, p: 0, minWidth: 0 }}>
-            Sign in
-          </Button>
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', pb: 0.5 }}>
-          {ICS_BRAND.appBarCaption}
+        <Typography
+          variant="body2"
+          sx={{ textAlign: 'center', color: authColors.textMuted, fontSize: '0.875rem' }}
+        >
+          <AuthLink to="/trucker/faq" sx={{ fontWeight: 600 }}>Read trucker FAQ</AuthLink>{' '}
+          before you register.
         </Typography>
       </Box>
     </AuthShell>
