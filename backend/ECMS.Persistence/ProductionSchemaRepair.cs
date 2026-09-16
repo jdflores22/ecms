@@ -100,6 +100,100 @@ public static class ProductionSchemaRepair
         await EnsureUploadPathIndexesAsync(db, logger, cancellationToken);
 
         await EnsurePayMongoAsync(db, logger, cancellationToken);
+
+        await EnsureDepotContainersPerHourAsync(db, logger, cancellationToken);
+
+        await EnsureShippingLineCyFillControlAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsureDepotContainersPerHourAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "ContainersPerHour",
+            definition: "int NOT NULL DEFAULT 3",
+            migrationId: "20260916100000_AddDepotContainersPerHour",
+            cancellationToken);
+    }
+
+    private static async Task EnsureShippingLineCyFillControlAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260916110000_AddShippingLineCyFillControl";
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "ShippingLinesSet",
+            column: "CyFillStrategy",
+            definition: "int NOT NULL DEFAULT 0",
+            migrationId: migrationId,
+            cancellationToken);
+
+        if (!await TableExistsAsync(db, "ShippingLineDepotFillPrioritiesSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table ShippingLineDepotFillPrioritiesSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `ShippingLineDepotFillPrioritiesSet` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `ShippingLineId` int NOT NULL,
+                    `DepotId` int NOT NULL,
+                    `SortOrder` int NOT NULL,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`),
+                    UNIQUE KEY `IX_SLDepotFillPriorities_ShippingLineId_DepotId` (`ShippingLineId`, `DepotId`),
+                    KEY `IX_SLDepotFillPriorities_ShippingLineId_SortOrder` (`ShippingLineId`, `SortOrder`),
+                    KEY `IX_SLDepotFillPriorities_DepotId` (`DepotId`),
+                    CONSTRAINT `FK_SLDepotFillPriorities_DepotId`
+                        FOREIGN KEY (`DepotId`) REFERENCES `DepotsSet` (`Id`) ON DELETE RESTRICT,
+                    CONSTRAINT `FK_SLDepotFillPriorities_ShippingLineId`
+                        FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
+
+        if (!await TableExistsAsync(db, "ShippingLineDailyDepotFillsSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table ShippingLineDailyDepotFillsSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `ShippingLineDailyDepotFillsSet` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `ShippingLineId` int NOT NULL,
+                    `EffectiveDate` date NOT NULL,
+                    `PrimaryDepotId` int NOT NULL,
+                    `SetByUserId` int NOT NULL,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`),
+                    UNIQUE KEY `IX_SLDailyDepotFills_ShippingLineId_EffectiveDate` (`ShippingLineId`, `EffectiveDate`),
+                    KEY `IX_SLDailyDepotFills_PrimaryDepotId` (`PrimaryDepotId`),
+                    KEY `IX_SLDailyDepotFills_SetByUserId` (`SetByUserId`),
+                    CONSTRAINT `FK_SLDailyDepotFills_DepotId`
+                        FOREIGN KEY (`PrimaryDepotId`) REFERENCES `DepotsSet` (`Id`) ON DELETE RESTRICT,
+                    CONSTRAINT `FK_SLDailyDepotFills_SetByUserId`
+                        FOREIGN KEY (`SetByUserId`) REFERENCES `UsersSet` (`Id`) ON DELETE RESTRICT,
+                    CONSTRAINT `FK_SLDailyDepotFills_ShippingLineId`
+                        FOREIGN KEY (`ShippingLineId`) REFERENCES `ShippingLinesSet` (`Id`) ON DELETE CASCADE
+                ) CHARACTER SET=utf8mb4
+                """,
+                cancellationToken);
+        }
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('{migrationId}', '7.0.20')
+            """,
+            cancellationToken);
     }
 
     private static async Task EnsurePayMongoAsync(
