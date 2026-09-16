@@ -318,7 +318,9 @@ public class WithdrawalService : IWithdrawalService
         var scheduled = await _db.Schedules.AsNoTracking()
             .AnyAsync(
                 s => s.DepotId == depotId
-                    && s.Status == ScheduleStatus.Confirmed
+                    && s.Status == ScheduleStatus.Completed
+                    && s.QRBooking != null
+                    && s.QRBooking.GateCheckedInAt != null
                     && s.PreAdvice.ShippingLineId == shippingLineId
                     && s.PreAdvice.ContainerNoNormalized == normalized
                     && s.PreAdvice.ContainerSizeId == containerSizeId
@@ -335,7 +337,7 @@ public class WithdrawalService : IWithdrawalService
                     "Container was released from yard inventory and is no longer at this CY.");
             }
 
-            return new WithdrawalYardCheckDto(true, "Confirmed return schedule", null);
+            return new WithdrawalYardCheckDto(true, "Gate-checked return at CY", null);
         }
 
         return new WithdrawalYardCheckDto(

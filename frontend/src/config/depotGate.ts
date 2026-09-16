@@ -4,7 +4,7 @@ export const DEPOT_GATE = {
   menuLabel: 'Gate scan',
   heroTitle: 'Empty return gate scan',
   heroDescription:
-    'Scan the trucker’s pre-forecast QR at the container yard gate. Review the full dossier — container details, documents, and identity photos — then accept when valid.',
+    'Scan the trucker’s pre-forecast QR at the gate, review the dossier tab, then accept the empty return to add the container to CY yard inventory.',
   scannerTitle: 'Scan booking QR',
   scannerHint: 'Point the camera at the trucker’s ICS booking QR, or enter the reference manually.',
   manualLabel: 'ICS QR reference',

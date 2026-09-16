@@ -43,7 +43,9 @@ public class ContainerInventoryService : IContainerInventoryService
             .ThenInclude(p => p.Trucker)
             .Include(s => s.Depot)
             .Include(s => s.Payment)
-            .Where(s => s.Status == ScheduleStatus.Confirmed)
+            .Include(s => s.QRBooking)
+            .Where(s => s.Status == ScheduleStatus.Completed)
+            .Where(s => s.QRBooking != null && s.QRBooking.GateCheckedInAt != null)
             .Where(s => s.PreAdvice.Status == PreAdviceStatus.Approved)
             .Where(s => s.PreAdvice.ShippingLineId == lineId)
             .Where(s => !depotId.HasValue || s.DepotId == depotId.Value)
@@ -276,19 +278,24 @@ public class ContainerInventoryService : IContainerInventoryService
         var schedules = await _db.Schedules
             .Include(s => s.PreAdvice)
             .ThenInclude(p => p.Container)
+            .Include(s => s.QRBooking)
             .Where(
-                s => s.Status == ScheduleStatus.Confirmed
+                s => s.Status == ScheduleStatus.Completed
+                     && s.QRBooking != null
+                     && s.QRBooking.GateCheckedInAt != null
                      && s.PreAdvice.Status == PreAdviceStatus.Approved
                      && s.PreAdvice.ShippingLineId == shippingLineId
                      && s.DepotId == depotId
                      && s.PreAdvice.Container.ContainerNo == containerNo)
             .ToListAsync(cancellationToken);
 
-        return schedules.Any(s => !releasedDetails.ContainsKey(YardInventoryReleaseHelper.BuildKey(
-            s.DepotId,
-            s.PreAdvice.ContainerNoNormalized,
-            s.PreAdvice.ContainerSizeId,
-            s.PreAdvice.ContainerTypeId)));
+        return schedules.Any(s =>
+            YardInventoryWorkflowHelper.IsPhysicallyAtYard(s)
+            && !releasedDetails.ContainsKey(YardInventoryReleaseHelper.BuildKey(
+                s.DepotId,
+                s.PreAdvice.ContainerNoNormalized,
+                s.PreAdvice.ContainerSizeId,
+                s.PreAdvice.ContainerTypeId)));
     }
 
     private static ContainerInventoryItemDto MapScheduleItem(
@@ -320,7 +327,7 @@ public class ContainerInventoryService : IContainerInventoryService
             schedule.DepotId,
             schedule.Depot.Name,
             yardIn,
-            schedule.Time.ToString("HH:mm"),
+            ResolveGateInTime(schedule),
             dwellDays,
             released ? 0 : Math.Max(0, DwellLimitDays - dwellDays),
             compliance,
@@ -389,6 +396,9 @@ public class ContainerInventoryService : IContainerInventoryService
 
     private static DateOnly ResolveYardInDate(Schedule schedule)
     {
+        if (schedule.QRBooking?.GateCheckedInAt is { } gateCheckedInAt)
+            return PhilippinesTime.ToDateOnly(gateCheckedInAt);
+
         var returnDate = schedule.Date;
         if (schedule.Payment?.PaidAt is { } paidAt)
         {
@@ -397,6 +407,22 @@ public class ContainerInventoryService : IContainerInventoryService
         }
 
         return returnDate > PhilippinesTime.Today ? PhilippinesTime.Today : returnDate;
+    }
+
+    private static string? ResolveGateInTime(Schedule schedule)
+    {
+        if (schedule.QRBooking?.GateCheckedInAt is { } gateCheckedInAt)
+        {
+            var utc = gateCheckedInAt.Kind switch
+            {
+                DateTimeKind.Utc => gateCheckedInAt,
+                DateTimeKind.Local => gateCheckedInAt.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(gateCheckedInAt, DateTimeKind.Utc),
+            };
+            return TimeZoneInfo.ConvertTimeFromUtc(utc, PhilippinesTime.Zone).ToString("HH:mm");
+        }
+
+        return schedule.Time.ToString("HH:mm");
     }
 
     private static int DwellDays(DateOnly yardIn) =>

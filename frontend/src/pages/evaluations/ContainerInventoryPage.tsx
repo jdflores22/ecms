@@ -708,8 +708,8 @@ export default function ContainerInventoryPage() {
         ) : filteredItems.length === 0 ? (
           <Box sx={{ py: 8, px: 2, textAlign: 'center' }}>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              No containers at yard yet. Approved returns appear here automatically, or register existing containers
-              manually.
+              No containers at yard yet. Containers appear here after depot gate check-in, or register existing
+              containers manually.
             </Typography>
             <Button variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => setAddOpen(true)} sx={{ fontWeight: 700, borderRadius: 2 }}>
               Register containers
