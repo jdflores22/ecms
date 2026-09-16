@@ -5,24 +5,9 @@ import type { SxProps, Theme } from '@mui/material/styles'
 import { Link as RouterLink } from 'react-router-dom'
 import IcsLogo from '../brand/IcsLogo'
 import { ICS_BRAND } from '../../config/brandCopy'
+import { authColors } from '../../theme/colors'
 
-export const authColors = {
-  primary: '#0B3D91',
-  primaryDark: '#082E6E',
-  accent: '#00A3E0',
-  textDark: '#1c1917',
-  textMuted: '#78716c',
-  textLight: '#a8a29e',
-  border: '#d6d3d1',
-  placeholder: '#a8a29e',
-  brandBg: '#f5f5f4',
-  pageBg: '#fafaf9',
-  white: '#ffffff',
-  linkDivider: '#d6d3d1',
-  errorBg: '#fef2f2',
-  errorBorder: '#fecaca',
-  errorText: '#991b1b',
-}
+export { authColors }
 
 const ROLE_CHIPS = ['Truckers', 'Shipping lines', 'Depots', 'Administrators']
 
@@ -217,18 +202,19 @@ function AuthFormHeader({ title, subtitle }: { title: string; subtitle?: React.R
     <Box component="header" sx={{ mb: 3 }}>
       <Typography
         component="h1"
+        variant="h5"
         sx={{
           m: 0,
-          fontSize: '1.75rem',
-          lineHeight: 1.2,
-          fontWeight: 700,
+          fontSize: '1.5rem',
+          lineHeight: 1.3,
+          fontWeight: 800,
           color: authColors.textDark,
         }}
       >
         {title}
       </Typography>
       {subtitle && (
-        <Typography sx={{ mt: 1.5, fontSize: '0.9375rem', lineHeight: 1.6, color: authColors.textMuted }}>
+        <Typography variant="body1" sx={{ mt: 1.5, fontSize: '1rem', lineHeight: 1.6, color: authColors.textMuted }}>
           {subtitle}
         </Typography>
       )}

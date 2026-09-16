@@ -17,10 +17,11 @@ import {
   ListMobileOnly,
   ListMobileTitle,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroOutlineActionSx,
   listPageRootSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
-import { heroMutedChipSx, heroPaperSx } from '../../components/layout/DetailPagePrimitives'
+import { heroMutedChipSx } from '../../components/layout/DetailPagePrimitives'
 import {
   reportApi,
   type TransactionDepotOverview,
@@ -372,26 +373,23 @@ export default function AdminTransactionReportsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box sx={{ position: 'relative', display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-              <AssessmentOutlinedIcon />
-              <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                Transaction reports
-              </Typography>
-            </Box>
-            <Typography sx={{ color: 'rgba(255,255,255,0.88)', maxWidth: 640 }}>
-              Payment ledger by container number with shipping line and container yard breakdown.
-              reports used by truckers and evaluators.
-            </Typography>
-            <Chip label="Administrator" size="small" sx={{ ...heroMutedChipSx, mt: 1.5 }} />
-          </Box>
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleRefresh} disabled={isRefreshing} sx={listHeroActionSx}>
+      <PageHero
+        icon={<AssessmentOutlinedIcon />}
+        title="Transaction reports"
+        subtitle="Payment ledger by container number with shipping line and container yard breakdown."
+        chips={<Chip label="Administrator" size="small" sx={heroMutedChipSx} />}
+        actions={
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            sx={listHeroOutlineActionSx}
+          >
             Refresh
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       <Paper
         elevation={0}

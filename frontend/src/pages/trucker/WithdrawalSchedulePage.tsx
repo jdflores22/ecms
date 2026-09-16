@@ -11,16 +11,14 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
-  LIST_PRIMARY,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type WithdrawalSchedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleDate, formatScheduleTime } from '../../utils/datetime'
-
-const primaryDark = LIST_PRIMARY
 
 export default function TruckerWithdrawalSchedulePage() {
   const navigate = useNavigate()
@@ -51,39 +49,11 @@ export default function TruckerWithdrawalSchedulePage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-        }}
-      >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <EventAvailableOutlinedIcon />
-          </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              ATW pick-up schedule
-            </Typography>
-            <Typography sx={{ opacity: 0.9, mt: 0.5 }}>
-              Container yard pick-up days assigned by the depot after CY assignment.
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<EventAvailableOutlinedIcon />}
+        title="ATW pick-up schedule"
+        subtitle="Container yard pick-up days assigned by the depot after CY assignment."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>

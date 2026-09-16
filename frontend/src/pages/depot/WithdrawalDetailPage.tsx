@@ -1,4 +1,5 @@
 import {
+  DetailHero,
   DetailLoadingState,
   InfoTile,
   hexToRgba,
@@ -198,50 +199,27 @@ export default function DepotWithdrawalDetailPage() {
         <Alert severity="error">{error || 'Withdrawal request not found.'}</Alert>
       ) : (
         <>
-          <Paper
-            elevation={0}
-            sx={{
-              p: { xs: 2.5, sm: 3 },
-              mb: 3,
-              borderRadius: 3,
-              background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-              color: '#fff',
-            }}
-          >
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <Box
-                sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 2,
-                  bgcolor: 'rgba(255,255,255,0.14)',
-                  display: 'grid',
-                  placeItems: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <UnarchiveOutlinedIcon />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="overline" sx={{ opacity: 0.8, display: 'block' }}>
-                  {item.referenceNo}
-                  {item.bookingNumber ? ` · ${item.bookingNumber}` : ''}
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, wordBreak: 'break-word' }}>
-                  ATW {item.atwNumber}
-                </Typography>
-                <Typography sx={{ opacity: 0.9, mt: 0.5 }}>
-                  {item.truckerName} · {item.containerCount} container{item.containerCount === 1 ? '' : 's'} ·{' '}
-                  {item.currentDepotName} → {item.destination}
-                </Typography>
-              </Box>
+          <DetailHero
+            icon={<UnarchiveOutlinedIcon />}
+            title={`ATW ${item.atwNumber}`}
+            subtitle={
+              <>
+                {item.referenceNo}
+                {item.bookingNumber ? ` · ${item.bookingNumber}` : ''}
+                <br />
+                {item.truckerName} · {item.containerCount} container{item.containerCount === 1 ? '' : 's'} ·{' '}
+                {item.currentDepotName} → {item.destination}
+              </>
+            }
+            chips={
               <Chip
                 label={statusLabel(item.status)}
                 color={statusColor[item.status] ?? 'default'}
-                sx={{ bgcolor: 'rgba(255,255,255,0.16)', color: '#fff', fontWeight: 700, flexShrink: 0 }}
+                size="small"
+                sx={{ fontWeight: 700 }}
               />
-            </Box>
-          </Paper>
+            }
+          />
 
           <WithdrawalStatusTimeline
             status={item.status}

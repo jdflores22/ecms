@@ -1,4 +1,10 @@
-import { DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
+import {
+  DetailHero,
+  DetailHeroAside,
+  DetailLoadingState,
+  TimezoneChip,
+  heroMutedChipSx,
+} from '../../components/layout/DetailPagePrimitives'
 import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
 import AssetImage from '../../components/layout/AssetImage'
 import {
@@ -50,7 +56,6 @@ import {
   hourlyOptionToApiTime,
   isLegacyDateOnlyTime,
   normalizeTime24Input,
-  SYSTEM_TIMEZONE,
   validateDepotScheduleDate,
 } from '../../utils/datetime'
 import { formatContainerSummary } from '../../utils/containerSize'
@@ -387,127 +392,51 @@ export default function ScheduleDetailPage() {
         </Alert>
       ) : schedule && preAdvice ? (
         <>
-          <Paper
-            elevation={0}
-            sx={{
-              p: { xs: 2.5, sm: 3 },
-              mb: 3,
-              borderRadius: 3,
-              background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-              color: '#fff',
-              boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                position: 'absolute',
-                right: -40,
-                top: -40,
-                width: 160,
-                height: 160,
-                borderRadius: '50%',
-                bgcolor: 'rgba(255,255,255,0.06)',
-              }}
-            />
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                justifyContent: 'space-between',
-                alignItems: { xs: 'flex-start', md: 'center' },
-                gap: 2,
-                position: 'relative',
-              }}
-            >
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(255,255,255,0.14)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <EventNoteOutlinedIcon />
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    variant="h4"
-                    sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', sm: '1.75rem' }, wordBreak: 'break-all' }}
-                  >
-                    {schedule.referenceNo}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.88 }}>
-                    {schedule.depotName} ·{' '}
-                    {formatContainerSummary(
-                      preAdvice.containerNo,
-                      preAdvice.containerSize,
-                      preAdvice.containerType,
-                    )}
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.25 }}>
-                    <Chip
-                      label={scheduleStatusLabel(schedule.status)}
-                      size="small"
-                      sx={{ fontWeight: 700, ...heroStatusChipStyle(schedule.status) }}
-                    />
-                    {requestingTrucker && (
-                      <Chip
-                        icon={<LocalShippingOutlinedIcon sx={{ fontSize: '16px !important', color: 'inherit !important' }} />}
-                        label={requestingTrucker}
-                        size="small"
-                        sx={{
-                          bgcolor: 'rgba(255,255,255,0.12)',
-                          color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          fontWeight: 600,
-                          '& .MuiChip-icon': { color: 'inherit' },
-                        }}
-                      />
-                    )}
-                    <Chip
-                      label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
-                      size="small"
-                      onClick={() => setActiveTab('photos')}
-                      sx={{
-                        bgcolor: 'rgba(255,255,255,0.12)',
-                        color: '#fff',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    />
-                    <Chip
-                      label={SYSTEM_TIMEZONE.labelLong}
-                      size="small"
-                      sx={{
-                        bgcolor: 'rgba(255,255,255,0.12)',
-                        color: '#fff',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        fontWeight: 600,
-                      }}
-                    />
-                  </Box>
-                </Box>
-              </Box>
-
-              {schedule.status !== 'WaitingSchedule' && schedule.date && (
-                <Box sx={{ flexShrink: 0, textAlign: { xs: 'left', md: 'right' } }}>
-                  <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
-                    Return date
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                    {formatScheduleDate(schedule.date)}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </Paper>
+          <DetailHero
+            icon={<EventNoteOutlinedIcon />}
+            title={schedule.referenceNo}
+            subtitle={
+              <>
+                {schedule.depotName} ·{' '}
+                {formatContainerSummary(
+                  preAdvice.containerNo,
+                  preAdvice.containerSize,
+                  preAdvice.containerType,
+                )}
+              </>
+            }
+            chips={
+              <>
+                <Chip
+                  label={scheduleStatusLabel(schedule.status)}
+                  size="small"
+                  sx={{ fontWeight: 700, ...heroStatusChipStyle(schedule.status) }}
+                />
+                {requestingTrucker && (
+                  <Chip
+                    icon={
+                      <LocalShippingOutlinedIcon sx={{ fontSize: '16px !important', color: 'inherit !important' }} />
+                    }
+                    label={requestingTrucker}
+                    size="small"
+                    sx={{ ...heroMutedChipSx, fontWeight: 600, '& .MuiChip-icon': { color: 'inherit' } }}
+                  />
+                )}
+                <Chip
+                  label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
+                  size="small"
+                  onClick={() => setActiveTab('photos')}
+                  sx={{ ...heroMutedChipSx, fontWeight: 600, cursor: 'pointer' }}
+                />
+                <TimezoneChip />
+              </>
+            }
+            aside={
+              schedule.status !== 'WaitingSchedule' && schedule.date ? (
+                <DetailHeroAside label="Return date" primary={formatScheduleDate(schedule.date)} />
+              ) : undefined
+            }
+          />
 
           {schedule.status === 'WaitingSchedule' && (
             <Alert

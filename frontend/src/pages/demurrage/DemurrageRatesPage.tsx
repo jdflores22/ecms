@@ -35,12 +35,12 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
-import { ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
 import {
   containerSizeApi,
   demurrageDetentionRateApi,
@@ -55,7 +55,6 @@ import {
 import { useAppSelector } from '../../store/hooks'
 import { formatDateTime, formatPeso, todayIsoDate } from '../../utils/datetime'
 
-const primaryDark = ICS_PRIMARY
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 type RateDialogMode = 'create' | 'edit' | null
@@ -280,36 +279,20 @@ export default function DemurrageRatesPage({ variant }: DemurrageRatesPageProps)
 
   return (
     <Box sx={listPageRootSx}>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(11, 61, 145, 0.08)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <PaymentsOutlinedIcon sx={{ color: primaryDark }} />
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark }}>
-              Demurrage & detention rates
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 720 }}>
-              {isAdmin
-                ? 'Configure per shipping line rules used when expired free-time billing is auto-created. Falls back to system defaults when no rule matches.'
-                : 'Manage demurrage and detention amounts for your shipping line. Rules apply automatically on new expired free-time billing.'}
-            </Typography>
-          </Box>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={listHeroActionSx}>
-          Add rule
-        </Button>
-      </Box>
+      <PageHero
+        icon={<PaymentsOutlinedIcon />}
+        title="Demurrage & detention rates"
+        subtitle={
+          isAdmin
+            ? 'Configure per shipping line rules used when expired free-time billing is auto-created. Falls back to system defaults when no rule matches.'
+            : 'Manage demurrage and detention amounts for your shipping line. Rules apply automatically on new expired free-time billing.'
+        }
+        actions={
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={listHeroPrimaryActionSx}>
+            Add rule
+          </Button>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

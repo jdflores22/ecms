@@ -32,11 +32,7 @@ import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link as RouterLink, Navigate } from 'react-router-dom'
-import {
-  heroMutedChipSx,
-  heroPaperSx,
-  hexToRgba,
-} from '../../components/layout/DetailPagePrimitives'
+import { heroMutedChipSx, hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
   ListLoadingState,
@@ -46,9 +42,11 @@ import {
   ListMobileOnly,
   ListMobileTitle,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroOutlineActionSx,
+  listHeroPrimaryActionSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
 import {
@@ -342,54 +340,37 @@ export default function AdminRevenuePage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box sx={{ position: 'relative', display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-              <TrendingUpIcon />
-              <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                Revenue
-              </Typography>
-            </Box>
-            <Typography sx={{ color: 'rgba(255,255,255,0.88)', maxWidth: 640, mb: 1.5 }}>
-              Verified pre-forecast fee collections from trucker payments approved by depot personnel.
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {periodLabel && <Chip size="small" label={periodLabel} sx={heroMutedChipSx} />}
-              {report && report.totalPayments > 0 && (
-                <Chip
-                  size="small"
-                  label={`${report.totalPayments} verified · ${formatPeso(report.totalRevenue)}`}
-                  sx={heroMutedChipSx}
-                />
-              )}
-              {returnFeeAmount != null && (
-                <Chip
-                  size="small"
-                  label={`Fee ${formatPeso(returnFeeAmount)} per return`}
-                  sx={heroMutedChipSx}
-                />
-              )}
-            </Box>
-          </Box>
+      <PageHero
+        icon={<TrendingUpIcon />}
+        title="Revenue"
+        subtitle="Verified pre-forecast fee collections from trucker payments approved by depot personnel."
+        chips={
+          <>
+            {periodLabel && <Chip size="small" label={periodLabel} sx={heroMutedChipSx} />}
+            {report && report.totalPayments > 0 && (
+              <Chip
+                size="small"
+                label={`${report.totalPayments} verified · ${formatPeso(report.totalRevenue)}`}
+                sx={heroMutedChipSx}
+              />
+            )}
+            {returnFeeAmount != null && (
+              <Chip
+                size="small"
+                label={`Fee ${formatPeso(returnFeeAmount)} per return`}
+                sx={heroMutedChipSx}
+              />
+            )}
+          </>
+        }
+        actions={
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
             <Button
               component={RouterLink}
               to="/admin/reports"
               variant="contained"
               startIcon={<AssessmentOutlinedIcon />}
-              sx={listHeroActionSx}
+              sx={{ ...listHeroPrimaryActionSx, flex: { xs: 1, sm: 'none' } }}
             >
               Transactions
             </Button>
@@ -398,7 +379,7 @@ export default function AdminRevenuePage() {
               to="/admin/payments"
               variant="contained"
               startIcon={<VerifiedOutlinedIcon />}
-              sx={listHeroActionSx}
+              sx={{ ...listHeroPrimaryActionSx, flex: { xs: 1, sm: 'none' } }}
             >
               Payments
             </Button>
@@ -407,14 +388,7 @@ export default function AdminRevenuePage() {
               startIcon={<DownloadIcon />}
               onClick={exportCsv}
               disabled={!report?.rows.length}
-              sx={{
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.45)',
-                fontWeight: 600,
-                borderRadius: 2,
-                flex: { xs: 1, sm: 'none' },
-                '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
-              }}
+              sx={{ ...listHeroOutlineActionSx, flex: { xs: 1, sm: 'none' } }}
             >
               Export
             </Button>
@@ -423,20 +397,13 @@ export default function AdminRevenuePage() {
               startIcon={<RefreshIcon />}
               onClick={load}
               disabled={loading}
-              sx={{
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.45)',
-                fontWeight: 600,
-                borderRadius: 2,
-                flex: { xs: 1, sm: 'none' },
-                '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
-              }}
+              sx={{ ...listHeroOutlineActionSx, flex: { xs: 1, sm: 'none' } }}
             >
               Refresh
             </Button>
           </Box>
-        </Box>
-      </Paper>
+        }
+      />
 
       <Paper
         elevation={0}

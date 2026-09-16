@@ -14,7 +14,8 @@ import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listHeroActionSx } from '../components/layout/ListPagePrimitives'
+import { listHeroPrimaryActionSx, pageHeroPaperSx, pageHeroSubtitleSx, pageHeroTitleSx } from '../components/layout/ListPagePrimitives'
+import { appColors, icsOnBrand } from '../theme/colors'
 import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
 import CyAllocationDashboardPanel from '../components/dashboard/CyAllocationDashboardPanel'
 import { isTruckerOrBroker, roleLabel } from '../config/roleConfig'
@@ -23,8 +24,8 @@ import { fetchCachedDashboard } from '../utils/dashboardApiCache'
 import type { CyAllocation } from '../services/api'
 import { useAppSelector } from '../store/hooks'
 
-const primaryDark = '#0B3D91'
-const primaryLight = '#00A3E0'
+const primaryDark = appColors.primary
+const primaryLight = appColors.accent
 
 interface DashboardRejectedReason {
   reason: string
@@ -128,41 +129,7 @@ export default function DashboardPage() {
 
   return (
     <Box>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -40,
-            top: -40,
-            width: 180,
-            height: 180,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            position: 'absolute',
-            right: 60,
-            bottom: -50,
-            width: 120,
-            height: 120,
-            borderRadius: '50%',
-            bgcolor: 'rgba(0, 163, 224, 0.12)',
-          }}
-        />
+      <Paper elevation={0} sx={pageHeroPaperSx}>
         <Box
           sx={{
             position: 'relative',
@@ -174,16 +141,16 @@ export default function DashboardPage() {
           }}
         >
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.2 }}>
+            <Typography variant="overline" sx={{ color: icsOnBrand.muted, letterSpacing: '0.08em' }}>
               {user.role ? roleLabel(user.role) : 'Dashboard'}
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+            <Typography variant="h5" sx={{ ...pageHeroTitleSx, mb: 0.5 }}>
               Welcome back, {user.fullName?.split(' ')[0] ?? user.fullName}
             </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, mb: 0.5 }}>
+            <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: '1rem', mb: 0.5 }}>
               {config.title}
             </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.78)', maxWidth: 640 }}>
+            <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, mt: 0 }}>
               {config.subtitle}
             </Typography>
           </Box>
@@ -202,7 +169,7 @@ export default function DashboardPage() {
                 startIcon={<AddIcon />}
                 onClick={() => navigate('/preforecast/new')}
                 sx={{
-                  ...listHeroActionSx,
+                  ...listHeroPrimaryActionSx,
                   px: 2.5,
                 }}
               >
@@ -213,7 +180,7 @@ export default function DashboardPage() {
                 startIcon={<UnarchiveOutlinedIcon />}
                 onClick={() => navigate('/trucker/withdrawals/new')}
                 sx={{
-                  ...listHeroActionSx,
+                  ...listHeroPrimaryActionSx,
                   px: 2.5,
                 }}
               >

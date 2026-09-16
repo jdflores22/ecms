@@ -22,7 +22,7 @@ import axios from 'axios'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
-import { ListLoadingState, listPageRootSx } from '../../components/layout/ListPagePrimitives'
+import { ListLoadingState, listPageRootSx, PageHero } from '../../components/layout/ListPagePrimitives'
 import {
   cyAllocationApi,
   shippingLineCyFillApi,
@@ -165,19 +165,11 @@ export default function CyFillPriorityPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Stack spacing={2} sx={{ mb: 3 }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <WarehouseOutlinedIcon sx={{ color: primaryDark, fontSize: 32 }} />
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark }}>
-              CY fill priority
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Steer which container yards admin should fill first when approving pre-forecast.
-            </Typography>
-          </Box>
-        </Stack>
-      </Stack>
+      <PageHero
+        icon={<WarehouseOutlinedIcon />}
+        title="CY fill priority"
+        subtitle="Steer which container yards admin should fill first when approving pre-forecast."
+      />
 
       {loading ? (
         <ListLoadingState />

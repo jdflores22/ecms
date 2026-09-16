@@ -6,7 +6,7 @@ import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
+import { heroMutedChipSx, hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import {
   ListDesktopOnly,
   ListMobileCard,
@@ -18,6 +18,7 @@ import {
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { withdrawalApi, type Withdrawal } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
@@ -328,67 +329,16 @@ export default function DepotWithdrawalsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', position: 'relative', minWidth: 0 }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <UnarchiveOutlinedIcon />
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', sm: '1.75rem' } }}>
-              CY withdrawal review
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.88)', mt: 0.5, maxWidth: 560, lineHeight: 1.5 }}>
-              Validate ATW documents, approve repositioning requests, and release containers at your yard.
-            </Typography>
-            {needsReviewCount > 0 && (
-              <Chip
-                label={`${needsReviewCount} awaiting review`}
-                size="small"
-                sx={{
-                  mt: 1.25,
-                  fontWeight: 700,
-                  bgcolor: 'rgba(255,255,255,0.16)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.28)',
-                }}
-              />
-            )}
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<UnarchiveOutlinedIcon />}
+        title="CY withdrawal review"
+        subtitle="Validate ATW documents, approve repositioning requests, and release containers at your yard."
+        chips={
+          needsReviewCount > 0 ? (
+            <Chip label={`${needsReviewCount} awaiting review`} size="small" sx={heroMutedChipSx} />
+          ) : undefined
+        }
+      />
 
       {needsReviewCount > 0 && activeTab !== 'NeedsReview' && (
         <Alert

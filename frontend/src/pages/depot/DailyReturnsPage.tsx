@@ -33,7 +33,7 @@ import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import TodayIcon from '@mui/icons-material/Today'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
+import { heroMutedChipSx, hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import {
   depotApi,
   scheduleApi,
@@ -50,10 +50,11 @@ import {
   ListMobileOnly,
   ListMobileTitle,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import {
   formatDisplayDate,
@@ -315,98 +316,48 @@ export default function DailyReturnsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
+      <PageHero
+        icon={<CalendarViewDayOutlinedIcon />}
+        title="Daily returns"
+        subtitle={
+          <>
+            {depotName ? `${depotName} · ` : ''}
+            Yard gate view — returns booked for the selected day and depot capacity.
+          </>
+        }
+        chips={
+          dayReturns.length > 0 ? (
+            <Chip
+              label={`${dayReturns.length} return${dayReturns.length === 1 ? '' : 's'} on ${formatDisplayDate(selectedDate)}`}
+              size="small"
+              sx={heroMutedChipSx}
+            />
+          ) : undefined
+        }
+        actions={
+          <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
+            <Button
+              component={RouterLink}
+              to="/depot/gate-scan"
+              variant="contained"
+              color="secondary"
+              startIcon={<QrCodeScannerIcon />}
+              sx={listHeroPrimaryActionSx}
             >
-              <CalendarViewDayOutlinedIcon />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', sm: '1.75rem' } }}>
-                Daily returns
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.88)', mt: 0.5, maxWidth: 520, lineHeight: 1.5 }}>
-                {depotName ? `${depotName} · ` : ''}
-                Yard gate view — returns booked for the selected day and depot capacity.
-              </Typography>
-              {dayReturns.length > 0 && (
-                <Chip
-                  label={`${dayReturns.length} return${dayReturns.length === 1 ? '' : 's'} on ${formatDisplayDate(selectedDate)}`}
-                  size="small"
-                  sx={{
-                    mt: 1.25,
-                    fontWeight: 700,
-                    bgcolor: 'rgba(255,255,255,0.16)',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.28)',
-                  }}
-                />
-              )}
-            </Box>
+              Gate scan
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/depot/schedules"
+              variant="contained"
+              startIcon={<EventNoteOutlinedIcon />}
+              sx={listHeroPrimaryActionSx}
+            >
+              Manage schedules
+            </Button>
           </Box>
-          <Button
-            component={RouterLink}
-            to="/depot/gate-scan"
-            variant="contained"
-            color="secondary"
-            startIcon={<QrCodeScannerIcon />}
-            sx={listHeroActionSx}
-          >
-            Gate scan
-          </Button>
-          <Button
-            component={RouterLink}
-            to="/depot/schedules"
-            variant="contained"
-            startIcon={<EventNoteOutlinedIcon />}
-            sx={listHeroActionSx}
-          >
-            Manage schedules
-          </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

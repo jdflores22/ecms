@@ -23,8 +23,9 @@ import { InlineLoadingSkeleton } from './layout/SkeletonPrimitives'
 import { isTruckerOrBroker } from '../config/roleConfig'
 
 import { useAppSelector } from '../store/hooks'
+import { appColors, hexToRgba } from '../theme/colors'
 
-const primaryDark = '#0B3D91'
+const primaryDark = appColors.primary
 
 const categoryColor: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'> = {
   PreForecast: 'info',
@@ -36,14 +37,6 @@ const categoryColor: Record<string, 'default' | 'primary' | 'secondary' | 'succe
   Auth: 'default',
   Profile: 'default',
   DepotBroadcast: 'warning',
-}
-
-function hexToRgba(hex: string, alpha: number) {
-  const normalized = hex.replace('#', '')
-  const r = parseInt(normalized.slice(0, 2), 16)
-  const g = parseInt(normalized.slice(2, 4), 16)
-  const b = parseInt(normalized.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 export default function NotificationBell() {

@@ -12,10 +12,12 @@ import {
   ListMobileOnly,
   ListMobileTitle,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
+import { appColors } from '../../theme/colors'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import { type Schedule } from '../../services/api'
 import { fetchCachedScheduleList } from '../../utils/truckerListCache'
@@ -57,11 +59,11 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 3,
+        borderRadius: '1rem',
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
-        boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        boxShadow: appColors.surfaceShadow,
       }}
     >
       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
@@ -114,74 +116,22 @@ export default function TruckerReturnsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <LocalShippingOutlinedIcon />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                My Returns
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Assigned container return schedules. Upload payment proof under Payments when scheduled.
-              </Typography>
-            </Box>
-          </Box>
+      <PageHero
+        icon={<LocalShippingOutlinedIcon />}
+        title="My Returns"
+        subtitle="Assigned container return schedules. Upload payment proof under Payments when scheduled."
+        actions={
           <Button
             component={RouterLink}
             to="/trucker/payments"
             variant="contained"
             startIcon={<PaymentsOutlinedIcon />}
-            sx={listHeroActionSx}
+            sx={listHeroPrimaryActionSx}
           >
             Payments
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>

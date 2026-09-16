@@ -1,4 +1,4 @@
-import { DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
+import { DetailHero, DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
 import { Alert, Box, Button, Chip, Divider, Paper, Typography } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
@@ -18,8 +18,6 @@ import { withdrawalApi, type Withdrawal, type WithdrawalDocument, type Withdrawa
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatScheduleDate, formatScheduleTime } from '../../utils/datetime'
-
-const primaryDark = '#0B3D91'
 
 const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   Draft: 'default',
@@ -207,46 +205,26 @@ export default function WithdrawalDetailPage() {
         <Alert severity="error">{error || 'Withdrawal request not found.'}</Alert>
       ) : (
         <>
-          <Paper
-            elevation={0}
-            sx={{
-              p: { xs: 2.5, sm: 3 },
-              mb: 3,
-              borderRadius: 3,
-              background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-              color: '#fff',
-            }}
-          >
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <Box
-                sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 2,
-                  bgcolor: 'rgba(255,255,255,0.14)',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                <UnarchiveOutlinedIcon />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="overline" sx={{ opacity: 0.8 }}>
-                  {item.referenceNo}
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  ATW {item.atwNumber}
-                </Typography>
-                <Typography sx={{ opacity: 0.9, mt: 0.5 }}>
-                  {item.containerCount} container{item.containerCount === 1 ? '' : 's'} · {item.containerSummary} · {item.currentDepotName} → {item.destination}
-                </Typography>
-              </Box>
+          <DetailHero
+            icon={<UnarchiveOutlinedIcon />}
+            title={`ATW ${item.atwNumber}`}
+            subtitle={
+              <>
+                {item.referenceNo}
+                <br />
+                {item.containerCount} container{item.containerCount === 1 ? '' : 's'} · {item.containerSummary} ·{' '}
+                {item.currentDepotName} → {item.destination}
+              </>
+            }
+            chips={
               <Chip
                 label={item.status === 'UnderReview' ? 'Under review' : item.status}
-                sx={{ bgcolor: 'rgba(255,255,255,0.16)', color: '#fff', fontWeight: 700 }}
+                color={statusColor[item.status] ?? 'default'}
+                size="small"
+                sx={{ fontWeight: 700 }}
               />
-            </Box>
-          </Paper>
+            }
+          />
 
           <WithdrawalStatusTimeline
             status={item.status}

@@ -35,7 +35,8 @@ import {
   listPageRootSx,
   listTablePaperSx,
 } from '../../components/layout/ListPagePrimitives'
-import { heroPaperSx } from '../../components/layout/DetailPagePrimitives'
+import { pageHeroMutedChipSx } from '../../components/layout/PageHeroPrimitives'
+import { PageHero } from '../../components/layout/ListPagePrimitives'
 import { containerInventoryApi, withdrawalApi, type ContainerDwellCompliance, type ContainerInventoryItem, type EvaluatorAtwLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { formatContainerSizeLabel, formatContainerSummary } from '../../utils/containerSize'
@@ -284,40 +285,16 @@ export default function AtwBulkSelectPage() {
         Back to issue form
       </Button>
 
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <ChecklistRtlOutlinedIcon />
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              Bulk select containers
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5 }}>
-              Choose units from CY inventory at <strong>{depotName}</strong>. Oldest dwell (highest days) shown first.
-            </Typography>
-          </Box>
-          <Chip
-            label={`${selectedCount} selected`}
-            sx={{
-              bgcolor: 'rgba(255,255,255,0.16)',
-              color: '#fff',
-              fontWeight: 700,
-              border: '1px solid rgba(255,255,255,0.25)',
-            }}
-          />
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<ChecklistRtlOutlinedIcon />}
+        title="Bulk select containers"
+        titleAddon={<Chip label={`${selectedCount} selected`} sx={pageHeroMutedChipSx} />}
+        subtitle={
+          <>
+            Choose units from CY inventory at <strong>{depotName}</strong>. Oldest dwell (highest days) shown first.
+          </>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

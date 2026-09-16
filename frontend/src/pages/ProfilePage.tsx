@@ -47,6 +47,7 @@ import { profileApi, type Profile } from '../services/api'
 import { useAppDispatch } from '../store/hooks'
 import { updateUser } from '../store/slices/authSlice'
 import { useAssetUrlState } from '../hooks/useAssetUrl'
+import { PageHero } from '../components/layout/ListPagePrimitives'
 import { AvatarSkeleton } from '../components/layout/SkeletonPrimitives'
 import { formatDate } from '../utils/datetime'
 
@@ -243,14 +244,11 @@ export default function ProfilePage() {
 
   return (
     <Box sx={{ minWidth: 0, maxWidth: 1080, mx: 'auto' }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', sm: '1.75rem' }, color: ICS_PRIMARY }}>
-          Profile settings
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Manage your photo, contact details, and password
-        </Typography>
-      </Box>
+      <PageHero
+        icon={<PersonOutlinedIcon />}
+        title="Profile settings"
+        subtitle="Manage your photo, contact details, and password"
+      />
 
       {(profileSuccess || profileError) && (
         <Box sx={{ mb: 2 }}>

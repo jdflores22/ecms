@@ -15,9 +15,12 @@ import {
   ListMobileTitle,
   ListTablePagination,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroOutlineActionSx,
+  listHeroPrimaryActionSx,
+  listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type Withdrawal } from '../../services/api'
@@ -151,69 +154,17 @@ export default function TruckerWithdrawalsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <UnarchiveOutlinedIcon />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                My withdrawals
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-                Book ICS for export or repositioning. Shipping line assigns CY; depot sets pick-up day.
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      <PageHero
+        icon={<UnarchiveOutlinedIcon />}
+        title="My withdrawals"
+        subtitle="Book ICS for export or repositioning. Shipping line assigns CY; depot sets pick-up day."
+        actions={
+          <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
             <Button
               component={RouterLink}
               to="/trucker/withdrawals/schedule"
               variant="outlined"
-              sx={{
-                flexShrink: 0,
-                width: { xs: '100%', sm: 'auto' },
-                fontWeight: 700,
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.55)',
-                bgcolor: 'transparent',
-                '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.14)',
-                  borderColor: '#fff',
-                },
-              }}
+              sx={listHeroOutlineActionSx}
             >
               Pick-up schedule
             </Button>
@@ -222,13 +173,13 @@ export default function TruckerWithdrawalsPage() {
               to="/trucker/withdrawals/new"
               variant="contained"
               startIcon={<AddIcon />}
-              sx={{ ...listHeroActionSx, px: 2.5 }}
+              sx={{ ...listHeroPrimaryActionSx, px: 2.5 }}
             >
               Book ICS
             </Button>
           </Box>
-        </Box>
-      </Paper>
+        }
+      />
 
       <Box
         sx={{

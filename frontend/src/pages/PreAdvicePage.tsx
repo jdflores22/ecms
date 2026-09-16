@@ -16,10 +16,11 @@ import {
   ListMobileTitle,
   ListTablePagination,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../components/layout/ListPagePrimitives'
 import { isPreAdviceManager } from '../config/roleConfig'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor } from '../config/logicteckQr'
@@ -137,77 +138,22 @@ export default function PreAdvicePage() {
           {loadError}
         </Alert>
       )}
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <DescriptionOutlinedIcon />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                Pre-forecast requests
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                Create and manage empty container return requests.
-              </Typography>
-            </Box>
-          </Box>
+      <PageHero
+        icon={<DescriptionOutlinedIcon />}
+        title="Pre-forecast requests"
+        subtitle="Create and manage empty container return requests."
+        actions={
           <Button
             component={RouterLink}
             to="/preforecast/new"
             variant="contained"
             startIcon={<AddIcon />}
-            sx={{
-              ...listHeroActionSx,
-              px: 2.5,
-            }}
+            sx={{ ...listHeroPrimaryActionSx, px: 2.5 }}
           >
             New pre-forecast
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       <Box
         sx={{

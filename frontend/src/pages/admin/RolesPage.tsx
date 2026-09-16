@@ -20,10 +20,11 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 
 const primaryDark = '#0B3D91'
@@ -203,75 +204,22 @@ export default function RolesPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <AdminPanelSettingsOutlinedIcon />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                Role Management
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-                Role names are fixed. Each role can only access its assigned pages — enforced across navigation
-                and routing (RBAC).
-              </Typography>
-            </Box>
-          </Box>
+      <PageHero
+        icon={<AdminPanelSettingsOutlinedIcon />}
+        title="Role Management"
+        subtitle="Role names are fixed. Each role can only access its assigned pages — enforced across navigation and routing (RBAC)."
+        actions={
           <Button
             component={RouterLink}
             to="/admin/users"
             variant="contained"
             startIcon={<PeopleOutlinedIcon />}
-            sx={listHeroActionSx}
+            sx={listHeroPrimaryActionSx}
           >
             Manage users
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

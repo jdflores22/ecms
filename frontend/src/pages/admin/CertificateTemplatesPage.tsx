@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import CertificateTemplateBuilder from '../../components/admin/CertificateTemplateBuilder'
 import { ListLoadingState, listPageRootSx, listTablePaperSx } from '../../components/layout/ListPagePrimitives'
-import { heroPaperSx } from '../../components/layout/DetailPagePrimitives'
+import { PageHero } from '../../components/layout/ListPagePrimitives'
 import {
   certificateTemplateApi,
   shippingLineApi,
@@ -121,32 +121,11 @@ export default function CertificateTemplatesPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <DescriptionOutlinedIcon />
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              Certificate templates
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-              Calibrate ATW issue, ATW release, and CY container release certificate layouts per shipping line.
-              Active templates are used when evaluators issue ATWs and when depots release containers.
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<DescriptionOutlinedIcon />}
+        title="Certificate templates"
+        subtitle="Calibrate ATW issue, ATW release, and CY container release certificate layouts per shipping line. Active templates are used when evaluators issue ATWs and when depots release containers."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

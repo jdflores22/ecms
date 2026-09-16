@@ -1,10 +1,10 @@
-import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button } from '@mui/material'
 import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import { useEffect, useState } from 'react'
 import { Link as RouterLink, Navigate } from 'react-router-dom'
-import { heroPaperSx } from '../../components/layout/DetailPagePrimitives'
+import { PageHero } from '../../components/layout/ListPagePrimitives'
 import { listPageRootSx } from '../../components/layout/ListPagePrimitives'
 import WithdrawalNewWizard from '../../components/withdrawals/WithdrawalNewWizard'
 import { isPreAdviceManager } from '../../config/roleConfig'
@@ -47,50 +47,11 @@ export default function WithdrawalNewPage() {
         Back to list
       </Button>
 
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-            alignItems: 'flex-start',
-            position: 'relative',
-          }}
-        >
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <UnarchiveOutlinedIcon />
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              New withdrawal request
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 640 }}>
-              Step through ATW details, upload your certificate with OCR assist, and submit to the container yard.
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<UnarchiveOutlinedIcon />}
+        title="New withdrawal request"
+        subtitle="Step through ATW details, upload your certificate with OCR assist, and submit to the container yard."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

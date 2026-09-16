@@ -1,38 +1,23 @@
 import { Box, Chip, Paper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
-import { LIST_PRIMARY } from '../layout/ListPagePrimitives'
+import { pageHeroOrbSx, pageHeroPaperSx, pageHeroSubtitleSx, pageHeroTitleSx } from '../layout/PageHeroPrimitives'
+import { appColors, ICS_PRIMARY } from '../../theme/colors'
+
+const LIST_PRIMARY = ICS_PRIMARY
 import type { DemurrageBilling } from '../../services/api'
 import { formatDate, formatPeso } from '../../utils/datetime'
 import { getBillingFeeLines } from './demurrageBillingUtils'
 
-export const demurrageHeroSx = {
-  p: { xs: 2.5, sm: 3 },
-  mb: 3,
-  borderRadius: 3,
-  background: `linear-gradient(135deg, ${LIST_PRIMARY} 0%, #0A3580 60%, #0C4DA8 100%)`,
-  color: '#fff',
-  boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-  position: 'relative' as const,
-  overflow: 'hidden' as const,
-}
+export const demurrageHeroSx = pageHeroPaperSx
 
-export const demurrageHeroOrbSx = {
-  position: 'absolute' as const,
-  right: -30,
-  top: -30,
-  width: 140,
-  height: 140,
-  borderRadius: '50%',
-  bgcolor: 'rgba(255,255,255,0.06)',
-}
+export const demurrageHeroOrbSx = pageHeroOrbSx
 
 export const demurrageTabsPaperSx = {
   mb: 2,
-  borderRadius: 3,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: '#fff',
-  boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+  borderRadius: '1rem',
+  border: `1px solid ${appColors.border}`,
+  bgcolor: appColors.white,
+  boxShadow: appColors.surfaceShadow,
   overflow: 'hidden',
 }
 
@@ -52,11 +37,10 @@ export function SummaryCard({
       elevation={0}
       sx={{
         p: { xs: 1.5, sm: 2 },
-        borderRadius: 3,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: '#fff',
-        boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        borderRadius: '1rem',
+        border: `1px solid ${appColors.border}`,
+        bgcolor: appColors.white,
+        boxShadow: appColors.surfaceShadow,
         minWidth: 0,
       }}
     >
@@ -263,13 +247,10 @@ export function DemurrageHero({
             {icon}
           </Box>
           <Box>
-            <Typography
-              variant="h4"
-              sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' }, textWrap: 'balance' }}
-            >
+            <Typography variant="h5" sx={{ ...pageHeroTitleSx, textWrap: 'balance' }}>
               {title}
             </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560, textWrap: 'pretty' }}>
+            <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, textWrap: 'pretty' }}>
               {description}
             </Typography>
           </Box>

@@ -4,7 +4,14 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined'
 import SystemUpdateAltOutlinedIcon from '@mui/icons-material/SystemUpdateAltOutlined'
 import { Navigate } from 'react-router-dom'
-import { LIST_PRIMARY } from '../../components/layout/ListPagePrimitives'
+import {
+  pageHeroPaperSx,
+  pageHeroOrbSx,
+  pageHeroIconBoxSx,
+  pageHeroSubtitleSx,
+  pageHeroTitleSx,
+} from '../../components/layout/PageHeroPrimitives'
+import { appColors, icsOnBrand } from '../../theme/colors'
 import { ICS_BRAND } from '../../config/brandCopy'
 import {
   APP_VERSION,
@@ -14,15 +21,13 @@ import {
 } from '../../config/versionHistory'
 import { useAppSelector } from '../../store/hooks'
 
-const primaryDark = LIST_PRIMARY
-
 function HighlightList({ items }: { items: string[] }) {
   return (
     <List dense disablePadding sx={{ mt: 0.5 }}>
       {items.map((item) => (
         <ListItem key={item} disableGutters sx={{ alignItems: 'flex-start', py: 0.75 }}>
           <ListItemIcon sx={{ minWidth: 32, mt: 0.25 }}>
-            <CheckCircleIcon sx={{ fontSize: 18, color: primaryDark }} />
+            <CheckCircleIcon sx={{ fontSize: 18, color: appColors.primary }} />
           </ListItemIcon>
           <ListItemText
             primary={
@@ -48,65 +53,35 @@ export default function AdminVersionPage() {
 
   return (
     <Box>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
+      <Paper elevation={0} sx={pageHeroPaperSx}>
+        <Box aria-hidden sx={pageHeroOrbSx} />
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', position: 'relative' }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
+          <Box sx={pageHeroIconBoxSx}>
             <SystemUpdateAltOutlinedIcon />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ opacity: 0.85, letterSpacing: 1.2 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: icsOnBrand.muted, letterSpacing: 1.2, display: 'block' }}
+            >
               {ICS_BRAND.shortName} release
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
-              <Typography variant="h5" sx={{ fontWeight: 800 }}>
+              <Typography variant="h5" sx={pageHeroTitleSx}>
                 Version {APP_VERSION}
               </Typography>
               <Chip
                 size="small"
                 label="Current"
                 sx={{
-                  bgcolor: 'rgba(255,255,255,0.16)',
+                  bgcolor: 'rgba(255, 255, 255, 0.14)',
                   color: '#fff',
                   fontWeight: 700,
-                  border: '1px solid rgba(255,255,255,0.25)',
+                  border: '1px solid rgba(255, 255, 255, 0.22)',
                 }}
               />
             </Box>
-            <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.75 }}>
+            <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, mt: 0.75 }}>
               {current.title} · Released {formatReleaseDate(current.releasedOn)}
             </Typography>
           </Box>
@@ -125,7 +100,7 @@ export default function AdminVersionPage() {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <NewReleasesOutlinedIcon sx={{ color: primaryDark }} />
+          <NewReleasesOutlinedIcon sx={{ color: appColors.primary }} />
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             What&apos;s new
           </Typography>

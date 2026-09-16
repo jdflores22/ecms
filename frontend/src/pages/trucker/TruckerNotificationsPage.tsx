@@ -12,7 +12,13 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { hexToRgba } from '../../components/layout/DetailPagePrimitives'
-import { ListLoadingState, LIST_PRIMARY, listPageRootSx } from '../../components/layout/ListPagePrimitives'
+import {
+  LIST_PRIMARY,
+  ListLoadingState,
+  listHeroOutlineActionSx,
+  listPageRootSx,
+  PageHero,
+} from '../../components/layout/ListPagePrimitives'
 import { notificationApi, type Notification } from '../../services/api'
 import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
@@ -49,30 +55,18 @@ export default function TruckerNotificationsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2, sm: 2.5 },
-          mb: 2,
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <NotificationsNoneOutlinedIcon sx={{ color: primaryDark }} />
-            <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              Notifications
-            </Typography>
-          </Box>
-          {items.some((n) => !n.isRead) && (
-            <Button size="small" onClick={handleMarkAllRead} sx={{ fontWeight: 600, textTransform: 'none' }}>
+      <PageHero
+        icon={<NotificationsNoneOutlinedIcon />}
+        title="Notifications"
+        subtitle="Updates on withdrawals, returns, payments, and other account activity."
+        actions={
+          items.some((n) => !n.isRead) ? (
+            <Button variant="outlined" onClick={handleMarkAllRead} sx={listHeroOutlineActionSx}>
               Mark all read
             </Button>
-          )}
-        </Box>
-      </Paper>
+          ) : undefined
+        }
+      />
 
       {loading ? (
         <ListLoadingState />

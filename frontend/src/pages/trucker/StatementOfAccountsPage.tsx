@@ -23,15 +23,13 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
-  LIST_PRIMARY,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { statementOfAccountApi, type StatementOfAccount } from '../../services/api'
 import { formatPeso } from '../../utils/datetime'
-
-const primaryDark = LIST_PRIMARY
 
 function normalizeStatus(status: StatementOfAccount['status']) {
   if (typeof status === 'string') return status
@@ -67,28 +65,11 @@ export default function TruckerStatementOfAccountsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
-        <Box
-          sx={{
-            width: 48,
-            height: 48,
-            borderRadius: 2,
-            bgcolor: 'rgba(11, 61, 145, 0.08)',
-            display: 'grid',
-            placeItems: 'center',
-          }}
-        >
-          <DescriptionOutlinedIcon sx={{ color: primaryDark }} />
-        </Box>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark }}>
-            Statements of account
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Collated demurrage billings from your shipping line. Pay the amount due on each open SOA.
-          </Typography>
-        </Box>
-      </Box>
+      <PageHero
+        icon={<DescriptionOutlinedIcon />}
+        title="Statements of account"
+        subtitle="Collated demurrage billings from your shipping line. Pay the amount due on each open SOA."
+      />
 
       {error && (
         <Typography color="error" sx={{ mb: 2 }}>

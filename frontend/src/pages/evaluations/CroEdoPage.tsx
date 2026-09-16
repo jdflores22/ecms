@@ -13,10 +13,11 @@ import {
   ListMobileOnly,
   ListMobileTitle,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { useClientPagination } from '../../hooks/useClientPagination'
 import { croEdoApi, type CroEdo, type CroEdoLine } from '../../services/api'
@@ -304,71 +305,22 @@ export default function CroEdoPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-            alignItems: 'flex-start',
-            position: 'relative',
-          }}
-        >
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <DescriptionOutlinedIcon />
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              CRO / eDO
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              Issue Container Release Orders / electronic Delivery Orders with free demurrage time and empty return CY.
-            </Typography>
-          </Box>
+      <PageHero
+        icon={<DescriptionOutlinedIcon />}
+        title="CRO / eDO"
+        subtitle="Issue Container Release Orders / electronic Delivery Orders with free demurrage time and empty return CY."
+        actions={
           <Button
             component={RouterLink}
             to="/evaluations/cro-edo/new"
             variant="contained"
             startIcon={<AddIcon />}
-            sx={listHeroActionSx}
+            sx={listHeroPrimaryActionSx}
           >
             New CRO / eDO
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

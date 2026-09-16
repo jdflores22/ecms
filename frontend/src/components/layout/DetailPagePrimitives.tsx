@@ -3,18 +3,28 @@ import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { SYSTEM_TIMEZONE } from '../../utils/datetime'
+import { appColors, hexToRgba, ICS_PRIMARY, icsOnBrand } from '../../theme/colors'
+import {
+  pageHeroIconBoxSx,
+  pageHeroMutedChipSx,
+  pageHeroOrbSx,
+  pageHeroPaperSx,
+  pageHeroSubtitleSx,
+  pageHeroTitleSx,
+} from './PageHeroPrimitives'
+
+export { pageHeroTitleSx, pageHeroSubtitleSx }
 import { DetailPageSkeleton } from './SkeletonPrimitives'
 
-export const ICS_PRIMARY = '#0B3D91'
+export { ICS_PRIMARY, hexToRgba }
 
 export const sectionPaperSx = {
   p: { xs: 2, sm: 2.5 },
   mb: 3,
-  borderRadius: 3,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: '#fff',
-  boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+  borderRadius: '1rem',
+  border: `1px solid ${appColors.border}`,
+  bgcolor: appColors.white,
+  boxShadow: appColors.surfaceShadow,
   minWidth: 0,
   maxWidth: '100%',
   boxSizing: 'border-box',
@@ -26,31 +36,9 @@ export const infoGridSx = {
   gap: { xs: 1.5, sm: 2 },
 }
 
-export const heroPaperSx = {
-  p: { xs: 2.5, sm: 3 },
-  mb: 3,
-  borderRadius: 3,
-  background: `linear-gradient(135deg, ${ICS_PRIMARY} 0%, #0A3580 60%, #0C4DA8 100%)`,
-  color: '#fff',
-  boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-  position: 'relative' as const,
-  overflow: 'hidden' as const,
-}
+export const heroPaperSx = pageHeroPaperSx
 
-export const heroMutedChipSx = {
-  bgcolor: 'rgba(255,255,255,0.12)',
-  color: '#fff',
-  border: '1px solid rgba(255,255,255,0.2)',
-  fontWeight: 600,
-}
-
-export function hexToRgba(hex: string, alpha: number) {
-  const normalized = hex.replace('#', '')
-  const r = parseInt(normalized.slice(0, 2), 16)
-  const g = parseInt(normalized.slice(2, 4), 16)
-  const b = parseInt(normalized.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
+export const heroMutedChipSx = pageHeroMutedChipSx
 
 export function InfoTile({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
@@ -59,10 +47,9 @@ export function InfoTile({ label, value, mono }: { label: string; value: ReactNo
       sx={{
         p: 2,
         height: '100%',
-        borderRadius: 2.5,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: hexToRgba(ICS_PRIMARY, 0.02),
+        borderRadius: '0.75rem',
+        border: `1px solid ${appColors.border}`,
+        bgcolor: hexToRgba(ICS_PRIMARY, 0.03),
       }}
     >
       <Typography
@@ -131,7 +118,7 @@ export function DetailLoadingState({
 
 export function DetailErrorState({ message }: { message: string }) {
   return (
-    <Alert severity="error" sx={{ borderRadius: 2 }}>
+    <Alert severity="error" sx={{ borderRadius: '0.75rem' }}>
       {message}
     </Alert>
   )
@@ -156,17 +143,7 @@ type DetailHeroProps = {
 export function DetailHero({ icon, title, subtitle, chips, aside }: DetailHeroProps) {
   return (
     <Paper elevation={0} sx={heroPaperSx}>
-      <Box
-        sx={{
-          position: 'absolute',
-          right: -40,
-          top: -40,
-          width: 160,
-          height: 160,
-          borderRadius: '50%',
-          bgcolor: 'rgba(255,255,255,0.06)',
-        }}
-      />
+      <Box aria-hidden sx={pageHeroOrbSx} />
       <Box
         sx={{
           display: 'flex',
@@ -178,28 +155,13 @@ export function DetailHero({ icon, title, subtitle, chips, aside }: DetailHeroPr
         }}
       >
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </Box>
+          <Box sx={pageHeroIconBoxSx}>{icon}</Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography
-              variant="h4"
-              sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', sm: '1.75rem' }, wordBreak: 'break-all' }}
-            >
+            <Typography variant="h5" sx={{ ...pageHeroTitleSx, wordBreak: 'break-all' }}>
               {title}
             </Typography>
             {subtitle && (
-              <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.88, wordBreak: 'break-word' }}>
+              <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, wordBreak: 'break-word' }}>
                 {subtitle}
               </Typography>
             )}
@@ -225,14 +187,24 @@ type DetailHeroAsideProps = {
 export function DetailHeroAside({ label, primary, secondary }: DetailHeroAsideProps) {
   return (
     <Box sx={{ flexShrink: 0, minWidth: 0, maxWidth: '100%', textAlign: { xs: 'left', md: 'right' } }}>
-      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
+      <Typography variant="caption" sx={{ color: icsOnBrand.muted, display: 'block', fontSize: '0.75rem' }}>
         {label}
       </Typography>
-      <Typography variant="h6" sx={{ fontWeight: 800, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: 700,
+          fontSize: '1.125rem',
+          lineHeight: 1.3,
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+          color: icsOnBrand.title,
+        }}
+      >
         {primary}
       </Typography>
       {secondary && (
-        <Typography variant="body2" sx={{ opacity: 0.88 }}>
+        <Typography variant="body2" sx={{ color: icsOnBrand.body, fontSize: '0.875rem' }}>
           {secondary}
         </Typography>
       )}

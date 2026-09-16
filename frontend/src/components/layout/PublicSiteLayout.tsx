@@ -265,23 +265,14 @@ export function PublicPageHero({
           {eyebrow}
         </Typography>
       )}
-      <Typography
-        component="h1"
-        sx={{
-          m: 0,
-          fontSize: { xs: '1.75rem', sm: '2.125rem' },
-          lineHeight: 1.2,
-          fontWeight: 700,
-          color: publicColors.textDark,
-        }}
-      >
+      <Typography component="h1" variant="h5" sx={{ m: 0, fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.3, color: publicColors.textDark }}>
         {title}
       </Typography>
-      <Typography sx={{ mt: 1.5, color: publicColors.textMuted, lineHeight: 1.7, maxWidth: '40rem' }}>
+      <Typography variant="body1" sx={{ mt: 1.5, fontSize: '1rem', color: publicColors.textMuted, lineHeight: 1.6, maxWidth: '40rem' }}>
         {subtitle}
       </Typography>
       {subtitleTl && (
-        <Typography variant="body2" sx={{ mt: 1, color: publicColors.textLight, lineHeight: 1.7 }}>
+        <Typography variant="body2" sx={{ mt: 1, fontSize: '0.875rem', color: publicColors.textLight, lineHeight: 1.6 }}>
           {subtitleTl}
         </Typography>
       )}

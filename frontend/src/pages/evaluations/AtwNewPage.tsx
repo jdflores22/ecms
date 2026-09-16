@@ -6,7 +6,8 @@ import axios from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import AtwIssueForm, { type AtwIssueFormValues } from '../../components/withdrawals/AtwIssueForm'
-import { heroPaperSx, sectionPaperSx } from '../../components/layout/DetailPagePrimitives'
+import { sectionPaperSx } from '../../components/layout/DetailPagePrimitives'
+import { PageHero } from '../../components/layout/ListPagePrimitives'
 import { withdrawalApi, type EvaluatorAtwLookups } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import {
@@ -99,39 +100,11 @@ export default function EvaluatorAtwNewPage() {
         Back to list
       </Button>
 
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-            alignItems: 'flex-start',
-            position: 'relative',
-          }}
-        >
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <AssignmentTurnedInOutlinedIcon />
-          </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              Issue new ATW
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 720 }}>
-              Authorize a trucker to withdraw containers that are currently in CY inventory at the selected yard.
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<AssignmentTurnedInOutlinedIcon />}
+        title="Issue new ATW"
+        subtitle="Authorize a trucker to withdraw containers that are currently in CY inventory at the selected yard."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

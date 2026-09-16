@@ -14,10 +14,11 @@ import {
   ListMobileOnly,
   ListMobileTitle,
   LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { paymentApi, type Payment, type Schedule } from '../../services/api'
 import { fetchCachedPaymentMine, fetchCachedScheduleList } from '../../utils/truckerListCache'
@@ -221,75 +222,22 @@ export default function TruckerPaymentsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <PaymentsOutlinedIcon />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                Payments
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-                Upload proof of payment for scheduled returns. After verification, download your booking confirmation PDF
-                and booking QR from the Paid tab.
-              </Typography>
-            </Box>
-          </Box>
+      <PageHero
+        icon={<PaymentsOutlinedIcon />}
+        title="Payments"
+        subtitle="Upload proof of payment for scheduled returns. After verification, download your booking confirmation PDF and booking QR from the Paid tab."
+        actions={
           <Button
             component={RouterLink}
             to="/trucker/qr"
             variant="contained"
             startIcon={<QrCode2OutlinedIcon />}
-            sx={listHeroActionSx}
+            sx={listHeroPrimaryActionSx}
           >
             {LOGICTECK_QR.menuLabel}
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

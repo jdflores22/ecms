@@ -11,7 +11,9 @@ import {
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
+import { appColors } from '../../theme/colors'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -42,7 +44,7 @@ const tablePaperSx = {
   border: '1px solid',
   borderColor: 'divider',
   bgcolor: '#fff',
-  boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+  boxShadow: appColors.surfaceShadow,
   overflow: 'hidden',
 }
 
@@ -64,7 +66,7 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
-        boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        boxShadow: appColors.surfaceShadow,
       }}
     >
       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
@@ -442,54 +444,11 @@ export default function MasterDataPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', position: 'relative' }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <StorageOutlinedIcon />
-          </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              Master Data
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-              Manage shipping lines, container yards, container reference data, and fees.
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<StorageOutlinedIcon />}
+        title="Master Data"
+        subtitle="Manage shipping lines, container yards, container reference data, and fees."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
@@ -524,7 +483,7 @@ export default function MasterDataPage() {
           border: '1px solid',
           borderColor: 'divider',
           bgcolor: '#fff',
-          boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+          boxShadow: appColors.surfaceShadow,
         }}
       >
         <Box

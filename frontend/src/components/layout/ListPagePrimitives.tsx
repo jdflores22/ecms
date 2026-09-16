@@ -1,8 +1,25 @@
 import { Box, Paper, TablePagination, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { LIST_PAGE_SIZE } from '../../hooks/useClientPagination'
-import { ICS_PRIMARY, hexToRgba } from './DetailPagePrimitives'
+import { appColors, hexToRgba, ICS_PRIMARY } from '../../theme/colors'
+import {
+  listHeroOutlineActionSx,
+  listHeroPrimaryActionSx,
+  pageHeroPaperSx,
+  pageHeroSubtitleSx,
+  pageHeroTitleSx,
+  PageHero,
+} from './PageHeroPrimitives'
 
+export {
+  PageHero,
+  pageHeroPaperSx,
+  pageHeroTitleSx,
+  pageHeroSubtitleSx,
+  listHeroPrimaryActionSx,
+  listHeroOutlineActionSx,
+  hexToRgba,
+}
 export const LIST_PRIMARY = ICS_PRIMARY
 
 export const listPageRootSx = {
@@ -11,11 +28,10 @@ export const listPageRootSx = {
 }
 
 export const listTablePaperSx = {
-  borderRadius: 3,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: '#fff',
-  boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+  borderRadius: '1rem',
+  border: `1px solid ${appColors.border}`,
+  bgcolor: appColors.white,
+  boxShadow: appColors.surfaceShadow,
   overflow: 'hidden',
 }
 
@@ -30,26 +46,11 @@ export const listDesktopTableSx = {
   display: { xs: 'none', md: 'block' },
 }
 
-export const listHeroActionSx = {
-  bgcolor: '#fff',
-  color: LIST_PRIMARY,
-  fontWeight: 700,
-  flexShrink: 0,
-  width: { xs: '100%', sm: 'auto' },
-  '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-}
+/** @deprecated Use listHeroPrimaryActionSx */
+export const listHeroActionSx = listHeroPrimaryActionSx
 
-export const listHeroOutlinedActionSx = {
-  color: '#fff',
-  borderColor: 'rgba(255,255,255,0.55)',
-  fontWeight: 700,
-  flexShrink: 0,
-  width: { xs: '100%', sm: 'auto' },
-  '&:hover': {
-    borderColor: '#fff',
-    bgcolor: 'rgba(255,255,255,0.1)',
-  },
-}
+/** @deprecated Use listHeroOutlineActionSx */
+export const listHeroOutlinedActionSx = listHeroOutlineActionSx
 
 export const listMobileActionsSx = {
   display: 'flex',

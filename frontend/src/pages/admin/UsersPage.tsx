@@ -22,11 +22,14 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
-  listHeroActionSx,
+  listHeroOutlineActionSx,
+  listHeroPrimaryActionSx,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
+import { appColors } from '../../theme/colors'
 
 const primaryDark = '#0B3D91'
 const ROLES = ROLE_CATALOG.map((r) => r.name)
@@ -62,11 +65,11 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 3,
+        borderRadius: '1rem',
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
-        boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        boxShadow: appColors.surfaceShadow,
       }}
     >
       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
@@ -250,104 +253,35 @@ export default function UsersPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <PeopleOutlinedIcon />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                User Management
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 520 }}>
-                {roleFilter
-                  ? `Showing users with role: ${roleLabel(roleFilter)}`
-                  : 'Create users, assign roles, and link shipping lines or depots.'}
-              </Typography>
-            </Box>
-          </Box>
+      <PageHero
+        icon={<PeopleOutlinedIcon />}
+        title="User Management"
+        subtitle={
+          roleFilter
+            ? `Showing users with role: ${roleLabel(roleFilter)}`
+            : 'Create users, assign roles, and link shipping lines or depots.'
+        }
+        actions={
           <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
             {roleFilter && (
-              <Button
-                variant="outlined"
-                onClick={() => setSearchParams({})}
-                sx={{
-                  color: '#fff',
-                  borderColor: 'rgba(255,255,255,0.45)',
-                  fontWeight: 600,
-                  '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
-                }}
-              >
+              <Button variant="outlined" onClick={() => setSearchParams({})} sx={listHeroOutlineActionSx}>
                 Clear filter
               </Button>
             )}
-            <Button
-              component={RouterLink}
-              to="/admin/roles"
-              variant="outlined"
-              sx={{
-                color: '#fff',
-                borderColor: 'rgba(255,255,255,0.45)',
-                fontWeight: 600,
-                '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
-              }}
-            >
+            <Button component={RouterLink} to="/admin/roles" variant="outlined" sx={listHeroOutlineActionSx}>
               View roles
             </Button>
             <Button
               variant="contained"
               startIcon={<PersonAddIcon />}
               onClick={() => setCreateOpen(true)}
-              sx={listHeroActionSx}
+              sx={listHeroPrimaryActionSx}
             >
               New user
             </Button>
           </Box>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

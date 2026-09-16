@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip } from '@mui/material'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import DownloadIcon from '@mui/icons-material/Download'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -7,8 +7,8 @@ import ReportFiltersBar from '../../components/reports/ReportFiltersBar'
 import ReportStatusSummary from '../../components/reports/ReportStatusSummary'
 import ReportStatusTable from '../../components/reports/ReportStatusTable'
 import { StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
-import { heroMutedChipSx, heroPaperSx } from '../../components/layout/DetailPagePrimitives'
-import { listHeroActionSx, listPageRootSx } from '../../components/layout/ListPagePrimitives'
+import { heroMutedChipSx } from '../../components/layout/DetailPagePrimitives'
+import { listHeroPrimaryActionSx, listPageRootSx, PageHero } from '../../components/layout/ListPagePrimitives'
 import {
   isReportPageKey,
   REPORT_PAGE_CONFIG,
@@ -256,68 +256,26 @@ export default function RoleReportsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper elevation={0} sx={heroPaperSx}>
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'flex-start', sm: 'center' },
-            gap: 2,
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <AssessmentOutlinedIcon />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 0.75 }}>
-                <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                  {reportConfig.title}
-                </Typography>
-                <Chip size="small" label={roleLabel(user.role)} sx={heroMutedChipSx} />
-              </Box>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', maxWidth: 560 }}>
-                {reportConfig.subtitle}
-              </Typography>
-            </Box>
-          </Box>
+      <PageHero
+        icon={<AssessmentOutlinedIcon />}
+        title={reportConfig.title}
+        titleAddon={<Chip size="small" label={roleLabel(user.role)} sx={heroMutedChipSx} />}
+        subtitle={reportConfig.subtitle}
+        actions={
           <Button
             variant="contained"
             startIcon={<DownloadIcon />}
             onClick={exportCsv}
             disabled={loading || !hasExportData}
             sx={{
-              ...listHeroActionSx,
+              ...listHeroPrimaryActionSx,
               '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.4)', color: 'rgba(11,61,145,0.5)' },
             }}
           >
             Export CSV
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

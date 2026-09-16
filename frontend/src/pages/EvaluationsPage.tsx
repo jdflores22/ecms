@@ -15,7 +15,9 @@ import {
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../components/layout/ListPagePrimitives'
+import { icsOnBrand } from '../theme/colors'
 import { evaluationApi, preAdviceApi, type Evaluation, type PreAdvice } from '../services/api'
 import DamageReportChip, { DamageReportChipMuted } from '../components/evaluations/DamageReportChip'
 import { formatDateTime } from '../utils/datetime'
@@ -338,65 +340,18 @@ export default function EvaluationsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-            alignItems: 'flex-start',
-            position: 'relative',
-          }}
-        >
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <FactCheckOutlinedIcon />
-          </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              Request Evaluations
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              Review pre-forecast requests and assign container yard (CY) for approved returns.{' '}
-              <RouterLink to="/evaluations/cy-allocation" style={{ color: '#fff', fontWeight: 600 }}>
-                View CY contract allocation
-              </RouterLink>
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        icon={<FactCheckOutlinedIcon />}
+        title="Request Evaluations"
+        subtitle={
+          <>
+            Review pre-forecast requests and assign container yard (CY) for approved returns.{' '}
+            <RouterLink to="/evaluations/cy-allocation" style={{ color: icsOnBrand.link, fontWeight: 600 }}>
+              View CY contract allocation
+            </RouterLink>
+          </>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

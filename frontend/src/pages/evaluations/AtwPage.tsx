@@ -12,15 +12,13 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
-  LIST_PRIMARY,
-  listHeroActionSx,
+  listHeroPrimaryActionSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { withdrawalApi, type Withdrawal } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-
-const primaryDark = LIST_PRIMARY
 
 const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   Draft: 'default',
@@ -129,48 +127,22 @@ export default function EvaluatorAtwPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-        }}
-      >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <AssignmentTurnedInOutlinedIcon />
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              ATW &amp; ICS bookings
-            </Typography>
-            <Typography sx={{ opacity: 0.9, mt: 0.5 }}>
-              Assign CY to trucker bookings, or issue ATW for the legacy flow.
-            </Typography>
-          </Box>
+      <PageHero
+        icon={<AssignmentTurnedInOutlinedIcon />}
+        title="ATW & ICS bookings"
+        subtitle="Assign CY to trucker bookings, or issue ATW for the legacy flow."
+        actions={
           <Button
             component={RouterLink}
             to="/evaluations/atw/new"
             variant="contained"
             startIcon={<AddIcon />}
-            sx={listHeroActionSx}
+            sx={listHeroPrimaryActionSx}
           >
             Issue new ATW
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
         <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>

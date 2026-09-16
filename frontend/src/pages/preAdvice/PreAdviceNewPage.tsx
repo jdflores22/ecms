@@ -13,6 +13,8 @@ import PreAdviceForm, {
   type PreAdviceFormSubmitValues,
   type PreAdviceFormValues,
 } from '../../components/preAdvice/PreAdviceForm'
+import { PageHero } from '../../components/layout/ListPagePrimitives'
+import { appColors } from '../../theme/colors'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { preAdviceApi, type PreAdviceLookups } from '../../services/api'
 import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
@@ -256,68 +258,13 @@ export default function PreAdviceNewPage() {
           mb: 2,
           color: 'text.secondary',
           fontWeight: 600,
-          '&:hover': { color: primaryDark, bgcolor: 'rgba(11, 61, 145, 0.06)' },
+          '&:hover': { color: appColors.primary, bgcolor: 'rgba(11, 61, 145, 0.06)' },
         }}
       >
         Back to list
       </Button>
 
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -30,
-            top: -30,
-            width: 140,
-            height: 140,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.06)',
-          }}
-        />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-            alignItems: 'flex-start',
-            position: 'relative',
-          }}
-        >
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <DescriptionOutlinedIcon />
-          </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-              New pre-forecast
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 560 }}>
-              {heroSubtitle}
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero icon={<DescriptionOutlinedIcon />} title="New pre-forecast" subtitle={heroSubtitle} />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
@@ -337,11 +284,11 @@ export default function PreAdviceNewPage() {
           elevation={0}
           sx={{
             p: { xs: 2.5, sm: 3 },
-            borderRadius: 3,
+            borderRadius: '1rem',
             border: '1px solid',
             borderColor: 'divider',
             bgcolor: '#fff',
-            boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+            boxShadow: appColors.surfaceShadow,
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 }}>
@@ -432,11 +379,11 @@ export default function PreAdviceNewPage() {
           elevation={0}
           sx={{
             p: 2.5,
-            borderRadius: 3,
+            borderRadius: '1rem',
             border: '1px solid',
             borderColor: 'divider',
             bgcolor: '#fff',
-            boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+            boxShadow: appColors.surfaceShadow,
           }}
         >
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>

@@ -43,6 +43,7 @@ import {
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
+  PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import {
   statementOfAccountApi,
@@ -243,31 +244,11 @@ export default function StatementOfAccountsPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(11, 61, 145, 0.08)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <DescriptionOutlinedIcon sx={{ color: primaryDark }} />
-          </Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark }}>
-              Statement of accounts
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 720 }}>
-              Register trucker accounts for SOA billing, then release statements from their details page.
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
+      <PageHero
+        icon={<DescriptionOutlinedIcon />}
+        title="Statement of accounts"
+        subtitle="Register trucker accounts for SOA billing, then release statements from their details page."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

@@ -7,7 +7,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useSearchParams } from 'react-router-dom'
 import CyYardAllocationCard from '../../components/evaluations/CyYardAllocationCard'
 import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
-import { listPageRootSx } from '../../components/layout/ListPagePrimitives'
+import {
+  listHeroOutlineActionSx,
+  listPageRootSx,
+  PageHero,
+} from '../../components/layout/ListPagePrimitives'
+import { appColors } from '../../theme/colors'
 import { canAccessPage } from '../../config/routeAccess'
 import { cyAllocationApi, type CyAllocation, type CyAllocationForApproval } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
@@ -41,11 +46,11 @@ function SummaryCard({ label, value, color }: { label: string; value: number | s
       elevation={0}
       sx={{
         p: { xs: 1.5, sm: 2 },
-        borderRadius: 3,
+        borderRadius: '1rem',
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: '#fff',
-        boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
+        boxShadow: appColors.surfaceShadow,
         minWidth: 0,
       }}
     >
@@ -138,69 +143,38 @@ export default function CyAllocationPage() {
 
   return (
     <Box sx={listPageRootSx}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          mb: 3,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 60%, #0C4DA8 100%)`,
-          color: '#fff',
-          boxShadow: '0 8px 24px rgba(11, 61, 145, 0.22)',
-        }}
-      >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
+      <PageHero
+        icon={<WarehouseOutlinedIcon />}
+        title="CY allocation"
+        subtitle={
+          <>
+            Read-only view of your shipping line&apos;s contracted yard capacity. At-yard counts are physical gate
+            check-ins; orange +confirmed and +pre-forecast show pipeline units not yet at the CY. Released ATW units are
+            excluded — see{' '}
             <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.14)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
+              component={RouterLink}
+              to="/evaluations/container-inventory"
+              sx={{ color: '#7dd3fc', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
             >
-              <WarehouseOutlinedIcon />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-                CY allocation
-              </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.82)', mt: 0.5, maxWidth: 640 }}>
-                Read-only view of your shipping line&apos;s contracted yard capacity. At-yard counts are physical
-                gate check-ins; orange +confirmed and +pre-forecast show pipeline units not yet at the CY. Released ATW
-                units are excluded — see{' '}
-                <Box
-                  component={RouterLink}
-                  to="/evaluations/container-inventory"
-                  sx={{ color: '#fff', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
-                >
-                  CY inventory
-                </Box>{' '}
-                for released units.
-                {shippingLineName ? ` ${shippingLineName}.` : ''}
-              </Typography>
-            </Box>
-          </Box>
+              CY inventory
+            </Box>{' '}
+            for released units.
+            {shippingLineName ? ` ${shippingLineName}.` : ''}
+          </>
+        }
+        actions={
           <Button
             variant="outlined"
             size="small"
             startIcon={<RefreshIcon />}
             onClick={load}
             disabled={loading}
-            sx={{
-              flexShrink: 0,
-              color: '#fff',
-              borderColor: 'rgba(255,255,255,0.45)',
-              '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
-            }}
+            sx={listHeroOutlineActionSx}
           >
             Refresh
           </Button>
-        </Box>
-      </Paper>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>

@@ -65,12 +65,10 @@ import { scheduleNonCritical } from '../utils/deferWork'
 import NotificationBell from '../components/NotificationBell'
 import TruckerBroadcastModal from '../components/TruckerBroadcastModal'
 import IcsLogo from '../components/brand/IcsLogo'
+import { appColors } from '../theme/colors'
 
 const drawerWidth = 272
 const appBarHeight = 64
-
-const primaryDark = '#0B3D91'
-const primaryLight = '#00A3E0'
 
 function userInitials(name?: string) {
   if (!name) return '?'
@@ -262,10 +260,10 @@ export default function AppLayout() {
     transition: 'background-color 0.15s ease, color 0.15s ease',
     ...(active
       ? {
-          bgcolor: 'rgba(11, 61, 145, 0.1)',
-          color: primaryDark,
+          bgcolor: appColors.navActiveBg,
+          color: appColors.primary,
           fontWeight: 600,
-          '& .MuiListItemIcon-root': { color: primaryDark },
+          '& .MuiListItemIcon-root': { color: appColors.primary },
           '&::before': {
             content: '""',
             position: 'absolute',
@@ -274,12 +272,12 @@ export default function AppLayout() {
             bottom: '20%',
             width: 3,
             borderRadius: '0 4px 4px 0',
-            bgcolor: primaryLight,
+            bgcolor: appColors.accent,
           },
         }
       : {
           color: 'text.secondary',
-          '&:hover': { bgcolor: 'rgba(11, 61, 145, 0.06)', color: 'text.primary' },
+          '&:hover': { bgcolor: appColors.navHoverBg, color: 'text.primary' },
           '& .MuiListItemIcon-root': { color: 'text.secondary' },
         }),
   })
@@ -299,18 +297,15 @@ export default function AppLayout() {
             width: '100%',
             borderRadius: 2,
             bgcolor: isNavActive('/profile', location.pathname, navPaths)
-              ? 'rgba(11, 61, 145, 0.1)'
-              : 'rgba(11, 61, 145, 0.06)',
-            border: '1px solid',
-            borderColor: isNavActive('/profile', location.pathname, navPaths)
-              ? 'rgba(11, 61, 145, 0.2)'
-              : 'rgba(11, 61, 145, 0.1)',
+              ? appColors.navActiveBg
+              : appColors.brandBg,
+            border: `1px solid ${appColors.border}`,
             cursor: 'pointer',
             textAlign: 'left',
             transition: 'background-color 0.15s ease, border-color 0.15s ease',
             '&:hover': {
-              bgcolor: 'rgba(11, 61, 145, 0.1)',
-              borderColor: 'rgba(11, 61, 145, 0.2)',
+              bgcolor: appColors.navActiveBg,
+              borderColor: appColors.border,
             },
           }}
         >
@@ -322,7 +317,7 @@ export default function AppLayout() {
             sx={{
               width: 40,
               height: 40,
-              bgcolor: primaryDark,
+              bgcolor: appColors.primary,
               fontSize: '0.875rem',
               fontWeight: 700,
             }}
@@ -456,33 +451,50 @@ export default function AppLayout() {
         elevation={0}
         sx={{
           zIndex: (t) => t.zIndex.drawer + 1,
-          background: `linear-gradient(135deg, ${primaryDark} 0%, #0A3580 55%, #0C4DA8 100%)`,
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 4px 20px rgba(11, 61, 145, 0.25)',
+          background: appColors.icsBrandGradient,
+          color: '#fff',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: appColors.icsAppBarShadow,
         }}
       >
         <Toolbar sx={{ minHeight: appBarHeight, px: { xs: 2, sm: 3 } }}>
           <IconButton
             color="inherit"
             edge="start"
-            sx={{ mr: 1.5, display: { sm: 'none' } }}
+            sx={{
+              mr: 1.5,
+              display: { sm: 'none' },
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.08)' },
+            }}
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Open navigation menu"
           >
             <MenuIcon />
           </IconButton>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, minWidth: 0 }}>
+          <Box
+            component="button"
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label={`${ICS_BRAND.name} dashboard`}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 1, sm: 1.5 },
+              minWidth: 0,
+              border: 0,
+              bgcolor: 'transparent',
+              cursor: 'pointer',
+              p: 0,
+            }}
+          >
             <IcsLogo height={{ xs: 32, sm: 36 }} maxWidth={{ xs: 80, sm: 96 }} />
-            <Box sx={{ minWidth: 0, display: { xs: 'none', md: 'block' } }}>
+            <Box sx={{ minWidth: 0, display: { xs: 'none', lg: 'block' }, textAlign: 'left' }}>
               <Typography
-                variant="h6"
+                variant="caption"
                 noWrap
-                sx={{ fontWeight: 700, fontSize: '1.05rem', lineHeight: 1.2 }}
+                sx={{ color: 'rgba(255, 255, 255, 0.75)', display: 'block', lineHeight: 1.4 }}
               >
-                {ICS_BRAND.name}
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
                 {ICS_BRAND.appBarCaption}
               </Typography>
             </Box>
@@ -500,7 +512,7 @@ export default function AppLayout() {
                 ) : (
                 <Avatar
                   src={profilePhotoUrl || undefined}
-                  sx={{ bgcolor: primaryLight, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}
+                  sx={{ bgcolor: appColors.accent, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}
                 >
                   {user?.profilePhoto ? null : userInitials(user?.fullName)}
                 </Avatar>
@@ -510,13 +522,13 @@ export default function AppLayout() {
               onClick={() => navigate('/profile')}
               sx={{
                 display: { xs: 'none', md: 'flex' },
-                bgcolor: 'rgba(255,255,255,0.12)',
+                bgcolor: 'rgba(255, 255, 255, 0.12)',
                 color: '#fff',
-                border: '1px solid rgba(255,255,255,0.18)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
                 fontWeight: 500,
                 cursor: 'pointer',
                 '& .MuiChip-label': { px: 1 },
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' },
               }}
             />
           </Tooltip>
