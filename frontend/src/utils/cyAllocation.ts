@@ -26,21 +26,32 @@ type BreakdownTeuRow = Pick<
   | 'bookingCount'
   | 'availableCount'
   | 'teuPerContainer'
->
+> & {
+  cells?: CyAllocationBreakdownRow['cells']
+}
+
+function sumBreakdownTeu(
+  row: BreakdownTeuRow | null | undefined,
+  cellField: 'atYardTeu' | 'confirmedTeu' | 'preForecastTeu',
+  countField: 'atYardCount' | 'confirmedCount' | 'preForecastCount',
+): number {
+  if (!row) return 0
+  if (row.cells?.length) {
+    return Math.round(row.cells.reduce((sum, cell) => sum + cell[cellField], 0))
+  }
+  return Math.round(row[countField] * row.teuPerContainer)
+}
 
 export function breakdownAtYardTeu(row: BreakdownTeuRow | null | undefined): number {
-  if (!row) return 0
-  return Math.round(row.atYardCount * row.teuPerContainer)
+  return sumBreakdownTeu(row, 'atYardTeu', 'atYardCount')
 }
 
 export function breakdownConfirmedTeu(row: BreakdownTeuRow | null | undefined): number {
-  if (!row) return 0
-  return Math.round(row.confirmedCount * row.teuPerContainer)
+  return sumBreakdownTeu(row, 'confirmedTeu', 'confirmedCount')
 }
 
 export function breakdownPreForecastTeu(row: BreakdownTeuRow | null | undefined): number {
-  if (!row) return 0
-  return Math.round(row.preForecastCount * row.teuPerContainer)
+  return sumBreakdownTeu(row, 'preForecastTeu', 'preForecastCount')
 }
 
 /** Physical at-yard TEU (gate-checked returns + manual inventory). */
@@ -150,8 +161,10 @@ export function aggregatePreAdvisedTeuBySize(items: { breakdown: CyAllocationBre
 
 export function formatCyPipelineTeuSuffix(confirmedTeu: number, preForecastTeu: number): string {
   const parts: string[] = []
-  if (confirmedTeu > 0) parts.push(`+${confirmedTeu} confirmed`)
-  if (preForecastTeu > 0) parts.push(`+${preForecastTeu} pre-forecast`)
+  const confirmed = Math.round(confirmedTeu)
+  const preForecast = Math.round(preForecastTeu)
+  if (confirmed > 0) parts.push(`+${confirmed} TEU confirmed`)
+  if (preForecast > 0) parts.push(`+${preForecast} TEU pre-forecast`)
   return parts.join(' · ')
 }
 

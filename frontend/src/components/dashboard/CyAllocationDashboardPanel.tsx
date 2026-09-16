@@ -116,12 +116,16 @@ function YardCapacityRow({ row }: { row: CyAllocation }) {
           lineHeight: 1.35,
         }}
       >
-        <Box component="span" sx={{ color: '#2E7D32' }}>
-          {row.atYardCount} at yard
+        <Box component="span" sx={{ color: '#0B3D91' }}>
+          {Math.round(row.atYardTeu)} TEU at yard
         </Box>
         {' · '}
-        <Box component="span" sx={{ color: '#ED6C02' }}>
-          +{row.confirmedCount} confirmed · +{row.preForecastCount} pre-forecast
+        <Box component="span" sx={{ color: '#0288D1' }}>
+          +{Math.round(row.confirmedTeu)} TEU confirmed
+        </Box>
+        {' · '}
+        <Box component="span" sx={{ color: '#C2410C' }}>
+          +{Math.round(row.preForecastTeu)} TEU pre-forecast
         </Box>
         {' · '}
         <Box component="span" sx={{ color: '#6A1B9A' }}>

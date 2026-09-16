@@ -1,14 +1,12 @@
 import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import type { CyAllocationBreakdownRow } from '../../services/api'
+import CyPipelineTeuInline from './CyPipelineTeuInline'
 import {
   breakdownAtYardTeu,
   breakdownAvailableTeu,
   breakdownBookingTeu,
   breakdownCommittedTeu,
-  breakdownConfirmedTeu,
   breakdownContractTeu,
-  breakdownPreForecastTeu,
-  formatCyPipelineTeuSuffix,
   getCapacityDisplayLabel,
 } from '../../utils/cyAllocation'
 
@@ -39,21 +37,15 @@ function CellVolume({
     )
   }
 
-  const pipelineSuffix = formatCyPipelineTeuSuffix(confirmedTeu, preForecastTeu)
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, alignItems: 'center' }}>
       <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
         At yard
       </Typography>
-      <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: '#2E7D32' }}>
+      <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: '#0B3D91' }}>
         {Math.round(atYardTeu)} TEU
       </Typography>
-      {pipelineSuffix && (
-        <Typography variant="caption" sx={{ fontWeight: 700, lineHeight: 1.2, color: '#ED6C02' }}>
-          {pipelineSuffix}
-        </Typography>
-      )}
+      <CyPipelineTeuInline confirmedTeu={confirmedTeu} preForecastTeu={preForecastTeu} variant="caption" />
       {bookingTeu > 0 && (
         <>
           <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2, mt: 0.25 }}>
@@ -110,11 +102,8 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
           >
             <Typography variant="body2" sx={{ fontWeight: 700, color: primaryDark, mb: 1 }}>
               {getCapacityDisplayLabel(row.sizeLabel)} · contract {breakdownContractTeu(row)} TEU ·{' '}
-              {breakdownAvailableTeu(row)} TEU available · at yard {breakdownAtYardTeu(row)} TEU
-              {formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row), breakdownPreForecastTeu(row))
-                ? ` · ${formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row), breakdownPreForecastTeu(row))}`
-                : ''}{' '}
-              · committed {breakdownCommittedTeu(row)} TEU · booking {breakdownBookingTeu(row)} TEU
+              {breakdownAvailableTeu(row)} TEU available · at yard {breakdownAtYardTeu(row)} TEU · committed{' '}
+              {breakdownCommittedTeu(row)} TEU · booking {breakdownBookingTeu(row)} TEU
             </Typography>
             <Box
               sx={{

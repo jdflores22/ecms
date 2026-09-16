@@ -2,6 +2,7 @@ import { Box, Chip, LinearProgress, Paper, Typography } from '@mui/material'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 import type { CyAllocation } from '../../services/api'
+import CyPipelineTeuInline, { CY_PIPELINE_COLORS } from './CyPipelineTeuInline'
 import {
   breakdownAtYardTeu,
   breakdownCommittedTeu,
@@ -10,7 +11,6 @@ import {
   breakdownPreForecastTeu,
   cyUtilizationPctCapped,
   depotMonogram,
-  formatCyPipelineTeuSuffix,
   formatUtilizationPctLabel,
   getAllocationReturnsLabel,
   getAllocationSizeLabel,
@@ -43,10 +43,10 @@ function PipelineRow({
 }) {
   if (limitTeu <= 0) return null
 
-  const committedTeu = atYardTeu + confirmedTeu + preForecastTeu
+  const atYard = Math.round(atYardTeu)
+  const committedTeu = atYard + Math.round(confirmedTeu) + Math.round(preForecastTeu)
   const pct = cyUtilizationPctCapped(committedTeu, limitTeu)
   const over = committedTeu > limitTeu
-  const pipelineSuffix = formatCyPipelineTeuSuffix(confirmedTeu, preForecastTeu)
 
   return (
     <Box sx={{ mb: 1.75 }}>
@@ -73,16 +73,16 @@ function PipelineRow({
           {formatUtilizationPctLabel(committedTeu, limitTeu)}
         </Typography>
       </Box>
-      <Typography variant="body2" sx={{ mb: 0.75 }}>
-        <Box component="span" sx={{ fontWeight: 800, fontSize: '1.1rem' }}>
-          {atYardTeu}
+      <Typography variant="body2" sx={{ mb: 0.75, lineHeight: 1.45 }}>
+        <Box component="span" sx={{ fontWeight: 800, fontSize: '1.05rem', color: CY_PIPELINE_COLORS.atYard }}>
+          {atYard}
         </Box>
-        {pipelineSuffix && (
-          <Box component="span" sx={{ color: '#ED6C02', fontWeight: 600, ml: 0.5 }}>
-            {pipelineSuffix}
-          </Box>
-        )}
-        <Box component="span" color="text.secondary">
+        <Box component="span" sx={{ fontSize: '0.8125rem', color: 'text.secondary', fontWeight: 600 }}>
+          {' '}
+          TEU
+        </Box>
+        <CyPipelineTeuInline confirmedTeu={confirmedTeu} preForecastTeu={preForecastTeu} variant="inline" />
+        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.8125rem', fontWeight: 500 }}>
           {' '}
           / {limitTeu} TEU
         </Box>
@@ -122,7 +122,6 @@ export default function CyYardAllocationCard({
   const teuLimit40 = breakdownContractTeu(row40)
   const teuPct = cyUtilizationPctCapped(teuCommitted, teuLimit)
   const teuOver = teuLimit > 0 && teuCommitted > teuLimit
-  const pipelineSuffix = formatCyPipelineTeuSuffix(teuConfirmed, teuPreForecast)
 
   return (
     <Paper
@@ -183,22 +182,24 @@ export default function CyYardAllocationCard({
         </Typography>
 
         <Box sx={{ mt: 1.25, mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.75 }}>
-            <Typography sx={{ fontWeight: 800 }}>
-              <Box component="span" sx={{ fontSize: '1.5rem' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 0.75 }}>
+            <Box sx={{ minWidth: 0, lineHeight: 1.4 }}>
+              <Box component="span" sx={{ fontWeight: 800, fontSize: '1.5rem', color: CY_PIPELINE_COLORS.atYard }}>
                 {teuAtYard}
               </Box>
-              {pipelineSuffix && (
-                <Box component="span" sx={{ color: '#ED6C02', fontWeight: 700, fontSize: '0.95rem', ml: 0.75 }}>
-                  {pipelineSuffix}
-                </Box>
-              )}
-              <Typography component="span" color="text.secondary" sx={{ fontWeight: 600 }}>
-                {' '}
+              <Box component="span" sx={{ fontSize: '0.875rem', color: 'text.secondary', fontWeight: 600, ml: 0.5 }}>
+                TEU
+              </Box>
+              <CyPipelineTeuInline
+                confirmedTeu={teuConfirmed}
+                preForecastTeu={teuPreForecast}
+                variant="hero"
+              />
+              <Typography component="span" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.875rem', ml: 0.5 }}>
                 / {teuLimit} TEU
               </Typography>
-            </Typography>
-            <Typography sx={{ fontWeight: 800, color: teuOver ? '#C62828' : 'text.primary' }}>
+            </Box>
+            <Typography sx={{ fontWeight: 800, color: teuOver ? '#C62828' : 'text.primary', flexShrink: 0 }}>
               {formatUtilizationPctLabel(teuCommitted, teuLimit)}
             </Typography>
           </Box>
@@ -215,18 +216,26 @@ export default function CyYardAllocationCard({
               },
             }}
           />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>
-              {getAllocationSizeLabel('20')}: {teuAtYard20} TEU
-              {formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row20), breakdownPreForecastTeu(row20))
-                ? ` (${formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row20), breakdownPreForecastTeu(row20))})`
-                : ''}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', lineHeight: 1.45 }}>
+              <Box component="span" sx={{ color: CY_PIPELINE_COLORS.atYard, fontWeight: 700 }}>
+                {getAllocationSizeLabel('20')}: {teuAtYard20} TEU
+              </Box>
+              <CyPipelineTeuInline
+                confirmedTeu={breakdownConfirmedTeu(row20)}
+                preForecastTeu={breakdownPreForecastTeu(row20)}
+                variant="caption"
+              />
             </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>
-              {getAllocationSizeLabel('40')}: {teuAtYard40} TEU
-              {formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row40), breakdownPreForecastTeu(row40))
-                ? ` (${formatCyPipelineTeuSuffix(breakdownConfirmedTeu(row40), breakdownPreForecastTeu(row40))})`
-                : ''}
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', lineHeight: 1.45 }}>
+              <Box component="span" sx={{ color: CY_PIPELINE_COLORS.atYard, fontWeight: 700 }}>
+                {getAllocationSizeLabel('40')}: {teuAtYard40} TEU
+              </Box>
+              <CyPipelineTeuInline
+                confirmedTeu={breakdownConfirmedTeu(row40)}
+                preForecastTeu={breakdownPreForecastTeu(row40)}
+                variant="caption"
+              />
             </Typography>
           </Box>
         </Box>

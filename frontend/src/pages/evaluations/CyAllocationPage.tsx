@@ -242,9 +242,9 @@ export default function CyAllocationPage() {
             }}
           >
             <SummaryCard label="Contract (TEU)" value={totals.contractTeu} color={primaryDark} />
-            <SummaryCard label="At yard (TEU)" value={totals.atYardTeu} color="#2E7D32" />
-            <SummaryCard label="+ Confirmed (TEU)" value={totals.confirmedTeu} color="#ED6C02" />
-            <SummaryCard label="+ Pre-forecast (TEU)" value={totals.preForecastTeu} color="#FB8C00" />
+            <SummaryCard label="At yard (TEU)" value={totals.atYardTeu} color="#0B3D91" />
+            <SummaryCard label="+ Confirmed (TEU)" value={totals.confirmedTeu} color="#0288D1" />
+            <SummaryCard label="+ Pre-forecast (TEU)" value={totals.preForecastTeu} color="#C2410C" />
             <SummaryCard label="Yards at limit" value={totals.yardsAtLimit} color="#D32F2F" />
           </Box>
 
