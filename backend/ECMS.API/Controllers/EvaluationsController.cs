@@ -9,7 +9,7 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 [Route("api/evaluations")]
-[Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+[Authorize]
 public class EvaluationsController : ControllerBase
 {
     private readonly IEvaluationService _service;
@@ -23,15 +23,18 @@ public class EvaluationsController : ControllerBase
     private string Role => User.FindFirstValue(ClaimTypes.Role)!;
 
     [HttpGet]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<IReadOnlyList<EvaluationDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _service.GetAllAsync(UserId, Role, cancellationToken));
 
     [HttpGet("pending/count")]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<object>> GetPendingCount(CancellationToken cancellationToken)
         => Ok(new { count = await _service.GetPendingCountAsync(UserId, Role, cancellationToken) });
 
     [HttpGet("by-preforecast/{preAdviceId:int}")]
     [HttpGet("by-preadvice/{preAdviceId:int}")]
+    [Authorize(Roles = $"{RoleNames.Administrator},{RoleNames.ShippingLineEvaluator}")]
     public async Task<ActionResult<EvaluationDto>> GetByPreAdvice(int preAdviceId, CancellationToken cancellationToken)
     {
         if (!await _service.CanAccessPreAdviceAsync(preAdviceId, UserId, Role, cancellationToken))
@@ -45,6 +48,7 @@ public class EvaluationsController : ControllerBase
     }
 
     [HttpPost("approve")]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<EvaluationDto>> Approve([FromBody] ApproveEvaluationRequest request, CancellationToken cancellationToken)
     {
         try
@@ -62,6 +66,7 @@ public class EvaluationsController : ControllerBase
     }
 
     [HttpPost("reject")]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<EvaluationDto>> Reject([FromBody] RejectEvaluationRequest request, CancellationToken cancellationToken)
     {
         try
@@ -79,6 +84,7 @@ public class EvaluationsController : ControllerBase
     }
 
     [HttpPost("return-for-compliance")]
+    [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<EvaluationDto>> ReturnForCompliance(
         [FromBody] ReturnForComplianceRequest request,
         CancellationToken cancellationToken)

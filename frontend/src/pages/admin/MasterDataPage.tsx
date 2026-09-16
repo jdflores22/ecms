@@ -109,7 +109,13 @@ export default function MasterDataPage() {
   const [selectedType, setSelectedType] = useState<ContainerTypeMaster | null>(null)
 
   const [lineForm, setLineForm] = useState({ name: '', code: '', isActive: true })
-  const [depotForm, setDepotForm] = useState({ name: '', address: '', capacity: 100, isActive: true })
+  const [depotForm, setDepotForm] = useState({
+    name: '',
+    address: '',
+    capacity: 100,
+    containersPerHour: 3,
+    isActive: true,
+  })
   const [sizeForm, setSizeForm] = useState({ label: '', teu: 2, sortOrder: 1, isActive: true })
   const [typeForm, setTypeForm] = useState({ code: '', label: '', sortOrder: 1, isActive: true })
   const [returnFeeAmount, setReturnFeeAmount] = useState('5000')
@@ -278,7 +284,7 @@ export default function MasterDataPage() {
   }
 
   const openCreateDepot = () => {
-    setDepotForm({ name: '', address: '', capacity: 100, isActive: true })
+    setDepotForm({ name: '', address: '', capacity: 100, containersPerHour: 3, isActive: true })
     setDepotDialog('create')
   }
 
@@ -288,6 +294,7 @@ export default function MasterDataPage() {
       name: depot.name,
       address: depot.address,
       capacity: depot.capacity,
+      containersPerHour: depot.containersPerHour ?? 3,
       isActive: depot.isActive,
     })
     setDepotDialog('edit')
@@ -302,6 +309,7 @@ export default function MasterDataPage() {
           name: depotForm.name,
           address: depotForm.address,
           capacity: depotForm.capacity,
+          containersPerHour: depotForm.containersPerHour,
         })
       } else if (selectedDepot) {
         await depotApi.update(selectedDepot.id, depotForm)
@@ -1245,11 +1253,22 @@ export default function MasterDataPage() {
           <TextField
             fullWidth
             margin="normal"
-            label="Capacity"
+            label="Daily capacity"
             type="number"
             value={depotForm.capacity}
             onChange={(e) => setDepotForm({ ...depotForm, capacity: Number(e.target.value) })}
             sx={fieldSx}
+            helperText="Max empty returns per calendar day"
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Containers per hour"
+            type="number"
+            value={depotForm.containersPerHour}
+            onChange={(e) => setDepotForm({ ...depotForm, containersPerHour: Number(e.target.value) })}
+            sx={fieldSx}
+            helperText="Max empty returns per hourly slot (0800–1700)"
           />
           {depotDialog === 'edit' && (
             <FormControlLabel

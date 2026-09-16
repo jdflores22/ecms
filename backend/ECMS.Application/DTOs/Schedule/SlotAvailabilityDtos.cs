@@ -14,3 +14,19 @@ public record SlotAvailabilityDto(
     int DailyLimit,
     int BookedCount,
     IReadOnlyList<SlotInfoDto> Slots);
+
+public record HourlySlotInfoDto(
+    TimeOnly Time,
+    string TimeLabel,
+    int MaxContainers,
+    int BookedCount,
+    bool IsAvailable);
+
+public record HourlySlotAvailabilityDto(
+    int DepotId,
+    string DepotName,
+    DateOnly Date,
+    int ContainersPerHour,
+    int DailyLimit,
+    int DailyBookedCount,
+    IReadOnlyList<HourlySlotInfoDto> Slots);

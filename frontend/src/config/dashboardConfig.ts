@@ -49,21 +49,21 @@ export interface RoleDashboardConfig {
 
 export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
   ShippingLineEvaluator: {
-    title: 'Evaluation queue',
-    subtitle: 'Review pre-forecast requests and assign container yards',
+    title: 'Shipping line operations',
+    subtitle: 'Demurrage billing, CY fill control, and container yard visibility',
     workflow: [
-      'Open the pending queue for new submissions',
-      'Approve with a CY assignment or reject with remarks',
-      'Review evaluation history for audit reference',
+      'Set daily CY fill priority or maintain your priority list',
+      'Monitor CY allocation and inventory across contracted yards',
+      'Process demurrage and detention billing when free time expires',
     ],
     stats: [
-      { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting your decision', icon: FactCheckIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'approvedToday', label: 'Approved today', description: 'Decisions made today', icon: CheckCircleIcon, color: '#2e7d32' },
+      { key: 'approvedToday', label: 'Approved today', description: 'Pre-forecasts approved by admin today', icon: CheckCircleIcon, color: '#2e7d32' },
       { key: 'rejectedToday', label: 'Rejected today', description: 'Rejected today', icon: CancelIcon, color: '#d32f2f' },
       { key: 'assignedCyCount', label: 'CY assigned', description: 'Approved with yard assignment', icon: WarehouseIcon, color: '#1565c0' },
     ],
     actions: [
-      { label: 'Open evaluations', path: '/evaluations', icon: FactCheckIcon },
+      { label: 'CY fill priority', path: '/evaluations/cy-fill-priority', icon: WarehouseIcon },
+      { label: 'Demurrage billing', path: '/evaluations/demurrage-billing', icon: PaymentsIcon },
       { label: 'Demurrage rates', path: '/evaluations/demurrage-rates', icon: PaymentsIcon },
       { label: 'Statements (SOA)', path: '/evaluations/statement-of-accounts', icon: AssignmentIcon },
       { label: 'CY allocation', path: '/evaluations/cy-allocation', icon: WarehouseIcon },
@@ -149,17 +149,19 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     title: 'System overview',
     subtitle: 'Cross-role metrics and operational health',
     workflow: [
+      'Review and approve pending pre-forecast with CY assignment',
+      'Use admin tools to verify payments and manage master data',
       'Review audit log for critical system actions',
-      'Use admin tools to verify payments and manage slots',
-      'Create and manage users with role-specific assignments',
     ],
     stats: [
       { key: 'totalUsers', label: 'Total users', description: 'Registered system users', icon: PeopleIcon, color: '#1565c0' },
       { key: 'totalPreAdvices', label: 'Pre-forecasts', description: 'All pre-forecast requests', icon: AssignmentIcon, color: '#6a1b9a' },
-      { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting shipping line action', icon: FactCheckIcon, color: '#ed6c02', highlightWhenPositive: true },
+      { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting admin review and CY assignment', icon: FactCheckIcon, color: '#ed6c02', highlightWhenPositive: true },
       { key: 'activeSchedules', label: 'Active schedules', description: 'Scheduled or confirmed returns', icon: CalendarMonthIcon, color: '#2e7d32' },
     ],
     actions: [
+      { label: 'Pre-forecast evaluations', path: '/evaluations', icon: FactCheckIcon },
+      { label: 'CY allocation', path: '/evaluations/cy-allocation', icon: WarehouseIcon },
       { label: 'Manage users', path: '/admin/users', icon: PeopleIcon },
       { label: 'Roles', path: '/admin/roles', icon: AdminPanelSettingsIcon },
       { label: 'Master data', path: '/admin/master-data', icon: WarehouseIcon },

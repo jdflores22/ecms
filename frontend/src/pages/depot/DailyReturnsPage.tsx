@@ -57,7 +57,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import {
   formatDisplayDate,
-  formatScheduleTime,
+  formatScheduleTimeHundreds,
   shiftIsoDate,
   todayIsoDate,
 } from '../../utils/datetime'
@@ -670,7 +670,7 @@ export default function DailyReturnsPage() {
                   <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                   <ListMobileMeta>{item.truckerName ?? '—'}</ListMobileMeta>
                   <ListMobileMeta>
-                    {formatScheduleTime(item.time)}
+                    {formatScheduleTimeHundreds(item.time)}
                     {item.slotNo > 0 ? ` · Slot ${item.slotNo}` : ''}
                   </ListMobileMeta>
                   {item.depotRemarks && (
@@ -731,7 +731,7 @@ export default function DailyReturnsPage() {
                         <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
                         <TableCell>{item.truckerName ?? '—'}</TableCell>
                         <TableCell>
-                          {formatScheduleTime(item.time)}
+                          {formatScheduleTimeHundreds(item.time)}
                           {item.slotNo > 0 ? ` · Slot ${item.slotNo}` : ''}
                         </TableCell>
                         <TableCell>

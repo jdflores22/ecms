@@ -47,6 +47,10 @@ public class CyAllocationService : ICyAllocationService
             if (user.ShippingLineId.HasValue && preAdvice.ShippingLineId != user.ShippingLineId)
                 return null;
         }
+        else if (role != RoleNames.Administrator)
+        {
+            return null;
+        }
 
         var requestedSizeKey = CyCapacityGroups.GetGroupKey(preAdvice.Container.Size);
         var allocations = await BuildAllocationsAsync(preAdvice.ShippingLineId, requestedSizeKey, cancellationToken);
@@ -221,10 +225,14 @@ public class CyAllocationService : ICyAllocationService
             return user.ShippingLineId.Value;
         }
 
-        if (!shippingLineId.HasValue)
-            throw new InvalidOperationException("Shipping line is required.");
+        if (role == RoleNames.Administrator)
+        {
+            if (!shippingLineId.HasValue)
+                throw new InvalidOperationException("Shipping line is required.");
+            return shippingLineId.Value;
+        }
 
-        return shippingLineId.Value;
+        throw new UnauthorizedAccessException("Not allowed.");
     }
 
     private async Task<IReadOnlyList<CyAllocationDto>> BuildAllocationsAsync(

@@ -1,3 +1,4 @@
+using ECMS.Application;
 using ECMS.Application.DTOs.Schedule;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Constants;
@@ -56,6 +57,53 @@ public class SlotCapacityService : ISlotCapacityService
             slots);
     }
 
+    public async Task<HourlySlotAvailabilityDto> GetHourlyAvailabilityAsync(
+        int depotId,
+        DateOnly date,
+        int? excludeScheduleId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var depot = await _db.Depots.FirstAsync(d => d.Id == depotId, cancellationToken);
+        var containersPerHour = Math.Max(1, depot.ContainersPerHour);
+        var dailyLimit = GetDailyLimit(depot.Capacity);
+
+        var hourlyBooked = await GetHourlyActiveSchedulesQuery(depotId, date, excludeScheduleId)
+            .ToListAsync(cancellationToken);
+
+        var dailyBooked = await GetActiveSchedulesQuery(depotId, date, excludeScheduleId)
+            .CountAsync(cancellationToken);
+
+        var bookedByHour = hourlyBooked
+            .GroupBy(s => s.Time.Hour)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var slots = Enumerable
+            .Range(
+                SchedulingConstants.OperatingHourStart,
+                SchedulingConstants.OperatingHourEnd - SchedulingConstants.OperatingHourStart + 1)
+            .Select(hour =>
+            {
+                var time = new TimeOnly(hour, 0);
+                var bookedCount = bookedByHour.GetValueOrDefault(hour, 0);
+                return new HourlySlotInfoDto(
+                    time,
+                    ScheduleAppointmentRules.FormatTimeLabel(time),
+                    containersPerHour,
+                    bookedCount,
+                    bookedCount < containersPerHour);
+            })
+            .ToList();
+
+        return new HourlySlotAvailabilityDto(
+            depotId,
+            depot.Name,
+            date,
+            containersPerHour,
+            dailyLimit,
+            dailyBooked,
+            slots);
+    }
+
     public async Task ValidateAssignmentAsync(
         int depotId,
         DateOnly date,
@@ -66,13 +114,36 @@ public class SlotCapacityService : ISlotCapacityService
         var depot = await _db.Depots.FirstAsync(d => d.Id == depotId, cancellationToken);
         var dailyLimit = GetDailyLimit(depot.Capacity);
 
-        var active = await GetActiveSchedulesQuery(depotId, date, excludeScheduleId)
-            .ToListAsync(cancellationToken);
+        var activeCount = await GetActiveSchedulesQuery(depotId, date, excludeScheduleId)
+            .CountAsync(cancellationToken);
 
-        if (active.Count >= dailyLimit)
+        if (activeCount >= dailyLimit)
         {
             throw new InvalidOperationException(
                 $"Daily capacity reached for {depot.Name} on {date:yyyy-MM-dd} ({dailyLimit} returns).");
+        }
+    }
+
+    public async Task ValidateHourlyAssignmentAsync(
+        int depotId,
+        DateOnly date,
+        TimeOnly time,
+        int? excludeScheduleId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ScheduleAppointmentRules.ValidateEmptyReturnTime(time);
+
+        var depot = await _db.Depots.FirstAsync(d => d.Id == depotId, cancellationToken);
+        await ValidateAssignmentAsync(depotId, date, 0, excludeScheduleId, cancellationToken);
+
+        var containersPerHour = Math.Max(1, depot.ContainersPerHour);
+        var bookedInHour = await GetHourlyActiveSchedulesQuery(depotId, date, excludeScheduleId)
+            .CountAsync(s => s.Time.Hour == time.Hour, cancellationToken);
+
+        if (bookedInHour >= containersPerHour)
+        {
+            throw new InvalidOperationException(
+                $"Hourly capacity reached for {depot.Name} on {date:yyyy-MM-dd} at {ScheduleAppointmentRules.FormatTimeLabel(time)} ({containersPerHour} per hour).");
         }
     }
 
@@ -91,6 +162,25 @@ public class SlotCapacityService : ISlotCapacityService
                 s.Date == date &&
                 s.Status != ScheduleStatus.NoShow &&
                 s.Status != ScheduleStatus.WaitingSchedule);
+
+        if (excludeScheduleId.HasValue)
+            query = query.Where(s => s.Id != excludeScheduleId.Value);
+
+        return query;
+    }
+
+    private IQueryable<Domain.Entities.Schedule> GetHourlyActiveSchedulesQuery(
+        int depotId,
+        DateOnly date,
+        int? excludeScheduleId)
+    {
+        var query = _db.Schedules
+            .Where(s =>
+                s.DepotId == depotId &&
+                s.Date == date &&
+                s.SlotNo == 0 &&
+                !ScheduleAppointmentRules.IsLegacyDateOnly(s.Time) &&
+                (s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Confirmed));
 
         if (excludeScheduleId.HasValue)
             query = query.Where(s => s.Id != excludeScheduleId.Value);

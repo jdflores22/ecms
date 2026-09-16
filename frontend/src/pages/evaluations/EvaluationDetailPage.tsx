@@ -40,6 +40,8 @@ import {
   preAdviceApi,
   qrApi,
   scheduleApi,
+  shippingLineCyFillApi,
+  type CyAllocation,
   type CyAllocationForApproval,
   type Depot,
   type Evaluation,
@@ -103,10 +105,15 @@ function heroScheduleChipStyle(status: string): { bgcolor: string; color: string
   }
 }
 
-function defaultDemurrageValidUntil(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 7)
-  return d.toISOString().slice(0, 10)
+function sortAllocationsByRecommended(allocations: CyAllocation[], depotIdsInOrder: number[]) {
+  const rank = new Map(depotIdsInOrder.map((id, index) => [id, index]))
+  return [...allocations].sort(
+    (a, b) => (rank.get(a.depotId) ?? 9999) - (rank.get(b.depotId) ?? 9999),
+  )
+}
+
+function resolveDemurrageValidUntil(item: PreAdvice): string | null {
+  return item.croEdoContext?.demurrageValidUntil ?? item.demurrageValidUntil ?? null
 }
 
 async function loadQrImage(bookingId: number): Promise<string> {
@@ -146,8 +153,8 @@ export default function EvaluationDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [complianceOpen, setComplianceOpen] = useState(false)
   const [depotId, setDepotId] = useState<number | ''>('')
-  const [demurrageValidUntil, setDemurrageValidUntil] = useState(defaultDemurrageValidUntil)
   const [remarks, setRemarks] = useState('')
+  const [recommendedDepotIds, setRecommendedDepotIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState<Schedule | null>(null)
@@ -162,7 +169,9 @@ export default function EvaluationDetailPage() {
   const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
   const [allocationsLoading, setAllocationsLoading] = useState(false)
 
-  const allowedRole = user?.role === 'ShippingLineEvaluator'
+  const isAdmin = user?.role === 'Administrator'
+  const isEvaluatorReadOnly = user?.role === 'ShippingLineEvaluator'
+  const allowedRole = isAdmin || isEvaluatorReadOnly
 
   const loadDocuments = useCallback(() => {
     if (!preAdviceId) return
@@ -195,19 +204,33 @@ export default function EvaluationDetailPage() {
       return
     }
     setAllocationsLoading(true)
-    cyAllocationApi
-      .forApproval(item.id)
-      .then(({ data }) => {
+    const recommendedPromise = item.shippingLineId
+      ? shippingLineCyFillApi.recommended(item.shippingLineId)
+      : Promise.resolve({ data: { depotIdsInOrder: [] as number[] } })
+
+    Promise.all([cyAllocationApi.forApproval(item.id), recommendedPromise])
+      .then(([allocationRes, recommendedRes]) => {
+        const order = recommendedRes.data.depotIdsInOrder ?? []
+        setRecommendedDepotIds(order)
+        const sorted = sortAllocationsByRecommended(allocationRes.data.allocations, order)
+        const data = { ...allocationRes.data, allocations: sorted }
         setApprovalAllocations(data)
+
         const croDepotId = item.croEdoContext?.returnEmptyToDepotId
+        const recommendedFirst = order
+          .map((id) => sorted.find((a) => a.depotId === id && a.hasCapacity))
+          .find(Boolean)
         const croDepotMatch =
           croDepotId != null
-            ? data.allocations.find((a) => a.depotId === croDepotId && a.hasCapacity)
+            ? sorted.find((a) => a.depotId === croDepotId && a.hasCapacity)
             : undefined
-        const firstFit = croDepotMatch ?? data.allocations.find((a) => a.hasCapacity)
-        setDepotId(firstFit?.depotId ?? data.allocations[0]?.depotId ?? '')
+        const firstFit = recommendedFirst ?? croDepotMatch ?? sorted.find((a) => a.hasCapacity)
+        setDepotId(firstFit?.depotId ?? sorted[0]?.depotId ?? '')
       })
-      .catch(() => setApprovalAllocations(null))
+      .catch(() => {
+        setApprovalAllocations(null)
+        setRecommendedDepotIds([])
+      })
       .finally(() => setAllocationsLoading(false))
   }, [approveOpen, item])
 
@@ -368,7 +391,8 @@ export default function EvaluationDetailPage() {
     return <Navigate to="/evaluations" replace />
   }
 
-  const canDecide = item && PENDING_STATUSES.includes(item.status)
+  const canDecide = isAdmin && item && PENDING_STATUSES.includes(item.status)
+  const demurrageFromCro = item ? resolveDemurrageValidUntil(item) : null
 
   const downloadQr = async () => {
     if (!qrBooking) return
@@ -390,8 +414,8 @@ export default function EvaluationDetailPage() {
       setActionError('Please select a container yard (CY).')
       return
     }
-    if (!demurrageValidUntil) {
-      setActionError('Demurrage validity date is required.')
+    if (!resolveDemurrageValidUntil(item)) {
+      setActionError('Demurrage free-time validity must be set on the linked CRO/eDO before approval.')
       return
     }
     setSubmitting(true)
@@ -400,7 +424,6 @@ export default function EvaluationDetailPage() {
       await evaluationApi.approve({
         preAdviceId: item.id,
         depotId: Number(depotId),
-        demurrageValidUntil,
         remarks: remarks || undefined,
       })
       setApproveOpen(false)
@@ -546,11 +569,6 @@ export default function EvaluationDetailPage() {
                     variant="contained"
                     onClick={() => {
                       setRemarks('')
-                      setDemurrageValidUntil(
-                        item.croEdoContext?.demurrageValidUntil
-                          ?? item.demurrageValidUntil
-                          ?? defaultDemurrageValidUntil(),
-                      )
                       setActionError('')
                       setApproveOpen(true)
                     }}
@@ -659,11 +677,22 @@ export default function EvaluationDetailPage() {
           {approvalAllocations && (
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
               Container {approvalAllocations.containerNo} (
-              {formatContainerSizeLabel(approvalAllocations.containerSize)}) — pick a CY with space in the{' '}
+              {formatContainerSizeLabel(approvalAllocations.containerSize)}) — CY options are ordered by the
+              shipping line&apos;s fill priority. Pick a yard with space in the{' '}
               {getCapacityDisplayLabel(approvalAllocations.containerSize)} pool.{' '}
               <RouterLink to={`/evaluations/cy-allocation?preAdviceId=${item?.id ?? ''}`}>
                 View full CY allocation
               </RouterLink>
+            </Alert>
+          )}
+          {!demurrageFromCro ? (
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+              Demurrage free-time validity is missing from the linked CRO/eDO. Approval is blocked until it is
+              available.
+            </Alert>
+          ) : (
+            <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
+              Demurrage valid until <strong>{demurrageFromCro}</strong> (from CRO/eDO — not editable here).
             </Alert>
           )}
           {actionError && (
@@ -671,18 +700,6 @@ export default function EvaluationDetailPage() {
               {actionError}
             </Alert>
           )}
-          <TextField
-            fullWidth
-            required
-            label="Demurrage validity / expiration date"
-            type="date"
-            margin="normal"
-            value={demurrageValidUntil}
-            onChange={(e) => setDemurrageValidUntil(e.target.value)}
-            helperText="Last day the empty may be returned without demurrage and detention charges"
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={fieldSx}
-          />
           <FormControl fullWidth margin="normal" required sx={fieldSx} disabled={allocationsLoading}>
             <InputLabel>Container yard (CY)</InputLabel>
             <Select
@@ -691,16 +708,21 @@ export default function EvaluationDetailPage() {
               onChange={(e) => setDepotId(e.target.value as number)}
             >
               {approvalAllocations?.allocations.length
-                ? approvalAllocations.allocations.map((row) => (
-                    <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
-                      {formatCySizeOptionLabel(
-                        row.depotName,
-                        row,
-                        approvalAllocations.containerSize,
-                        row.hasCapacity,
-                      )}
-                    </MenuItem>
-                  ))
+                ? approvalAllocations.allocations.map((row) => {
+                    const isRecommended =
+                      recommendedDepotIds.length > 0 && row.depotId === recommendedDepotIds[0]
+                    const label = formatCySizeOptionLabel(
+                      row.depotName,
+                      row,
+                      approvalAllocations.containerSize,
+                      row.hasCapacity,
+                    )
+                    return (
+                      <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
+                        {isRecommended ? `${label} · Recommended` : label}
+                      </MenuItem>
+                    )
+                  })
                 : depots.map((d) => (
                     <MenuItem key={d.id} value={d.id}>
                       {d.name} — {d.address}
@@ -733,7 +755,7 @@ export default function EvaluationDetailPage() {
             variant="contained"
             color="success"
             onClick={handleApprove}
-            disabled={submitting}
+            disabled={submitting || !demurrageFromCro}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             Approve & assign CY

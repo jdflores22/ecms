@@ -10,7 +10,7 @@ export function useEvaluatorPendingEvaluationCount(
   const [count, setCount] = useState(0)
 
   const enabled = Boolean(
-    role && role === 'ShippingLineEvaluator' && canAccessPage(role, 'evaluations', allowedPages),
+    role && role === 'Administrator' && canAccessPage(role, 'evaluations', allowedPages),
   )
 
   const load = useCallback(() => {

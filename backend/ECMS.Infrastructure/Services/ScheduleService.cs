@@ -146,8 +146,8 @@ public class ScheduleService : IScheduleService
 
         await ValidateScheduleAssignmentDateAsync(preAdvice, request.Date, cancellationToken);
 
-        await _slotCapacity.ValidateAssignmentAsync(
-            request.DepotId, request.Date, request.SlotNo, null, cancellationToken);
+        await ValidateEmptyReturnCapacityAsync(
+            request.DepotId, request.Date, request.Time, request.SlotNo, null, cancellationToken);
 
         var referenceNo = await _db.PreAdvices
             .Where(p => p.Id == request.PreAdviceId)
@@ -202,8 +202,8 @@ public class ScheduleService : IScheduleService
 
         await ValidateScheduleAssignmentDateAsync(preAdvice, request.Date, cancellationToken);
 
-        await _slotCapacity.ValidateAssignmentAsync(
-            schedule.DepotId, request.Date, request.SlotNo, schedule.Id, cancellationToken);
+        await ValidateEmptyReturnCapacityAsync(
+            schedule.DepotId, request.Date, request.Time, request.SlotNo, schedule.Id, cancellationToken);
 
         schedule.Date = request.Date;
         schedule.Time = request.Time;
@@ -235,6 +235,38 @@ public class ScheduleService : IScheduleService
         int? excludeScheduleId = null,
         CancellationToken cancellationToken = default)
         => _slotCapacity.GetAvailabilityAsync(depotId, date, excludeScheduleId, cancellationToken);
+
+    public Task<HourlySlotAvailabilityDto> GetHourlySlotAvailabilityAsync(
+        int depotId,
+        DateOnly date,
+        int? excludeScheduleId = null,
+        CancellationToken cancellationToken = default)
+        => _slotCapacity.GetHourlyAvailabilityAsync(depotId, date, excludeScheduleId, cancellationToken);
+
+    private async Task ValidateEmptyReturnCapacityAsync(
+        int depotId,
+        DateOnly date,
+        TimeOnly time,
+        int slotNo,
+        int? excludeScheduleId,
+        CancellationToken cancellationToken)
+    {
+        if (slotNo > 0)
+        {
+            await _slotCapacity.ValidateAssignmentAsync(
+                depotId, date, slotNo, excludeScheduleId, cancellationToken);
+            return;
+        }
+
+        if (ScheduleAppointmentRules.IsLegacyDateOnly(time))
+        {
+            throw new InvalidOperationException(
+                "Return time is required. Choose an hourly slot between 0800 and 1700.");
+        }
+
+        await _slotCapacity.ValidateHourlyAssignmentAsync(
+            depotId, date, time, excludeScheduleId, cancellationToken);
+    }
 
     private async Task NotifyScheduleAssignedAsync(
         Schedule schedule,

@@ -9,7 +9,7 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 [Route("api/cy-allocations")]
-[Authorize(Roles = RoleNames.ShippingLineEvaluator)]
+[Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
 public class CyAllocationsController : ControllerBase
 {
     private readonly ICyAllocationService _service;

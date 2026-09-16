@@ -121,18 +121,23 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
         await ApiTestHelper.UploadAllStandardPhotosAsync(_client, preAdvice.Id);
         await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
 
-        var evaluatorToken = await ApiTestHelper.LoginAsync(_client, "evaluator1", "Evaluator@123");
-        ApiTestHelper.UseBearer(_client, evaluatorToken);
+        var adminToken = await ApiTestHelper.LoginAsync(_client, "admin", "Admin@123");
+        ApiTestHelper.UseBearer(_client, adminToken);
 
         var depots = await _client.GetFromJsonAsync<List<ApiTestHelper.DepotResponse>>("/api/depots");
         Assert.NotNull(depots);
         Assert.NotEmpty(depots);
         var depotId = depots[0].Id;
 
+        var demurrageValidUntil = ECMS.Domain.Common.PhilippinesTime
+            .AddDays(ECMS.Domain.Common.PhilippinesTime.Today, 7)
+            .ToString("yyyy-MM-dd");
+
         await _client.PostAsJsonAsync("/api/evaluations/approve", new
         {
             preAdviceId = preAdvice.Id,
             depotId,
+            demurrageValidUntil,
             remarks = "Approved for LOGICTECK test",
         });
 

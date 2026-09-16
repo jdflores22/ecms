@@ -2,6 +2,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { Box, Paper, Typography } from '@mui/material'
 import type { QrBooking, Schedule } from '../../services/api'
+import { formatArrivalWindow, formatScheduleTimeHundreds } from '../../utils/datetime'
 import {
   isScheduleDetailsVisible,
   truckerScheduleStatusHint,
@@ -49,7 +50,7 @@ export function buildReturnJourneySteps(
     {
       label: 'Return assigned',
       detail: scheduleDone
-        ? 'Slot confirmed by depot'
+        ? `${formatScheduleTimeHundreds(schedule.time)} · window ${formatArrivalWindow(schedule.date, schedule.time)}`
         : !isScheduleDetailsVisible(schedule)
           ? truckerScheduleStatusHint(schedule)
           : 'Waiting for depot',

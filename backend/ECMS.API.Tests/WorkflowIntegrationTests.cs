@@ -42,19 +42,21 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         var submitResponse = await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
 
-        // 2. Evaluator — approve and assign CY
-        var evaluatorToken = await ApiTestHelper.LoginAsync(_client, "evaluator1", "Evaluator@123");
-        ApiTestHelper.UseBearer(_client, evaluatorToken);
+        // 2. Administrator — approve and assign CY
+        var adminToken = await ApiTestHelper.LoginAsync(_client, "admin", "Admin@123");
+        ApiTestHelper.UseBearer(_client, adminToken);
 
         var depots = await _client.GetFromJsonAsync<List<ApiTestHelper.DepotResponse>>("/api/depots");
         Assert.NotNull(depots);
         Assert.NotEmpty(depots);
         var depotId = depots[0].Id;
 
+        var demurrageValidUntil = PhilippinesTime.AddDays(PhilippinesTime.Today, 7).ToString("yyyy-MM-dd");
         var approveResponse = await _client.PostAsJsonAsync("/api/evaluations/approve", new
         {
             preAdviceId = preAdvice.Id,
             depotId,
+            demurrageValidUntil,
             remarks = "Approved in integration test",
         });
         Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);

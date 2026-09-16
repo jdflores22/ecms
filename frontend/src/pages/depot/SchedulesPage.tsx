@@ -22,7 +22,7 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { depotApi, scheduleApi, type Depot, type Schedule } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { formatScheduleDate, startOfMonthIso, todayIsoDate } from '../../utils/datetime'
+import { formatScheduleDate, formatScheduleSlot, formatScheduleTimeHundreds, startOfMonthIso, todayIsoDate } from '../../utils/datetime'
 import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 
 const primaryDark = LIST_PRIMARY
@@ -359,7 +359,7 @@ export default function DepotSchedulesPage() {
                       <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                       <ListMobileMeta>{item.depotName}</ListMobileMeta>
                       <ListMobileMeta>
-                        {item.date ? formatScheduleDate(item.date) : 'Date not set'}
+                        {item.date ? formatScheduleSlot(item.date, item.time) : 'Date not set'}
                       </ListMobileMeta>
                       {item.truckerName && <ListMobileMeta>Trucker: {item.truckerName}</ListMobileMeta>}
                       {item.depotRemarks && (
@@ -392,7 +392,7 @@ export default function DepotSchedulesPage() {
                         >
                           <TableCell>Reference</TableCell>
                           <TableCell>Depot</TableCell>
-                          <TableCell>Return date</TableCell>
+                          <TableCell>Return slot</TableCell>
                           <TableCell>Trucker</TableCell>
                           <TableCell>Depot remarks</TableCell>
                           <TableCell align="right">Actions</TableCell>
@@ -408,7 +408,20 @@ export default function DepotSchedulesPage() {
                           >
                             <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
                             <TableCell>{item.depotName}</TableCell>
-                            <TableCell>{item.date ? formatScheduleDate(item.date) : '—'}</TableCell>
+                            <TableCell>
+                              {item.date ? (
+                                <>
+                                  {formatScheduleDate(item.date)}
+                                  {item.time && formatScheduleTimeHundreds(item.time) !== '—' && (
+                                    <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                                      {formatScheduleTimeHundreds(item.time)}
+                                    </Typography>
+                                  )}
+                                </>
+                              ) : (
+                                '—'
+                              )}
+                            </TableCell>
                             <TableCell>{item.truckerName ?? '—'}</TableCell>
                             <TableCell
                               sx={{

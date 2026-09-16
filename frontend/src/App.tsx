@@ -29,6 +29,7 @@ import {
   CroEdoNewPage,
   CroEdoPage,
   CyAllocationPage,
+  CyFillPriorityPage,
   DailyReturnsPage,
   DashboardPage,
   DemurrageBillingDetailPage,
@@ -319,6 +320,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <AtwPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="evaluations/cy-fill-priority"
+          element={
+            <RoleRouteGuard>
+              <CyFillPriorityPage />
             </RoleRouteGuard>
           }
         />

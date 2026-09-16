@@ -12,6 +12,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { ChipRowSkeleton } from '../layout/SkeletonPrimitives'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
@@ -20,6 +21,7 @@ import { QrImageSkeleton } from '../layout/SkeletonPrimitives'
 import AssetImage from '../layout/AssetImage'
 import { qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
+  HourlySlotAvailability,
   Payment,
   PreAdvice,
   PreAdviceDocument,
@@ -28,11 +30,15 @@ import type {
 } from '../../services/api'
 import {
   clampScheduleDateToBounds,
+  formatArrivalWindow,
   formatDateTime,
   formatDepotScheduleAllowedRange,
   formatDepotScheduleDateHelper,
   formatPeso,
   formatScheduleDate,
+  formatScheduleTimeHundreds,
+  normalizeTime24Input,
+  formatScheduleTime,
   type DepotScheduleDateBounds,
 } from '../../utils/datetime'
 import { formatContainerSummary } from '../../utils/containerSize'
@@ -122,6 +128,9 @@ type DepotScheduleTabPanelsProps = {
   showScheduledSummary: boolean
   editing: boolean
   date: string
+  time: string
+  hourlySlots: HourlySlotAvailability | null
+  hourlySlotsLoading: boolean
   depotRemarks: string
   scheduleDateBounds: DepotScheduleDateBounds
   actionError: string
@@ -131,6 +140,7 @@ type DepotScheduleTabPanelsProps = {
   onDownloadQr: () => void
   onEditSchedule: () => void
   onDateChange: (value: string) => void
+  onTimeChange: (value: string) => void
   onDepotRemarksChange: (value: string) => void
   onCancelEdit: () => void
   onOpenConfirm: () => void
@@ -164,10 +174,14 @@ export default function DepotScheduleTabPanels({
   onDownloadQr,
   onEditSchedule,
   onDateChange,
+  onTimeChange,
   onDepotRemarksChange,
   onCancelEdit,
   onOpenConfirm,
   onOpenPhotosTab,
+  time,
+  hourlySlots,
+  hourlySlotsLoading,
 }: DepotScheduleTabPanelsProps) {
   const truckerName = requestingTruckerName(schedule, preAdvice)
   const proofFileUrl = useAssetUrl(payment?.proofFile)
@@ -196,7 +210,11 @@ export default function DepotScheduleTabPanels({
             />
           )}
           {schedule.date && schedule.status !== 'WaitingSchedule' && (
-            <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
+            <>
+              <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
+              <InfoTile label="Return time" value={formatScheduleTimeHundreds(schedule.time)} />
+              <InfoTile label="Arrival window" value={formatArrivalWindow(schedule.date, schedule.time)} />
+            </>
           )}
           <InfoTile
             label="Status"
@@ -255,6 +273,8 @@ export default function DepotScheduleTabPanels({
             {showScheduledSummary && (
               <Box sx={infoGridSx}>
                 <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
+                <InfoTile label="Return time" value={formatScheduleTimeHundreds(schedule.time)} />
+                <InfoTile label="Arrival window" value={formatArrivalWindow(schedule.date, schedule.time)} />
                 <InfoTile label="Requesting trucker" value={truckerName} />
                 <InfoTile label="Status" value={scheduleStatusLabel(schedule.status)} />
                 {schedule.depotRemarks && (
@@ -371,6 +391,46 @@ export default function DepotScheduleTabPanels({
                   <InfoTile label="Requesting trucker" value={truckerName} />
                 </Box>
 
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                    Return time · {formatScheduleDate(date)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
+                    Choose an hourly slot (0800–1700). Trucker may arrive ±2 hours from the booked time.
+                  </Typography>
+                  {hourlySlotsLoading ? (
+                    <ChipRowSkeleton chips={6} />
+                  ) : (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                      {(hourlySlots?.slots ?? []).map((slot) => {
+                        const slotTime = normalizeTime24Input(formatScheduleTime(slot.time))
+                        const selected = time === slotTime
+                        const disabled = !slot.isAvailable && !selected
+                        return (
+                          <Chip
+                            key={slot.time}
+                            label={`${slot.timeLabel} · ${slot.bookedCount}/${slot.maxContainers}`}
+                            clickable={!disabled}
+                            color={selected ? 'primary' : slot.isAvailable ? 'default' : 'default'}
+                            variant={selected ? 'filled' : 'outlined'}
+                            disabled={disabled}
+                            onClick={() => onTimeChange(slotTime)}
+                            sx={{
+                              fontWeight: selected ? 700 : 600,
+                              opacity: disabled ? 0.45 : 1,
+                            }}
+                          />
+                        )
+                      })}
+                    </Box>
+                  )}
+                  {hourlySlots && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                      Daily: {hourlySlots.dailyBookedCount}/{hourlySlots.dailyLimit} returns booked
+                    </Typography>
+                  )}
+                </Box>
+
                 <TextField
                   fullWidth
                   label="Depot remarks (optional)"
@@ -403,7 +463,7 @@ export default function DepotScheduleTabPanels({
                   <Button
                     variant="contained"
                     onClick={onOpenConfirm}
-                    disabled={submitting || !date || !scheduleDateBounds.hasValidWindow}
+                    disabled={submitting || !date || !time || !scheduleDateBounds.hasValidWindow}
                     sx={{ fontWeight: 700, borderRadius: 2 }}
                   >
                     {schedule.status === 'WaitingSchedule' ? 'Save & notify trucker' : 'Save changes'}

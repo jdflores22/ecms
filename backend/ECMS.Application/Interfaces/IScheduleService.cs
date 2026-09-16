@@ -14,5 +14,11 @@ public interface IScheduleService
         DateOnly date,
         int? excludeScheduleId = null,
         CancellationToken cancellationToken = default);
+
+    Task<HourlySlotAvailabilityDto> GetHourlySlotAvailabilityAsync(
+        int depotId,
+        DateOnly date,
+        int? excludeScheduleId = null,
+        CancellationToken cancellationToken = default);
     Task<int> GetWaitingScheduleCountAsync(int userId, string role, CancellationToken cancellationToken = default);
 }

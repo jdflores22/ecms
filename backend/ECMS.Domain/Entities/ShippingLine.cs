@@ -1,4 +1,5 @@
 using ECMS.Domain.Common;
+using ECMS.Domain.Enums;
 
 namespace ECMS.Domain.Entities;
 
@@ -6,6 +7,7 @@ public class ShippingLine : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
+    public CyFillStrategy CyFillStrategy { get; set; } = CyFillStrategy.PriorityList;
     public bool IsActive { get; set; } = true;
 
     public ICollection<Container> Containers { get; set; } = new List<Container>();

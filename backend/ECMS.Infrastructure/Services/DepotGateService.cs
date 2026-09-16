@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ECMS.Application;
 using ECMS.Application.DTOs.DepotGate;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
@@ -89,6 +90,7 @@ public partial class DepotGateService : IDepotGateService
         var issues = BuildValidationIssues(booking, role, depotAccessDenied: false);
         if (issues.Any(i => string.Equals(i.Severity, "error", StringComparison.OrdinalIgnoreCase)))
         {
+            await TryMarkNoShowAsync(booking.Schedule, cancellationToken);
             var blocked = await BuildScanResponseAsync(rawQrCode, userId, role, persistCheckIn: false, cancellationToken);
             return new DepotGateCheckInResponse(
                 false,
@@ -216,7 +218,26 @@ public partial class DepotGateService : IDepotGateService
                 $"CRO free time expired on {preAdvice.DemurrageValidUntil:yyyy-MM-dd}. Trucker must file a new pre-forecast."));
         }
 
-        if (schedule.Date < today)
+        if (!ScheduleAppointmentRules.IsLegacyDateOnly(schedule.Time))
+        {
+            var now = PhilippinesTime.Now;
+            if (ScheduleAppointmentRules.IsPastNoShowCutoff(schedule.Date, schedule.Time, now))
+            {
+                issues.Add(new DepotGateIssueDto(
+                    "NO_SHOW_WINDOW",
+                    "error",
+                    $"Appointment window ended for {schedule.Date:yyyy-MM-dd} {ScheduleAppointmentRules.FormatTimeLabel(schedule.Time)}. Return is marked no show — trucker must file a new pre-forecast."));
+            }
+            else if (!ScheduleAppointmentRules.IsWithinArrivalWindow(schedule.Date, schedule.Time, now))
+            {
+                var (windowStart, windowEnd) = ScheduleAppointmentRules.GetArrivalWindow(schedule.Date, schedule.Time);
+                issues.Add(new DepotGateIssueDto(
+                    "TOO_EARLY",
+                    "error",
+                    $"Too early for gate check-in. Allowed window: {ScheduleAppointmentRules.FormatTimeLabel(TimeOnly.FromDateTime(windowStart))}–{ScheduleAppointmentRules.FormatTimeLabel(TimeOnly.FromDateTime(windowEnd))} on {schedule.Date:yyyy-MM-dd}."));
+            }
+        }
+        else if (schedule.Date < today)
         {
             issues.Add(new DepotGateIssueDto(
                 "SCHEDULE_DATE_PASSED",
@@ -257,6 +278,22 @@ public partial class DepotGateService : IDepotGateService
         }
 
         return issues;
+    }
+
+    private async Task TryMarkNoShowAsync(Domain.Entities.Schedule schedule, CancellationToken cancellationToken)
+    {
+        if (schedule.Status != ScheduleStatus.Confirmed)
+            return;
+
+        if (ScheduleAppointmentRules.IsLegacyDateOnly(schedule.Time))
+            return;
+
+        if (!ScheduleAppointmentRules.IsPastNoShowCutoff(schedule.Date, schedule.Time, PhilippinesTime.Now))
+            return;
+
+        schedule.Status = ScheduleStatus.NoShow;
+        _db.Update(schedule);
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<bool> CanAccessDepotGateAsync(

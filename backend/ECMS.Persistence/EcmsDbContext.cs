@@ -47,6 +47,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<TruckerNews> TruckerNewsSet => Set<TruckerNews>();
     public DbSet<ContainerReleaseOrder> ContainerReleaseOrdersSet => Set<ContainerReleaseOrder>();
     public DbSet<ContainerReleaseOrderLine> ContainerReleaseOrderLinesSet => Set<ContainerReleaseOrderLine>();
+    public DbSet<ShippingLineDepotFillPriority> ShippingLineDepotFillPrioritiesSet => Set<ShippingLineDepotFillPriority>();
+    public DbSet<ShippingLineDailyDepotFill> ShippingLineDailyDepotFillsSet => Set<ShippingLineDailyDepotFill>();
 
     IQueryable<Role> IEcmsDbContext.Roles => RolesSet;
     IQueryable<User> IEcmsDbContext.Users => UsersSet;
@@ -87,6 +89,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<TruckerNews> IEcmsDbContext.TruckerNews => TruckerNewsSet;
     IQueryable<ContainerReleaseOrder> IEcmsDbContext.ContainerReleaseOrders => ContainerReleaseOrdersSet;
     IQueryable<ContainerReleaseOrderLine> IEcmsDbContext.ContainerReleaseOrderLines => ContainerReleaseOrderLinesSet;
+    IQueryable<ShippingLineDepotFillPriority> IEcmsDbContext.ShippingLineDepotFillPriorities => ShippingLineDepotFillPrioritiesSet;
+    IQueryable<ShippingLineDailyDepotFill> IEcmsDbContext.ShippingLineDailyDepotFills => ShippingLineDailyDepotFillsSet;
 
     void IEcmsDbContext.Add<T>(T entity) => Add(entity);
     void IEcmsDbContext.Update<T>(T entity) => Update(entity);
@@ -136,6 +140,22 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasIndex(x => new { x.ShippingLineId, x.DepotId }).IsUnique();
             e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId);
             e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId);
+        });
+
+        modelBuilder.Entity<ShippingLineDepotFillPriority>(e =>
+        {
+            e.HasIndex(x => new { x.ShippingLineId, x.DepotId }).IsUnique();
+            e.HasIndex(x => new { x.ShippingLineId, x.SortOrder });
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Depot).WithMany().HasForeignKey(x => x.DepotId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ShippingLineDailyDepotFill>(e =>
+        {
+            e.HasIndex(x => new { x.ShippingLineId, x.EffectiveDate }).IsUnique();
+            e.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PrimaryDepot).WithMany().HasForeignKey(x => x.PrimaryDepotId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.SetByUser).WithMany().HasForeignKey(x => x.SetByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ShippingLineDepotContractSizeAllocation>(e =>

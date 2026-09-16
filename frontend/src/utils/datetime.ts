@@ -130,6 +130,51 @@ export function isValidTime24(value: string): boolean {
   return h >= 0 && h <= 23 && m >= 0 && m <= 59
 }
 
+/** Empty-return hourly slots: 0800–1700 PHT. */
+export const EMPTY_RETURN_OPERATING_HOUR_START = 8
+export const EMPTY_RETURN_OPERATING_HOUR_END = 17
+export const EMPTY_RETURN_ARRIVAL_GRACE_HOURS = 2
+
+export function isLegacyDateOnlyTime(time?: string | null): boolean {
+  if (!time) return true
+  const normalized = normalizeTime24Input(formatScheduleTime(time))
+  return !normalized || normalized === '00:00'
+}
+
+/** Military hundreds label, e.g. 1200H. */
+export function formatScheduleTimeHundreds(time?: string | null, withSuffix = true): string {
+  if (!time || isLegacyDateOnlyTime(time)) return '—'
+  const normalized = normalizeTime24Input(formatScheduleTime(time))
+  const [h, m] = normalized.split(':').map(Number)
+  const label = `${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}`
+  return withSuffix ? `${label}H` : label
+}
+
+/** HH:mm options for empty-return assignment (08:00–17:00). */
+export function getDepotEmptyReturnHourOptions(): string[] {
+  const options: string[] = []
+  for (let hour = EMPTY_RETURN_OPERATING_HOUR_START; hour <= EMPTY_RETURN_OPERATING_HOUR_END; hour += 1) {
+    options.push(`${String(hour).padStart(2, '0')}:00`)
+  }
+  return options
+}
+
+export function hourlyOptionToApiTime(hhmm: string): string {
+  const normalized = normalizeTime24Input(hhmm)
+  return `${normalized}:00`
+}
+
+export function formatArrivalWindow(date: string, time?: string | null): string {
+  if (!date || isLegacyDateOnlyTime(time)) return '—'
+  const normalized = normalizeTime24Input(formatScheduleTime(time!))
+  const [h] = normalized.split(':').map(Number)
+  const startHour = Math.max(0, h - EMPTY_RETURN_ARRIVAL_GRACE_HOURS)
+  const endHour = Math.min(23, h + EMPTY_RETURN_ARRIVAL_GRACE_HOURS)
+  const start = `${String(startHour).padStart(2, '0')}00H`
+  const end = `${String(endHour).padStart(2, '0')}00H`
+  return `${start}–${end} · ${formatScheduleDate(date)}`
+}
+
 /** Full 24-hour day — 00:00 through 23:30, 30-minute steps. */
 const DEPOT_SCHEDULE_START_HOUR = 0
 const DEPOT_SCHEDULE_END_HOUR = 23
@@ -177,10 +222,8 @@ export function formatScheduleDate(dateStr: string): string {
 /** Combined return schedule label: date, or date · time when a specific time is set. */
 export function formatScheduleSlot(date: string, time?: string | null): string {
   const datePart = formatScheduleDate(date)
-  if (!time) return datePart
-  const normalized = normalizeTime24Input(formatScheduleTime(time))
-  if (!normalized || normalized === '00:00') return datePart
-  return `${datePart} · ${formatScheduleTime(time)} ${SYSTEM_TIMEZONE.label}`
+  if (!time || isLegacyDateOnlyTime(time)) return datePart
+  return `${datePart} · ${formatScheduleTimeHundreds(time)} ${SYSTEM_TIMEZONE.label}`
 }
 
 /** YYYY-MM-DD for the given instant in system timezone. */

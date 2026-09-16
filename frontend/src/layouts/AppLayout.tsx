@@ -100,6 +100,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   profile: <PersonOutlinedIcon fontSize="small" />,
   preforecast: <DescriptionIcon fontSize="small" />,
   evaluations: <FactCheckIcon fontSize="small" />,
+  cyFillPriority: <WarehouseOutlinedIcon fontSize="small" />,
   cyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
   containerInventory: <Inventory2OutlinedIcon fontSize="small" />,
   demurrageBilling: <PaymentsIcon fontSize="small" />,

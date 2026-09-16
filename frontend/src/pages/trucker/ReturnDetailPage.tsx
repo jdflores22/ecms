@@ -112,7 +112,7 @@ import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 
 import { useAssetUrl } from '../../hooks/useAssetUrl'
-import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { formatArrivalWindow, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 import {
   isScheduleDetailsVisible,
   truckerScheduleStatusHint,
@@ -620,7 +620,11 @@ export default function TruckerReturnDetailPage() {
                 <DetailHeroAside
                   label="Return slot"
                   primary={formatScheduleSlot(schedule.date, schedule.time)}
-                  secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
+                  secondary={
+                    schedule.slotNo > 0
+                      ? `Slot ${schedule.slotNo}`
+                      : formatArrivalWindow(schedule.date, schedule.time)
+                  }
                 />
               ) : !isScheduleDetailsVisible(schedule) ? (
                 <DetailHeroAside label="Return schedule" primary={truckerScheduleStatusHint(schedule)} />

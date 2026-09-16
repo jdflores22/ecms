@@ -31,6 +31,7 @@ import {
   preAdviceApi,
   qrApi,
   scheduleApi,
+  type HourlySlotAvailability,
   type Payment,
   type PreAdvice,
   type PreAdviceDocument,
@@ -41,9 +42,14 @@ import { store } from '../../store'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import {
   clampScheduleDateToBounds,
-  DEPOT_RETURN_DATE_ONLY_TIME,
+  formatArrivalWindow,
   formatScheduleDate,
+  formatScheduleTime,
+  formatScheduleTimeHundreds,
   getDepotScheduleDateBounds,
+  hourlyOptionToApiTime,
+  isLegacyDateOnlyTime,
+  normalizeTime24Input,
   SYSTEM_TIMEZONE,
   validateDepotScheduleDate,
 } from '../../utils/datetime'
@@ -118,6 +124,9 @@ export default function ScheduleDetailPage() {
   const [error, setError] = useState('')
 
   const [date, setDate] = useState('')
+  const [time, setTime] = useState('')
+  const [hourlySlots, setHourlySlots] = useState<HourlySlotAvailability | null>(null)
+  const [hourlySlotsLoading, setHourlySlotsLoading] = useState(false)
   const [depotRemarks, setDepotRemarks] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -170,6 +179,10 @@ export default function ScheduleDetailPage() {
           preAdviceRes.data.evaluatedAt,
         )
         setDate(clampScheduleDateToBounds(item.date, bounds.minDate, bounds.maxDate))
+        const savedTime = isLegacyDateOnlyTime(item.time)
+          ? ''
+          : normalizeTime24Input(formatScheduleTime(item.time))
+        setTime(savedTime)
         setDepotRemarks(item.depotRemarks ?? '')
         loadDocuments(preAdviceRes.data.id)
 
@@ -198,6 +211,20 @@ export default function ScheduleDetailPage() {
       clampScheduleDateToBounds(current, scheduleDateBounds.minDate, scheduleDateBounds.maxDate),
     )
   }, [preAdvice?.id, scheduleDateBounds.minDate, scheduleDateBounds.maxDate])
+
+  const loadHourlySlots = useCallback(() => {
+    if (!schedule || !date) return
+    setHourlySlotsLoading(true)
+    scheduleApi
+      .hourlySlots(schedule.depotId, date, schedule.id)
+      .then(({ data }) => setHourlySlots(data))
+      .catch(() => setHourlySlots(null))
+      .finally(() => setHourlySlotsLoading(false))
+  }, [schedule, date])
+
+  useEffect(() => {
+    loadHourlySlots()
+  }, [loadHourlySlots])
 
   useEffect(() => {
     load()
@@ -254,12 +281,16 @@ export default function ScheduleDetailPage() {
       setActionError(validationError)
       return
     }
+    if (!time) {
+      setActionError('Choose a return time slot (0800–1700).')
+      return
+    }
     setSubmitting(true)
     setActionError('')
     try {
       await scheduleApi.update(schedule.id, {
         date,
-        time: DEPOT_RETURN_DATE_ONLY_TIME,
+        time: hourlyOptionToApiTime(time),
         slotNo: 0,
         status: 'Scheduled',
         depotRemarks: depotRemarks.trim() || null,
@@ -288,12 +319,21 @@ export default function ScheduleDetailPage() {
       setActionError(validationError)
       return
     }
+    if (!time) {
+      setActionError('Choose a return time slot (0800–1700).')
+      return
+    }
     setConfirmOpen(true)
   }
 
   const cancelEdit = () => {
     if (!schedule) return
     setDate(clampScheduleDateToBounds(schedule.date, scheduleDateBounds.minDate, scheduleDateBounds.maxDate))
+    setTime(
+      isLegacyDateOnlyTime(schedule.time)
+        ? ''
+        : normalizeTime24Input(formatScheduleTime(schedule.time)),
+    )
     setDepotRemarks(schedule.depotRemarks ?? '')
     setActionError('')
     setEditing(false)
@@ -544,6 +584,9 @@ export default function ScheduleDetailPage() {
               showScheduledSummary={Boolean(showScheduledSummary)}
               editing={editing}
               date={date}
+              time={time}
+              hourlySlots={hourlySlots}
+              hourlySlotsLoading={hourlySlotsLoading}
               depotRemarks={depotRemarks}
               scheduleDateBounds={scheduleDateBounds}
               actionError={actionError}
@@ -553,6 +596,7 @@ export default function ScheduleDetailPage() {
               onDownloadQr={downloadQr}
               onEditSchedule={() => setEditing(true)}
               onDateChange={setDate}
+              onTimeChange={setTime}
               onDepotRemarksChange={setDepotRemarks}
               onCancelEdit={cancelEdit}
               onOpenConfirm={openConfirm}
@@ -627,6 +671,10 @@ export default function ScheduleDetailPage() {
               >
                 <Typography color="text.secondary">Return date</Typography>
                 <Typography sx={{ fontWeight: 600 }}>{formatScheduleDate(date)}</Typography>
+                <Typography color="text.secondary">Return time</Typography>
+                <Typography sx={{ fontWeight: 600 }}>{formatScheduleTimeHundreds(hourlyOptionToApiTime(time))}</Typography>
+                <Typography color="text.secondary">Arrival window</Typography>
+                <Typography sx={{ fontWeight: 600 }}>{formatArrivalWindow(date, hourlyOptionToApiTime(time))}</Typography>
                 <Typography color="text.secondary">Requesting trucker</Typography>
                 <Typography sx={{ fontWeight: 600 }}>{requestingTrucker ?? '—'}</Typography>
                 {depotRemarks.trim() && (

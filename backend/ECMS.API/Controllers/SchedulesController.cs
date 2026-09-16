@@ -50,6 +50,15 @@ public class SchedulesController : ControllerBase
         CancellationToken cancellationToken)
         => Ok(await _service.GetSlotAvailabilityAsync(depotId, date, excludeScheduleId, cancellationToken));
 
+    [HttpGet("hourly-slots")]
+    [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
+    public async Task<ActionResult<HourlySlotAvailabilityDto>> GetHourlySlots(
+        [FromQuery] int depotId,
+        [FromQuery] DateOnly date,
+        [FromQuery] int? excludeScheduleId,
+        CancellationToken cancellationToken)
+        => Ok(await _service.GetHourlySlotAvailabilityAsync(depotId, date, excludeScheduleId, cancellationToken));
+
     [HttpGet("waiting/count")]
     [Authorize(Roles = RoleNames.DepotPersonnel)]
     public async Task<ActionResult<ECMS.Application.DTOs.Common.CountDto>> GetWaitingCount(CancellationToken cancellationToken)

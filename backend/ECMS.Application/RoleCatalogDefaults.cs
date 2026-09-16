@@ -9,6 +9,7 @@ public static class RolePageKeys
     public const string Profile = "profile";
     public const string Preforecast = "preforecast";
     public const string Evaluations = "evaluations";
+    public const string CyFillPriority = "cyFillPriority";
     public const string CyAllocation = "cyAllocation";
     public const string ContainerInventory = "containerInventory";
     public const string DemurrageBilling = "demurrageBilling";
@@ -46,7 +47,7 @@ public static class RolePageKeys
 
     public static readonly HashSet<string> All = new(StringComparer.Ordinal)
     {
-        Dashboard, Profile, Preforecast, Evaluations, CyAllocation, ContainerInventory, DemurrageBilling, DemurrageRates, StatementOfAccounts,
+        Dashboard, Profile, Preforecast, Evaluations, CyFillPriority, CyAllocation, ContainerInventory, DemurrageBilling, DemurrageRates, StatementOfAccounts,
         AdminReports, DepotReports, EvaluatorReports, TruckerReports,
         DepotDailyReturns, DepotGateScan, DepotSchedules,
         AdminPayments,
@@ -57,8 +58,8 @@ public static class RolePageKeys
 
     public static readonly string[] AdministratorPages =
     {
-        Dashboard, Profile, AdminReports,
-        AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue, AdminTruckerNews,
+        Dashboard, Profile, Evaluations, CyAllocation, ContainerInventory,
+        AdminReports, AdminPayments, AdminUsers, AdminRoles, AdminMasterData, AdminAudit, AdminVersion, AdminRevenue, AdminTruckerNews,
     };
 
     /// <summary>Legacy RBAC page key mapped to the role-specific reports page.</summary>
@@ -98,9 +99,10 @@ public static class RoleCatalogDefaults
         new(
             "Administrator",
             "Administrator",
-            "System administration: users, master data, payments, revenue, and audit.",
+            "System administration: pre-forecast evaluation, users, master data, payments, revenue, and audit.",
             new[]
             {
+                "Review and approve pre-forecast with CY assignment",
                 "Manage users and roles",
                 "Shipping lines, depots, and container reference data",
                 "Verify trucker payment proofs",
@@ -157,19 +159,17 @@ public static class RoleCatalogDefaults
         new(
             "ShippingLineEvaluator",
             "Shipping Line Evaluator",
-            "Reviews pre-forecast for assigned shipping line and assigns CY.",
+            "Manages CY fill priority, demurrage billing, and shipping line operations.",
             new[]
             {
-                "Approve or reject pre-forecast",
-                "Assign container yard on approval",
-                "Set demurrage validity on approval",
+                "Set CY fill priority list or daily primary CY assignment",
                 "Issue CRO/eDO with free demurrage time and empty return CY",
                 "View demurrage billing for expired returns",
                 "Configure demurrage and detention rates for the assigned shipping line",
                 "Compile demurrage billings into statements of account (SOA)",
-                "View evaluation history",
+                "Monitor CY allocation and inventory",
             },
-            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.Evaluations, RolePageKeys.EvaluatorAtw, RolePageKeys.EvaluatorCro, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.DemurrageRates, RolePageKeys.StatementOfAccounts, RolePageKeys.EvaluatorReports }),
+            new[] { RolePageKeys.Dashboard, RolePageKeys.Profile, RolePageKeys.CyFillPriority, RolePageKeys.EvaluatorAtw, RolePageKeys.EvaluatorCro, RolePageKeys.CyAllocation, RolePageKeys.ContainerInventory, RolePageKeys.DemurrageBilling, RolePageKeys.DemurrageRates, RolePageKeys.StatementOfAccounts, RolePageKeys.EvaluatorReports }),
         new(
             "DepotPersonnel",
             "Depot Personnel",

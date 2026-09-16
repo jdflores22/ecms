@@ -5,6 +5,7 @@ export type AppPageKey =
   | 'profile'
   | 'preforecast'
   | 'evaluations'
+  | 'cyFillPriority'
   | 'cyAllocation'
   | 'containerInventory'
   | 'demurrageBilling'
@@ -79,8 +80,16 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     key: 'evaluations',
     label: 'Evaluations',
     path: '/evaluations',
-    group: 'Evaluation',
+    group: 'Admin',
     description: 'Review pre-forecast requests and assign container yards',
+    showInNav: true,
+  },
+  cyFillPriority: {
+    key: 'cyFillPriority',
+    label: 'CY fill priority',
+    path: '/evaluations/cy-fill-priority',
+    group: 'Evaluation',
+    description: 'Set which container yards to fill first (priority list or daily assignment)',
     showInNav: true,
   },
   cyAllocation: {
@@ -355,6 +364,9 @@ export const REQUIRED_PAGE_KEYS: AppPageKey[] = ['dashboard', 'profile']
 export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'dashboard',
   'profile',
+  'evaluations',
+  'cyAllocation',
+  'containerInventory',
   'adminReports',
   'adminPayments',
   'adminUsers',
@@ -372,7 +384,7 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
   ShippingLineEvaluator: [
     'dashboard',
     'profile',
-    'evaluations',
+    'cyFillPriority',
     'evaluatorAtw',
     'evaluatorCro',
     'cyAllocation',
@@ -457,6 +469,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'demurrageBilling',
   'demurrageRates',
   'statementOfAccounts',
+  'cyFillPriority',
   'evaluations',
   'profile',
   'dashboard',
@@ -477,9 +490,7 @@ const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
   'truckerQr',
   'truckerQrPrint',
   'preforecast',
-  'evaluations',
-  'cyAllocation',
-  'containerInventory',
+  'cyFillPriority',
   'demurrageBilling',
   'demurrageRates',
   'depotDailyReturns',
@@ -617,6 +628,7 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'truckerReports',
   'adminReports',
   'evaluations',
+  'cyFillPriority',
   'cyAllocation',
   'containerInventory',
   'demurrageBilling',

@@ -731,6 +731,7 @@ export interface Depot {
   name: string
   address: string
   capacity: number
+  containersPerHour: number
   isActive: boolean
 }
 
@@ -744,8 +745,12 @@ export const evaluationApi = {
     if (status === 204 || status === 404) return { data: null }
     return { data: data ?? null }
   },
-  approve: (data: { preAdviceId: number; depotId: number; demurrageValidUntil: string; remarks?: string }) =>
-    api.post<Evaluation>('/evaluations/approve', data),
+  approve: (data: {
+    preAdviceId: number
+    depotId: number
+    demurrageValidUntil?: string
+    remarks?: string
+  }) => api.post<Evaluation>('/evaluations/approve', data),
   reject: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/reject', data),
   returnForCompliance: (data: { preAdviceId: number; remarks: string }) =>
@@ -826,6 +831,52 @@ export const cyAllocationApi = {
     contractId: number,
     data: { sizes: { containerSizeId: number; contractCount: number }[]; isActive?: boolean },
   ) => api.put<CyAllocation>(`/cy-allocations/contracts/${contractId}`, { ...data, isActive: data.isActive ?? true }),
+}
+
+export interface ShippingLineDepotFillPriority {
+  depotId: number
+  depotName: string
+  sortOrder: number
+}
+
+export interface ShippingLineDailyDepotFill {
+  effectiveDate: string
+  primaryDepotId: number
+  primaryDepotName: string
+  setAt: string
+  setByName: string
+}
+
+export interface ShippingLineCyFillSettings {
+  shippingLineId: number
+  shippingLineName: string
+  cyFillStrategy: 'PriorityList' | 'DailyAssignment'
+  priorities: ShippingLineDepotFillPriority[]
+  todayAssignment: ShippingLineDailyDepotFill | null
+}
+
+export interface RecommendedDepotOrder {
+  shippingLineId: number
+  effectiveDate: string
+  cyFillStrategy: string
+  depotIdsInOrder: number[]
+}
+
+export const shippingLineCyFillApi = {
+  getSettings: () => api.get<ShippingLineCyFillSettings>('/shipping-line-cy-fill'),
+  updateStrategy: (cyFillStrategy: 'PriorityList' | 'DailyAssignment') =>
+    api.put<ShippingLineCyFillSettings>('/shipping-line-cy-fill/strategy', { cyFillStrategy }),
+  updatePriorities: (depotIdsInOrder: number[]) =>
+    api.put<ShippingLineCyFillSettings>('/shipping-line-cy-fill/priorities', { depotIdsInOrder }),
+  setDaily: (effectiveDate: string, primaryDepotId: number) =>
+    api.put<ShippingLineCyFillSettings>('/shipping-line-cy-fill/daily', {
+      effectiveDate,
+      primaryDepotId,
+    }),
+  recommended: (shippingLineId: number, date?: string) =>
+    api.get<RecommendedDepotOrder>(`/shipping-line-cy-fill/recommended/${shippingLineId}`, {
+      params: date ? { date } : undefined,
+    }),
 }
 
 export type ContainerDwellCompliance = 'WithinLimit' | 'ApproachingLimit' | 'Overstay' | 'Released'
@@ -963,10 +1014,12 @@ export const shippingLineDepotContractApi = {
 export const depotApi = {
   list: () => api.get<Depot[]>('/depots'),
   listAdmin: () => api.get<Depot[]>('/depots/admin'),
-  create: (data: { name: string; address: string; capacity: number }) =>
+  create: (data: { name: string; address: string; capacity: number; containersPerHour: number }) =>
     api.post<Depot>('/depots', data),
-  update: (id: number, data: { name: string; address: string; capacity: number; isActive: boolean }) =>
-    api.put<Depot>(`/depots/${id}`, data),
+  update: (
+    id: number,
+    data: { name: string; address: string; capacity: number; containersPerHour: number; isActive: boolean },
+  ) => api.put<Depot>(`/depots/${id}`, data),
   deactivate: (id: number) => api.delete(`/depots/${id}`),
 }
 
@@ -1214,6 +1267,24 @@ export interface SlotAvailability {
   slots: SlotInfo[]
 }
 
+export interface HourlySlotInfo {
+  time: string
+  timeLabel: string
+  maxContainers: number
+  bookedCount: number
+  isAvailable: boolean
+}
+
+export interface HourlySlotAvailability {
+  depotId: number
+  depotName: string
+  date: string
+  containersPerHour: number
+  dailyLimit: number
+  dailyBookedCount: number
+  slots: HourlySlotInfo[]
+}
+
 export const scheduleApi = {
   list: () => api.get<Schedule[]>('/schedules'),
   waitingCount: () => api.get<{ count: number }>('/schedules/waiting/count'),
@@ -1231,6 +1302,10 @@ export const scheduleApi = {
   },
   slots: (depotId: number, date: string, excludeScheduleId?: number) =>
     api.get<SlotAvailability>('/schedules/slots', {
+      params: { depotId, date, excludeScheduleId },
+    }),
+  hourlySlots: (depotId: number, date: string, excludeScheduleId?: number) =>
+    api.get<HourlySlotAvailability>('/schedules/hourly-slots', {
       params: { depotId, date, excludeScheduleId },
     }),
   update: (id: number, data: {

@@ -2,6 +2,7 @@ using ECMS.Application.Interfaces;
 using ECMS.Infrastructure.Security;
 using ECMS.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ECMS.Infrastructure;
 
@@ -43,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentProofExtractionService, PaymentProofExtractionService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IDepotService, DepotService>();
+        services.AddScoped<IShippingLineCyFillService, ShippingLineCyFillService>();
         services.AddScoped<IDepotBroadcastService, DepotBroadcastService>();
         services.AddScoped<ITruckerNewsService, TruckerNewsService>();
         services.AddScoped<IShippingLineService, ShippingLineService>();
@@ -57,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<ILogicteckEmptyReturnService, LogicteckEmptyReturnService>();
+        services.AddHostedService<ScheduleNoShowBackgroundService>();
 
         return services;
     }

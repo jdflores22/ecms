@@ -1,5 +1,6 @@
 using ECMS.Application.DTOs.Depot;
 using ECMS.Application.Interfaces;
+using ECMS.Domain.Constants;
 using ECMS.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +22,7 @@ public class DepotService : IDepotService
         return await _db.Depots
             .Where(d => d.IsActive)
             .OrderBy(d => d.Name)
-            .Select(d => new DepotDto(d.Id, d.Name, d.Address, d.Capacity, d.IsActive))
+            .Select(d => new DepotDto(d.Id, d.Name, d.Address, d.Capacity, d.ContainersPerHour, d.IsActive))
             .ToListAsync(cancellationToken);
     }
 
@@ -29,7 +30,7 @@ public class DepotService : IDepotService
     {
         return await _db.Depots
             .OrderBy(d => d.Name)
-            .Select(d => new DepotDto(d.Id, d.Name, d.Address, d.Capacity, d.IsActive))
+            .Select(d => new DepotDto(d.Id, d.Name, d.Address, d.Capacity, d.ContainersPerHour, d.IsActive))
             .ToListAsync(cancellationToken);
     }
 
@@ -51,12 +52,14 @@ public class DepotService : IDepotService
             throw new InvalidOperationException("Name is required.");
         if (request.Capacity < 1)
             throw new InvalidOperationException("Capacity must be at least 1.");
+        ValidateContainersPerHour(request.ContainersPerHour);
 
         var depot = new Depot
         {
             Name = name,
             Address = address,
             Capacity = request.Capacity,
+            ContainersPerHour = request.ContainersPerHour,
             IsActive = true,
         };
 
@@ -84,10 +87,12 @@ public class DepotService : IDepotService
             throw new InvalidOperationException("Name is required.");
         if (request.Capacity < 1)
             throw new InvalidOperationException("Capacity must be at least 1.");
+        ValidateContainersPerHour(request.ContainersPerHour);
 
         depot.Name = name;
         depot.Address = address;
         depot.Capacity = request.Capacity;
+        depot.ContainersPerHour = request.ContainersPerHour;
         depot.IsActive = request.IsActive;
         _db.Update(depot);
         await _db.SaveChangesAsync(cancellationToken);
@@ -110,5 +115,12 @@ public class DepotService : IDepotService
         return true;
     }
 
-    private static DepotDto MapToDto(Depot d) => new(d.Id, d.Name, d.Address, d.Capacity, d.IsActive);
+    private static void ValidateContainersPerHour(int containersPerHour)
+    {
+        if (containersPerHour < 1)
+            throw new InvalidOperationException("Containers per hour must be at least 1.");
+    }
+
+    private static DepotDto MapToDto(Depot d) =>
+        new(d.Id, d.Name, d.Address, d.Capacity, d.ContainersPerHour, d.IsActive);
 }

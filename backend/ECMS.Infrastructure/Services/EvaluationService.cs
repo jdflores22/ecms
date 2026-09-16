@@ -52,22 +52,16 @@ public class EvaluationService : IEvaluationService
 
     public async Task<int> GetPendingCountAsync(int userId, string role, CancellationToken cancellationToken = default)
     {
-        if (role != RoleNames.ShippingLineEvaluator)
-            return 0;
-
-        var shippingLineId = await _db.Users
-            .Where(u => u.Id == userId)
-            .Select(u => u.ShippingLineId)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (!shippingLineId.HasValue)
-            return 0;
-
-        return await _db.PreAdvices.CountAsync(
-            p => p.ShippingLineId == shippingLineId.Value
-                && (p.Status == PreAdviceStatus.Submitted
+        if (role == RoleNames.Administrator)
+        {
+            return await _db.PreAdvices.CountAsync(
+                p => p.Status == PreAdviceStatus.Submitted
                     || p.Status == PreAdviceStatus.UnderEvaluation
-                    || p.Status == PreAdviceStatus.ForCompliance),
-            cancellationToken);
+                    || p.Status == PreAdviceStatus.ForCompliance,
+                cancellationToken);
+        }
+
+        return 0;
     }
 
     public async Task<bool> CanAccessPreAdviceAsync(
@@ -129,6 +123,9 @@ public class EvaluationService : IEvaluationService
         string role,
         CancellationToken cancellationToken = default)
     {
+        if (role != RoleNames.Administrator)
+            throw new UnauthorizedAccessException("Only system administrators can approve pre-forecasts and assign container yards.");
+
         if (!await CanAccessPreAdviceAsync(request.PreAdviceId, evaluatorId, role, cancellationToken))
             throw new UnauthorizedAccessException("You are not allowed to evaluate this pre-forecast.");
 
@@ -140,7 +137,14 @@ public class EvaluationService : IEvaluationService
         if (preAdvice.Status is not (PreAdviceStatus.Submitted or PreAdviceStatus.UnderEvaluation))
             throw new InvalidOperationException("Pre-forecast is not eligible for approval.");
 
-        if (request.DemurrageValidUntil < PhilippinesTime.Today)
+        var demurrageUntil = request.DemurrageValidUntil ?? preAdvice.DemurrageValidUntil;
+        if (!demurrageUntil.HasValue)
+        {
+            throw new InvalidOperationException(
+                "Demurrage free-time validity must come from the linked CRO/eDO before approval.");
+        }
+
+        if (demurrageUntil.Value < PhilippinesTime.Today)
             throw new InvalidOperationException("Demurrage validity date cannot be in the past.");
 
         await _cyAllocations.EnsureCapacityForApprovalAsync(
@@ -151,7 +155,7 @@ public class EvaluationService : IEvaluationService
             cancellationToken);
 
         preAdvice.Status = PreAdviceStatus.Approved;
-        preAdvice.DemurrageValidUntil = request.DemurrageValidUntil;
+        preAdvice.DemurrageValidUntil = demurrageUntil;
         var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
         evaluation.EvaluatorId = evaluatorId;
         evaluation.DepotId = request.DepotId;
@@ -192,7 +196,7 @@ public class EvaluationService : IEvaluationService
         await _notifications.NotifyUsersAsync(
             new[] { preAdvice.TruckerId },
             "Pre-forecast approved",
-            $"{preAdvice.ReferenceNo} was approved. {TruckerScheduleVisibility.AwaitingCyConfirmation}",
+            $"{preAdvice.ReferenceNo} was approved by ICS. {TruckerScheduleVisibility.AwaitingCyConfirmation}",
             "Evaluation",
             $"/trucker/preforecast/{preAdvice.Id}",
             evaluatorId,

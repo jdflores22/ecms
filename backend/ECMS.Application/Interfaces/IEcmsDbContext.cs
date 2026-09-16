@@ -43,6 +43,8 @@ public interface IEcmsDbContext
     IQueryable<TruckerNews> TruckerNews { get; }
     IQueryable<ContainerReleaseOrder> ContainerReleaseOrders { get; }
     IQueryable<ContainerReleaseOrderLine> ContainerReleaseOrderLines { get; }
+    IQueryable<ShippingLineDepotFillPriority> ShippingLineDepotFillPriorities { get; }
+    IQueryable<ShippingLineDailyDepotFill> ShippingLineDailyDepotFills { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Add<T>(T entity) where T : class;
