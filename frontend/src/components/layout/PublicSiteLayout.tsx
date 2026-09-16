@@ -137,25 +137,15 @@ export function PublicSiteHeader() {
           component={RouterLink}
           to="/"
           underline="none"
+          aria-label={`${ICS_BRAND.name} home`}
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 1.5,
             minWidth: 0,
             color: publicColors.textDark,
           }}
         >
           <IcsLogo height={36} maxWidth={120} />
-          <Typography
-            sx={{
-              display: { xs: 'none', sm: 'block' },
-              fontWeight: 700,
-              fontSize: '1.125rem',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {ICS_BRAND.shortName}
-          </Typography>
         </Link>
 
         <Box component="nav" aria-label="Primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
