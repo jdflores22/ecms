@@ -101,6 +101,7 @@ export function PortalUserMenu() {
               fontSize: '0.8125rem',
               fontWeight: 600,
               lineHeight: 1.2,
+              color: 'inherit',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -109,7 +110,7 @@ export function PortalUserMenu() {
           >
             {user.fullName}
           </Typography>
-          <Typography sx={{ fontSize: '0.6875rem', opacity: 0.75, lineHeight: 1.2 }}>
+          <Typography sx={{ fontSize: '0.6875rem', color: 'rgba(255, 255, 255, 0.8)', lineHeight: 1.2 }}>
             {roleLabel(user.role)}
           </Typography>
         </Box>

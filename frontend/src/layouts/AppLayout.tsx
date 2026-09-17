@@ -389,6 +389,7 @@ export default function AppLayout() {
               minWidth: 0,
               border: 0,
               bgcolor: 'transparent',
+              color: '#fff',
               cursor: 'pointer',
               p: 0,
             }}
@@ -398,7 +399,7 @@ export default function AppLayout() {
               component="span"
               sx={{
                 display: { xs: 'none', sm: 'inline' },
-                opacity: 0.75,
+                color: 'rgba(255, 255, 255, 0.88)',
                 fontSize: '0.875rem',
                 fontWeight: 500,
                 whiteSpace: 'nowrap',
