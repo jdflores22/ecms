@@ -1,0 +1,1 @@
+import{T as c}from"./index-D1Vime7R.js";async function n(o){const{data:t}=await c.bookLogicteck(o);return t}function a(o){return!!(o&&!o.isUsed&&!o.logicteckBookedAt)}function e(o,t){return!o||!t.booking?o:t.booking}export{e as a,n as b,a as c};
