@@ -29,6 +29,7 @@ import {
   type CyAllocation,
   type ShippingLineCyFillSettings,
 } from '../../services/api'
+import CyFillDepotAllocationStrip from '../../components/evaluations/CyFillDepotAllocationStrip'
 import { useAppSelector } from '../../store/hooks'
 
 const primaryDark = ICS_PRIMARY
@@ -67,6 +68,17 @@ export default function CyFillPriorityPage() {
       })),
     [contracts],
   )
+
+  const allocationByDepotId = useMemo(() => {
+    const map = new Map<number, CyAllocation>()
+    for (const contract of contracts) {
+      map.set(contract.depotId, contract)
+    }
+    return map
+  }, [contracts])
+
+  const selectedDailyAllocation =
+    dailyDepotId === '' ? undefined : allocationByDepotId.get(Number(dailyDepotId))
 
   const load = useCallback(() => {
     setLoading(true)
@@ -168,7 +180,7 @@ export default function CyFillPriorityPage() {
       <PageHero
         icon={<WarehouseOutlinedIcon />}
         title="CY fill priority"
-        subtitle="Steer which container yards admin should fill first when approving pre-forecast."
+        subtitle="Steer which container yards admin should fill first. Use each depot's allocation to decide who has room to take returns."
       />
 
       {loading ? (
@@ -244,7 +256,8 @@ export default function CyFillPriorityPage() {
                 Priority list
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Rank your contracted CYs. #1 is filled first when admin assigns returns.
+                Rank your contracted CYs. #1 is filled first when admin assigns returns. Depots with more
+                available TEU are usually good candidates for higher priority.
               </Typography>
               {priorityIds.length === 0 ? (
                 <Alert severity="warning" sx={{ borderRadius: 2 }}>
@@ -259,40 +272,44 @@ export default function CyFillPriorityPage() {
                       sx={{
                         px: 2,
                         py: 1.25,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
                         borderRadius: 2,
                         bgcolor: hexToRgba(primaryDark, 0.03),
                         border: '1px solid',
                         borderColor: hexToRgba(primaryDark, 0.08),
                       }}
                     >
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 800, color: primaryDark, minWidth: 28 }}
-                      >
-                        #{index + 1}
-                      </Typography>
-                      <Typography variant="body2" sx={{ flex: 1, fontWeight: 600 }}>
-                        {depotName(depotId)}
-                      </Typography>
-                      <Button
-                        size="small"
-                        disabled={index === 0 || saving}
-                        onClick={() => movePriority(index, -1)}
-                        aria-label="Move up"
-                      >
-                        <ArrowUpwardIcon fontSize="small" />
-                      </Button>
-                      <Button
-                        size="small"
-                        disabled={index === priorityIds.length - 1 || saving}
-                        onClick={() => movePriority(index, 1)}
-                        aria-label="Move down"
-                      >
-                        <ArrowDownwardIcon fontSize="small" />
-                      </Button>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontWeight: 800, color: primaryDark, minWidth: 28, pt: 0.25 }}
+                        >
+                          #{index + 1}
+                        </Typography>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {depotName(depotId)}
+                          </Typography>
+                          <CyFillDepotAllocationStrip allocation={allocationByDepotId.get(depotId)} />
+                        </Box>
+                        <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                          <Button
+                            size="small"
+                            disabled={index === 0 || saving}
+                            onClick={() => movePriority(index, -1)}
+                            aria-label="Move up"
+                          >
+                            <ArrowUpwardIcon fontSize="small" />
+                          </Button>
+                          <Button
+                            size="small"
+                            disabled={index === priorityIds.length - 1 || saving}
+                            onClick={() => movePriority(index, 1)}
+                            aria-label="Move down"
+                          >
+                            <ArrowDownwardIcon fontSize="small" />
+                          </Button>
+                        </Box>
+                      </Box>
                     </Paper>
                   ))}
                 </Stack>
@@ -322,7 +339,8 @@ export default function CyFillPriorityPage() {
                 Daily primary CY
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Assign which CY should be filled first for a specific date. Update each day as needed.
+                Assign which CY should be filled first for a specific date. Check allocation below each
+                depot to pick the yard with enough room.
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
                 <TextField
@@ -340,14 +358,46 @@ export default function CyFillPriorityPage() {
                     value={dailyDepotId}
                     onChange={(e) => setDailyDepotId(e.target.value as number)}
                   >
-                    {contractedDepots.map((d) => (
-                      <MenuItem key={d.depotId} value={d.depotId}>
-                        {d.depotName}
-                      </MenuItem>
-                    ))}
+                    {contractedDepots.map((d) => {
+                      const allocation = allocationByDepotId.get(d.depotId)
+                      const available = allocation ? Math.round(allocation.availableTeu) : null
+                      return (
+                        <MenuItem key={d.depotId} value={d.depotId}>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {d.depotName}
+                            </Typography>
+                            {allocation && (
+                              <Typography variant="caption" color="text.secondary">
+                                {Math.round(allocation.atYardTeu)} TEU at yard · {available} TEU available
+                                {allocation.hasCapacity ? '' : ' · at limit'}
+                              </Typography>
+                            )}
+                          </Box>
+                        </MenuItem>
+                      )
+                    })}
                   </Select>
                 </FormControl>
               </Stack>
+              {selectedDailyAllocation && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    mb: 2,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: hexToRgba(primaryDark, 0.1),
+                    bgcolor: hexToRgba(primaryDark, 0.02),
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>
+                    {selectedDailyAllocation.depotName}
+                  </Typography>
+                  <CyFillDepotAllocationStrip allocation={selectedDailyAllocation} />
+                </Paper>
+              )}
               <Button
                 variant="contained"
                 startIcon={<SaveIcon />}
