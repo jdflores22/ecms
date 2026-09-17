@@ -6,6 +6,7 @@ import {
   infoGridSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Paper, TextField, Typography } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
@@ -25,7 +26,6 @@ import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { formatDateTime, formatScheduleDate } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 
-const primaryDark = '#0B3D91'
 
 const statusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   Submitted: 'info',
@@ -446,9 +446,9 @@ export default function DepotWithdrawalDetailPage() {
                 p: 1.5,
                 mb: 2,
                 borderRadius: 2,
-                bgcolor: hexToRgba(primaryDark, 0.04),
+                bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
                 border: '1px solid',
-                borderColor: hexToRgba(primaryDark, 0.1),
+                borderColor: hexToRgba(ICS_PRIMARY, 0.1),
               }}
             >
               <Typography variant="body2" sx={{ fontWeight: 600 }}>

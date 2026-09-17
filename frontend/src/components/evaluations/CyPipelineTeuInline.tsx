@@ -10,8 +10,25 @@ export const CY_PIPELINE_COLORS = {
 interface CyPipelineTeuInlineProps {
   confirmedTeu: number
   preForecastTeu: number
-  /** 'hero' for main yard total; 'inline' for size rows */
+  /** hero = yard card header; inline = size rows; caption = compact footnotes */
   variant?: 'hero' | 'inline' | 'caption'
+}
+
+function pipelinePillSx(color: string, compact: boolean) {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    px: compact ? 0.65 : 0.85,
+    py: compact ? 0.1 : 0.2,
+    borderRadius: 1,
+    fontSize: compact ? '0.625rem' : '0.6875rem',
+    fontWeight: 700,
+    lineHeight: 1.35,
+    bgcolor: `${color}14`,
+    color,
+    border: `1px solid ${color}33`,
+    whiteSpace: 'nowrap',
+  } as const
 }
 
 export default function CyPipelineTeuInline({
@@ -23,31 +40,25 @@ export default function CyPipelineTeuInline({
   const preForecast = Math.round(preForecastTeu)
   if (confirmed <= 0 && preForecast <= 0) return null
 
-  const fontSize = variant === 'hero' ? '0.8125rem' : variant === 'caption' ? '0.6875rem' : '0.75rem'
+  const compact = variant === 'caption'
 
   return (
     <Box
-      component="span"
       sx={{
-        display: 'inline',
-        ml: variant === 'hero' ? 0.75 : 0.35,
-        fontSize,
-        fontWeight: 600,
-        lineHeight: 1.35,
-        whiteSpace: 'normal',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: compact ? 0.35 : 0.5,
+        mt: variant === 'hero' ? 0.75 : variant === 'inline' ? 0.5 : 0.35,
       }}
     >
       {confirmed > 0 && (
-        <Box component="span" sx={{ color: CY_PIPELINE_COLORS.confirmed, mr: preForecast > 0 ? 0.5 : 0 }}>
-          +{confirmed} TEU confirmed
+        <Box component="span" sx={pipelinePillSx(CY_PIPELINE_COLORS.confirmed, compact)}>
+          +{confirmed} confirmed
         </Box>
       )}
-      {confirmed > 0 && preForecast > 0 && (
-        <Box component="span" sx={{ color: 'text.disabled', mx: 0.35 }}>·</Box>
-      )}
       {preForecast > 0 && (
-        <Box component="span" sx={{ color: CY_PIPELINE_COLORS.preForecast }}>
-          +{preForecast} TEU pre-forecast
+        <Box component="span" sx={pipelinePillSx(CY_PIPELINE_COLORS.preForecast, compact)}>
+          +{preForecast} pre-forecast
         </Box>
       )}
     </Box>

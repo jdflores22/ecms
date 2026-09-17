@@ -4,14 +4,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined'
 import SystemUpdateAltOutlinedIcon from '@mui/icons-material/SystemUpdateAltOutlined'
 import { Navigate } from 'react-router-dom'
-import {
-  pageHeroPaperSx,
-  pageHeroOrbSx,
-  pageHeroIconBoxSx,
-  pageHeroSubtitleSx,
-  pageHeroTitleSx,
-} from '../../components/layout/PageHeroPrimitives'
-import { appColors, icsOnBrand } from '../../theme/colors'
+import { PageHero, pageHeroMutedChipSx } from '../../components/layout/PageHeroPrimitives'
+import { appColors } from '../../theme/colors'
 import { ICS_BRAND } from '../../config/brandCopy'
 import {
   APP_VERSION,
@@ -53,40 +47,13 @@ export default function AdminVersionPage() {
 
   return (
     <Box>
-      <Paper elevation={0} sx={pageHeroPaperSx}>
-        <Box aria-hidden sx={pageHeroOrbSx} />
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', position: 'relative' }}>
-          <Box sx={pageHeroIconBoxSx}>
-            <SystemUpdateAltOutlinedIcon />
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography
-              variant="overline"
-              sx={{ color: icsOnBrand.muted, letterSpacing: 1.2, display: 'block' }}
-            >
-              {ICS_BRAND.shortName} release
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
-              <Typography variant="h5" sx={pageHeroTitleSx}>
-                Version {APP_VERSION}
-              </Typography>
-              <Chip
-                size="small"
-                label="Current"
-                sx={{
-                  bgcolor: 'rgba(255, 255, 255, 0.14)',
-                  color: '#fff',
-                  fontWeight: 700,
-                  border: '1px solid rgba(255, 255, 255, 0.22)',
-                }}
-              />
-            </Box>
-            <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, mt: 0.75 }}>
-              {current.title} · Released {formatReleaseDate(current.releasedOn)}
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+      <PageHero
+        eyebrow={`${ICS_BRAND.shortName} release`}
+        icon={<SystemUpdateAltOutlinedIcon />}
+        title={`Version ${APP_VERSION}`}
+        titleAddon={<Chip size="small" label="Current" sx={pageHeroMutedChipSx} />}
+        subtitle={`${current.title} · Released ${formatReleaseDate(current.releasedOn)}`}
+      />
 
       <Paper
         elevation={0}

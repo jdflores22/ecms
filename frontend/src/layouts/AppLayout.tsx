@@ -1,18 +1,9 @@
 import {
   AppBar,
-  Avatar,
   Box,
-  Chip,
-  CircularProgress,
-  Divider,
   Drawer,
   IconButton,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Toolbar,
-  Tooltip,
   Typography,
 } from '@mui/material'
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
@@ -23,12 +14,11 @@ import CalendarViewDayIcon from '@mui/icons-material/CalendarViewDay'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
-import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
-import WarehouseIcon from '@mui/icons-material/Warehouse'
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import PeopleIcon from '@mui/icons-material/People'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
@@ -45,11 +35,9 @@ import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNone
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { roleLabel } from '../config/roleConfig'
-import { logoutSession, roleApi } from '../services/api'
+import { roleApi } from '../services/api'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { logout, updateUser } from '../store/slices/authSlice'
-import { useAssetUrlState } from '../hooks/useAssetUrl'
-import { AvatarSkeleton } from '../components/layout/SkeletonPrimitives'
+import { updateUser } from '../store/slices/authSlice'
 import { ICS_BRAND } from '../config/brandCopy'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
 import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCount'
@@ -65,17 +53,42 @@ import { scheduleNonCritical } from '../utils/deferWork'
 import NotificationBell from '../components/NotificationBell'
 import TruckerBroadcastModal from '../components/TruckerBroadcastModal'
 import IcsLogo from '../components/brand/IcsLogo'
-import { appColors } from '../theme/colors'
+import { PortalBreadcrumbs } from '../components/layout/PortalBreadcrumbs'
+import { PortalUserMenu } from '../components/layout/PortalUserMenu'
+import { appColors, portalColors } from '../theme/colors'
+import { portalNavItemSx, portalNavSectionLabelSx } from '../theme/portalTheme'
 
-const drawerWidth = 272
-const appBarHeight = 64
-
-function userInitials(name?: string) {
-  if (!name) return '?'
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  return name.slice(0, 2).toUpperCase()
+function NavBadge({ count, active, ariaLabel }: { count: number; active: boolean; ariaLabel?: string }) {
+  const label = count > 99 ? '99+' : String(count)
+  return (
+    <Box
+      component="span"
+      aria-label={ariaLabel ?? `${label} pending`}
+      sx={{
+        ml: 'auto',
+        minWidth: 20,
+        height: 20,
+        px: 0.75,
+        borderRadius: 999,
+        bgcolor: active ? 'rgba(255,255,255,0.22)' : portalColors.primary,
+        color: '#fff',
+        fontSize: '0.6875rem',
+        fontWeight: 700,
+        lineHeight: 1,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {label}
+    </Box>
+  )
 }
+
+const drawerWidth = 256
+const appBarHeight = 64
+const contentMaxWidth = '80rem'
 
 function isNavActive(path: string, current: string, allNavPaths: string[]) {
   if (path === '/') return current === '/'
@@ -126,7 +139,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   truckerNotifications: <NotificationsNoneOutlinedIcon fontSize="small" />,
   adminUsers: <PeopleIcon fontSize="small" />,
   adminRoles: <AdminPanelSettingsIcon fontSize="small" />,
-  adminMasterData: <WarehouseIcon fontSize="small" />,
+  adminMasterData: <SettingsOutlinedIcon fontSize="small" />,
   adminCertificateTemplates: <DescriptionIcon fontSize="small" />,
   adminTruckerNews: <ArticleOutlinedIcon fontSize="small" />,
   adminAudit: <HistoryIcon fontSize="small" />,
@@ -136,9 +149,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
   const user = useAppSelector((s) => s.auth.user)
-  const refreshToken = useAppSelector((s) => s.auth.refreshToken)
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
@@ -150,8 +161,6 @@ export default function AppLayout() {
   const pendingPaymentVerifyCount = useAdminPendingPaymentCount(user?.role, user?.allowedPages)
   const awaitingCyCount = useEvaluatorAwaitingCyCount(user?.role, user?.allowedPages)
   const pendingEvaluationCount = useEvaluatorPendingEvaluationCount(user?.role, user?.allowedPages)
-  const { url: profilePhotoUrl, loading: profilePhotoLoading } = useAssetUrlState(user?.profilePhoto)
-
   useEffect(() => {
     if (!user?.role) return undefined
     const cancel = scheduleNonCritical(() => {
@@ -166,21 +175,6 @@ export default function AppLayout() {
     })
     return cancel
   }, [user?.role, dispatch])
-
-  const handleLogout = async () => {
-    if (loggingOut) return
-    setLoggingOut(true)
-    setMobileOpen(false)
-    ;(document.activeElement as HTMLElement | null)?.blur?.()
-
-    try {
-      await logoutSession(refreshToken)
-      dispatch(logout())
-      navigate('/login', { replace: true })
-    } catch {
-      setLoggingOut(false)
-    }
-  }
 
   const goTo = (path: string) => {
     navigate(path)
@@ -239,11 +233,11 @@ export default function AppLayout() {
 
   const drawerPaperSx = {
     width: drawerWidth,
+    maxWidth: drawerWidth,
     boxSizing: 'border-box' as const,
-    borderRight: '1px solid',
-    borderColor: 'divider',
-    bgcolor: '#FAFBFD',
-    backgroundImage: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+    borderRight: `1px solid ${portalColors.border}`,
+    bgcolor: portalColors.bgWhite,
+    overflowX: 'hidden',
   }
 
   const permanentDrawerPaperSx = {
@@ -252,192 +246,103 @@ export default function AppLayout() {
     height: `calc(100% - ${appBarHeight}px)`,
   }
 
-  const navItemSx = (active: boolean) => ({
-    mx: 1.5,
-    mb: 0.5,
-    borderRadius: 2,
-    minHeight: 44,
-    transition: 'background-color 0.15s ease, color 0.15s ease',
-    ...(active
-      ? {
-          bgcolor: appColors.navActiveBg,
-          color: appColors.primary,
-          fontWeight: 600,
-          '& .MuiListItemIcon-root': { color: appColors.primary },
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            left: 0,
-            top: '20%',
-            bottom: '20%',
-            width: 3,
-            borderRadius: '0 4px 4px 0',
-            bgcolor: appColors.accent,
-          },
-        }
-      : {
-          color: 'text.secondary',
-          '&:hover': { bgcolor: appColors.navHoverBg, color: 'text.primary' },
-          '& .MuiListItemIcon-root': { color: 'text.secondary' },
-        }),
-  })
+  const breadcrumbNavItems = useMemo(
+    () => menuItems.map((item) => ({ label: item.text, href: item.path })),
+    [menuItems],
+  )
+
+  const profileActive = isNavActive('/profile', location.pathname, navPaths)
 
   const drawer = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', py: 2 }}>
-      <Box sx={{ px: 2.5, pb: 2 }}>
-        <Box
-          component="button"
-          type="button"
-          onClick={() => goTo('/profile')}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            p: 1.5,
-            width: '100%',
-            borderRadius: 2,
-            bgcolor: isNavActive('/profile', location.pathname, navPaths)
-              ? appColors.navActiveBg
-              : appColors.brandBg,
-            border: `1px solid ${appColors.border}`,
-            cursor: 'pointer',
-            textAlign: 'left',
-            transition: 'background-color 0.15s ease, border-color 0.15s ease',
-            '&:hover': {
-              bgcolor: appColors.navActiveBg,
-              borderColor: appColors.border,
-            },
-          }}
-        >
-          {user?.profilePhoto && profilePhotoLoading ? (
-            <AvatarSkeleton size={40} />
-          ) : (
-          <Avatar
-            src={profilePhotoUrl || undefined}
-            sx={{
-              width: 40,
-              height: 40,
-              bgcolor: appColors.primary,
-              fontSize: '0.875rem',
-              fontWeight: 700,
-            }}
-          >
-            {user?.profilePhoto ? null : userInitials(user?.fullName)}
-          </Avatar>
-          )}
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap>
-              {user?.fullName}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-              {user?.role ? roleLabel(user.role) : ''}
-            </Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, overflow: 'hidden' }}>
+      <Box
+        sx={{
+          flexShrink: 0,
+          px: 2.5,
+          py: 2,
+          borderBottom: `1px solid ${portalColors.border}`,
+        }}
+      >
+        <Typography sx={{ ...portalNavSectionLabelSx, px: 0, pt: 0, pb: 0.5 }}>Menu</Typography>
+        <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, color: portalColors.textDark }}>
+          {user?.role ? `${roleLabel(user.role)} portal` : 'ICS portal'}
+        </Typography>
+      </Box>
+
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+        }}
+      >
+        <Box component="nav" aria-label="Main" sx={{ py: 1.5 }}>
+          {menuItems.map((item) => {
+            const active = isNavActive(item.path, location.pathname, navPaths)
+            return (
+              <Box key={item.path} sx={{ px: 1.5, pb: 0.5 }}>
+                <Box
+                  component="button"
+                  type="button"
+                  className={active ? 'active' : undefined}
+                  onClick={() => goTo(item.path)}
+                  sx={{
+                    ...portalNavItemSx,
+                    border: 'none',
+                    bgcolor: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  {item.icon}
+                  <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.text}
+                  </Box>
+                  {item.badge > 0 ? (
+                    <NavBadge count={item.badge} active={active} ariaLabel={`${item.badge} ${item.badgeAriaLabel ?? 'items'}`} />
+                  ) : null}
+                </Box>
+              </Box>
+            )
+          })}
+        </Box>
+
+        <Typography sx={portalNavSectionLabelSx}>Account</Typography>
+        <Box component="nav" aria-label="Account" sx={{ pb: 1.5 }}>
+          <Box sx={{ px: 1.5, pb: 0.5 }}>
+            <Box
+              component="button"
+              type="button"
+              className={profileActive ? 'active' : undefined}
+              onClick={() => goTo('/profile')}
+              sx={{
+                ...portalNavItemSx,
+                border: 'none',
+                bgcolor: 'transparent',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <PersonOutlinedIcon />
+              <Box component="span" sx={{ flex: 1, minWidth: 0 }}>My profile</Box>
+            </Box>
           </Box>
         </Box>
       </Box>
 
       <Typography
-        variant="overline"
-        sx={{ px: 3, mb: 0.5, color: 'text.disabled', fontWeight: 700, letterSpacing: 1.2 }}
-      >
-        Menu
-      </Typography>
-
-      <List sx={{ flex: 1, px: 0.5, py: 0 }}>
-        {menuItems.map((item) => {
-          const active = isNavActive(item.path, location.pathname, navPaths)
-          return (
-            <ListItemButton
-              key={item.path}
-              onClick={() => goTo(item.path)}
-              selected={active}
-              sx={navItemSx(active)}
-            >
-              <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
-              <ListItemText
-                primary={item.text}
-                slotProps={{ primary: { sx: { fontSize: '0.9rem', fontWeight: active ? 600 : 500 } } }}
-              />
-              {item.badge > 0 ? (() => {
-                const badgeLabel = item.badge > 99 ? '99+' : String(item.badge)
-                const badgeSize = badgeLabel.length > 1 ? 26 : 22
-                return (
-                  <Box
-                    aria-label={`${badgeLabel} ${item.badgeAriaLabel ?? 'items'}`}
-                    sx={{
-                      width: badgeSize,
-                      height: badgeSize,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      bgcolor: 'rgba(237, 108, 2, 0.12)',
-                      border: '1px solid rgba(237, 108, 2, 0.22)',
-                      color: '#C2410C',
-                      fontSize: badgeLabel.length > 1 ? '0.625rem' : '0.7rem',
-                      fontWeight: 700,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {badgeLabel}
-                  </Box>
-                )
-              })() : null}
-            </ListItemButton>
-          )
-        })}
-      </List>
-
-      <Divider sx={{ mx: 2, mb: 1 }} />
-
-      <List sx={{ px: 0.5 }}>
-        <ListItemButton
-          onClick={() => goTo('/profile')}
-          selected={isNavActive('/profile', location.pathname, navPaths)}
-          sx={navItemSx(isNavActive('/profile', location.pathname, navPaths))}
-        >
-          <ListItemIcon sx={{ minWidth: 36 }}>
-            <PersonOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText
-            primary="Profile"
-            slotProps={{
-              primary: {
-                sx: { fontSize: '0.9rem', fontWeight: isNavActive('/profile', location.pathname, navPaths) ? 600 : 500 },
-              },
-            }}
-          />
-        </ListItemButton>
-        <ListItemButton
-          onClick={handleLogout}
-          disabled={loggingOut}
-          sx={{
-            mx: 1.5,
-            borderRadius: 2,
-            minHeight: 44,
-            color: 'text.secondary',
-            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.08)', color: 'error.main' },
-            '&:hover .MuiListItemIcon-root': { color: 'error.main' },
-          }}
-        >
-          <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>
-            {loggingOut ? (
-              <CircularProgress size={18} color="inherit" aria-label="Logging out" />
-            ) : (
-              <LogoutIcon fontSize="small" />
-            )}
-          </ListItemIcon>
-          <ListItemText
-            primary={loggingOut ? 'Logging out…' : 'Logout'}
-            slotProps={{ primary: { sx: { fontSize: '0.9rem', fontWeight: 500 } } }}
-          />
-        </ListItemButton>
-      </List>
-      <Typography
         variant="caption"
         color="text.disabled"
-        sx={{ px: 2.5, pb: 2, display: 'block', textAlign: 'center', lineHeight: 1.4 }}
+        sx={{
+          flexShrink: 0,
+          px: 2,
+          py: 1.5,
+          display: 'block',
+          textAlign: 'center',
+          lineHeight: 1.4,
+          borderTop: `1px solid ${portalColors.border}`,
+        }}
       >
         {SYSTEM_TIMEZONE.labelLong}
       </Typography>
@@ -451,7 +356,7 @@ export default function AppLayout() {
         elevation={0}
         sx={{
           zIndex: (t) => t.zIndex.drawer + 1,
-          background: appColors.icsBrandGradient,
+          bgcolor: portalColors.primary,
           color: '#fff',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           boxShadow: appColors.icsAppBarShadow,
@@ -489,49 +394,25 @@ export default function AppLayout() {
             }}
           >
             <IcsLogo height={{ xs: 32, sm: 36 }} maxWidth={{ xs: 80, sm: 96 }} />
-            <Box sx={{ minWidth: 0, display: { xs: 'none', lg: 'block' }, textAlign: 'left' }}>
-              <Typography
-                variant="caption"
-                noWrap
-                sx={{ color: 'rgba(255, 255, 255, 0.75)', display: 'block', lineHeight: 1.4 }}
-              >
-                {ICS_BRAND.appBarCaption}
-              </Typography>
-            </Box>
+            <Typography
+              component="span"
+              sx={{
+                display: { xs: 'none', sm: 'inline' },
+                opacity: 0.75,
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              · {user?.role ? roleLabel(user.role) : ICS_BRAND.shortName}
+            </Typography>
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <NotificationBell />
-          <Tooltip title={`${user?.fullName ?? 'Profile'} — view profile`}>
-            <Chip
-              avatar={
-                user?.profilePhoto && profilePhotoLoading ? (
-                  <AvatarSkeleton size={28} />
-                ) : (
-                <Avatar
-                  src={profilePhotoUrl || undefined}
-                  sx={{ bgcolor: appColors.accent, color: '#fff', width: 28, height: 28, fontSize: '0.75rem' }}
-                >
-                  {user?.profilePhoto ? null : userInitials(user?.fullName)}
-                </Avatar>
-                )
-              }
-              label={user?.role ? roleLabel(user.role) : ''}
-              onClick={() => navigate('/profile')}
-              sx={{
-                display: { xs: 'none', md: 'flex' },
-                bgcolor: 'rgba(255, 255, 255, 0.12)',
-                color: '#fff',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                fontWeight: 500,
-                cursor: 'pointer',
-                '& .MuiChip-label': { px: 1 },
-                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' },
-              }}
-            />
-          </Tooltip>
+            <PortalUserMenu />
           </Box>
         </Toolbar>
       </AppBar>
@@ -569,15 +450,25 @@ export default function AppLayout() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, sm: 3 },
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           mt: `${appBarHeight}px`,
           minHeight: `calc(100vh - ${appBarHeight}px)`,
           minWidth: 0,
           overflowX: 'hidden',
+          bgcolor: portalColors.bgPage,
         }}
       >
-        <Outlet />
+        <Box
+          sx={{
+            maxWidth: contentMaxWidth,
+            mx: 'auto',
+            px: { xs: 2, sm: 3, lg: 4 },
+            py: { xs: 3, sm: 4 },
+          }}
+        >
+          <PortalBreadcrumbs navItems={breadcrumbNavItems} />
+          <Outlet />
+        </Box>
       </Box>
       <TruckerBroadcastModal />
     </Box>

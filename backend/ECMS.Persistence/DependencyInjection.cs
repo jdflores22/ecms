@@ -383,7 +383,7 @@ public class DbSeeder
 
     private async Task EnsureDemoBrokerUserAsync()
     {
-        if (await _context.UsersSet.AnyAsync(u => u.Username == "broker1"))
+        if (await _context.UsersSet.AnyAsync(u => u.Username == "broker1" || u.Email == "broker@ecms.local"))
             return;
 
         var brokerRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Broker);

@@ -239,6 +239,10 @@ export function currentPhYear(): number {
   return Number(todayIsoDate().slice(0, 4))
 }
 
+export function currentPhMonth(): number {
+  return Number(todayIsoDate().slice(5, 7))
+}
+
 export function shiftIsoDate(dateStr: string, days: number): string {
   const d = calendarDate(dateStr)
   d.setDate(d.getDate() + days)

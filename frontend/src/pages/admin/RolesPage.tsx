@@ -1,4 +1,5 @@
 import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined'
@@ -27,7 +28,6 @@ import {
   PageHero,
 } from '../../components/layout/ListPagePrimitives'
 
-const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 function hexToRgba(hex: string, alpha: number) {
@@ -246,7 +246,7 @@ export default function RolesPage() {
           mb: 3,
         }}
       >
-        <SummaryCard label="System roles" value={summary.roles} color={primaryDark} />
+        <SummaryCard label="System roles" value={summary.roles} color={ICS_PRIMARY} />
         <SummaryCard label="Active users" value={summary.activeUsers} color="#2E7D32" />
         <SummaryCard label="Roles in use" value={summary.assignedRoles} color="#00A3E0" />
       </Box>
@@ -264,7 +264,7 @@ export default function RolesPage() {
                     <Chip
                       label={`${countsByRole[role.name] ?? 0} active`}
                       size="small"
-                      sx={{ fontWeight: 700, bgcolor: hexToRgba(primaryDark, 0.08), color: primaryDark }}
+                      sx={{ fontWeight: 700, bgcolor: hexToRgba(ICS_PRIMARY, 0.08), color: ICS_PRIMARY }}
                     />
                   </ListMobileChipRow>
                   <ListMobileMeta>{role.description}</ListMobileMeta>
@@ -275,7 +275,7 @@ export default function RolesPage() {
                         label={cap}
                         size="small"
                         variant="outlined"
-                        sx={{ fontWeight: 500, borderColor: hexToRgba(primaryDark, 0.2) }}
+                        sx={{ fontWeight: 500, borderColor: hexToRgba(ICS_PRIMARY, 0.2) }}
                       />
                     ))}
                     {role.capabilities.length > 4 && (
@@ -316,7 +316,7 @@ export default function RolesPage() {
                   <TableHead>
                     <TableRow
                       sx={{
-                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
                         '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                       }}
                     >
@@ -331,7 +331,7 @@ export default function RolesPage() {
                   <TableBody>
                     {roles.map((role) => (
                       <TableRow key={role.name} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark, verticalAlign: 'top' }}>
+                        <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY, verticalAlign: 'top' }}>
                           {role.label}
                         </TableCell>
                         <TableCell sx={{ verticalAlign: 'top', maxWidth: 280 }}>
@@ -350,7 +350,7 @@ export default function RolesPage() {
                                 label={cap}
                                 size="small"
                                 variant="outlined"
-                                sx={{ fontWeight: 500, borderColor: hexToRgba(primaryDark, 0.2) }}
+                                sx={{ fontWeight: 500, borderColor: hexToRgba(ICS_PRIMARY, 0.2) }}
                               />
                             ))}
                           </Box>
@@ -361,8 +361,8 @@ export default function RolesPage() {
                             size="small"
                             sx={{
                               fontWeight: 700,
-                              bgcolor: hexToRgba(primaryDark, 0.08),
-                              color: primaryDark,
+                              bgcolor: hexToRgba(ICS_PRIMARY, 0.08),
+                              color: ICS_PRIMARY,
                               minWidth: 36,
                             }}
                           />

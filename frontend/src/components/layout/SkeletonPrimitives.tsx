@@ -128,23 +128,23 @@ export function DetailPageSkeleton({
 
 export function DetailHeroSkeleton() {
   return (
-    <Paper elevation={0} sx={{ ...heroPaperSx, mb: 3 }}>
+    <Box sx={{ ...heroPaperSx, mb: 3 }}>
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-        <Skeleton {...wave} width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0, bgcolor: 'rgba(255,255,255,0.2)' }} />
+        <Skeleton {...wave} width={28} height={28} sx={{ borderRadius: 1, flexShrink: 0 }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Skeleton {...wave} width="45%" height={32} sx={{ bgcolor: 'rgba(255,255,255,0.25)', borderRadius: 1.5 }} />
-          <Skeleton {...wave} width="65%" height={18} sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.18)', borderRadius: 1.5 }} />
+          <Skeleton {...wave} width="45%" height={28} sx={{ borderRadius: 1.5 }} />
+          <Skeleton {...wave} width="65%" height={18} sx={{ mt: 1, borderRadius: 1.5 }} />
           <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
-            <Skeleton {...wave} width={88} height={28} sx={{ borderRadius: 2, bgcolor: 'rgba(255,255,255,0.15)' }} />
-            <Skeleton {...wave} width={100} height={28} sx={{ borderRadius: 2, bgcolor: 'rgba(255,255,255,0.15)' }} />
+            <Skeleton {...wave} width={88} height={28} sx={{ borderRadius: 2 }} />
+            <Skeleton {...wave} width={100} height={28} sx={{ borderRadius: 2 }} />
           </Box>
         </Box>
         <Box sx={{ display: { xs: 'none', md: 'block' }, textAlign: 'right' }}>
-          <Skeleton {...wave} width={72} height={14} sx={{ bgcolor: 'rgba(255,255,255,0.15)', borderRadius: 1 }} />
-          <Skeleton {...wave} width={96} height={24} sx={{ mt: 0.5, bgcolor: 'rgba(255,255,255,0.2)', borderRadius: 1.5 }} />
+          <Skeleton {...wave} width={72} height={14} sx={{ borderRadius: 1 }} />
+          <Skeleton {...wave} width={96} height={24} sx={{ mt: 0.5, borderRadius: 1.5 }} />
         </Box>
       </Box>
-    </Paper>
+    </Box>
   )
 }
 
@@ -199,30 +199,37 @@ export function DetailSectionSkeleton({ lines = 4 }: { lines?: number }) {
 export function DashboardSkeleton({ statCards = 4 }: { statCards?: number }) {
   return (
     <Box>
-      <Paper
-        elevation={0}
+      <StatCardsSkeleton count={statCards} />
+      <Skel width={90} height={10} sx={{ mb: 1.5, mt: 3 }} />
+      <Box
         sx={{
-          p: { xs: 2.5, sm: 3 },
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
+          gap: 1.5,
           mb: 3,
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
         }}
       >
-        <Skel width={220} height={28} sx={{ mb: 1 }} />
-        <Skel width="70%" height={16} />
-      </Paper>
-      <StatCardsSkeleton count={statCards} />
-      <Paper elevation={0} sx={{ ...sectionPaperSx, mt: 2 }}>
-        <Skel width={180} height={22} sx={{ mb: 2 }} />
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Box key={i} sx={{ mb: 1.5, p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Skel width="40%" height={18} sx={{ mb: 1 }} />
-            <Skel width="100%" height={8} sx={{ borderRadius: 4 }} />
-          </Box>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Paper key={i} elevation={0} sx={{ p: 2, borderRadius: '0.875rem', border: '1px solid', borderColor: 'divider' }}>
+            <Skel width="50%" height={10} />
+            <Skel width="35%" height={18} sx={{ mt: 1 }} />
+          </Paper>
         ))}
-      </Paper>
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3 }}>
+        <Paper elevation={0} sx={{ ...sectionPaperSx, p: 2.5 }}>
+          <Skel width={100} height={14} sx={{ mb: 2 }} />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skel key={i} width="100%" height={52} sx={{ mb: 1.25, borderRadius: '0.75rem' }} />
+          ))}
+        </Paper>
+        <Paper elevation={0} sx={{ ...sectionPaperSx, p: 2.5 }}>
+          <Skel width={120} height={14} sx={{ mb: 2 }} />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skel key={i} width="100%" height={44} sx={{ mb: 1.25, borderRadius: '0.75rem' }} />
+          ))}
+        </Paper>
+      </Box>
     </Box>
   )
 }
@@ -232,19 +239,24 @@ export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: `repeat(${Math.min(count, 4)}, 1fr)` },
-        gap: 2,
-        mb: 3,
+        gridTemplateColumns: {
+          xs: 'repeat(2, minmax(0, 1fr))',
+          md: 'repeat(3, minmax(0, 1fr))',
+          xl: `repeat(${Math.min(count, 4)}, minmax(0, 1fr))`,
+        },
+        gap: 1,
+        mb: 2,
       }}
     >
       {Array.from({ length: count }).map((_, i) => (
         <Paper
           key={i}
           elevation={0}
-          sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider', bgcolor: '#fff' }}
+          sx={{ p: 2, borderRadius: '0.875rem', border: '1px solid', borderColor: 'divider', bgcolor: '#fff' }}
         >
-          <Skel width="60%" height={12} />
-          <Skel width="40%" height={32} sx={{ mt: 1 }} />
+          <Skel width="55%" height={10} />
+          <Skel width="35%" height={24} sx={{ mt: 1 }} />
+          <Skel width="70%" height={12} sx={{ mt: 0.75 }} />
         </Paper>
       ))}
     </Box>

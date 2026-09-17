@@ -5,6 +5,7 @@ import {
   TimezoneChip,
   heroMutedChipSx,
 } from '../../components/layout/DetailPagePrimitives'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
 import AssetImage from '../../components/layout/AssetImage'
 import {
@@ -62,7 +63,6 @@ import { formatContainerSummary } from '../../utils/containerSize'
 import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 import { useAppSelector } from '../../store/hooks'
 
-const primaryDark = '#0B3D91'
 
 function isImageProof(path: string) {
   return /\.(jpe?g|png|gif|webp|bmp)$/i.test(path)
@@ -98,7 +98,7 @@ function heroStatusChipStyle(status: string): { bgcolor: string; color: string }
     case 'NoShow':
       return { bgcolor: 'rgba(198, 40, 40, 0.92)', color: '#fff' }
     default:
-      return { bgcolor: 'rgba(255,255,255,0.95)', color: primaryDark }
+      return { bgcolor: 'rgba(255,255,255,0.95)', color: ICS_PRIMARY }
   }
 }
 
@@ -378,7 +378,7 @@ export default function ScheduleDetailPage() {
           mb: 2,
           color: 'text.secondary',
           fontWeight: 600,
-          '&:hover': { color: primaryDark, bgcolor: hexToRgba(primaryDark, 0.06) },
+          '&:hover': { color: ICS_PRIMARY, bgcolor: hexToRgba(ICS_PRIMARY, 0.06) },
         }}
       >
         Back to schedules
@@ -565,9 +565,9 @@ export default function ScheduleDetailPage() {
                     p: 1.5,
                     mb: 2,
                     borderRadius: 2,
-                    bgcolor: hexToRgba(primaryDark, 0.04),
+                    bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
                     border: '1px solid',
-                    borderColor: hexToRgba(primaryDark, 0.1),
+                    borderColor: hexToRgba(ICS_PRIMARY, 0.1),
                   }}
                 >
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>

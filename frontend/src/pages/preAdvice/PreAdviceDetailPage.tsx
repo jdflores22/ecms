@@ -316,21 +316,16 @@ export default function PreAdviceDetailPage() {
     loadCore()
   }, [loadCore])
 
-  const scheduleDataNeeded =
-    activeTab === 'schedule' || activeTab === 'qr'
-
   useEffect(() => {
-    if (item?.status !== 'Approved' || !scheduleDataNeeded) {
-      if (item?.status !== 'Approved') {
-        setSchedule(null)
-        setQrBooking(null)
-        setQrImageUrl(null)
-        setPayment(null)
-      }
+    if (item?.status !== 'Approved') {
+      setSchedule(null)
+      setQrBooking(null)
+      setQrImageUrl(null)
+      setPayment(null)
       return
     }
     loadSchedule()
-  }, [item?.status, scheduleDataNeeded, loadSchedule])
+  }, [item?.status, item?.id, loadSchedule])
 
   useEffect(() => {
     if (!documents.length) return

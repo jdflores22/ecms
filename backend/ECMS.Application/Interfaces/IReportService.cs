@@ -44,6 +44,7 @@ public interface IReportService
     Task<RevenueReportDto> GetRevenueAsync(
         string period,
         int? year = null,
+        int? month = null,
         CancellationToken cancellationToken = default);
 
     Task<TransactionReportDto> GetTransactionsAsync(

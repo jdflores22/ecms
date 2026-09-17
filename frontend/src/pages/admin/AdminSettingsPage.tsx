@@ -1,5 +1,35 @@
 import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Paper, Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material'
+import type { ReactNode } from 'react'
 import CyContractsMasterTab from '../../components/admin/CyContractsMasterTab'
 import {
   ListDesktopOnly,
@@ -13,11 +43,16 @@ import {
   listTablePaperSx,
   PageHero,
 } from '../../components/layout/ListPagePrimitives'
-import { appColors } from '../../theme/colors'
+import {appColors, ICS_PRIMARY } from '../../theme/colors'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined'
+import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined'
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
+import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined'
+import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import axios from 'axios'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
@@ -34,9 +69,68 @@ import {
   type ShippingLine,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
+import { portalColors } from '../../theme/portalTheme'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 
-const primaryDark = '#0B3D91'
+type SettingsSection =
+  | 'payments'
+  | 'shipping-lines'
+  | 'depots'
+  | 'container-sizes'
+  | 'container-types'
+  | 'cy-contracts'
+
+const SETTINGS_SECTIONS: {
+  id: SettingsSection
+  label: string
+  description: string
+  icon: ReactNode
+  group: string
+}[] = [
+  {
+    id: 'payments',
+    label: 'Payments',
+    description: 'Pre-advised fee and PayMongo checkout options.',
+    icon: <PaymentsOutlinedIcon fontSize="small" />,
+    group: 'Billing',
+  },
+  {
+    id: 'shipping-lines',
+    label: 'Shipping lines',
+    description: 'Carriers, codes, and per-line demurrage payment config.',
+    icon: <LocalShippingOutlinedIcon fontSize="small" />,
+    group: 'Reference data',
+  },
+  {
+    id: 'depots',
+    label: 'Container yards',
+    description: 'Depot capacity, throughput, and active status.',
+    icon: <WarehouseOutlinedIcon fontSize="small" />,
+    group: 'Reference data',
+  },
+  {
+    id: 'container-sizes',
+    label: 'Container sizes',
+    description: 'Size labels, TEU factors, and display order.',
+    icon: <StraightenOutlinedIcon fontSize="small" />,
+    group: 'Reference data',
+  },
+  {
+    id: 'container-types',
+    label: 'Container types',
+    description: 'Type codes such as GP, HC, and RF.',
+    icon: <Inventory2OutlinedIcon fontSize="small" />,
+    group: 'Reference data',
+  },
+  {
+    id: 'cy-contracts',
+    label: 'CY contracts',
+    description: 'Shipping line contracts with container yards.',
+    icon: <HandshakeOutlinedIcon fontSize="small" />,
+    group: 'Operations',
+  },
+]
+
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 const tablePaperSx = {
@@ -56,26 +150,47 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
+function SettingsNavButton({
+  label,
+  icon,
+  selected,
+  onClick,
+}: {
+  label: string
+  icon: ReactNode
+  selected: boolean
+  onClick: () => void
+}) {
   return (
-    <Paper
-      elevation={0}
+    <ListItemButton
+      selected={selected}
+      onClick={onClick}
       sx={{
-        p: 2,
-        borderRadius: 3,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: '#fff',
-        boxShadow: appColors.surfaceShadow,
+        borderRadius: '0.5rem',
+        mb: 0.5,
+        px: 1.5,
+        py: 1.25,
+        borderLeft: '4px solid',
+        borderColor: selected ? portalColors.primary : 'transparent',
+        bgcolor: selected ? portalColors.brandSoft : 'transparent',
+        color: selected ? portalColors.primary : portalColors.textMuted,
+        '&:hover': {
+          bgcolor: selected ? portalColors.brandSoft : portalColors.bgMuted,
+          color: selected ? portalColors.primary : portalColors.textDark,
+        },
+        '&.Mui-selected': {
+          bgcolor: portalColors.brandSoft,
+          color: portalColors.primary,
+          '&:hover': { bgcolor: portalColors.brandSoft },
+        },
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-        {label}
-      </Typography>
-      <Typography variant="h5" sx={{ fontWeight: 800, color, mt: 0.5 }}>
-        {value}
-      </Typography>
-    </Paper>
+      <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>{icon}</ListItemIcon>
+      <ListItemText
+        primary={label}
+        slotProps={{ primary: { sx: { fontSize: '0.875rem', fontWeight: selected ? 600 : 500 } } }}
+      />
+    </ListItemButton>
   )
 }
 
@@ -87,9 +202,9 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
-export default function MasterDataPage() {
+export default function AdminSettingsPage() {
   const user = useAppSelector((s) => s.auth.user)
-  const [tab, setTab] = useState(0)
+  const [activeSection, setActiveSection] = useState<SettingsSection>('payments')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -153,7 +268,7 @@ export default function MasterDataPage() {
         setAllowProofUpload(paymentSettings.data.allowProofUpload)
         setPayMongoConfigured(paymentSettings.data.payMongoConfigured)
       })
-      .catch(() => setError('Failed to load master data.'))
+      .catch(() => setError('Failed to load settings.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -173,6 +288,11 @@ export default function MasterDataPage() {
       activeTypes: containerTypes.filter((t) => t.isActive).length,
     }),
     [lines, depots, containerSizes, containerTypes],
+  )
+
+  const settingsGroups = useMemo(
+    () => [...new Set(SETTINGS_SECTIONS.map((section) => section.group))],
+    [],
   )
 
   const savePayMongoSettings = async () => {
@@ -223,7 +343,7 @@ export default function MasterDataPage() {
   }
 
   const tableHeadSx = {
-    bgcolor: hexToRgba(primaryDark, 0.04),
+    bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
     '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
   }
 
@@ -416,38 +536,25 @@ export default function MasterDataPage() {
     }
   }
 
-  const tabActions =
-    tab < 4 ? (
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
-        onClick={
-          tab === 0
-            ? openCreateLine
-            : tab === 1
-              ? openCreateDepot
-              : tab === 2
-                ? openCreateSize
-                : openCreateType
-        }
-        sx={{ fontWeight: 700, borderRadius: 2 }}
-      >
-        {tab === 0
-          ? 'Add shipping line'
-          : tab === 1
-            ? 'Add depot'
-            : tab === 2
-              ? 'Add container size'
-              : 'Add container type'}
-      </Button>
-    ) : null
+  const activeSectionMeta = SETTINGS_SECTIONS.find((section) => section.id === activeSection)
+
+  const sectionAction =
+    activeSection === 'shipping-lines'
+      ? { label: 'Add shipping line', onClick: openCreateLine }
+      : activeSection === 'depots'
+        ? { label: 'Add depot', onClick: openCreateDepot }
+        : activeSection === 'container-sizes'
+          ? { label: 'Add container size', onClick: openCreateSize }
+          : activeSection === 'container-types'
+            ? { label: 'Add container type', onClick: openCreateType }
+            : null
 
   return (
     <Box sx={listPageRootSx}>
       <PageHero
-        icon={<StorageOutlinedIcon />}
-        title="Master Data"
-        subtitle="Manage shipping lines, container yards, container reference data, and fees."
+        icon={<SettingsOutlinedIcon />}
+        title="Settings"
+        subtitle="Configure payments, reference data, and container yard contracts for the platform."
       />
 
       {error && (
@@ -461,67 +568,141 @@ export default function MasterDataPage() {
         </Alert>
       )}
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <SummaryCard label="Shipping lines" value={summary.lines} color={primaryDark} />
-        <SummaryCard label="Active depots" value={summary.activeDepots} color="#2E7D32" />
-        <SummaryCard label="Container sizes" value={summary.activeSizes} color="#00A3E0" />
-        <SummaryCard label="Container types" value={summary.activeTypes} color="#6A1B9A" />
-      </Box>
-
       <Paper
         elevation={0}
         sx={{
-          mb: 2,
           borderRadius: 3,
           border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: '#fff',
+          borderColor: portalColors.border,
+          bgcolor: portalColors.bgWhite,
           boxShadow: appColors.surfaceShadow,
+          overflow: 'hidden',
         }}
       >
         <Box
           sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            gap: 1,
-            px: { xs: 1, sm: 2 },
-            pt: 1,
+            display: { xs: 'block', lg: 'grid' },
+            gridTemplateColumns: { lg: '280px minmax(0, 1fr)' },
+            minHeight: { lg: 560 },
           }}
         >
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
+          <Box
             sx={{
-              minHeight: 48,
-              '& .MuiTab-root': { fontWeight: 600, textTransform: 'none', minHeight: 48 },
-              '& .Mui-selected': { color: primaryDark },
-              '& .MuiTabs-indicator': { bgcolor: primaryDark, height: 3, borderRadius: '3px 3px 0 0' },
+              borderBottom: { xs: `1px solid ${portalColors.border}`, lg: 'none' },
+              borderRight: { lg: `1px solid ${portalColors.border}` },
+              bgcolor: portalColors.bgWhite,
+              p: { xs: 2, lg: 2 },
             }}
           >
-            <Tab label={`Shipping lines (${summary.activeLines})`} />
-            <Tab label={`Depots (${summary.depots})`} />
-            <Tab label={`Container sizes (${summary.containerSizes})`} />
-            <Tab label={`Container types (${summary.containerTypes})`} />
-            <Tab label="Pre-advised fee" />
-            <Tab label="CY contracts" />
-          </Tabs>
-          <Box sx={{ px: { xs: 1, sm: 0 }, pb: { xs: 1, sm: 0 } }}>{tabActions}</Box>
-        </Box>
-      </Paper>
+            <Typography
+              sx={{
+                display: { xs: 'none', lg: 'block' },
+                px: 1.5,
+                mb: 1,
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: portalColors.textMuted,
+              }}
+            >
+              Sections
+            </Typography>
 
-      {tab === 0 && (
+            <FormControl fullWidth sx={{ display: { xs: 'block', lg: 'none' }, mb: 2 }}>
+              <InputLabel>Settings section</InputLabel>
+              <Select
+                label="Settings section"
+                value={activeSection}
+                onChange={(e) => setActiveSection(e.target.value as SettingsSection)}
+              >
+                {SETTINGS_SECTIONS.map((section) => (
+                  <MenuItem key={section.id} value={section.id}>
+                    {section.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <List disablePadding sx={{ display: { xs: 'none', lg: 'block' } }}>
+              {settingsGroups.map((group) => (
+                <Box key={group} sx={{ mb: 1.5 }}>
+                  <Typography
+                    sx={{
+                      px: 1.5,
+                      mb: 0.5,
+                      fontSize: '0.6875rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: portalColors.textLight,
+                    }}
+                  >
+                    {group}
+                  </Typography>
+                  {SETTINGS_SECTIONS.filter((section) => section.group === group).map((section) => {
+                    const countLabel =
+                      section.id === 'shipping-lines'
+                        ? ` (${summary.activeLines})`
+                        : section.id === 'depots'
+                          ? ` (${summary.depots})`
+                          : section.id === 'container-sizes'
+                            ? ` (${summary.containerSizes})`
+                            : section.id === 'container-types'
+                              ? ` (${summary.containerTypes})`
+                              : ''
+
+                    return (
+                      <SettingsNavButton
+                        key={section.id}
+                        label={`${section.label}${countLabel}`}
+                        icon={section.icon}
+                        selected={activeSection === section.id}
+                        onClick={() => setActiveSection(section.id)}
+                      />
+                    )
+                  })}
+                </Box>
+              ))}
+            </List>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <Box
+              sx={{
+                px: { xs: 2, md: 3 },
+                py: 2,
+                borderBottom: `1px solid ${portalColors.border}`,
+                bgcolor: portalColors.bgMuted,
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1.5,
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: portalColors.textDark }}>
+                  {activeSectionMeta?.label ?? 'Settings'}
+                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: '0.875rem', color: portalColors.textMuted }}>
+                  {activeSectionMeta?.description}
+                </Typography>
+              </Box>
+              {sectionAction && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={sectionAction.onClick}
+                  sx={{ fontWeight: 700, borderRadius: 2 }}
+                >
+                  {sectionAction.label}
+                </Button>
+              )}
+            </Box>
+
+            <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+      {activeSection === 'shipping-lines' && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <ListLoadingState />
@@ -584,7 +765,7 @@ export default function MasterDataPage() {
                     <TableBody>
                       {lines.map((line) => (
                         <TableRow key={line.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{line.name}</TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>{line.name}</TableCell>
                           <TableCell>
                             <Chip label={line.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
                           </TableCell>
@@ -629,7 +810,7 @@ export default function MasterDataPage() {
         </Paper>
       )}
 
-      {tab === 1 && (
+      {activeSection === 'depots' && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <ListLoadingState />
@@ -699,7 +880,7 @@ export default function MasterDataPage() {
                     <TableBody>
                       {depots.map((depot) => (
                         <TableRow key={depot.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{depot.name}</TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>{depot.name}</TableCell>
                           <TableCell>
                             <Typography variant="body2" color="text.secondary">
                               {depot.address || '—'}
@@ -747,7 +928,7 @@ export default function MasterDataPage() {
         </Paper>
       )}
 
-      {tab === 2 && (
+      {activeSection === 'container-sizes' && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <ListLoadingState />
@@ -813,7 +994,7 @@ export default function MasterDataPage() {
                     <TableBody>
                       {containerSizes.map((size) => (
                         <TableRow key={size.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{size.label}&apos;</TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>{size.label}&apos;</TableCell>
                           <TableCell align="right">{size.teu.toFixed(1)}</TableCell>
                           <TableCell>{size.sortOrder}</TableCell>
                           <TableCell>
@@ -857,7 +1038,7 @@ export default function MasterDataPage() {
         </Paper>
       )}
 
-      {tab === 3 && (
+      {activeSection === 'container-types' && (
         <Paper elevation={0} sx={listTablePaperSx}>
           {loading ? (
             <ListLoadingState />
@@ -925,7 +1106,7 @@ export default function MasterDataPage() {
                           <TableCell>
                             <Chip label={type.code} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{type.label}</TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>{type.label}</TableCell>
                           <TableCell>{type.sortOrder}</TableCell>
                           <TableCell>
                             <Chip
@@ -968,7 +1149,7 @@ export default function MasterDataPage() {
         </Paper>
       )}
 
-      {tab === 4 && (
+      {activeSection === 'payments' && (
         <Paper elevation={0} sx={{ ...tablePaperSx, p: { xs: 2, sm: 3 } }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
             <Box
@@ -976,16 +1157,16 @@ export default function MasterDataPage() {
                 width: 48,
                 height: 48,
                 borderRadius: 2,
-                bgcolor: hexToRgba(primaryDark, 0.08),
+                bgcolor: hexToRgba(ICS_PRIMARY, 0.08),
                 display: 'grid',
                 placeItems: 'center',
                 flexShrink: 0,
               }}
             >
-              <PaymentsOutlinedIcon sx={{ color: primaryDark }} />
+              <PaymentsOutlinedIcon sx={{ color: ICS_PRIMARY }} />
             </Box>
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: primaryDark }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: ICS_PRIMARY }}>
                 Pre-advised fee
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 560 }}>
@@ -1028,13 +1209,13 @@ export default function MasterDataPage() {
                 borderRadius: 2.5,
                 border: '1px solid',
                 borderColor: 'divider',
-                bgcolor: hexToRgba(primaryDark, 0.02),
+                bgcolor: hexToRgba(ICS_PRIMARY, 0.02),
               }}
             >
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                 Preview (trucker view)
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark, mt: 0.5 }}>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: ICS_PRIMARY, mt: 0.5 }}>
                 {formatPeso(Number(returnFeeAmount) || 0)}
               </Typography>
             </Paper>
@@ -1088,11 +1269,15 @@ export default function MasterDataPage() {
         </Paper>
       )}
 
-      {tab === 5 && (
+      {activeSection === 'cy-contracts' && (
         <Paper elevation={0} sx={{ ...tablePaperSx, p: 2 }}>
           <CyContractsMasterTab />
         </Paper>
       )}
+            </Box>
+          </Box>
+        </Box>
+      </Paper>
 
       <Dialog open={lineDialog !== null} onClose={() => setLineDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>

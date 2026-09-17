@@ -1,4 +1,5 @@
 import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined'
@@ -19,7 +20,6 @@ import {
 } from '../../utils/atwIssueDraftStorage'
 import { todayIsoDate } from '../../utils/datetime'
 
-const primaryDark = '#0B3D91'
 
 const workflowSteps = [
   'Confirm the auto-assigned ATW number and validity dates.',
@@ -174,7 +174,7 @@ export default function EvaluatorAtwNewPage() {
                     fontSize: '0.75rem',
                     fontWeight: 700,
                     color: '#fff',
-                    bgcolor: i === 0 ? '#00A3E0' : primaryDark,
+                    bgcolor: i === 0 ? '#00A3E0' : ICS_PRIMARY,
                   }}
                 >
                   {i + 1}

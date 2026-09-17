@@ -1,5 +1,6 @@
 using ECMS.Application;
 using ECMS.Application.Interfaces;
+using ECMS.Domain.Common;
 using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,7 +48,13 @@ public class ScheduleNoShowBackgroundService : BackgroundService
         var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
         var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
-        var now = Domain.Common.PhilippinesTime.Now;
+        var now = PhilippinesTime.Now;
+        var auditUserId = await db.Users
+            .Where(u => u.Role.Name == RoleNames.Administrator)
+            .OrderBy(u => u.Id)
+            .Select(u => u.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var candidates = await db.Schedules
             .Include(s => s.PreAdvice)
             .Include(s => s.QRBooking)
@@ -73,12 +80,21 @@ public class ScheduleNoShowBackgroundService : BackgroundService
             marked++;
 
             var refNo = schedule.PreAdvice.ReferenceNo;
-            await audit.LogAsync(
-                0,
-                "AUTO_NO_SHOW",
-                "Schedule",
-                $"{refNo} marked no show — arrival window ended for {schedule.Date:yyyy-MM-dd} {ScheduleAppointmentRules.FormatTimeLabel(schedule.Time)}.",
-                cancellationToken);
+            if (auditUserId > 0)
+            {
+                await audit.LogAsync(
+                    auditUserId,
+                    "AUTO_NO_SHOW",
+                    "Schedule",
+                    $"{refNo} marked no show — arrival window ended for {schedule.Date:yyyy-MM-dd} {ScheduleAppointmentRules.FormatTimeLabel(schedule.Time)}.",
+                    cancellationToken);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Skipping audit log for no-show on {ReferenceNo}; no administrator user found.",
+                    refNo);
+            }
 
             var truckerIds = new HashSet<int> { schedule.PreAdvice.TruckerId };
             if (schedule.TruckerId.HasValue)

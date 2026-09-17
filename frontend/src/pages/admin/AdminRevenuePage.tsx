@@ -58,17 +58,39 @@ import {
   type TransactionShippingLineOverview,
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
-import { currentPhYear, formatPeso } from '../../utils/datetime'
+import { currentPhMonth, currentPhYear, formatPeso } from '../../utils/datetime'
 
 const primaryDark = LIST_PRIMARY
 
-type RevenuePeriod = 'weekly' | 'monthly' | 'yearly'
+type RevenuePeriod = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 const PERIOD_TABS: { key: RevenuePeriod; label: string }[] = [
+  { key: 'daily', label: 'Daily' },
   { key: 'weekly', label: 'Weekly' },
   { key: 'monthly', label: 'Monthly' },
   { key: 'yearly', label: 'Yearly' },
 ]
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+function isAtOrAfterCurrentMonth(year: number, month: number): boolean {
+  const nowYear = currentPhYear()
+  const nowMonth = currentPhMonth()
+  return year > nowYear || (year === nowYear && month >= nowMonth)
+}
 
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const escape = (v: string | number) => {
@@ -261,6 +283,7 @@ export default function AdminRevenuePage() {
   const user = useAppSelector((s) => s.auth.user)
   const [period, setPeriod] = useState<RevenuePeriod>('monthly')
   const [year, setYear] = useState(currentPhYear())
+  const [month, setMonth] = useState(currentPhMonth())
   const [report, setReport] = useState<RevenueReport | null>(null)
   const [shippingOverview, setShippingOverview] = useState<TransactionShippingLineOverview | null>(null)
   const [depotOverview, setDepotOverview] = useState<TransactionDepotOverview | null>(null)
@@ -273,7 +296,11 @@ export default function AdminRevenuePage() {
     setLoading(true)
     setError('')
     reportApi
-      .revenue({ period, year: period === 'monthly' ? year : undefined })
+      .revenue({
+        period,
+        year: period === 'monthly' || period === 'daily' ? year : undefined,
+        month: period === 'daily' ? month : undefined,
+      })
       .then(({ data }) => {
         setReport(data)
         if (data.totalPayments === 0) {
@@ -291,7 +318,7 @@ export default function AdminRevenuePage() {
       })
       .catch(() => setError('Failed to load revenue report.'))
       .finally(() => setLoading(false))
-  }, [user?.role, period, year])
+  }, [user?.role, period, year, month])
 
   useEffect(() => {
     load()
@@ -307,10 +334,29 @@ export default function AdminRevenuePage() {
 
   const periodLabel = useMemo(() => {
     if (!report) return ''
+    if (report.period === 'daily') return `${MONTH_NAMES[month - 1]} ${year}`
     if (report.period === 'weekly') return `Last 12 weeks · ${report.from} to ${report.to}`
     if (report.period === 'monthly') return `Calendar year ${year}`
     return `${report.from.slice(0, 4)} – ${report.to.slice(0, 4)}`
-  }, [report, year])
+  }, [report, year, month])
+
+  const goPrevMonth = () => {
+    if (month === 1) {
+      setYear((y) => y - 1)
+      setMonth(12)
+      return
+    }
+    setMonth((m) => m - 1)
+  }
+
+  const goNextMonth = () => {
+    if (month === 12) {
+      setYear((y) => y + 1)
+      setMonth(1)
+      return
+    }
+    setMonth((m) => m + 1)
+  }
 
   const insights = useMemo(() => (report ? computeInsights(report) : null), [report])
 
@@ -434,6 +480,43 @@ export default function AdminRevenuePage() {
           ))}
         </Tabs>
 
+        {period === 'daily' && (
+          <Box
+            sx={{
+              p: 2,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              flexWrap: 'wrap',
+            }}
+          >
+            <IconButton
+              size="small"
+              onClick={goPrevMonth}
+              aria-label="Previous month"
+              sx={{ border: '1px solid', borderColor: 'divider' }}
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+            <Typography sx={{ fontWeight: 700, minWidth: 140, textAlign: 'center' }}>
+              {MONTH_NAMES[month - 1]} {year}
+            </Typography>
+            <IconButton
+              size="small"
+              onClick={goNextMonth}
+              disabled={isAtOrAfterCurrentMonth(year, month)}
+              aria-label="Next month"
+              sx={{ border: '1px solid', borderColor: 'divider' }}
+            >
+              <ChevronRightIcon />
+            </IconButton>
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              Day-by-day collections for the selected month
+            </Typography>
+          </Box>
+        )}
         {period === 'monthly' && (
           <Box
             sx={{
@@ -567,7 +650,14 @@ export default function AdminRevenuePage() {
             Revenue trend
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: { xs: 1, sm: 0 }, mb: 1 }}>
-            Verified collections per {period === 'weekly' ? 'week' : period === 'monthly' ? 'month' : 'year'}
+            Verified collections per{' '}
+            {period === 'daily'
+              ? 'day'
+              : period === 'weekly'
+                ? 'week'
+                : period === 'monthly'
+                  ? 'month'
+                  : 'year'}
           </Typography>
           <RevenueBarChart rows={report.rows} maxAmount={maxRowAmount} />
         </Paper>

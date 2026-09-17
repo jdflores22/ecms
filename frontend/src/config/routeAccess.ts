@@ -310,10 +310,10 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
   },
   adminMasterData: {
     key: 'adminMasterData',
-    label: 'Master data',
-    path: '/admin/master-data',
+    label: 'Settings',
+    path: '/admin/settings',
     group: 'Admin',
-    description: 'Shipping lines, depots, and container reference data',
+    description: 'Payments, reference data, and container yard contracts',
     showInNav: true,
   },
   adminCertificateTemplates: {

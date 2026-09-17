@@ -1,7 +1,8 @@
 import { Box, Chip, Paper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
-import { pageHeroOrbSx, pageHeroPaperSx, pageHeroSubtitleSx, pageHeroTitleSx } from '../layout/PageHeroPrimitives'
-import { appColors, ICS_PRIMARY } from '../../theme/colors'
+import { PageHero, pageHeroPaperSx } from '../layout/PageHeroPrimitives'
+import { portalColors, portalCardShadow } from '../../theme/portalTheme'
+import { ICS_PRIMARY } from '../../theme/colors'
 
 const LIST_PRIMARY = ICS_PRIMARY
 import type { DemurrageBilling } from '../../services/api'
@@ -10,14 +11,12 @@ import { getBillingFeeLines } from './demurrageBillingUtils'
 
 export const demurrageHeroSx = pageHeroPaperSx
 
-export const demurrageHeroOrbSx = pageHeroOrbSx
-
 export const demurrageTabsPaperSx = {
   mb: 2,
-  borderRadius: '1rem',
-  border: `1px solid ${appColors.border}`,
-  bgcolor: appColors.white,
-  boxShadow: appColors.surfaceShadow,
+  borderRadius: '0.875rem',
+  border: `1px solid ${portalColors.border}`,
+  bgcolor: portalColors.bgWhite,
+  boxShadow: portalCardShadow,
   overflow: 'hidden',
 }
 
@@ -37,10 +36,10 @@ export function SummaryCard({
       elevation={0}
       sx={{
         p: { xs: 1.5, sm: 2 },
-        borderRadius: '1rem',
-        border: `1px solid ${appColors.border}`,
-        bgcolor: appColors.white,
-        boxShadow: appColors.surfaceShadow,
+        borderRadius: '0.875rem',
+        border: `1px solid ${portalColors.border}`,
+        bgcolor: portalColors.bgWhite,
+        boxShadow: portalCardShadow,
         minWidth: 0,
       }}
     >
@@ -219,44 +218,5 @@ export function DemurrageHero({
   description: string
   action?: ReactNode
 }) {
-  return (
-    <Paper elevation={0} sx={demurrageHeroSx}>
-      <Box sx={demurrageHeroOrbSx} />
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'stretch', sm: 'center' },
-          gap: 2,
-          position: 'relative',
-        }}
-      >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.14)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </Box>
-          <Box>
-            <Typography variant="h5" sx={{ ...pageHeroTitleSx, textWrap: 'balance' }}>
-              {title}
-            </Typography>
-            <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, textWrap: 'pretty' }}>
-              {description}
-            </Typography>
-          </Box>
-        </Box>
-        {action}
-      </Box>
-    </Paper>
-  )
+  return <PageHero icon={icon} title={title} subtitle={description} actions={action} />
 }

@@ -1,4 +1,5 @@
 import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
@@ -12,7 +13,6 @@ import {
   stashCertificatePreview,
 } from '../../utils/certificatePreviewStorage'
 
-const primaryDark = '#0B3D91'
 
 type PreviewLocationState = {
   layoutJson?: string
@@ -142,7 +142,7 @@ export default function CertificateTemplatePreviewPage() {
           Back to editor
         </Button>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
-          <PictureAsPdfOutlinedIcon sx={{ color: primaryDark }} />
+          <PictureAsPdfOutlinedIcon sx={{ color: ICS_PRIMARY }} />
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
               {title}

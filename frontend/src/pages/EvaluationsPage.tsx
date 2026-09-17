@@ -17,7 +17,7 @@ import {
   listTablePaperSx,
   PageHero,
 } from '../components/layout/ListPagePrimitives'
-import { icsOnBrand } from '../theme/colors'
+import { portalColors, portalStatusColors } from '../theme/colors'
 import { evaluationApi, preAdviceApi, type Evaluation, type PreAdvice } from '../services/api'
 import DamageReportChip, { DamageReportChipMuted } from '../components/evaluations/DamageReportChip'
 import { formatDateTime } from '../utils/datetime'
@@ -36,11 +36,11 @@ function remarksPreview(value?: string | null) {
 }
 
 const STATUS_TABS = [
-  { key: 'Submitted', label: 'Submitted', summaryColor: '#1565C0' },
-  { key: 'UnderEvaluation', label: 'Under evaluation', summaryColor: '#ED6C02' },
-  { key: 'ForCompliance', label: 'For compliance', summaryColor: '#6A1B9A' },
-  { key: 'Approved', label: 'Approved', summaryColor: '#2E7D32' },
-  { key: 'Rejected', label: 'Rejected', summaryColor: '#D32F2F' },
+  { key: 'Submitted', label: 'Submitted', summaryColor: portalStatusColors.primary },
+  { key: 'UnderEvaluation', label: 'Under evaluation', summaryColor: portalStatusColors.warning },
+  { key: 'ForCompliance', label: 'For compliance', summaryColor: portalStatusColors.purple },
+  { key: 'Approved', label: 'Approved', summaryColor: portalStatusColors.success },
+  { key: 'Rejected', label: 'Rejected', summaryColor: portalStatusColors.error },
 ] as const
 
 type StatusTabKey = (typeof STATUS_TABS)[number]['key']
@@ -346,7 +346,7 @@ export default function EvaluationsPage() {
         subtitle={
           <>
             Review pre-forecast requests and assign container yard (CY) for approved returns.{' '}
-            <RouterLink to="/evaluations/cy-allocation" style={{ color: icsOnBrand.link, fontWeight: 600 }}>
+            <RouterLink to="/evaluations/cy-allocation" style={{ color: portalColors.primary, fontWeight: 600 }}>
               View CY contract allocation
             </RouterLink>
           </>

@@ -18,6 +18,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import AddIcon from '@mui/icons-material/Add'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import { useCallback, useEffect, useState } from 'react'
@@ -42,7 +43,6 @@ import {
 } from '../../utils/certificateLayoutTypes'
 import { formatDateTime } from '../../utils/datetime'
 
-const primaryDark = '#0B3D91'
 
 export default function CertificateTemplatesPage() {
   const user = useAppSelector((s) => s.auth.user)
@@ -209,7 +209,7 @@ export default function CertificateTemplatesPage() {
                         sx={{ cursor: 'pointer' }}
                       >
                         <TableCell>
-                          <Typography sx={{ fontWeight: 600, color: primaryDark }}>{template.name}</Typography>
+                          <Typography sx={{ fontWeight: 600, color: ICS_PRIMARY }}>{template.name}</Typography>
                           <Typography variant="caption" color="text.secondary">
                             Updated {formatDateTime(template.updatedAt)}
                           </Typography>

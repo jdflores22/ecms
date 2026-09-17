@@ -73,20 +73,20 @@ function PipelineRow({
           {formatUtilizationPctLabel(committedTeu, limitTeu)}
         </Typography>
       </Box>
-      <Typography variant="body2" sx={{ mb: 0.75, lineHeight: 1.45 }}>
-        <Box component="span" sx={{ fontWeight: 800, fontSize: '1.05rem', color: CY_PIPELINE_COLORS.atYard }}>
-          {atYard}
-        </Box>
-        <Box component="span" sx={{ fontSize: '0.8125rem', color: 'text.secondary', fontWeight: 600 }}>
-          {' '}
-          TEU
-        </Box>
+      <Box sx={{ mb: 0.75 }}>
+        <Typography variant="body2" sx={{ lineHeight: 1.35 }}>
+          <Box component="span" sx={{ fontWeight: 800, fontSize: '1.05rem', color: CY_PIPELINE_COLORS.atYard }}>
+            {atYard}
+          </Box>
+          <Box component="span" sx={{ fontSize: '0.8125rem', color: 'text.secondary', fontWeight: 600, ml: 0.5 }}>
+            TEU at yard
+          </Box>
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 500 }}>
+          of {limitTeu} TEU contract
+        </Typography>
         <CyPipelineTeuInline confirmedTeu={confirmedTeu} preForecastTeu={preForecastTeu} variant="inline" />
-        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.8125rem', fontWeight: 500 }}>
-          {' '}
-          / {limitTeu} TEU
-        </Box>
-      </Typography>
+      </Box>
       <LinearProgress
         variant="determinate"
         value={pct}
@@ -183,21 +183,23 @@ export default function CyYardAllocationCard({
 
         <Box sx={{ mt: 1.25, mb: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 0.75 }}>
-            <Box sx={{ minWidth: 0, lineHeight: 1.4 }}>
-              <Box component="span" sx={{ fontWeight: 800, fontSize: '1.5rem', color: CY_PIPELINE_COLORS.atYard }}>
-                {teuAtYard}
-              </Box>
-              <Box component="span" sx={{ fontSize: '0.875rem', color: 'text.secondary', fontWeight: 600, ml: 0.5 }}>
-                TEU
-              </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ lineHeight: 1.2 }}>
+                <Box component="span" sx={{ fontWeight: 800, fontSize: '1.5rem', color: CY_PIPELINE_COLORS.atYard }}>
+                  {teuAtYard}
+                </Box>
+                <Box component="span" sx={{ fontSize: '0.875rem', color: 'text.secondary', fontWeight: 600, ml: 0.5 }}>
+                  TEU at yard
+                </Box>
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, fontWeight: 500 }}>
+                of {teuLimit} TEU contract
+              </Typography>
               <CyPipelineTeuInline
                 confirmedTeu={teuConfirmed}
                 preForecastTeu={teuPreForecast}
                 variant="hero"
               />
-              <Typography component="span" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.875rem', ml: 0.5 }}>
-                / {teuLimit} TEU
-              </Typography>
             </Box>
             <Typography sx={{ fontWeight: 800, color: teuOver ? '#C62828' : 'text.primary', flexShrink: 0 }}>
               {formatUtilizationPctLabel(teuCommitted, teuLimit)}
@@ -216,27 +218,34 @@ export default function CyYardAllocationCard({
               },
             }}
           />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', lineHeight: 1.45 }}>
-              <Box component="span" sx={{ color: CY_PIPELINE_COLORS.atYard, fontWeight: 700 }}>
-                {getAllocationSizeLabel('20')}: {teuAtYard20} TEU
-              </Box>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 1.25,
+              mt: 1.25,
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: CY_PIPELINE_COLORS.atYard, display: 'block' }}>
+                {getAllocationSizeLabel('20')}: {teuAtYard20} TEU at yard
+              </Typography>
               <CyPipelineTeuInline
                 confirmedTeu={breakdownConfirmedTeu(row20)}
                 preForecastTeu={breakdownPreForecastTeu(row20)}
                 variant="caption"
               />
-            </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', lineHeight: 1.45 }}>
-              <Box component="span" sx={{ color: CY_PIPELINE_COLORS.atYard, fontWeight: 700 }}>
-                {getAllocationSizeLabel('40')}: {teuAtYard40} TEU
-              </Box>
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: CY_PIPELINE_COLORS.atYard, display: 'block' }}>
+                {getAllocationSizeLabel('40')}: {teuAtYard40} TEU at yard
+              </Typography>
               <CyPipelineTeuInline
                 confirmedTeu={breakdownConfirmedTeu(row40)}
                 preForecastTeu={breakdownPreForecastTeu(row40)}
                 variant="caption"
               />
-            </Typography>
+            </Box>
           </Box>
         </Box>
 

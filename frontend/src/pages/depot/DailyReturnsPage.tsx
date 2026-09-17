@@ -76,7 +76,7 @@ const STATUS_FILTERS: {
   depotHidden?: boolean
   match: (s: Schedule) => boolean
 }[] = [
-  { key: 'All', label: 'All returns', summaryColor: '#0B3D91', match: () => true },
+  { key: 'All', label: 'All returns', summaryColor: LIST_PRIMARY, match: () => true },
   {
     key: 'WaitingSchedule',
     label: 'Waiting schedule',

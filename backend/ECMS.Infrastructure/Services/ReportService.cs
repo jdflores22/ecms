@@ -213,11 +213,12 @@ public class ReportService : IReportService
     public async Task<RevenueReportDto> GetRevenueAsync(
         string period,
         int? year = null,
+        int? month = null,
         CancellationToken cancellationToken = default)
     {
         var normalized = (period ?? "monthly").Trim().ToLowerInvariant();
-        if (normalized is not ("weekly" or "monthly" or "yearly"))
-            throw new InvalidOperationException("Period must be weekly, monthly, or yearly.");
+        if (normalized is not ("daily" or "weekly" or "monthly" or "yearly"))
+            throw new InvalidOperationException("Period must be daily, weekly, monthly, or yearly.");
 
         var paid = await _db.Payments
             .Where(p => p.Status == PaymentStatus.Paid)
@@ -230,10 +231,14 @@ public class ReportService : IReportService
 
         return normalized switch
         {
+            "daily" => BuildDailyRevenue(
+                entries,
+                year ?? PhilippinesTime.Year,
+                month ?? PhilippinesTime.Today.Month),
             "weekly" => BuildWeeklyRevenue(entries),
             "monthly" => BuildMonthlyRevenue(entries, year ?? PhilippinesTime.Year),
             "yearly" => BuildYearlyRevenue(entries),
-            _ => throw new InvalidOperationException("Period must be weekly, monthly, or yearly."),
+            _ => throw new InvalidOperationException("Period must be daily, weekly, monthly, or yearly."),
         };
     }
 
@@ -412,6 +417,31 @@ public class ReportService : IReportService
             list.Count(x => x.Payment.Status == PaymentStatus.Paid),
             list.Count(x => x.Payment.Status == PaymentStatus.ForVerification),
             list.Count(x => x.Payment.Status == PaymentStatus.Rejected));
+    }
+
+    private static RevenueReportDto BuildDailyRevenue(List<(DateOnly Date, decimal Amount)> entries, int year, int month)
+    {
+        if (year < 2000 || year > 2100)
+            throw new InvalidOperationException("Year must be between 2000 and 2100.");
+        if (month is < 1 or > 12)
+            throw new InvalidOperationException("Month must be between 1 and 12.");
+
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var rows = Enumerable.Range(1, daysInMonth)
+            .Select(day =>
+            {
+                var date = new DateOnly(year, month, day);
+                var inDay = entries.Where(e => e.Date == date).ToList();
+                return new RevenueReportRowDto(
+                    date.ToString("MMM d"),
+                    date,
+                    date,
+                    inDay.Count,
+                    inDay.Sum(e => e.Amount));
+            })
+            .ToList();
+
+        return ToRevenueDto("daily", rows);
     }
 
     private static RevenueReportDto BuildWeeklyRevenue(List<(DateOnly Date, decimal Amount)> entries)

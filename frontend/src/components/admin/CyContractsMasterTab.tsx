@@ -22,6 +22,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import axios from 'axios'
@@ -53,7 +54,6 @@ import {
   listMobileActionsSx,
 } from '../layout/ListPagePrimitives'
 
-const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 const tableHeadSx = {
   bgcolor: 'rgba(11, 61, 145, 0.04)',
@@ -289,7 +289,7 @@ export default function CyContractsMasterTab() {
             <TableBody>
               {contracts.map((c) => (
                   <TableRow key={c.id} hover>
-                    <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{c.shippingLineName}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>{c.shippingLineName}</TableCell>
                     <TableCell>{c.depotName}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>

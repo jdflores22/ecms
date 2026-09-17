@@ -29,9 +29,8 @@ import {
   listTablePaperSx,
   PageHero,
 } from '../../components/layout/ListPagePrimitives'
-import { appColors } from '../../theme/colors'
+import {appColors, ICS_PRIMARY } from '../../theme/colors'
 
-const primaryDark = '#0B3D91'
 const ROLES = ROLE_CATALOG.map((r) => r.name)
 const STATUSES = ['Active', 'Inactive', 'Suspended']
 
@@ -293,7 +292,7 @@ export default function UsersPage() {
         <Chip
           label={`Role: ${roleLabel(roleFilter)}`}
           onDelete={() => setSearchParams({})}
-          sx={{ mb: 2, fontWeight: 600, bgcolor: hexToRgba(primaryDark, 0.08), color: primaryDark }}
+          sx={{ mb: 2, fontWeight: 600, bgcolor: hexToRgba(ICS_PRIMARY, 0.08), color: ICS_PRIMARY }}
         />
       )}
 
@@ -305,7 +304,7 @@ export default function UsersPage() {
           mb: 3,
         }}
       >
-        <SummaryCard label="Total users" value={summary.total} color={primaryDark} />
+        <SummaryCard label="Total users" value={summary.total} color={ICS_PRIMARY} />
         <SummaryCard label="Active" value={summary.active} color="#2E7D32" />
         <SummaryCard label="Suspended" value={summary.suspended} color="#D32F2F" />
         <SummaryCard
@@ -369,7 +368,7 @@ export default function UsersPage() {
                   <TableHead>
                     <TableRow
                       sx={{
-                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
                         '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                       }}
                     >
@@ -385,7 +384,7 @@ export default function UsersPage() {
                   <TableBody>
                     {displayedUsers.map((user) => (
                       <TableRow key={user.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{user.username}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>{user.username}</TableCell>
                         <TableCell>{user.fullName}</TableCell>
                         <TableCell>
                           <Typography variant="body2" color="text.secondary">

@@ -1,4 +1,5 @@
 import { Alert, Box, Button, Paper, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { DetailLoadingState } from '../../components/layout/DetailPagePrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import PrintIcon from '@mui/icons-material/Print'
@@ -10,7 +11,6 @@ import { qrApi, type QrBooking } from '../../services/api'
 import { store } from '../../store'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
 
-const primaryDark = '#0B3D91'
 
 async function loadQrImage(bookingId: number): Promise<string> {
   const token = store.getState().auth.accessToken
@@ -181,7 +181,7 @@ export default function QrPrintPage() {
         <Typography
           variant="h5"
           align="center"
-          sx={{ fontWeight: 800, letterSpacing: 1, mb: 0.5, color: primaryDark }}
+          sx={{ fontWeight: 800, letterSpacing: 1, mb: 0.5, color: ICS_PRIMARY }}
         >
           {LOGICTECK_QR.printTitle}
         </Typography>
@@ -201,7 +201,7 @@ export default function QrPrintPage() {
         <Typography
           variant="h5"
           align="center"
-          sx={{ fontWeight: 800, letterSpacing: 0.5, mb: 0.5, color: primaryDark, fontFamily: 'monospace' }}
+          sx={{ fontWeight: 800, letterSpacing: 0.5, mb: 0.5, color: ICS_PRIMARY, fontFamily: 'monospace' }}
         >
           {payload.containerNo}
         </Typography>

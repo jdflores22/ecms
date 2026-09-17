@@ -140,11 +140,12 @@ public class ReportsController : ControllerBase
     public async Task<ActionResult<RevenueReportDto>> Revenue(
         [FromQuery] string period = "monthly",
         [FromQuery] int? year = null,
+        [FromQuery] int? month = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            return Ok(await _service.GetRevenueAsync(period, year, cancellationToken));
+            return Ok(await _service.GetRevenueAsync(period, year, month, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {

@@ -216,7 +216,7 @@ export default function CyAllocationPage() {
             }}
           >
             <SummaryCard label="Contract (TEU)" value={totals.contractTeu} color={primaryDark} />
-            <SummaryCard label="At yard (TEU)" value={totals.atYardTeu} color="#0B3D91" />
+            <SummaryCard label="At yard (TEU)" value={totals.atYardTeu} color={ICS_PRIMARY} />
             <SummaryCard label="+ Confirmed (TEU)" value={totals.confirmedTeu} color="#0288D1" />
             <SummaryCard label="+ Pre-forecast (TEU)" value={totals.preForecastTeu} color="#C2410C" />
             <SummaryCard label="Yards at limit" value={totals.yardsAtLimit} color="#D32F2F" />
@@ -263,11 +263,8 @@ export default function CyAllocationPage() {
       )}
 
       <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
           Container yards
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Contract limits are configured by administrators in Master Data.
         </Typography>
       </Box>
 

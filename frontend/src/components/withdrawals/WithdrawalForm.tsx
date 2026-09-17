@@ -1,4 +1,5 @@
 import { Autocomplete, Box, Button, Chip, FormControl, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import { useEffect, useMemo, useState } from 'react'
 import type { WithdrawalFormConfig, WithdrawalLookups } from '../../services/api'
@@ -10,7 +11,6 @@ import WithdrawalLineGrid, {
   toLineSubmitValues,
 } from './WithdrawalLineGrid'
 
-const primaryDark = '#0B3D91'
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': { borderRadius: 2 },
@@ -187,7 +187,7 @@ export default function WithdrawalForm({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
-          <UnarchiveOutlinedIcon sx={{ color: primaryDark, fontSize: 22 }} />
+          <UnarchiveOutlinedIcon sx={{ color: ICS_PRIMARY, fontSize: 22 }} />
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             Withdrawal request
           </Typography>
@@ -196,7 +196,7 @@ export default function WithdrawalForm({
           <Chip
             label={shippingLineName}
             size="small"
-            sx={{ fontWeight: 600, bgcolor: 'rgba(11, 61, 145, 0.08)', color: primaryDark }}
+            sx={{ fontWeight: 600, bgcolor: 'rgba(11, 61, 145, 0.08)', color: ICS_PRIMARY }}
           />
         )}
         {values.atwNumber.trim() && (

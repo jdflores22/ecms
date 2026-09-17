@@ -248,7 +248,7 @@ export default function CyFillPriorityPage() {
               </Typography>
               {priorityIds.length === 0 ? (
                 <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                  No contracted container yards found. Configure contracts in master data first.
+                  No contracted container yards found. Configure contracts in Settings first.
                 </Alert>
               ) : (
                 <Stack spacing={1}>

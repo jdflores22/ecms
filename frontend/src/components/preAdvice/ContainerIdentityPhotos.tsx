@@ -1,4 +1,5 @@
 import { MediaGridSkeleton, Skel } from '../layout/SkeletonPrimitives'
+import { ICS_PRIMARY } from '../../theme/colors'
 import {
   Alert,
   Box,
@@ -41,7 +42,6 @@ import {
 } from '../../config/containerPhotoCategories'
 import { preAdviceApi, type PreAdviceDocument } from '../../services/api'
 
-const primaryDark = '#0B3D91'
 const damageRed = '#C62828'
 
 const damageBadgeSx = {
@@ -499,11 +499,11 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
           borderColor: hasDamage
             ? hexToRgba(damageRed, 0.45)
             : identityDoc
-              ? hexToRgba(primaryDark, 0.25)
+              ? hexToRgba(ICS_PRIMARY, 0.25)
               : isOptional
                 ? 'divider'
                 : 'divider',
-          bgcolor: hasPhoto ? hexToRgba(primaryDark, 0.02) : '#fff',
+          bgcolor: hasPhoto ? hexToRgba(ICS_PRIMARY, 0.02) : '#fff',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -515,14 +515,14 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
             py: 1,
             borderBottom: '1px solid',
             borderColor: 'divider',
-            bgcolor: hexToRgba(primaryDark, 0.03),
+            bgcolor: hexToRgba(ICS_PRIMARY, 0.03),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 1,
           }}
         >
-          <Typography variant="caption" sx={{ fontWeight: 700, color: primaryDark }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: ICS_PRIMARY }}>
             {category.label}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -1019,8 +1019,8 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
           size="small"
           sx={{
             fontWeight: 700,
-            bgcolor: progress === 100 ? hexToRgba('#2E7D32', 0.12) : hexToRgba(primaryDark, 0.08),
-            color: progress === 100 ? '#2E7D32' : primaryDark,
+            bgcolor: progress === 100 ? hexToRgba('#2E7D32', 0.12) : hexToRgba(ICS_PRIMARY, 0.08),
+            color: progress === 100 ? '#2E7D32' : ICS_PRIMARY,
           }}
         />
       </Box>
@@ -1032,9 +1032,9 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
           mb: 2.5,
           height: 6,
           borderRadius: 3,
-          bgcolor: hexToRgba(primaryDark, 0.08),
+          bgcolor: hexToRgba(ICS_PRIMARY, 0.08),
           '& .MuiLinearProgress-bar': {
-            bgcolor: progress === 100 ? '#2E7D32' : primaryDark,
+            bgcolor: progress === 100 ? '#2E7D32' : ICS_PRIMARY,
             borderRadius: 3,
           },
         }}
@@ -1162,7 +1162,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
                   sx={{
                     mt: 1,
                     px: 0.5,
-                    color: primaryDark,
+                    color: ICS_PRIMARY,
                     fontWeight: 500,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',

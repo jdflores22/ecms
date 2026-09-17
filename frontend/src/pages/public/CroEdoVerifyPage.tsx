@@ -17,7 +17,9 @@ import IcsLogo from '../../components/brand/IcsLogo'
 import { verifyCroEdoPublic, type CroEdoVerificationResult } from '../../services/publicApi'
 import { ICS_BRAND } from '../../config/brandCopy'
 
-const primary = '#0B3D91'
+import { portalColors, portalPublicHeroGradient } from '../../theme/portalTheme'
+
+const primary = portalColors.primary
 const icsFullName = `${ICS_BRAND.name} (${ICS_BRAND.shortName})`
 
 export default function CroEdoVerifyPage() {
@@ -66,7 +68,7 @@ export default function CroEdoVerifyPage() {
       sx={{
         minHeight: '100vh',
         bgcolor: '#0a1628',
-        background: 'linear-gradient(165deg, #0a1628 0%, #0B3D91 48%, #061428 100%)',
+        background: portalPublicHeroGradient,
         py: { xs: 4, md: 6 },
         px: 2,
       }}

@@ -1,4 +1,5 @@
 import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined'
+import { ICS_PRIMARY } from '../theme/colors'
 import {
   Box,
   Button,
@@ -17,7 +18,6 @@ import { formatRelativeTime } from '../utils/datetime'
 import { scheduleNonCritical } from '../utils/deferWork'
 import { setupActivePolling } from '../utils/polling'
 
-const primaryDark = '#0B3D91'
 
 function isDepotBroadcast(notification: Notification): boolean {
   return notification.category === 'DepotBroadcast'
@@ -138,7 +138,7 @@ export default function TruckerBroadcastModal() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: primaryDark,
+              color: ICS_PRIMARY,
             }}
           >
             <CampaignOutlinedIcon />
@@ -179,7 +179,7 @@ export default function TruckerBroadcastModal() {
             textTransform: 'none',
             borderRadius: 2,
             px: 3,
-            bgcolor: primaryDark,
+            bgcolor: ICS_PRIMARY,
           }}
         >
           {dismissing ? 'Closing…' : 'Got it'}

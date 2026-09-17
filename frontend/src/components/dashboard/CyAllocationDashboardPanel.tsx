@@ -1,20 +1,20 @@
 import { Box, Button, Chip, LinearProgress, Paper, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { Link as RouterLink } from 'react-router-dom'
 import type { CyAllocation } from '../../services/api'
 import { cyUtilizationPctByCount, getCapacityDisplayLabel } from '../../utils/cyAllocation'
 
-const primaryDark = '#0B3D91'
 
 interface CyAllocationDashboardPanelProps {
   items: CyAllocation[]
 }
 
 const panelPaperSx = {
-  p: { xs: 1.5, sm: 2.5 },
-  mb: 3,
-  borderRadius: 3,
+  p: { xs: 1.25, sm: 1.75 },
+  mb: 2,
+  borderRadius: '0.75rem',
   border: '1px solid',
   borderColor: 'divider',
   bgcolor: '#fff',
@@ -60,7 +60,7 @@ function YardCapacityRow({ row }: { row: CyAllocation }) {
         <Typography
           sx={{
             fontWeight: 700,
-            color: primaryDark,
+            color: ICS_PRIMARY,
             lineHeight: 1.25,
             fontSize: { xs: '0.9rem', sm: '0.95rem' },
           }}
@@ -175,7 +175,7 @@ export default function CyAllocationDashboardPanel({ items }: CyAllocationDashbo
     return (
       <Paper elevation={0} sx={panelPaperSx}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-          <WarehouseOutlinedIcon sx={{ color: primaryDark, flexShrink: 0 }} />
+          <WarehouseOutlinedIcon sx={{ color: ICS_PRIMARY, flexShrink: 0 }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             CY contract capacity
           </Typography>
@@ -207,7 +207,7 @@ export default function CyAllocationDashboardPanel({ items }: CyAllocationDashbo
       >
         <Box sx={{ minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-            <WarehouseOutlinedIcon sx={{ color: primaryDark, flexShrink: 0 }} />
+            <WarehouseOutlinedIcon sx={{ color: ICS_PRIMARY, flexShrink: 0 }} />
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
               CY contract capacity
             </Typography>
@@ -249,7 +249,7 @@ export default function CyAllocationDashboardPanel({ items }: CyAllocationDashbo
         <SummaryPill label="Available slots" value={String(totalAvailable)} color="#2E7D32" />
         <SummaryPill label="Pre-advised" value={String(totalPreAdvised)} color="#ED6C02" />
         <SummaryPill label="Booking" value={String(totalBooking)} color="#6A1B9A" />
-        <SummaryPill label="Contract slots" value={String(totalContract)} color={primaryDark} />
+        <SummaryPill label="Contract slots" value={String(totalContract)} color={ICS_PRIMARY} />
         <SummaryPill label="Yards with space" value={`${yardsWithSpace}/${items.length}`} color="#0088B5" />
       </Box>
 

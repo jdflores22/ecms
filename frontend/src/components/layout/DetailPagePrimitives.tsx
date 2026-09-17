@@ -3,11 +3,12 @@ import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { SYSTEM_TIMEZONE } from '../../utils/datetime'
-import { appColors, hexToRgba, ICS_PRIMARY, icsOnBrand } from '../../theme/colors'
+import { appColors, hexToRgba, ICS_PRIMARY } from '../../theme/colors'
+import { portalColors } from '../../theme/portalTheme'
+import { portalCardShadow } from '../../theme/portalTheme'
 import {
   pageHeroIconBoxSx,
   pageHeroMutedChipSx,
-  pageHeroOrbSx,
   pageHeroPaperSx,
   pageHeroSubtitleSx,
   pageHeroTitleSx,
@@ -21,10 +22,10 @@ export { ICS_PRIMARY, hexToRgba }
 export const sectionPaperSx = {
   p: { xs: 2, sm: 2.5 },
   mb: 3,
-  borderRadius: '1rem',
-  border: `1px solid ${appColors.border}`,
-  bgcolor: appColors.white,
-  boxShadow: appColors.surfaceShadow,
+  borderRadius: '0.875rem',
+  border: `1px solid ${portalColors.border}`,
+  bgcolor: portalColors.bgWhite,
+  boxShadow: portalCardShadow,
   minWidth: 0,
   maxWidth: '100%',
   boxSizing: 'border-box',
@@ -142,26 +143,24 @@ type DetailHeroProps = {
 
 export function DetailHero({ icon, title, subtitle, chips, aside }: DetailHeroProps) {
   return (
-    <Paper elevation={0} sx={heroPaperSx}>
-      <Box aria-hidden sx={pageHeroOrbSx} />
+    <Box sx={heroPaperSx}>
       <Box
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', md: 'row' },
           justifyContent: 'space-between',
-          alignItems: { xs: 'flex-start', md: 'center' },
+          alignItems: { xs: 'flex-start', md: 'flex-end' },
           gap: 2,
-          position: 'relative',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', minWidth: 0 }}>
           <Box sx={pageHeroIconBoxSx}>{icon}</Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" sx={{ ...pageHeroTitleSx, wordBreak: 'break-all' }}>
+            <Typography component="h1" sx={{ ...pageHeroTitleSx, wordBreak: 'break-all' }}>
               {title}
             </Typography>
             {subtitle && (
-              <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, wordBreak: 'break-word' }}>
+              <Typography component="div" sx={{ ...pageHeroSubtitleSx, wordBreak: 'break-word' }}>
                 {subtitle}
               </Typography>
             )}
@@ -174,7 +173,7 @@ export function DetailHero({ icon, title, subtitle, chips, aside }: DetailHeroPr
         </Box>
         {aside}
       </Box>
-    </Paper>
+    </Box>
   )
 }
 
@@ -187,7 +186,7 @@ type DetailHeroAsideProps = {
 export function DetailHeroAside({ label, primary, secondary }: DetailHeroAsideProps) {
   return (
     <Box sx={{ flexShrink: 0, minWidth: 0, maxWidth: '100%', textAlign: { xs: 'left', md: 'right' } }}>
-      <Typography variant="caption" sx={{ color: icsOnBrand.muted, display: 'block', fontSize: '0.75rem' }}>
+      <Typography variant="caption" sx={{ color: portalColors.textMuted, display: 'block', fontSize: '0.75rem' }}>
         {label}
       </Typography>
       <Typography
@@ -198,13 +197,13 @@ export function DetailHeroAside({ label, primary, secondary }: DetailHeroAsidePr
           lineHeight: 1.3,
           overflowWrap: 'anywhere',
           wordBreak: 'break-word',
-          color: icsOnBrand.title,
+          color: portalColors.textDark,
         }}
       >
         {primary}
       </Typography>
       {secondary && (
-        <Typography variant="body2" sx={{ color: icsOnBrand.body, fontSize: '0.875rem' }}>
+        <Typography variant="body2" sx={{ color: portalColors.textMuted, fontSize: '0.875rem' }}>
           {secondary}
         </Typography>
       )}

@@ -1,4 +1,5 @@
 import { ListLoadingState } from '../../components/layout/ListPagePrimitives'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { Alert, Box, Button, Chip, FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material'
 import FilterListIcon from '@mui/icons-material/FilterList'
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
@@ -20,7 +21,6 @@ import {
   PageHero,
 } from '../../components/layout/ListPagePrimitives'
 
-const primaryDark = '#0B3D91'
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 const MODULES = ['', 'Auth', 'PreForecast', 'PreAdvice', 'Evaluation', 'Schedule', 'Payment', 'Profile', 'User', 'Container', 'Depot', 'ShippingLine', 'QR', 'DemurrageBilling']
@@ -162,7 +162,7 @@ export default function AuditLogPage() {
           mb: 3,
         }}
       >
-        <SummaryCard label="Total entries" value={summary.total} color={primaryDark} />
+        <SummaryCard label="Total entries" value={summary.total} color={ICS_PRIMARY} />
         <SummaryCard label="On this page" value={summary.onPage} color="#00A3E0" />
         <SummaryCard label="Current page" value={summary.page} color="#2E7D32" />
         <SummaryCard label="Total pages" value={summary.pageCount} color="#5C6BC0" />
@@ -181,7 +181,7 @@ export default function AuditLogPage() {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <FilterListIcon fontSize="small" sx={{ color: primaryDark }} />
+          <FilterListIcon fontSize="small" sx={{ color: ICS_PRIMARY }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             Filters
           </Typography>
@@ -294,7 +294,7 @@ export default function AuditLogPage() {
                   <TableHead>
                     <TableRow
                       sx={{
-                        bgcolor: hexToRgba(primaryDark, 0.04),
+                        bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
                         '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                       }}
                     >
@@ -316,7 +316,7 @@ export default function AuditLogPage() {
                             {formatTime(row.timestamp)}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 600, color: primaryDark }}>{row.username}</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: ICS_PRIMARY }}>{row.username}</TableCell>
                         <TableCell>
                           <Chip
                             label={MODULE_LABELS[row.module] ?? row.module}

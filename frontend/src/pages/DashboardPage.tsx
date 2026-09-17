@@ -1,31 +1,26 @@
 import { DashboardSkeleton, CardPanelSkeleton } from '../components/layout/SkeletonPrimitives'
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardActionArea,
-  Paper,
-  Typography,
-} from '@mui/material'
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+  DashboardAttentionPanel,
+  DashboardQuickLinkCard,
+  DashboardStatStrip,
+  DashboardWorkflowPanel,
+} from '../components/dashboard/DashboardWidgets'
+import { Alert, Box, Button, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
-import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listHeroPrimaryActionSx, pageHeroPaperSx, pageHeroSubtitleSx, pageHeroTitleSx } from '../components/layout/ListPagePrimitives'
-import { appColors, icsOnBrand } from '../theme/colors'
-import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
+import { PortalPageHeader } from '../components/layout/PortalPageHeader'
+import { portalPrimaryButtonSx } from '../theme/portalStyles'
 import CyAllocationDashboardPanel from '../components/dashboard/CyAllocationDashboardPanel'
 import { isTruckerOrBroker, roleLabel } from '../config/roleConfig'
 import { cyAllocationApi } from '../services/api'
 import { fetchCachedDashboard } from '../utils/dashboardApiCache'
 import type { CyAllocation } from '../services/api'
 import { useAppSelector } from '../store/hooks'
-
-const primaryDark = appColors.primary
-const primaryLight = appColors.accent
+import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
+import { portalColors } from '../theme/portalTheme'
+import { ICS_BRAND } from '../config/brandCopy'
 
 interface DashboardRejectedReason {
   reason: string
@@ -45,12 +40,34 @@ type DashboardPayload = Record<string, unknown> & {
   widgets?: DashboardWidgets
 }
 
-function hexToRgba(hex: string, alpha: number) {
-  const normalized = hex.replace('#', '')
-  const r = parseInt(normalized.slice(0, 2), 16)
-  const g = parseInt(normalized.slice(2, 4), 16)
-  const b = parseInt(normalized.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+const QUICK_LINK_DESCRIPTIONS: Record<string, string> = {
+  '/evaluations': 'Review and approve pending pre-forecast submissions.',
+  '/evaluations/cy-allocation': 'Monitor CY allocation across contracted yards.',
+  '/evaluations/cy-fill-priority': 'Set daily CY fill priority for your shipping line.',
+  '/evaluations/demurrage-billing': 'Process demurrage and detention billing.',
+  '/evaluations/demurrage-rates': 'Manage demurrage rate tables.',
+  '/evaluations/statement-of-accounts': 'View statements of account.',
+  '/evaluations/container-inventory': 'CY inventory visibility and status.',
+  '/admin/users': 'Manage registered users and access.',
+  '/admin/roles': 'Configure roles and page permissions.',
+  '/admin/settings': 'Payments, reference data, and container yard contracts.',
+  '/admin/certificate-templates': 'Certificate layout and digital seal templates.',
+  '/admin/reports': 'Operational and transaction reports.',
+  '/admin/revenue': 'Revenue summaries and billing oversight.',
+  '/admin/audit': 'Review critical system actions.',
+  '/admin/payments': 'Verify trucker payment proofs.',
+  '/preforecast': 'View and manage your pre-forecast requests.',
+  '/preforecast/new': 'Submit a new empty-container pre-forecast.',
+  '/trucker/withdrawals': 'Track withdrawal and repositioning requests.',
+  '/trucker/returns': 'Review assigned return schedules.',
+  '/trucker/payments': 'Upload payment proof and track verification.',
+  '/trucker/qr': 'Download LOGICTECK booking QR after verification.',
+  '/depot/daily-returns': "Today's scheduled returns and slot occupancy.",
+  '/depot/schedules': 'Manage return schedules and slot capacity.',
+}
+
+function quickLinkDescription(path: string, label: string) {
+  return QUICK_LINK_DESCRIPTIONS[path] ?? `Open ${label.toLowerCase()}.`
 }
 
 export default function DashboardPage() {
@@ -93,6 +110,27 @@ export default function DashboardPage() {
       .finally(() => setCyLoading(false))
   }, [user])
 
+  const widgets = data.widgets
+  const statValue = (key: string) => (typeof data[key] === 'number' ? (data[key] as number) : 0)
+
+  const widgetTargetPath = useMemo(() => {
+    switch (user?.role) {
+      case 'Trucker':
+        return '/trucker/withdrawals'
+      case 'DepotPersonnel':
+        return '/depot/withdrawals'
+      case 'ShippingLineEvaluator':
+        return '/evaluations/atw'
+      default:
+        return null
+    }
+  }, [user?.role])
+
+  const openWidget = (key: DashboardWidgetKey) => {
+    if (!widgetTargetPath) return
+    navigate(`${widgetTargetPath}?widget=${key}`)
+  }
+
   if (!user) return null
 
   if (!config) {
@@ -103,489 +141,189 @@ export default function DashboardPage() {
     )
   }
 
-  const actionable = config.stats.filter(
-    (s) => s.highlightWhenPositive && (typeof data[s.key] === 'number' ? (data[s.key] as number) : 0) > 0,
-  )
-  const widgets = data.widgets
+  const dashboardTitle = `${roleLabel(user.role)} dashboard`
 
-  const statValue = (key: string) => (typeof data[key] === 'number' ? (data[key] as number) : 0)
-  const widgetTargetPath = useMemo(() => {
-    switch (user.role) {
-      case 'Trucker':
-        return '/trucker/withdrawals'
-      case 'DepotPersonnel':
-        return '/depot/withdrawals'
-      case 'ShippingLineEvaluator':
-        return '/evaluations/atw'
-      default:
-        return null
+  const statItems = config.stats.map((stat) => {
+    const value = statValue(stat.key)
+    const caption =
+      stat.highlightWhenPositive && value > 0 ? `${value} need attention` : stat.description
+    return {
+      label: stat.label,
+      value,
+      caption,
     }
-  }, [user.role])
+  })
 
-  const openWidget = (key: DashboardWidgetKey) => {
-    if (!widgetTargetPath) return
-    navigate(`${widgetTargetPath}?widget=${key}`)
-  }
+  const attentionItems = useMemo(() => {
+    const items: { label: string; value: string | number; href?: string; onClick?: () => void }[] = []
+
+    config.stats
+      .filter((stat) => stat.highlightWhenPositive && statValue(stat.key) > 0)
+      .forEach((stat) => {
+        items.push({
+          label: stat.label,
+          value: statValue(stat.key),
+          href: user.role === 'Administrator' && stat.key === 'pendingEvaluations' ? '/evaluations' : undefined,
+        })
+      })
+
+    if (widgets && !isTruckerOrBroker(user.role)) {
+      if (widgets.expiringWithin48Hours > 0) {
+        items.push({
+          label: 'Expiring within 48h',
+          value: widgets.expiringWithin48Hours,
+          onClick: widgetTargetPath ? () => openWidget('expiring48') : undefined,
+        })
+      }
+      if (widgets.stuckOver24HoursInReview > 0) {
+        items.push({
+          label: 'Stuck > 24h in review',
+          value: widgets.stuckOver24HoursInReview,
+          onClick: widgetTargetPath ? () => openWidget('stuck24') : undefined,
+        })
+      }
+    }
+
+    return items.slice(0, 5)
+  }, [config.stats, data, user.role, widgetTargetPath, widgets, navigate])
+
+  const quickActions = config.actions.slice(0, 8)
 
   return (
-    <Box>
-      <Paper elevation={0} sx={pageHeroPaperSx}>
-        <Box
-          sx={{
-            position: 'relative',
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'flex-start' },
-            gap: 2,
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: icsOnBrand.muted, letterSpacing: '0.08em' }}>
-              {user.role ? roleLabel(user.role) : 'Dashboard'}
-            </Typography>
-            <Typography variant="h5" sx={{ ...pageHeroTitleSx, mb: 0.5 }}>
-              Welcome back, {user.fullName?.split(' ')[0] ?? user.fullName}
-            </Typography>
-            <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: '1rem', mb: 0.5 }}>
-              {config.title}
-            </Typography>
-            <Typography variant="body1" sx={{ ...pageHeroSubtitleSx, mt: 0 }}>
-              {config.subtitle}
-            </Typography>
-          </Box>
-          {isTruckerOrBroker(user.role) && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', sm: 'row' },
-                gap: 1,
-                alignSelf: { xs: 'stretch', sm: 'flex-start' },
-                flexShrink: 0,
-              }}
-            >
+    <Box sx={{ minWidth: 0 }}>
+      <PortalPageHeader
+        eyebrow={ICS_BRAND.shortName}
+        title={dashboardTitle}
+        subtitle={config.subtitle}
+        actions={
+          isTruckerOrBroker(user.role) ? (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={() => navigate('/preforecast/new')}
-                sx={{
-                  ...listHeroPrimaryActionSx,
-                  px: 2.5,
-                }}
+                sx={portalPrimaryButtonSx}
               >
-                NEW PRE-FORECAST
+                New pre-forecast
               </Button>
               <Button
-                variant="contained"
+                variant="outlined"
                 startIcon={<UnarchiveOutlinedIcon />}
                 onClick={() => navigate('/trucker/withdrawals/new')}
                 sx={{
-                  ...listHeroPrimaryActionSx,
-                  px: 2.5,
+                  minHeight: 44,
+                  borderColor: portalColors.borderStrong,
+                  color: portalColors.textDark,
+                  borderRadius: '0.5rem',
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  '&:hover': {
+                    borderColor: portalColors.primary,
+                    bgcolor: portalColors.bgMuted,
+                    color: portalColors.primary,
+                  },
                 }}
               >
-                WITHDRAWALS
+                New withdrawal
               </Button>
             </Box>
-          )}
-        </Box>
-      </Paper>
+          ) : undefined
+        }
+      />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: '0.75rem' }}>
           {error}
         </Alert>
       )}
 
-      {actionable.length > 0 && !loading && !isTruckerOrBroker(user.role) && (
-        <Alert
-          severity="info"
-          sx={{
-            mb: 3,
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'rgba(0, 163, 224, 0.35)',
-            bgcolor: 'rgba(0, 163, 224, 0.08)',
-          }}
-        >
-          {actionable.map((s) => (
-            <Box key={s.key} component="span" sx={{ display: 'block' }}>
-              <strong>{statValue(s.key)}</strong> {s.label.toLowerCase()} need attention.
-            </Box>
-          ))}
-        </Alert>
-      )}
-
       {loading ? (
-        <DashboardSkeleton />
+        <DashboardSkeleton statCards={config.stats.length} />
       ) : (
         <>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: 'repeat(2, minmax(0, 1fr))',
-            sm: 'repeat(2, 1fr)',
-            lg: 'repeat(auto-fill, minmax(220px, 1fr))',
-          },
-          gap: { xs: 1.5, sm: 2 },
-          mb: 3,
-          minWidth: 0,
-        }}
-      >
-            {config.stats.map((stat) => {
-              const Icon = stat.icon
-              const value = statValue(stat.key)
-              const highlighted = stat.highlightWhenPositive && value > 0
-              return (
-                <Card
-                  key={stat.key}
-                  elevation={0}
-                  sx={{
-                    height: '100%',
-                    minWidth: 0,
-                    borderRadius: 3,
-                    border: '1px solid',
-                    borderColor: highlighted ? hexToRgba(stat.color, 0.45) : 'divider',
-                    bgcolor: '#fff',
-                    boxShadow: highlighted
-                      ? `0 8px 20px ${hexToRgba(stat.color, 0.15)}`
-                      : '0 2px 12px rgba(15, 23, 42, 0.06)',
-                    transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: `0 10px 24px ${hexToRgba(stat.color, 0.14)}`,
-                    },
-                    ...(highlighted && {
-                      backgroundImage: `linear-gradient(180deg, ${hexToRgba(stat.color, 0.06)} 0%, #fff 100%)`,
-                    }),
-                  }}
-                >
-                  <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: { xs: 1.5, sm: 2 } }}>
-                      <Box
-                        sx={{
-                          width: { xs: 40, sm: 44 },
-                          height: { xs: 40, sm: 44 },
-                          borderRadius: 2,
-                          display: 'grid',
-                          placeItems: 'center',
-                          bgcolor: hexToRgba(stat.color, 0.12),
-                          color: stat.color,
-                        }}
-                      >
-                        <Icon sx={{ fontSize: 24 }} />
-                      </Box>
-                      {highlighted && (
-                        <Box
-                          sx={{
-                            px: 1,
-                            py: 0.25,
-                            borderRadius: 99,
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            color: stat.color,
-                            bgcolor: hexToRgba(stat.color, 0.12),
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.5,
-                          }}
-                        >
-                          Action
-                        </Box>
-                      )}
-                    </Box>
-                    <Typography
-                      variant="overline"
-                      color="text.secondary"
-                      sx={{ lineHeight: 1.2, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' }, wordBreak: 'break-word' }}
-                    >
-                      {stat.label}
-                    </Typography>
-                    <Typography
-                      variant="h4"
-                      sx={{
-                        fontWeight: 800,
-                        color: stat.color,
-                        my: 0.5,
-                        lineHeight: 1.1,
-                        fontSize: { xs: '1.75rem', sm: '2.125rem' },
-                      }}
-                    >
-                      {value}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {stat.description}
-                    </Typography>
-                  </Box>
-                </Card>
-              )
-            })}
+          <Box sx={{ mb: 3 }}>
+            <DashboardStatStrip items={statItems} />
           </Box>
 
-          {widgets && !isTruckerOrBroker(user.role) && (
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                mb: 3,
-                borderRadius: 3,
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: '#fff',
-                boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-              }}
-            >
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-                Actionable widgets
+          {quickActions.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Typography
+                sx={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: portalColors.textMuted,
+                  mb: 1.5,
+                }}
+              >
+                Quick access
               </Typography>
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' },
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, minmax(0, 1fr))',
+                    lg: 'repeat(4, minmax(0, 1fr))',
+                  },
                   gap: 1.5,
                 }}
               >
-                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <CardActionArea onClick={() => openWidget('expiring48')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Expiring within 48h
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#ed6c02' }}>
-                      {widgets.expiringWithin48Hours}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Active withdrawals that need immediate action
-                    </Typography>
-                  </CardActionArea>
-                </Card>
-                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <CardActionArea onClick={() => openWidget('stuck24')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Stuck &gt; 24h in review
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#d32f2f' }}>
-                      {widgets.stuckOver24HoursInReview}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Submitted/under-review withdrawals beyond 24 hours
-                    </Typography>
-                  </CardActionArea>
-                </Card>
-                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <CardActionArea onClick={() => openWidget('turnaround')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Depot turnaround time
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark }}>
-                      {widgets.depotTurnaroundHours.toFixed(1)}h
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Average review/release turnaround based on audit logs
-                    </Typography>
-                  </CardActionArea>
-                </Card>
-                <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <CardActionArea onClick={() => openWidget('rejectedReasons')} disabled={!widgetTargetPath} sx={{ p: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Top rejected reasons
-                    </Typography>
-                    {widgets.topRejectedReasons.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        No rejection reasons recorded yet.
-                      </Typography>
-                    ) : (
-                      <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        {widgets.topRejectedReasons.map((reason) => (
-                          <Typography key={reason.reason} variant="caption" sx={{ display: 'block', lineHeight: 1.4 }}>
-                            <strong>{reason.count}x</strong> {reason.reason}
-                          </Typography>
-                        ))}
-                      </Box>
-                    )}
-                  </CardActionArea>
-                </Card>
+                {quickActions.map((action) => {
+                  const Icon = action.icon
+                  return (
+                    <DashboardQuickLinkCard
+                      key={action.path}
+                      to={action.path}
+                      icon={Icon}
+                      label={action.label}
+                      description={quickLinkDescription(action.path, action.label)}
+                    />
+                  )
+                })}
               </Box>
-            </Paper>
+            </Box>
           )}
 
           {user.role === 'ShippingLineEvaluator' &&
             (cyLoading ? (
-              <Paper
-                elevation={0}
+              <Box
                 sx={{
-                  p: 2.5,
                   mb: 3,
-                  borderRadius: 3,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: '#fff',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  py: 2,
+                  p: 2.5,
+                  borderRadius: '0.875rem',
+                  border: `1px solid ${portalColors.border}`,
+                  bgcolor: portalColors.bgWhite,
                 }}
               >
-                <Box sx={{ width: '100%' }}>
-                  <CardPanelSkeleton />
-                </Box>
-              </Paper>
+                <CardPanelSkeleton />
+              </Box>
             ) : (
-              <CyAllocationDashboardPanel items={cyAllocations} />
+              <Box sx={{ mb: 3 }}>
+                <CyAllocationDashboardPanel items={cyAllocations} />
+              </Box>
             ))}
 
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', lg: '1.2fr 1fr' },
-              gap: 2,
+              gridTemplateColumns: { xs: '1fr', lg: attentionItems.length > 0 ? '2fr 1fr' : '1fr' },
+              gap: 3,
+              alignItems: 'stretch',
             }}
           >
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: 3,
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: '#fff',
-                boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1.5,
-                    bgcolor: hexToRgba(primaryDark, 0.1),
-                    color: primaryDark,
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <TipsAndUpdatesIcon fontSize="small" />
-                </Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Workflow
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {config.workflow.map((step, i) => (
-                  <Box key={step} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                    <Box
-                      sx={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        flexShrink: 0,
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        color: '#fff',
-                        bgcolor: i === 0 ? primaryLight : primaryDark,
-                        boxShadow: '0 2px 8px rgba(11, 61, 145, 0.2)',
-                      }}
-                    >
-                      {i + 1}
-                    </Box>
-                    <Box
-                      sx={{
-                        flex: 1,
-                        p: 1.5,
-                        borderRadius: 2,
-                        bgcolor: 'rgba(11, 61, 145, 0.04)',
-                        border: '1px solid',
-                        borderColor: 'rgba(11, 61, 145, 0.08)',
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
-                        {step}
-                      </Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            </Paper>
-
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: 3,
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: '#fff',
-                boxShadow: '0 2px 12px rgba(15, 23, 42, 0.05)',
-              }}
-            >
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-                Quick actions
-              </Typography>
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: config.actions.length > 3 ? { xs: '1fr', sm: '1fr 1fr' } : '1fr',
-                  gap: 1.5,
-                }}
-              >
-                {config.actions.map((action) => {
-                  const Icon = action.icon
-                  return (
-                    <Card
-                      key={action.path}
-                      elevation={0}
-                      sx={{
-                        borderRadius: 2,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        transition: 'border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease',
-                        '&:hover': {
-                          borderColor: hexToRgba(primaryLight, 0.6),
-                          boxShadow: '0 6px 16px rgba(0, 163, 224, 0.12)',
-                          transform: 'translateY(-1px)',
-                        },
-                      }}
-                    >
-                      <CardActionArea onClick={() => navigate(action.path)} sx={{ p: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Box
-                            sx={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: 1.5,
-                              bgcolor: hexToRgba(primaryDark, 0.08),
-                              color: primaryDark,
-                              display: 'grid',
-                              placeItems: 'center',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <Icon fontSize="small" />
-                          </Box>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {action.label}
-                            </Typography>
-                          </Box>
-                          <ArrowForwardIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-                        </Box>
-                      </CardActionArea>
-                    </Card>
-                  )
-                })}
-              </Box>
-              {config.actions.length === 1 && (
-                <Button
-                  variant="contained"
-                  fullWidth
-                  sx={{ mt: 2, py: 1.25, fontWeight: 600 }}
-                  endIcon={<ArrowForwardIcon />}
-                  onClick={() => navigate(config.actions[0].path)}
-                >
-                  {config.actions[0].label}
-                </Button>
-              )}
-            </Paper>
+            <DashboardWorkflowPanel steps={config.workflow} />
+            {attentionItems.length > 0 && (
+              <DashboardAttentionPanel
+                items={attentionItems}
+                subtitle={
+                  user.role === 'Administrator'
+                    ? 'Cross-role items that may need administrator follow-up.'
+                    : 'Operational items that may require your follow-up.'
+                }
+              />
+            )}
           </Box>
         </>
       )}

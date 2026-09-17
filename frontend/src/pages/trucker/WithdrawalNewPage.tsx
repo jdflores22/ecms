@@ -1,4 +1,5 @@
 import { Alert, Box, Button } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import { FormWizardSkeleton } from '../../components/layout/SkeletonPrimitives'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
@@ -11,7 +12,6 @@ import { isPreAdviceManager } from '../../config/roleConfig'
 import { withdrawalApi, type WithdrawalFormConfig } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 
-const primaryDark = '#0B3D91'
 
 export default function WithdrawalNewPage() {
   const user = useAppSelector((s) => s.auth.user)
@@ -41,7 +41,7 @@ export default function WithdrawalNewPage() {
           mb: 2,
           color: 'text.secondary',
           fontWeight: 600,
-          '&:hover': { color: primaryDark, bgcolor: 'rgba(11, 61, 145, 0.06)' },
+          '&:hover': { color: ICS_PRIMARY, bgcolor: 'rgba(11, 61, 145, 0.06)' },
         }}
       >
         Back to list

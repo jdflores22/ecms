@@ -14,7 +14,7 @@ import PreAdviceForm, {
   type PreAdviceFormValues,
 } from '../../components/preAdvice/PreAdviceForm'
 import { PageHero } from '../../components/layout/ListPagePrimitives'
-import { appColors } from '../../theme/colors'
+import {appColors, ICS_PRIMARY } from '../../theme/colors'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { preAdviceApi, type PreAdviceLookups } from '../../services/api'
 import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
@@ -23,7 +23,6 @@ import { useAppSelector } from '../../store/hooks'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
 
-const primaryDark = '#0B3D91'
 
 type PreForecastEntryMode = 'ics' | 'legacy'
 
@@ -292,7 +291,7 @@ export default function PreAdviceNewPage() {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 }}>
-            <AddIcon sx={{ color: primaryDark, fontSize: 22 }} />
+            <AddIcon sx={{ color: ICS_PRIMARY, fontSize: 22 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Request details
             </Typography>
@@ -403,7 +402,7 @@ export default function PreAdviceNewPage() {
                     fontSize: '0.75rem',
                     fontWeight: 700,
                     color: '#fff',
-                    bgcolor: i === 0 ? '#00A3E0' : primaryDark,
+                    bgcolor: i === 0 ? '#00A3E0' : ICS_PRIMARY,
                   }}
                 >
                   {i + 1}

@@ -1,4 +1,5 @@
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import { ICS_PRIMARY } from '../../theme/colors'
 import CircleOutlinedIcon from '@mui/icons-material/CircleOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
@@ -14,7 +15,6 @@ import { useMemo, useState } from 'react'
 import { authFieldSx } from './AuthShell'
 import { evaluatePasswordStrength, type PasswordStrength } from '../../utils/passwordStrength'
 
-const primaryDark = '#0B3D91'
 
 const strengthColors: Record<PasswordStrength['label'], string> = {
   Weak: '#C62828',
@@ -123,7 +123,7 @@ export default function PasswordField({
                   onClick={() => setVisible((v) => !v)}
                   edge="end"
                   size="small"
-                  sx={{ color: primaryDark }}
+                  sx={{ color: ICS_PRIMARY }}
                 >
                   {visible ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
                 </IconButton>

@@ -16,6 +16,7 @@ import QrCode2Icon from '@mui/icons-material/QrCode2'
 import WarehouseIcon from '@mui/icons-material/Warehouse'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import { LOGICTECK_QR } from './logicteckQr'
+import { portalAnalyticsColors, portalStatusColors } from '../theme/portalTheme'
 
 export type UserRole =
   | 'ShippingLineEvaluator'
@@ -57,9 +58,9 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       'Process demurrage and detention billing when free time expires',
     ],
     stats: [
-      { key: 'approvedToday', label: 'Approved today', description: 'Pre-forecasts approved by admin today', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'rejectedToday', label: 'Rejected today', description: 'Rejected today', icon: CancelIcon, color: '#d32f2f' },
-      { key: 'assignedCyCount', label: 'CY assigned', description: 'Approved with yard assignment', icon: WarehouseIcon, color: '#1565c0' },
+      { key: 'approvedToday', label: 'Approved today', description: 'Pre-forecasts approved by admin today', icon: CheckCircleIcon, color: portalStatusColors.success },
+      { key: 'rejectedToday', label: 'Rejected today', description: 'Rejected today', icon: CancelIcon, color: portalStatusColors.error },
+      { key: 'assignedCyCount', label: 'CY assigned', description: 'Approved with yard assignment', icon: WarehouseIcon, color: portalStatusColors.primary },
     ],
     actions: [
       { label: 'CY fill priority', path: '/evaluations/cy-fill-priority', icon: WarehouseIcon },
@@ -79,8 +80,8 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       'Monitor slot occupancy to avoid overbooking',
     ],
     stats: [
-      { key: 'todaysReturns', label: "Today's returns", description: 'Scheduled for today', icon: CalendarMonthIcon, color: '#1565c0' },
-      { key: 'occupiedSlots', label: 'Occupied slots', description: 'Slots already booked', icon: HourglassEmptyIcon, color: '#ed6c02' },
+      { key: 'todaysReturns', label: "Today's returns", description: 'Scheduled for today', icon: CalendarMonthIcon, color: portalStatusColors.primary },
+      { key: 'occupiedSlots', label: 'Occupied slots', description: 'Slots already booked', icon: HourglassEmptyIcon, color: portalStatusColors.warning },
     ],
     actions: [
       { label: 'Daily returns', path: '/depot/daily-returns', icon: CalendarViewDayIcon },
@@ -98,14 +99,14 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       'Download booking QR after verification',
     ],
     stats: [
-      { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'issuedWithdrawalsAwaitingUpload', label: 'ATW awaiting submit', description: 'Shipping line issued ATW — view certificate and submit', icon: UnarchiveOutlinedIcon, color: '#6a1b9a', highlightWhenPositive: true },
-      { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: '#1565c0', highlightWhenPositive: true },
-      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
-      { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'approvedWithdrawals', label: 'Approved withdrawals', description: 'Released or completed repositioning', icon: CheckCircleIcon, color: '#2e7d32' },
+      { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'issuedWithdrawalsAwaitingUpload', label: 'ATW awaiting submit', description: 'Shipping line issued ATW — view certificate and submit', icon: UnarchiveOutlinedIcon, color: portalStatusColors.purple, highlightWhenPositive: true },
+      { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: portalStatusColors.primary, highlightWhenPositive: true },
+      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: portalStatusColors.purple, highlightWhenPositive: true },
+      { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: portalStatusColors.success },
+      { key: 'approvedWithdrawals', label: 'Approved withdrawals', description: 'Released or completed repositioning', icon: CheckCircleIcon, color: portalStatusColors.success },
     ],
     actions: [
       { label: 'Pre-forecast', path: '/preforecast', icon: AssignmentIcon },
@@ -127,14 +128,14 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       'Download booking QR after verification',
     ],
     stats: [
-      { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'issuedWithdrawalsAwaitingUpload', label: 'ATW awaiting submit', description: 'Shipping line issued ATW — view certificate and submit', icon: UnarchiveOutlinedIcon, color: '#6a1b9a', highlightWhenPositive: true },
-      { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: '#1565c0', highlightWhenPositive: true },
-      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: '#6a1b9a', highlightWhenPositive: true },
-      { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: '#2e7d32' },
-      { key: 'approvedWithdrawals', label: 'Approved withdrawals', description: 'Released or completed repositioning', icon: CheckCircleIcon, color: '#2e7d32' },
+      { key: 'pendingRequests', label: 'Pending pre-forecast', description: 'Draft or awaiting evaluation', icon: HourglassEmptyIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'draftWithdrawals', label: 'Draft withdrawals', description: 'Saved but not submitted', icon: UnarchiveOutlinedIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'issuedWithdrawalsAwaitingUpload', label: 'ATW awaiting submit', description: 'Shipping line issued ATW — view certificate and submit', icon: UnarchiveOutlinedIcon, color: portalStatusColors.purple, highlightWhenPositive: true },
+      { key: 'submittedWithdrawals', label: 'Awaiting CY review', description: 'Submitted to container yard', icon: HourglassEmptyIcon, color: portalStatusColors.primary, highlightWhenPositive: true },
+      { key: 'upcomingReturns', label: 'Upcoming returns', description: 'Scheduled, not yet confirmed', icon: CalendarMonthIcon, color: portalStatusColors.purple, highlightWhenPositive: true },
+      { key: 'pendingPayments', label: 'Pending payments', description: 'Awaiting upload or verification', icon: PaymentsIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'confirmedReturns', label: 'Confirmed returns', description: 'Payment verified, QR available', icon: CheckCircleIcon, color: portalStatusColors.success },
+      { key: 'approvedWithdrawals', label: 'Approved withdrawals', description: 'Released or completed repositioning', icon: CheckCircleIcon, color: portalStatusColors.success },
     ],
     actions: [
       { label: 'Pre-forecast', path: '/preforecast', icon: AssignmentIcon },
@@ -150,21 +151,21 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     subtitle: 'Cross-role metrics and operational health',
     workflow: [
       'Review and approve pending pre-forecast with CY assignment',
-      'Use admin tools to verify payments and manage master data',
+      'Use admin tools to verify payments and manage settings',
       'Review audit log for critical system actions',
     ],
     stats: [
-      { key: 'totalUsers', label: 'Total users', description: 'Registered system users', icon: PeopleIcon, color: '#1565c0' },
-      { key: 'totalPreAdvices', label: 'Pre-forecasts', description: 'All pre-forecast requests', icon: AssignmentIcon, color: '#6a1b9a' },
-      { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting admin review and CY assignment', icon: FactCheckIcon, color: '#ed6c02', highlightWhenPositive: true },
-      { key: 'activeSchedules', label: 'Active schedules', description: 'Scheduled or confirmed returns', icon: CalendarMonthIcon, color: '#2e7d32' },
+      { key: 'totalUsers', label: 'Total users', description: 'Registered system users', icon: PeopleIcon, color: portalAnalyticsColors.dark },
+      { key: 'totalPreAdvices', label: 'Pre-forecasts', description: 'All pre-forecast requests', icon: AssignmentIcon, color: portalStatusColors.purple },
+      { key: 'pendingEvaluations', label: 'Pending evaluations', description: 'Awaiting admin review and CY assignment', icon: FactCheckIcon, color: portalStatusColors.warning, highlightWhenPositive: true },
+      { key: 'activeSchedules', label: 'Active schedules', description: 'Scheduled or confirmed returns', icon: CalendarMonthIcon, color: portalStatusColors.success },
     ],
     actions: [
       { label: 'Pre-forecast evaluations', path: '/evaluations', icon: FactCheckIcon },
       { label: 'CY allocation', path: '/evaluations/cy-allocation', icon: WarehouseIcon },
       { label: 'Manage users', path: '/admin/users', icon: PeopleIcon },
       { label: 'Roles', path: '/admin/roles', icon: AdminPanelSettingsIcon },
-      { label: 'Master data', path: '/admin/master-data', icon: WarehouseIcon },
+      { label: 'Settings', path: '/admin/settings', icon: AdminPanelSettingsIcon },
       { label: 'Certificates', path: '/admin/certificate-templates', icon: AssignmentIcon },
       { label: 'Reports', path: '/admin/reports', icon: TrendingUpIcon },
       { label: 'Revenue', path: '/admin/revenue', icon: PaymentsIcon },

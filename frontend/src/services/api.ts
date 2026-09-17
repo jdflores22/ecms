@@ -2023,8 +2023,11 @@ export const reportApi = {
   shippingLineOptions: () => api.get<ReportShippingLineOption[]>('/reports/shipping-line-options'),
   depots: (params: { from?: string; to?: string; depotId?: number }) =>
     api.get<DepotReport>('/reports/depots', { params }),
-  revenue: (params: { period: 'weekly' | 'monthly' | 'yearly'; year?: number }) =>
-    api.get<RevenueReport>('/reports/revenue', { params }),
+  revenue: (params: {
+    period: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    year?: number
+    month?: number
+  }) => api.get<RevenueReport>('/reports/revenue', { params }),
   transactions: (params: { from?: string; to?: string; page?: number; pageSize?: number }) =>
     api.get<TransactionReport>('/reports/transactions', { params }),
   transactionShippingLines: (params: { from?: string; to?: string }) =>

@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   Paper,
   Tab,
   Table,
@@ -22,6 +23,7 @@ import {
   TableRow,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import AutoFixHighOutlinedIcon from '@mui/icons-material/AutoFixHighOutlined'
@@ -42,12 +44,15 @@ import {
   ListMobileMeta,
   ListMobileOnly,
   ListMobileTitle,
+  ListTablePagination,
   LIST_PRIMARY,
   listMobileActionsSx,
   listPageRootSx,
   listTablePaperSx,
   PageHero,
 } from '../../components/layout/ListPagePrimitives'
+import { useClientPagination } from '../../hooks/useClientPagination'
+import { portalColors } from '../../theme/portalTheme'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import { paymentApi, demurrageBillingApi, qrApi, type Payment, type DemurrageBilling } from '../../services/api'
 import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
@@ -182,9 +187,17 @@ function PaymentSummaryPaper({ payment, variant }: { payment: Payment; variant: 
   )
 }
 
+const actionIconButtonSx = {
+  border: `1px solid ${portalColors.border}`,
+  borderRadius: '0.5rem',
+  color: portalColors.primary,
+  '&:hover': { bgcolor: portalColors.bgMuted, borderColor: portalColors.borderStrong },
+}
+
 function PaymentActions({
   payment,
   tab,
+  compact = false,
   onViewProof,
   onApprove,
   onReject,
@@ -192,11 +205,88 @@ function PaymentActions({
 }: {
   payment: Payment
   tab: PaymentTab
+  compact?: boolean
   onViewProof: (payment: Payment) => void
   onApprove: (payment: Payment) => void
   onReject: (payment: Payment) => void
   onDownloadConfirmation: (payment: Payment) => void
 }) {
+  if (compact) {
+    return (
+      <Box sx={{ display: 'inline-flex', justifyContent: 'flex-end', gap: 0.5, flexWrap: 'nowrap' }}>
+        {payment.proofFile && (
+          <Tooltip title="View proof">
+            <IconButton
+              size="small"
+              aria-label="View proof"
+              onClick={() => onViewProof(payment)}
+              sx={actionIconButtonSx}
+            >
+              <VisibilityOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        <Tooltip title="Open schedule">
+          <IconButton
+            size="small"
+            component={RouterLink}
+            to={`/depot/schedules/${payment.scheduleId}`}
+            aria-label="Open schedule"
+            sx={actionIconButtonSx}
+          >
+            <OpenInNewIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        {payment.status === 'Paid' && (
+          <Tooltip title="Download confirmation PDF">
+            <IconButton
+              size="small"
+              aria-label="Download confirmation PDF"
+              onClick={() => onDownloadConfirmation(payment)}
+              sx={actionIconButtonSx}
+            >
+              <PictureAsPdfOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        {tab === 'pending' && payment.status === 'ForVerification' && (
+          <>
+            <Tooltip title="Approve payment">
+              <IconButton
+                size="small"
+                aria-label="Approve payment"
+                onClick={() => onApprove(payment)}
+                sx={{
+                  ...actionIconButtonSx,
+                  color: 'success.main',
+                  borderColor: 'rgba(46, 125, 50, 0.35)',
+                  '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.08)' },
+                }}
+              >
+                <CheckCircleOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Reject payment">
+              <IconButton
+                size="small"
+                aria-label="Reject payment"
+                onClick={() => onReject(payment)}
+                sx={{
+                  ...actionIconButtonSx,
+                  color: 'error.main',
+                  borderColor: 'rgba(211, 47, 47, 0.35)',
+                  '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.08)' },
+                }}
+              >
+                <CancelOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+      </Box>
+    )
+  }
+
   return (
     <Box sx={listMobileActionsSx}>
       {payment.proofFile && (
@@ -340,10 +430,11 @@ function PaymentTable({
                   sx={{ fontWeight: 600 }}
                 />
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" sx={{ whiteSpace: 'nowrap', width: 1 }}>
                 <PaymentActions
                   payment={p}
                   tab={tab}
+                  compact
                   onViewProof={onViewProof}
                   onApprove={onApprove}
                   onReject={onReject}
@@ -438,6 +529,8 @@ export default function AdminPaymentsPage() {
         return pending
     }
   }, [tab, pending, verified, rejected])
+
+  const { page, setPage, total: tabTotal, paginatedItems } = useClientPagination(tabItems, tab)
 
   const verifyOpen = verifyAction !== null && selectedPayment !== null
 
@@ -661,7 +754,7 @@ export default function AdminPaymentsPage() {
         ) : (
           <>
             <ListMobileOnly>
-              {tabItems.map((p) => (
+              {paginatedItems.map((p) => (
                 <ListMobileCard key={p.id}>
                   <ListMobileChipRow>
                     <ListMobileTitle>Schedule #{p.scheduleId}</ListMobileTitle>
@@ -697,7 +790,7 @@ export default function AdminPaymentsPage() {
 
             <ListDesktopOnly>
               <PaymentTable
-                items={tabItems}
+                items={paginatedItems}
                 tab={tab}
                 onViewProof={setProofPreview}
                 onApprove={(payment) => openVerify(payment, 'approve')}
@@ -705,6 +798,8 @@ export default function AdminPaymentsPage() {
                 onDownloadConfirmation={(payment) => void downloadConfirmation(payment)}
               />
             </ListDesktopOnly>
+
+            <ListTablePagination count={tabTotal} page={page} onPageChange={setPage} />
           </>
         )}
       </Paper>

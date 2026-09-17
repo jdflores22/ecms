@@ -863,6 +863,7 @@ public class PreAdviceService : IPreAdviceService
             .Include(p => p.ShippingLine)
             .Include(p => p.Container)
             .Include(p => p.Evaluation)
+            .Include(p => p.Schedule)
             .Where(p => p.Id == id);
 
         return ApplyRoleScope(query, userId, role, scope);

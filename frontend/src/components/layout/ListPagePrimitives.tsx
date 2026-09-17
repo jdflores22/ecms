@@ -1,7 +1,8 @@
 import { Box, Paper, TablePagination, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 import { LIST_PAGE_SIZE } from '../../hooks/useClientPagination'
-import { appColors, hexToRgba, ICS_PRIMARY } from '../../theme/colors'
+import { hexToRgba, ICS_PRIMARY } from '../../theme/colors'
+import { portalColors, portalCardShadow } from '../../theme/portalTheme'
 import {
   listHeroOutlineActionSx,
   listHeroPrimaryActionSx,
@@ -28,10 +29,10 @@ export const listPageRootSx = {
 }
 
 export const listTablePaperSx = {
-  borderRadius: '1rem',
-  border: `1px solid ${appColors.border}`,
-  bgcolor: appColors.white,
-  boxShadow: appColors.surfaceShadow,
+  borderRadius: '0.875rem',
+  border: `1px solid ${portalColors.border}`,
+  bgcolor: portalColors.bgWhite,
+  boxShadow: portalCardShadow,
   overflow: 'hidden',
 }
 
@@ -84,10 +85,10 @@ export function ListMobileCard({ onClick, children }: ListMobileCardProps) {
       onClick={onClick}
       sx={{
         p: { xs: 1.5, sm: 2 },
-        borderRadius: 2.5,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: hexToRgba(LIST_PRIMARY, 0.02),
+        borderRadius: '0.875rem',
+        border: `1px solid ${portalColors.border}`,
+        bgcolor: portalColors.bgWhite,
+        boxShadow: portalCardShadow,
         cursor: onClick ? 'pointer' : 'default',
         minWidth: 0,
         overflow: 'hidden',

@@ -1,4 +1,5 @@
 import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
+import { ICS_PRIMARY } from '../../theme/colors'
 import type { CyAllocationBreakdownRow } from '../../services/api'
 import CyPipelineTeuInline from './CyPipelineTeuInline'
 import {
@@ -10,7 +11,6 @@ import {
   getCapacityDisplayLabel,
 } from '../../utils/cyAllocation'
 
-const primaryDark = '#0B3D91'
 
 interface CyAllocationBreakdownGridProps {
   rows: CyAllocationBreakdownRow[]
@@ -100,7 +100,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
               borderColor: 'rgba(11, 61, 145, 0.08)',
             }}
           >
-            <Typography variant="body2" sx={{ fontWeight: 700, color: primaryDark, mb: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: ICS_PRIMARY, mb: 1 }}>
               {getCapacityDisplayLabel(row.sizeLabel)} · contract {breakdownContractTeu(row)} TEU ·{' '}
               {breakdownAvailableTeu(row)} TEU available · at yard {breakdownAtYardTeu(row)} TEU · committed{' '}
               {breakdownCommittedTeu(row)} TEU · booking {breakdownBookingTeu(row)} TEU
@@ -160,7 +160,7 @@ export default function CyAllocationBreakdownGrid({ rows, compact = false }: CyA
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.sizeLabel}>
-                <TableCell sx={{ fontWeight: 700, color: primaryDark }}>
+                <TableCell sx={{ fontWeight: 700, color: ICS_PRIMARY }}>
                   {getCapacityDisplayLabel(row.sizeLabel)}
                   <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
                     {row.teuPerContainer.toFixed(1)} TEU

@@ -1,4 +1,5 @@
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import { ICS_PRIMARY } from '../../theme/colors'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { useCallback, useEffect, useState } from 'react'
@@ -7,7 +8,6 @@ import { ListLoadingState } from '../layout/ListPagePrimitives'
 import { demurrageDetentionRateApi, paymentApi } from '../../services/api'
 import { formatDateTime, formatPeso } from '../../utils/datetime'
 
-const primaryDark = '#0B3D91'
 
 export default function DemurrageRatesMasterTab() {
   const [loading, setLoading] = useState(true)
@@ -52,10 +52,10 @@ export default function DemurrageRatesMasterTab() {
             flexShrink: 0,
           }}
         >
-          <PaymentsOutlinedIcon sx={{ color: primaryDark }} />
+          <PaymentsOutlinedIcon sx={{ color: ICS_PRIMARY }} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: primaryDark }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: ICS_PRIMARY }}>
             Demurrage & detention rates
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 640 }}>
@@ -77,7 +77,7 @@ export default function DemurrageRatesMasterTab() {
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
             Active rules
           </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark, mt: 0.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: ICS_PRIMARY, mt: 0.5 }}>
             {activeRules}
           </Typography>
         </Paper>
@@ -85,7 +85,7 @@ export default function DemurrageRatesMasterTab() {
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
             System fallback demurrage
           </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark, mt: 0.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: ICS_PRIMARY, mt: 0.5 }}>
             {formatPeso(fallbackDemurrage)}
           </Typography>
         </Paper>
@@ -93,7 +93,7 @@ export default function DemurrageRatesMasterTab() {
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
             System fallback detention
           </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: primaryDark, mt: 0.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: ICS_PRIMARY, mt: 0.5 }}>
             {formatPeso(fallbackDetention)}
           </Typography>
         </Paper>

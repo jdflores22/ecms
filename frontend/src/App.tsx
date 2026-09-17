@@ -45,7 +45,7 @@ import {
   GateScanPage,
   StatementOfAccountDetailPage,
   StatementOfAccountTruckerPendingPage,
-  MasterDataPage,
+  AdminSettingsPage,
   CertificateTemplatesPage,
   CertificateTemplatePreviewPage,
   TruckerNewsPage,
@@ -556,11 +556,12 @@ export default function App() {
             </RoleRouteGuard>
           }
         />
+        <Route path="admin/master-data" element={<Navigate to="/admin/settings" replace />} />
         <Route
-          path="admin/master-data"
+          path="admin/settings"
           element={
             <RoleRouteGuard>
-              <MasterDataPage />
+              <AdminSettingsPage />
             </RoleRouteGuard>
           }
         />
