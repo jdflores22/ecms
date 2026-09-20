@@ -116,6 +116,14 @@ function resolveDemurrageValidUntil(item: PreAdvice): string | null {
   return item.croEdoContext?.demurrageValidUntil ?? item.demurrageValidUntil ?? null
 }
 
+function isLegacyManualPreAdvice(item: PreAdvice): boolean {
+  return item.croEdoContext?.linkType === 'LegacyUpload'
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 async function loadQrImage(bookingId: number): Promise<string> {
   const token = store.getState().auth.accessToken
   const res = await fetch(qrApi.downloadUrl(bookingId), {
@@ -168,6 +176,7 @@ export default function EvaluationDetailPage() {
   const tabContextRef = useRef<{ id: number; status: string } | null>(null)
   const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
   const [allocationsLoading, setAllocationsLoading] = useState(false)
+  const [approvalDemurrageUntil, setApprovalDemurrageUntil] = useState('')
 
   const isAdmin = user?.role === 'Administrator'
   const isEvaluatorReadOnly = user?.role === 'ShippingLineEvaluator'
@@ -393,6 +402,9 @@ export default function EvaluationDetailPage() {
 
   const canDecide = isAdmin && item && PENDING_STATUSES.includes(item.status)
   const demurrageFromCro = item ? resolveDemurrageValidUntil(item) : null
+  const legacyManualPreAdvice = item ? isLegacyManualPreAdvice(item) : false
+  const demurrageForApproval =
+    demurrageFromCro ?? (approvalDemurrageUntil.trim() ? approvalDemurrageUntil.trim() : null)
 
   const downloadQr = async () => {
     if (!qrBooking) return
@@ -414,8 +426,17 @@ export default function EvaluationDetailPage() {
       setActionError('Please select a container yard (CY).')
       return
     }
-    if (!resolveDemurrageValidUntil(item)) {
-      setActionError('Demurrage free-time validity must be set on the linked CRO/eDO before approval.')
+    const effectiveDemurrage = demurrageFromCro ?? approvalDemurrageUntil.trim()
+    if (!effectiveDemurrage) {
+      setActionError(
+        legacyManualPreAdvice
+          ? 'Enter demurrage free-time validity from the trucker’s uploaded legacy CRO/eDO.'
+          : 'Demurrage free-time validity must be set before approval.',
+      )
+      return
+    }
+    if (!demurrageFromCro && effectiveDemurrage < todayIsoDate()) {
+      setActionError('Demurrage validity date cannot be in the past.')
       return
     }
     setSubmitting(true)
@@ -425,6 +446,7 @@ export default function EvaluationDetailPage() {
         preAdviceId: item.id,
         depotId: Number(depotId),
         remarks: remarks || undefined,
+        ...(!demurrageFromCro ? { demurrageValidUntil: effectiveDemurrage } : {}),
       })
       setApproveOpen(false)
       navigate('/evaluations')
@@ -570,6 +592,7 @@ export default function EvaluationDetailPage() {
                     onClick={() => {
                       setRemarks('')
                       setActionError('')
+                      setApprovalDemurrageUntil(item?.demurrageValidUntil ?? '')
                       setApproveOpen(true)
                     }}
                     sx={{
@@ -685,15 +708,34 @@ export default function EvaluationDetailPage() {
               </RouterLink>
             </Alert>
           )}
-          {!demurrageFromCro ? (
-            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
-              Demurrage free-time validity is missing from the linked CRO/eDO. Approval is blocked until it is
-              available.
-            </Alert>
-          ) : (
+          {demurrageFromCro ? (
             <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
               Demurrage valid until <strong>{demurrageFromCro}</strong> (from CRO/eDO — not editable here).
             </Alert>
+          ) : legacyManualPreAdvice ? (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              Legacy manual pre-forecast — free time is not read from an ICS CRO/eDO. Open the uploaded CRO/eDO
+              above and enter the demurrage valid-until date below.
+            </Alert>
+          ) : (
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+              Demurrage free-time was not captured from the CRO/eDO link. Enter the correct validity date below
+              to continue.
+            </Alert>
+          )}
+          {!demurrageFromCro && (
+            <TextField
+              fullWidth
+              required
+              label="Demurrage valid until"
+              type="date"
+              value={approvalDemurrageUntil}
+              onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayIsoDate() } }}
+              helperText="Required for scheduling returns within free time."
+              margin="normal"
+              sx={fieldSx}
+            />
           )}
           {actionError && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
@@ -755,7 +797,7 @@ export default function EvaluationDetailPage() {
             variant="contained"
             color="success"
             onClick={handleApprove}
-            disabled={submitting || !demurrageFromCro}
+            disabled={submitting || !demurrageForApproval || depotId === ''}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             Approve & assign CY

@@ -141,7 +141,7 @@ public class EvaluationService : IEvaluationService
         if (!demurrageUntil.HasValue)
         {
             throw new InvalidOperationException(
-                "Demurrage free-time validity must come from the linked CRO/eDO before approval.");
+                "Demurrage free-time validity must be set before approval. For legacy manual pre-forecasts, enter the date from the uploaded CRO/eDO when approving.");
         }
 
         if (demurrageUntil.Value < PhilippinesTime.Today)
