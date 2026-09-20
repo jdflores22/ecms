@@ -1,6 +1,6 @@
+using ECMS.Application;
 using ECMS.Application.DTOs.Depot;
 using ECMS.Application.Interfaces;
-using ECMS.Domain.Constants;
 using ECMS.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,7 +22,15 @@ public class DepotService : IDepotService
         return await _db.Depots
             .Where(d => d.IsActive)
             .OrderBy(d => d.Name)
-            .Select(d => new DepotDto(d.Id, d.Name, d.Address, d.Capacity, d.ContainersPerHour, d.IsActive))
+            .Select(d => new DepotDto(
+                d.Id,
+                d.Name,
+                d.Address,
+                d.Capacity,
+                d.ContainersPerHour,
+                d.OperatingHourStart,
+                d.OperatingHourEnd,
+                d.IsActive))
             .ToListAsync(cancellationToken);
     }
 
@@ -30,7 +38,15 @@ public class DepotService : IDepotService
     {
         return await _db.Depots
             .OrderBy(d => d.Name)
-            .Select(d => new DepotDto(d.Id, d.Name, d.Address, d.Capacity, d.ContainersPerHour, d.IsActive))
+            .Select(d => new DepotDto(
+                d.Id,
+                d.Name,
+                d.Address,
+                d.Capacity,
+                d.ContainersPerHour,
+                d.OperatingHourStart,
+                d.OperatingHourEnd,
+                d.IsActive))
             .ToListAsync(cancellationToken);
     }
 
@@ -53,6 +69,7 @@ public class DepotService : IDepotService
         if (request.Capacity < 1)
             throw new InvalidOperationException("Capacity must be at least 1.");
         ValidateContainersPerHour(request.ContainersPerHour);
+        DepotOperatingHours.Validate(request.OperatingHourStart, request.OperatingHourEnd);
 
         var depot = new Depot
         {
@@ -60,6 +77,8 @@ public class DepotService : IDepotService
             Address = address,
             Capacity = request.Capacity,
             ContainersPerHour = request.ContainersPerHour,
+            OperatingHourStart = request.OperatingHourStart,
+            OperatingHourEnd = request.OperatingHourEnd,
             IsActive = true,
         };
 
@@ -88,11 +107,14 @@ public class DepotService : IDepotService
         if (request.Capacity < 1)
             throw new InvalidOperationException("Capacity must be at least 1.");
         ValidateContainersPerHour(request.ContainersPerHour);
+        DepotOperatingHours.Validate(request.OperatingHourStart, request.OperatingHourEnd);
 
         depot.Name = name;
         depot.Address = address;
         depot.Capacity = request.Capacity;
         depot.ContainersPerHour = request.ContainersPerHour;
+        depot.OperatingHourStart = request.OperatingHourStart;
+        depot.OperatingHourEnd = request.OperatingHourEnd;
         depot.IsActive = request.IsActive;
         _db.Update(depot);
         await _db.SaveChangesAsync(cancellationToken);
@@ -122,5 +144,13 @@ public class DepotService : IDepotService
     }
 
     private static DepotDto MapToDto(Depot d) =>
-        new(d.Id, d.Name, d.Address, d.Capacity, d.ContainersPerHour, d.IsActive);
+        new(
+            d.Id,
+            d.Name,
+            d.Address,
+            d.Capacity,
+            d.ContainersPerHour,
+            d.OperatingHourStart,
+            d.OperatingHourEnd,
+            d.IsActive);
 }

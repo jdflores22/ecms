@@ -79,10 +79,12 @@ public class SlotCapacityService : ISlotCapacityService
             .GroupBy(s => s.Time.Hour)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        var hourStart = depot.OperatingHourStart;
+        var hourEnd = depot.OperatingHourEnd;
+        DepotOperatingHours.Validate(hourStart, hourEnd);
+
         var slots = Enumerable
-            .Range(
-                SchedulingConstants.OperatingHourStart,
-                SchedulingConstants.OperatingHourEnd - SchedulingConstants.OperatingHourStart + 1)
+            .Range(hourStart, hourEnd - hourStart + 1)
             .Select(hour =>
             {
                 var time = new TimeOnly(hour, 0);
@@ -101,6 +103,8 @@ public class SlotCapacityService : ISlotCapacityService
             depot.Name,
             date,
             containersPerHour,
+            hourStart,
+            hourEnd,
             dailyLimit,
             dailyBooked,
             slots);
@@ -133,9 +137,8 @@ public class SlotCapacityService : ISlotCapacityService
         int? excludeScheduleId = null,
         CancellationToken cancellationToken = default)
     {
-        ScheduleAppointmentRules.ValidateEmptyReturnTime(time);
-
         var depot = await _db.Depots.FirstAsync(d => d.Id == depotId, cancellationToken);
+        ScheduleAppointmentRules.ValidateEmptyReturnTime(time, depot.OperatingHourStart, depot.OperatingHourEnd);
         await ValidateAssignmentAsync(depotId, date, 0, excludeScheduleId, cancellationToken);
 
         var containersPerHour = Math.Max(1, depot.ContainersPerHour);

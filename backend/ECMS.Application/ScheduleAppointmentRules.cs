@@ -38,11 +38,14 @@ public static class ScheduleAppointmentRules
     }
 
     public static void ValidateEmptyReturnTime(TimeOnly time)
+        => ValidateEmptyReturnTime(time, SchedulingConstants.OperatingHourStart, SchedulingConstants.OperatingHourEnd);
+
+    public static void ValidateEmptyReturnTime(TimeOnly time, int operatingHourStart, int operatingHourEnd)
     {
         if (IsLegacyDateOnly(time))
         {
             throw new InvalidOperationException(
-                "Return time is required. Choose an hourly slot between 0800 and 1700.");
+                $"Return time is required. Choose an hourly slot between {DepotOperatingHours.FormatRangeLabel(operatingHourStart, operatingHourEnd)}.");
         }
 
         if (time.Minute != 0 || time.Second != 0)
@@ -50,11 +53,10 @@ public static class ScheduleAppointmentRules
             throw new InvalidOperationException("Return time must be on the hour (e.g. 1200).");
         }
 
-        if (time.Hour < SchedulingConstants.OperatingHourStart
-            || time.Hour > SchedulingConstants.OperatingHourEnd)
+        if (time.Hour < operatingHourStart || time.Hour > operatingHourEnd)
         {
             throw new InvalidOperationException(
-                $"Return time must be between {SchedulingConstants.OperatingHourStart:D4} and {SchedulingConstants.OperatingHourEnd:D4}.");
+                $"Return time must be between {DepotOperatingHours.FormatRangeLabel(operatingHourStart, operatingHourEnd)}.");
         }
     }
 

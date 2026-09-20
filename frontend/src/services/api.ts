@@ -732,6 +732,8 @@ export interface Depot {
   address: string
   capacity: number
   containersPerHour: number
+  operatingHourStart: number
+  operatingHourEnd: number
   isActive: boolean
 }
 
@@ -1014,11 +1016,25 @@ export const shippingLineDepotContractApi = {
 export const depotApi = {
   list: () => api.get<Depot[]>('/depots'),
   listAdmin: () => api.get<Depot[]>('/depots/admin'),
-  create: (data: { name: string; address: string; capacity: number; containersPerHour: number }) =>
-    api.post<Depot>('/depots', data),
+  create: (data: {
+    name: string
+    address: string
+    capacity: number
+    containersPerHour: number
+    operatingHourStart: number
+    operatingHourEnd: number
+  }) => api.post<Depot>('/depots', data),
   update: (
     id: number,
-    data: { name: string; address: string; capacity: number; containersPerHour: number; isActive: boolean },
+    data: {
+      name: string
+      address: string
+      capacity: number
+      containersPerHour: number
+      operatingHourStart: number
+      operatingHourEnd: number
+      isActive: boolean
+    },
   ) => api.put<Depot>(`/depots/${id}`, data),
   deactivate: (id: number) => api.delete(`/depots/${id}`),
 }
@@ -1280,6 +1296,8 @@ export interface HourlySlotAvailability {
   depotName: string
   date: string
   containersPerHour: number
+  operatingHourStart: number
+  operatingHourEnd: number
   dailyLimit: number
   dailyBookedCount: number
   slots: HourlySlotInfo[]

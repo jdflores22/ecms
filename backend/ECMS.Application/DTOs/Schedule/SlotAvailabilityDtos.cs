@@ -27,6 +27,8 @@ public record HourlySlotAvailabilityDto(
     string DepotName,
     DateOnly Date,
     int ContainersPerHour,
+    int OperatingHourStart,
+    int OperatingHourEnd,
     int DailyLimit,
     int DailyBookedCount,
     IReadOnlyList<HourlySlotInfoDto> Slots);

@@ -70,7 +70,14 @@ import {
 } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import { portalColors } from '../../theme/portalTheme'
-import { formatDateTime, formatPeso } from '../../utils/datetime'
+import {
+  formatDateTime,
+  formatDepotOperatingHourLabel,
+  formatDepotOperatingRange,
+  formatPeso,
+} from '../../utils/datetime'
+
+const DEPOT_BOOKABLE_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour)
 
 type SettingsSection =
   | 'payments'
@@ -104,7 +111,7 @@ const SETTINGS_SECTIONS: {
   {
     id: 'depots',
     label: 'Container yards',
-    description: 'Depot capacity, throughput, and active status.',
+    description: 'Daily return limits, hourly slot capacity, and bookable operating hours per CY.',
     icon: <WarehouseOutlinedIcon fontSize="small" />,
     group: 'Reference data',
   },
@@ -231,6 +238,8 @@ export default function AdminSettingsPage() {
     address: '',
     capacity: 100,
     containersPerHour: 3,
+    operatingHourStart: 8,
+    operatingHourEnd: 17,
     isActive: true,
   })
   const [sizeForm, setSizeForm] = useState({ label: '', teu: 2, sortOrder: 1, isActive: true })
@@ -406,7 +415,15 @@ export default function AdminSettingsPage() {
   }
 
   const openCreateDepot = () => {
-    setDepotForm({ name: '', address: '', capacity: 100, containersPerHour: 3, isActive: true })
+    setDepotForm({
+      name: '',
+      address: '',
+      capacity: 100,
+      containersPerHour: 3,
+      operatingHourStart: 8,
+      operatingHourEnd: 17,
+      isActive: true,
+    })
     setDepotDialog('create')
   }
 
@@ -417,12 +434,18 @@ export default function AdminSettingsPage() {
       address: depot.address,
       capacity: depot.capacity,
       containersPerHour: depot.containersPerHour ?? 3,
+      operatingHourStart: depot.operatingHourStart ?? 8,
+      operatingHourEnd: depot.operatingHourEnd ?? 17,
       isActive: depot.isActive,
     })
     setDepotDialog('edit')
   }
 
   const saveDepot = async () => {
+    if (depotForm.operatingHourStart > depotForm.operatingHourEnd) {
+      setError('Operating start hour cannot be after the end hour.')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -432,6 +455,8 @@ export default function AdminSettingsPage() {
           address: depotForm.address,
           capacity: depotForm.capacity,
           containersPerHour: depotForm.containersPerHour,
+          operatingHourStart: depotForm.operatingHourStart,
+          operatingHourEnd: depotForm.operatingHourEnd,
         })
       } else if (selectedDepot) {
         await depotApi.update(selectedDepot.id, depotForm)
@@ -827,7 +852,22 @@ export default function AdminSettingsPage() {
                     <ListMobileMeta>{depot.address || '—'}</ListMobileMeta>
                     <ListMobileChipRow>
                       <Chip
-                        label={`Capacity: ${depot.capacity}`}
+                        label={`Daily: ${depot.capacity}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 600 }}
+                      />
+                      <Chip
+                        label={`${depot.containersPerHour ?? 3}/hr`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 600 }}
+                      />
+                      <Chip
+                        label={formatDepotOperatingRange(
+                          depot.operatingHourStart ?? 8,
+                          depot.operatingHourEnd ?? 17,
+                        )}
                         size="small"
                         variant="outlined"
                         sx={{ fontWeight: 600 }}
@@ -872,7 +912,9 @@ export default function AdminSettingsPage() {
                       <TableRow sx={tableHeadSx}>
                         <TableCell>Name</TableCell>
                         <TableCell>Address</TableCell>
-                        <TableCell align="right">Capacity</TableCell>
+                        <TableCell align="right">Daily cap.</TableCell>
+                        <TableCell align="right">Per hour</TableCell>
+                        <TableCell>Bookable hours</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
@@ -887,6 +929,15 @@ export default function AdminSettingsPage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">{depot.capacity}</TableCell>
+                          <TableCell align="right">{depot.containersPerHour ?? 3}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {formatDepotOperatingRange(
+                                depot.operatingHourStart ?? 8,
+                                depot.operatingHourEnd ?? 17,
+                              )}
+                            </Typography>
+                          </TableCell>
                           <TableCell>
                             <Chip
                               label={depot.isActive ? 'Active' : 'Inactive'}
@@ -1412,8 +1463,54 @@ export default function AdminSettingsPage() {
             value={depotForm.containersPerHour}
             onChange={(e) => setDepotForm({ ...depotForm, containersPerHour: Number(e.target.value) })}
             sx={fieldSx}
-            helperText="Max empty returns per hourly slot (0800–1700)"
+            helperText={`Max empty returns per hourly slot (${formatDepotOperatingRange(
+              depotForm.operatingHourStart,
+              depotForm.operatingHourEnd,
+            )})`}
           />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 2, mb: 0.5 }}>
+            Bookable operating hours
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Hourly return slots are offered from start through end (inclusive). For 24-hour yards, use{' '}
+            {formatDepotOperatingHourLabel(0)}–{formatDepotOperatingHourLabel(23)}.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <FormControl margin="normal" sx={{ flex: '1 1 140px', ...fieldSx }}>
+              <InputLabel id="depot-hour-start-label">Start hour</InputLabel>
+              <Select
+                labelId="depot-hour-start-label"
+                label="Start hour"
+                value={depotForm.operatingHourStart}
+                onChange={(e) =>
+                  setDepotForm({ ...depotForm, operatingHourStart: Number(e.target.value) })
+                }
+              >
+                {DEPOT_BOOKABLE_HOUR_OPTIONS.map((hour) => (
+                  <MenuItem key={`start-${hour}`} value={hour}>
+                    {formatDepotOperatingHourLabel(hour)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl margin="normal" sx={{ flex: '1 1 140px', ...fieldSx }}>
+              <InputLabel id="depot-hour-end-label">End hour</InputLabel>
+              <Select
+                labelId="depot-hour-end-label"
+                label="End hour"
+                value={depotForm.operatingHourEnd}
+                onChange={(e) =>
+                  setDepotForm({ ...depotForm, operatingHourEnd: Number(e.target.value) })
+                }
+              >
+                {DEPOT_BOOKABLE_HOUR_OPTIONS.map((hour) => (
+                  <MenuItem key={`end-${hour}`} value={hour}>
+                    {formatDepotOperatingHourLabel(hour)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
           {depotDialog === 'edit' && (
             <FormControlLabel
               control={

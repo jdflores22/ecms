@@ -32,7 +32,10 @@ import {
   clampScheduleDateToBounds,
   formatArrivalWindow,
   formatDateTime,
+  formatDepotOperatingRange,
   formatDepotScheduleAllowedRange,
+  EMPTY_RETURN_OPERATING_HOUR_END,
+  EMPTY_RETURN_OPERATING_HOUR_START,
   formatDepotScheduleDateHelper,
   formatPeso,
   formatScheduleDate,
@@ -396,7 +399,12 @@ export default function DepotScheduleTabPanels({
                     Return time · {formatScheduleDate(date)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
-                    Choose an hourly slot (0800–1700). Trucker may arrive ±2 hours from the booked time.
+                    Choose an hourly slot (
+                    {formatDepotOperatingRange(
+                      hourlySlots?.operatingHourStart ?? EMPTY_RETURN_OPERATING_HOUR_START,
+                      hourlySlots?.operatingHourEnd ?? EMPTY_RETURN_OPERATING_HOUR_END,
+                    )}
+                    ). Trucker may arrive ±2 hours from the booked time.
                   </Typography>
                   {hourlySlotsLoading ? (
                     <ChipRowSkeleton chips={6} />

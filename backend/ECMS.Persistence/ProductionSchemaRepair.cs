@@ -103,6 +103,8 @@ public static class ProductionSchemaRepair
 
         await EnsureDepotContainersPerHourAsync(db, logger, cancellationToken);
 
+        await EnsureDepotOperatingHoursAsync(db, logger, cancellationToken);
+
         await EnsureShippingLineCyFillControlAsync(db, logger, cancellationToken);
     }
 
@@ -118,6 +120,32 @@ public static class ProductionSchemaRepair
             column: "ContainersPerHour",
             definition: "int NOT NULL DEFAULT 3",
             migrationId: "20260916100000_AddDepotContainersPerHour",
+            cancellationToken);
+    }
+
+    private static async Task EnsureDepotOperatingHoursAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20260920120000_AddDepotOperatingHours";
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "OperatingHourStart",
+            definition: "int NOT NULL DEFAULT 8",
+            migrationId: migrationId,
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "OperatingHourEnd",
+            definition: "int NOT NULL DEFAULT 17",
+            migrationId: migrationId,
             cancellationToken);
     }
 

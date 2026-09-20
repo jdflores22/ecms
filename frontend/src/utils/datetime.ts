@@ -130,10 +130,18 @@ export function isValidTime24(value: string): boolean {
   return h >= 0 && h <= 23 && m >= 0 && m <= 59
 }
 
-/** Empty-return hourly slots: 0800–1700 PHT. */
+/** Default when depot operating hours are not loaded yet. */
 export const EMPTY_RETURN_OPERATING_HOUR_START = 8
 export const EMPTY_RETURN_OPERATING_HOUR_END = 17
 export const EMPTY_RETURN_ARRIVAL_GRACE_HOURS = 2
+
+export function formatDepotOperatingHourLabel(hour: number): string {
+  return `${String(hour).padStart(2, '0')}00`
+}
+
+export function formatDepotOperatingRange(startHour: number, endHour: number): string {
+  return `${formatDepotOperatingHourLabel(startHour)}–${formatDepotOperatingHourLabel(endHour)}`
+}
 
 export function isLegacyDateOnlyTime(time?: string | null): boolean {
   if (!time) return true

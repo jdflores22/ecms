@@ -49,7 +49,10 @@ import { store } from '../../store'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import {
   clampScheduleDateToBounds,
+  EMPTY_RETURN_OPERATING_HOUR_END,
+  EMPTY_RETURN_OPERATING_HOUR_START,
   formatArrivalWindow,
+  formatDepotOperatingRange,
   formatScheduleDate,
   formatScheduleTime,
   formatScheduleTimeHundreds,
@@ -151,6 +154,15 @@ export default function ScheduleDetailPage() {
         preAdvice?.evaluatedAt,
       ),
     [preAdvice?.demurrageValidUntil, preAdvice?.evaluatedAt],
+  )
+
+  const bookableHoursLabel = useMemo(
+    () =>
+      formatDepotOperatingRange(
+        hourlySlots?.operatingHourStart ?? EMPTY_RETURN_OPERATING_HOUR_START,
+        hourlySlots?.operatingHourEnd ?? EMPTY_RETURN_OPERATING_HOUR_END,
+      ),
+    [hourlySlots?.operatingHourStart, hourlySlots?.operatingHourEnd],
   )
 
   const loadDocuments = useCallback((preAdviceId: number) => {
@@ -287,7 +299,7 @@ export default function ScheduleDetailPage() {
       return
     }
     if (!time) {
-      setActionError('Choose a return time slot (0800–1700).')
+      setActionError(`Choose a return time slot (${bookableHoursLabel}).`)
       return
     }
     setSubmitting(true)
@@ -325,7 +337,7 @@ export default function ScheduleDetailPage() {
       return
     }
     if (!time) {
-      setActionError('Choose a return time slot (0800–1700).')
+      setActionError(`Choose a return time slot (${bookableHoursLabel}).`)
       return
     }
     setConfirmOpen(true)

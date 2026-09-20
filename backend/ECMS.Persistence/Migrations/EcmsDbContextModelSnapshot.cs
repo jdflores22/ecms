@@ -206,6 +206,12 @@ namespace ECMS.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<int>("OperatingHourEnd")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OperatingHourStart")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
