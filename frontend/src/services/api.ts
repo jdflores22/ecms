@@ -15,9 +15,23 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+/** Auth routes that must not send the admin/user Bearer token (anonymous). */
+function isPublicAuthEndpoint(url: string): boolean {
+  const u = url.toLowerCase()
+  const publicPaths = [
+    '/auth/login',
+    '/auth/signup',
+    '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/logout',
+  ]
+  return publicPaths.some((path) => u.includes(path) || u.includes(path.replace(/\//g, '%2f')))
+}
+
 api.interceptors.request.use(async (config) => {
   const url = config.url ?? ''
-  if (url.includes('/auth/') || url.includes('api/auth') || url.includes('api%2Fauth')) return config
+  if (isPublicAuthEndpoint(url)) return config
 
   let token = store.getState().auth.accessToken
   if (!token) return config
@@ -150,7 +164,7 @@ api.interceptors.response.use(
     const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined
     const requestUrl = originalRequest?.url ?? ''
 
-    if (requestUrl.includes('/auth/') || requestUrl.includes('api/auth') || requestUrl.includes('api%2Fauth')) {
+    if (isPublicAuthEndpoint(requestUrl)) {
       return Promise.reject(error)
     }
 
