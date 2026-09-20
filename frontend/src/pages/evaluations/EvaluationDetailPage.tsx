@@ -73,7 +73,7 @@ import {
 } from '../../services/api'
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
-import { formatScheduleSlot } from '../../utils/datetime'
+import { formatDate, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { formatCySizeOptionLabel } from '../../utils/cyAllocation'
 import PreAdviceCroEdoContextPanel from '../../components/preAdvice/PreAdviceCroEdoContextPanel'
@@ -144,6 +144,18 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function resolveSelectedDepotName(
+  depotId: number | '',
+  approvalAllocations: CyAllocationForApproval | null,
+  depots: Depot[],
+): string {
+  if (depotId === '') return '—'
+  const id = Number(depotId)
+  const fromAlloc = approvalAllocations?.allocations.find((row) => row.depotId === id)
+  if (fromAlloc) return fromAlloc.depotName
+  return depots.find((d) => d.id === id)?.name ?? `CY #${id}`
+}
+
 async function loadQrImage(bookingId: number): Promise<string> {
   const token = store.getState().auth.accessToken
   const res = await fetch(qrApi.downloadUrl(bookingId), {
@@ -178,6 +190,7 @@ export default function EvaluationDetailPage() {
   const [error, setError] = useState('')
 
   const [approveOpen, setApproveOpen] = useState(false)
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [complianceOpen, setComplianceOpen] = useState(false)
   const [depotId, setDepotId] = useState<number | ''>('')
@@ -441,24 +454,46 @@ export default function EvaluationDetailPage() {
     URL.revokeObjectURL(url)
   }
 
-  const handleApprove = async () => {
+  const validateApproveForm = (): string | null => {
     if (!item || depotId === '') {
-      setActionError('Please select a container yard (CY).')
-      return
+      return 'Please select a container yard (CY).'
     }
     const effectiveDemurrage = demurrageFromCro ?? approvalDemurrageUntil.trim()
     if (!effectiveDemurrage) {
-      setActionError(
-        legacyManualPreAdvice
-          ? 'Enter demurrage free-time validity from the trucker’s uploaded legacy CRO/eDO.'
-          : 'Demurrage free-time validity must be set before approval.',
-      )
-      return
+      return legacyManualPreAdvice
+        ? 'Enter demurrage free-time validity from the trucker’s uploaded legacy CRO/eDO.'
+        : 'Demurrage free-time validity must be set before approval.'
     }
     if (!demurrageFromCro && effectiveDemurrage < todayIsoDate()) {
-      setActionError('Demurrage validity date cannot be in the past.')
+      return 'Demurrage validity date cannot be in the past.'
+    }
+    return null
+  }
+
+  const openApproveConfirm = () => {
+    const validationError = validateApproveForm()
+    if (validationError) {
+      setActionError(validationError)
       return
     }
+    setActionError('')
+    setApproveConfirmOpen(true)
+  }
+
+  const closeApproveFlow = () => {
+    if (submitting) return
+    setApproveConfirmOpen(false)
+    setApproveOpen(false)
+  }
+
+  const handleApprove = async () => {
+    const validationError = validateApproveForm()
+    if (validationError || !item) {
+      setActionError(validationError ?? 'Pre-forecast not loaded.')
+      setApproveConfirmOpen(false)
+      return
+    }
+    const effectiveDemurrage = demurrageFromCro ?? approvalDemurrageUntil.trim()
     setSubmitting(true)
     setActionError('')
     try {
@@ -468,9 +503,11 @@ export default function EvaluationDetailPage() {
         remarks: remarks || undefined,
         ...(!demurrageFromCro ? { demurrageValidUntil: effectiveDemurrage } : {}),
       })
+      setApproveConfirmOpen(false)
       setApproveOpen(false)
       navigate('/evaluations')
     } catch (err) {
+      setApproveConfirmOpen(false)
       setActionError(apiErrorMessage(err, 'Approval failed.'))
     } finally {
       setSubmitting(false)
@@ -686,7 +723,7 @@ export default function EvaluationDetailPage() {
         onDownload={downloadQr}
       />
 
-      <Dialog open={approveOpen} onClose={() => setApproveOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={approveOpen} onClose={closeApproveFlow} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Approve pre-forecast</DialogTitle>
         <DialogContent dividers sx={{ px: 2.5, py: 2 }}>
           <Stack spacing={2}>
@@ -803,17 +840,84 @@ export default function EvaluationDetailPage() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setApproveOpen(false)} disabled={submitting}>
+          <Button onClick={closeApproveFlow} disabled={submitting}>
             Cancel
           </Button>
           <Button
             variant="contained"
             color="success"
-            onClick={handleApprove}
+            onClick={openApproveConfirm}
             disabled={submitting || !demurrageForApproval || depotId === ''}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
-            Approve & assign CY
+            Review & approve
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={approveConfirmOpen}
+        onClose={() => !submitting && setApproveConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Confirm approval</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Check demurrage date and CY assignment before submitting.
+          </Typography>
+          {item && (
+            <Stack spacing={1.25}>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  Pre-forecast
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {item.referenceNo} · {item.containerNo}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {item.shippingLineName}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  Demurrage valid until
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {demurrageForApproval ? formatDate(demurrageForApproval) : '—'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  Container yard (CY)
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {resolveSelectedDepotName(depotId, approvalAllocations, depots)}
+                </Typography>
+              </Box>
+              {remarks.trim() && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    Remarks
+                  </Typography>
+                  <Typography variant="body2">{remarks.trim()}</Typography>
+                </Box>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setApproveConfirmOpen(false)} disabled={submitting}>
+            Go back
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => void handleApprove()}
+            disabled={submitting}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            {submitting ? 'Submitting…' : 'Confirm approve'}
           </Button>
         </DialogActions>
       </Dialog>
