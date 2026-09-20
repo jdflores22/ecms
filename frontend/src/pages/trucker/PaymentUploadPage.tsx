@@ -260,7 +260,11 @@ export default function TruckerPaymentUploadPage() {
     if (!result) return
     if (result === 'success') {
       setSaveSuccess(true)
-      load()
+      if (scheduleId && !Number.isNaN(scheduleId)) {
+        paymentApi.syncPayMongoReturn(scheduleId).catch(() => undefined).finally(() => load())
+      } else {
+        load()
+      }
     }
     searchParams.delete('paymongo')
     setSearchParams(searchParams, { replace: true })

@@ -63,6 +63,11 @@ import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import { mergeProofMetadataPasses } from '../../utils/paymentProofMetadataMerge'
 import PaymentProofProviderChip from '../../components/payments/PaymentProofProviderChip'
 import {
+  paymentDisplayPaymentId,
+  paymentDisplayReferenceNo,
+  paymentPaidViaProvider,
+} from '../../utils/paymentDisplay'
+import {
   formatProofPaymentId,
   formatProofReferenceNo,
   fromDatetimeLocalValue,
@@ -402,23 +407,27 @@ function PaymentTable({
               </TableCell>
               <TableCell>{p.truckerName}</TableCell>
               <TableCell>
-                {p.proofProvider ? (
-                  <PaymentProofProviderChip provider={p.proofProvider} />
+                {paymentPaidViaProvider(p) ? (
+                  <PaymentProofProviderChip provider={paymentPaidViaProvider(p)} />
                 ) : (
                   '—'
                 )}
               </TableCell>
               <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                {formatProofReferenceNo(p.proofReferenceNo)}
+                {formatProofReferenceNo(paymentDisplayReferenceNo(p))}
               </TableCell>
               <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                {formatProofPaymentId(p.proofPaymentId)}
+                {formatProofPaymentId(paymentDisplayPaymentId(p))}
               </TableCell>
               <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
                 {p.proofQrphInvoiceNo ?? '—'}
               </TableCell>
               <TableCell>
-                {p.proofTransactionAt ? formatDateTime(p.proofTransactionAt) : '—'}
+                {p.proofTransactionAt
+                  ? formatDateTime(p.proofTransactionAt)
+                  : p.paymentChannel === 'PayMongo' && p.paidAt
+                    ? formatDateTime(p.paidAt)
+                    : '—'}
               </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>{formatPeso(p.amount)}</TableCell>
               <TableCell>{p.paidAt ? formatDateTime(p.paidAt) : '—'}</TableCell>
@@ -474,12 +483,19 @@ export default function AdminPaymentsPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([paymentApi.pending(), paymentApi.depot(), demurrageBillingApi.list()])
-      .then(([pendingRes, reviewedRes, demurrageRes]) => {
-        setPending(pendingRes.data)
-        setReviewed(reviewedRes.data)
-        setDemurrageItems(demurrageRes.data)
-      })
+    const fetchLists = () =>
+      Promise.all([paymentApi.pending(), paymentApi.depot(), demurrageBillingApi.list()]).then(
+        ([pendingRes, reviewedRes, demurrageRes]) => {
+          setPending(pendingRes.data)
+          setReviewed(reviewedRes.data)
+          setDemurrageItems(demurrageRes.data)
+        },
+      )
+
+    paymentApi
+      .refreshPayMongoMetadata()
+      .catch(() => undefined)
+      .then(() => fetchLists())
       .catch(() => setError('Failed to load payments.'))
       .finally(() => setLoading(false))
   }, [])

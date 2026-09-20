@@ -16,6 +16,7 @@ public record PaymentDto(
     string? ProofProvider,
     PaymentChannel PaymentChannel,
     string? PayMongoCheckoutSessionId,
+    string? PayMongoPaymentIntentId,
     PaymentStatus Status,
     DateTime? PaidAt);
 

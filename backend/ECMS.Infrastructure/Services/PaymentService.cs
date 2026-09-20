@@ -444,6 +444,7 @@ public class PaymentService : IPaymentService
         int scheduleId,
         string? checkoutSessionId,
         string? paymentIntentId,
+        PayMongoSettlementDetails? settlement = null,
         CancellationToken cancellationToken = default)
     {
         var payment = await _db.Payments
@@ -461,9 +462,11 @@ public class PaymentService : IPaymentService
 
         payment.PaymentChannel = PaymentChannel.PayMongo;
         payment.PayMongoPaymentIntentId = paymentIntentId;
-        payment.ProofProvider = "paymongo";
+        ApplyPayMongoSettlement(payment, settlement, paymentIntentId);
         payment.Status = PaymentStatus.Paid;
-        payment.PaidAt = PhilippinesTime.UtcNow;
+        payment.PaidAt = settlement?.PaidAtUtc ?? PhilippinesTime.UtcNow;
+        if (settlement?.PaidAtUtc is not null && payment.ProofTransactionAt is null)
+            payment.ProofTransactionAt = settlement.PaidAtUtc;
         payment.Schedule.Status = ScheduleStatus.Confirmed;
         _db.Update(payment.Schedule);
         _db.Update(payment);
@@ -488,6 +491,48 @@ public class PaymentService : IPaymentService
         return true;
     }
 
+    public async Task<bool> ApplyPayMongoSettlementAsync(
+        int scheduleId,
+        PayMongoSettlementDetails settlement,
+        CancellationToken cancellationToken = default)
+    {
+        var payment = await _db.Payments.FirstOrDefaultAsync(p => p.ScheduleId == scheduleId, cancellationToken);
+        if (payment is null || payment.PaymentChannel != PaymentChannel.PayMongo)
+            return false;
+
+        ApplyPayMongoSettlement(payment, settlement, payment.PayMongoPaymentIntentId);
+        if (settlement.PaidAtUtc is not null && payment.ProofTransactionAt is null)
+            payment.ProofTransactionAt = settlement.PaidAtUtc;
+
+        _db.Update(payment);
+        await _db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private static void ApplyPayMongoSettlement(
+        Payment payment,
+        PayMongoSettlementDetails? settlement,
+        string? paymentIntentId)
+    {
+        if (settlement is not null)
+        {
+            payment.ProofReferenceNo = PaymentProofTextParser.NormalizeReferenceNo(settlement.ReferenceNo)
+                ?? payment.ProofReferenceNo;
+            payment.ProofPaymentId = PaymentProofTextParser.NormalizePaymentId(settlement.PaymentId)
+                ?? payment.ProofPaymentId;
+            payment.ProofQrphInvoiceNo = PaymentProofTextParser.NormalizeQrphInvoiceNo(settlement.QrphInvoiceNo)
+                ?? payment.ProofQrphInvoiceNo;
+            if (settlement.Provider is not null)
+                payment.ProofProvider = PaymentProofTextParser.NormalizeProvider(settlement.Provider);
+        }
+
+        if (string.IsNullOrWhiteSpace(payment.ProofPaymentId) && !string.IsNullOrWhiteSpace(paymentIntentId))
+            payment.ProofPaymentId = PaymentProofTextParser.NormalizePaymentId(paymentIntentId);
+
+        if (string.IsNullOrWhiteSpace(payment.ProofReferenceNo) && !string.IsNullOrWhiteSpace(payment.ProofPaymentId))
+            payment.ProofReferenceNo = payment.ProofPaymentId;
+    }
+
     private static PaymentDto MapToDto(Payment p) => new(
         p.Id,
         p.ScheduleId,
@@ -502,6 +547,7 @@ public class PaymentService : IPaymentService
         p.ProofProvider,
         p.PaymentChannel,
         p.PayMongoCheckoutSessionId,
+        p.PayMongoPaymentIntentId,
         p.Status,
         p.PaidAt);
 }

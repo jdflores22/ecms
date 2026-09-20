@@ -104,6 +104,36 @@ public class PaymentsController : ControllerBase
         }
     }
 
+    [HttpPost("schedule/{scheduleId:int}/paymongo/sync")]
+    public async Task<IActionResult> SyncPayMongoReturn(int scheduleId, CancellationToken cancellationToken)
+    {
+        var role = UserRole(User) ?? string.Empty;
+        try
+        {
+            var ok = await _payMongoService.SyncReturnPaymentAsync(scheduleId, UserId, role, cancellationToken);
+            return ok ? Ok(new { synced = true }) : Ok(new { synced = false });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("admin/refresh-paymongo-metadata")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<object>> RefreshPayMongoMetadata(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await _payMongoService.RefreshReturnPaymentMetadataAsync(cancellationToken);
+            return Ok(new { updated });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("schedule/{scheduleId:int}/paymongo/checkout")]
     [Authorize(Roles = RoleNames.TruckerOrBroker)]
     public async Task<ActionResult<PayMongoCheckoutDto>> CreatePayMongoCheckout(

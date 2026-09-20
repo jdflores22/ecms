@@ -17,4 +17,10 @@ public interface IPayMongoService
         string rawBody,
         string signatureHeader,
         CancellationToken cancellationToken = default);
+    Task<int> RefreshReturnPaymentMetadataAsync(CancellationToken cancellationToken = default);
+    Task<bool> SyncReturnPaymentAsync(
+        int scheduleId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
 }

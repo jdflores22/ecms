@@ -1231,6 +1231,9 @@ export interface Payment {
   proofQrphInvoiceNo?: string | null
   proofTransactionAt?: string | null
   proofProvider?: string | null
+  paymentChannel?: 'ProofUpload' | 'PayMongo' | 'CashOffice'
+  payMongoCheckoutSessionId?: string | null
+  payMongoPaymentIntentId?: string | null
   status: string
   paidAt?: string | null
 }
@@ -1403,6 +1406,10 @@ export const paymentApi = {
     api.put<PaymentSettings>('/payments/settings/demurrage', { demurrageFeeAmount, detentionFeeAmount }),
   createPayMongoCheckout: (scheduleId: number) =>
     api.post<PayMongoCheckout>(`/payments/schedule/${scheduleId}/paymongo/checkout`),
+  syncPayMongoReturn: (scheduleId: number) =>
+    api.post<{ synced: boolean }>(`/payments/schedule/${scheduleId}/paymongo/sync`),
+  refreshPayMongoMetadata: () =>
+    api.post<{ updated: number }>('/payments/admin/refresh-paymongo-metadata'),
   getBySchedule: (scheduleId: number) => api.get<Payment | null>(`/payments/by-schedule/${scheduleId}`),
   upload: (
     scheduleId: number,

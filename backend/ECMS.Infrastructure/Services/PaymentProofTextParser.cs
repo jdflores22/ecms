@@ -234,7 +234,7 @@ public static class PaymentProofTextParser
             return null;
 
         var key = value.Trim().ToLowerInvariant();
-        return key is "gcash" or "maya" or "unionbank" or "bancnet" or "grabpay" ? key : null;
+        return key is "gcash" or "maya" or "unionbank" or "bancnet" or "grabpay" or "card" ? key : null;
     }
 
     public static string? NormalizeReferenceNo(string? value)

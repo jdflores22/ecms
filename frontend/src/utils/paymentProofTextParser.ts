@@ -144,7 +144,16 @@ function monthNameToNumber(month: string): number | null {
 const E_WALLET_PREFERENCE: PaymentProofProvider[] = ['maya', 'gcash', 'grabpay', 'unionbank', 'bancnet']
 
 function emptyProviderScores(): Record<PaymentProofProvider, number> {
-  return { gcash: 0, maya: 0, unionbank: 0, bancnet: 0, grabpay: 0, unknown: 0 }
+  return {
+    gcash: 0,
+    maya: 0,
+    unionbank: 0,
+    bancnet: 0,
+    grabpay: 0,
+    card: 0,
+    paymongo: 0,
+    unknown: 0,
+  }
 }
 
 /** Weighted signals — e-wallet receipt layout beats merchant settlement bank name. */

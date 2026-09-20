@@ -5,6 +5,8 @@ export type PaymentProofProvider =
   | 'unionbank'
   | 'bancnet'
   | 'grabpay'
+  | 'card'
+  | 'paymongo'
   | 'unknown'
 
 export interface PaymentProofProviderStyle {
@@ -50,6 +52,20 @@ export const PAYMENT_PROOF_PROVIDERS: Record<PaymentProofProvider, PaymentProofP
     color: '#1E4D8C',
     bg: 'rgba(30, 77, 140, 0.1)',
     border: 'rgba(30, 77, 140, 0.3)',
+  },
+  card: {
+    id: 'card',
+    label: 'Card',
+    color: '#5C4B9E',
+    bg: 'rgba(92, 75, 158, 0.1)',
+    border: 'rgba(92, 75, 158, 0.3)',
+  },
+  paymongo: {
+    id: 'paymongo',
+    label: 'PayMongo',
+    color: '#0F172A',
+    bg: 'rgba(15, 23, 42, 0.06)',
+    border: 'rgba(15, 23, 42, 0.2)',
   },
   unknown: {
     id: 'unknown',

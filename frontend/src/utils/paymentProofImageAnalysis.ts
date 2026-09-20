@@ -62,6 +62,8 @@ export async function detectPaymentProviderFromImage(
       unionbank: 0,
       bancnet: 0,
       grabpay: 0,
+      card: 0,
+      paymongo: 0,
       unknown: 0,
     }
 

@@ -50,5 +50,10 @@ public interface IPaymentService
         int scheduleId,
         string? checkoutSessionId,
         string? paymentIntentId,
+        PayMongoSettlementDetails? settlement = null,
+        CancellationToken cancellationToken = default);
+    Task<bool> ApplyPayMongoSettlementAsync(
+        int scheduleId,
+        PayMongoSettlementDetails settlement,
         CancellationToken cancellationToken = default);
 }

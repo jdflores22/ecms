@@ -198,6 +198,11 @@ public class PayMongoService : IPayMongoService
         var metadata = ReadMetadata(eventData);
         var paymentIntentId = ReadPaymentIntentId(eventData);
         var checkoutSessionId = eventData.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+        var settlement = await ResolveSettlementAsync(
+            ResolvePlatformSecretKey(),
+            paymentIntentId,
+            eventData,
+            cancellationToken);
 
         if (!metadata.TryGetValue("ecms_type", out var paymentType))
             return false;
@@ -210,6 +215,7 @@ public class PayMongoService : IPayMongoService
                     scheduleId,
                     checkoutSessionId,
                     paymentIntentId,
+                    settlement,
                     cancellationToken),
             "demurrage" when metadata.TryGetValue("ecms_billing_id", out var billingIdRaw)
                 && int.TryParse(billingIdRaw, out var billingId)
@@ -347,6 +353,54 @@ public class PayMongoService : IPayMongoService
         return metadata;
     }
 
+    private async Task<PayMongoSettlementDetails?> ResolveSettlementAsync(
+        string secretKey,
+        string? paymentIntentId,
+        JsonElement checkoutSession,
+        CancellationToken cancellationToken)
+    {
+        PayMongoSettlementDetails? fromSession = null;
+        if (checkoutSession.ValueKind is not JsonValueKind.Undefined and not JsonValueKind.Null)
+        {
+            fromSession = PayMongoCheckoutSettlementParser.TryParseCheckoutSession(checkoutSession, paymentIntentId);
+            if (fromSession is not null
+                && (!string.IsNullOrWhiteSpace(fromSession.ReferenceNo) || !string.IsNullOrWhiteSpace(fromSession.Provider)))
+                return fromSession;
+        }
+
+        if (string.IsNullOrWhiteSpace(paymentIntentId) || string.IsNullOrWhiteSpace(secretKey))
+            return fromSession;
+
+        var fromIntent = await FetchPaymentIntentSettlementAsync(secretKey, paymentIntentId, cancellationToken);
+        return fromIntent ?? fromSession;
+    }
+
+    private async Task<PayMongoSettlementDetails?> FetchPaymentIntentSettlementAsync(
+        string secretKey,
+        string paymentIntentId,
+        CancellationToken cancellationToken)
+    {
+        PayMongoKeyHelper.EnsureSecretKey(secretKey);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{ApiBase}/payment_intents/{paymentIntentId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", EncodeBasicAuth(secretKey));
+
+        var client = _httpClientFactory.CreateClient(nameof(PayMongoService));
+        using var response = await client.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "PayMongo payment intent fetch failed ({Status}) for {PaymentIntentId}",
+                response.StatusCode,
+                paymentIntentId);
+            return null;
+        }
+
+        using var doc = JsonDocument.Parse(body);
+        return PayMongoCheckoutSettlementParser.TryParsePaymentIntent(doc.RootElement, paymentIntentId);
+    }
+
     private static string? ReadPaymentIntentId(JsonElement eventData)
     {
         if (!eventData.TryGetProperty("attributes", out var attrs))
@@ -440,6 +494,131 @@ public class PayMongoService : IPayMongoService
         }
 
         return string.Empty;
+    }
+
+    public async Task<int> RefreshReturnPaymentMetadataAsync(CancellationToken cancellationToken = default)
+    {
+        var secretKey = ResolvePlatformSecretKey();
+        if (string.IsNullOrWhiteSpace(secretKey))
+            return 0;
+
+        var payments = await _db.Payments
+            .AsNoTracking()
+            .Where(p => p.PaymentChannel == PaymentChannel.PayMongo
+                && p.Status == PaymentStatus.Paid
+                && (p.ProofReferenceNo == null || p.ProofProvider == null))
+            .Select(p => new { p.ScheduleId, p.PayMongoCheckoutSessionId, p.PayMongoPaymentIntentId })
+            .ToListAsync(cancellationToken);
+
+        var updated = 0;
+        foreach (var payment in payments)
+        {
+            var settlement = await ResolveSettlementForStoredPaymentAsync(
+                secretKey,
+                payment.PayMongoCheckoutSessionId,
+                payment.PayMongoPaymentIntentId,
+                cancellationToken);
+            if (settlement is null)
+                continue;
+
+            if (await _paymentService.ApplyPayMongoSettlementAsync(payment.ScheduleId, settlement, cancellationToken))
+                updated++;
+        }
+
+        return updated;
+    }
+
+    public async Task<bool> SyncReturnPaymentAsync(
+        int scheduleId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var payment = await _db.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.ScheduleId == scheduleId, cancellationToken)
+            ?? throw new InvalidOperationException("Payment not found.");
+
+        var allowed = role switch
+        {
+            RoleNames.Administrator => true,
+            RoleNames.Trucker or RoleNames.Broker => payment.TruckerId == userId,
+            _ => false,
+        };
+        if (!allowed)
+            throw new InvalidOperationException("Payment not found.");
+
+        var secretKey = ResolvePlatformSecretKey();
+        if (string.IsNullOrWhiteSpace(secretKey))
+            throw new InvalidOperationException("PayMongo is not configured.");
+
+        var settlement = await ResolveSettlementForStoredPaymentAsync(
+            secretKey,
+            payment.PayMongoCheckoutSessionId,
+            payment.PayMongoPaymentIntentId,
+            cancellationToken);
+
+        if (payment.Status != PaymentStatus.Paid)
+        {
+            return await _paymentService.CompletePayMongoReturnAsync(
+                scheduleId,
+                payment.PayMongoCheckoutSessionId,
+                payment.PayMongoPaymentIntentId,
+                settlement,
+                cancellationToken);
+        }
+
+        if (settlement is null)
+            return false;
+
+        return await _paymentService.ApplyPayMongoSettlementAsync(scheduleId, settlement, cancellationToken);
+    }
+
+    private async Task<PayMongoSettlementDetails?> ResolveSettlementForStoredPaymentAsync(
+        string secretKey,
+        string? checkoutSessionId,
+        string? paymentIntentId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(checkoutSessionId))
+        {
+            var fromSession = await FetchCheckoutSessionSettlementAsync(secretKey, checkoutSessionId, cancellationToken);
+            if (fromSession is not null
+                && (!string.IsNullOrWhiteSpace(fromSession.ReferenceNo) || !string.IsNullOrWhiteSpace(fromSession.Provider)))
+                return fromSession;
+        }
+
+        return await ResolveSettlementAsync(secretKey, paymentIntentId, default, cancellationToken);
+    }
+
+    private async Task<PayMongoSettlementDetails?> FetchCheckoutSessionSettlementAsync(
+        string secretKey,
+        string checkoutSessionId,
+        CancellationToken cancellationToken)
+    {
+        PayMongoKeyHelper.EnsureSecretKey(secretKey);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{ApiBase}/checkout_sessions/{checkoutSessionId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", EncodeBasicAuth(secretKey));
+
+        var client = _httpClientFactory.CreateClient(nameof(PayMongoService));
+        using var response = await client.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "PayMongo checkout session fetch failed ({Status}) for {CheckoutSessionId}",
+                response.StatusCode,
+                checkoutSessionId);
+            return null;
+        }
+
+        using var doc = JsonDocument.Parse(body);
+        if (!doc.RootElement.TryGetProperty("data", out var data))
+            return null;
+
+        var paymentIntentId = ReadPaymentIntentId(data);
+        return PayMongoCheckoutSettlementParser.TryParseCheckoutSession(data, paymentIntentId);
     }
 
     private static string EncodeBasicAuth(string secretKey)
