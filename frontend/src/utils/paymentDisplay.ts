@@ -22,3 +22,16 @@ export function paymentDisplayPaymentId(payment: Payment): string | null {
   if (payment.payMongoPaymentIntentId) return payment.payMongoPaymentIntentId
   return null
 }
+
+export function paymentChannelLabel(payment: Payment): string {
+  switch (payment.paymentChannel) {
+    case 'PayMongo':
+      return 'PayMongo online'
+    case 'CashOffice':
+      return 'Cash / office'
+    case 'ProofUpload':
+      return 'Manual proof upload'
+    default:
+      return '—'
+  }
+}

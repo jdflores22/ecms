@@ -34,7 +34,7 @@ import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import axios from 'axios'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { detailTabsSx, hexToRgba } from '../../components/layout/DetailPagePrimitives'
 import {
@@ -63,6 +63,7 @@ import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
 import { mergeProofMetadataPasses } from '../../utils/paymentProofMetadataMerge'
 import PaymentProofProviderChip from '../../components/payments/PaymentProofProviderChip'
 import {
+  paymentChannelLabel,
   paymentDisplayPaymentId,
   paymentDisplayReferenceNo,
   paymentPaidViaProvider,
@@ -120,11 +121,80 @@ function isPdfProof(path: string) {
 
 function formatProofMetadataLine(payment: Payment): string | null {
   const parts: string[] = []
-  if (payment.proofReferenceNo) parts.push(`Ref ${formatProofReferenceNo(payment.proofReferenceNo)}`)
-  if (payment.proofPaymentId) parts.push(`Payment ID ${formatProofPaymentId(payment.proofPaymentId)}`)
+  const ref = paymentDisplayReferenceNo(payment)
+  const payId = paymentDisplayPaymentId(payment)
+  if (ref) parts.push(`Ref ${formatProofReferenceNo(ref)}`)
+  if (payId) parts.push(`Payment ID ${formatProofPaymentId(payId)}`)
   if (payment.proofQrphInvoiceNo) parts.push(`QRPH ${payment.proofQrphInvoiceNo}`)
   if (payment.proofTransactionAt) parts.push(formatDateTime(payment.proofTransactionAt))
   return parts.length > 0 ? parts.join(' · ') : null
+}
+
+function PaymentDetailGrid({ payment }: { payment: Payment }) {
+  const paidVia = paymentPaidViaProvider(payment)
+  const ref = paymentDisplayReferenceNo(payment)
+  const payId = paymentDisplayPaymentId(payment)
+  const transactionAt =
+    payment.proofTransactionAt ??
+    (payment.paymentChannel === 'PayMongo' && payment.paidAt ? payment.paidAt : null)
+
+  const rows: { label: string; value: ReactNode }[] = [
+    {
+      label: 'Status',
+      value: (
+        <Chip
+          label={paymentStatusLabel[payment.status] ?? payment.status}
+          color={paymentStatusColor[payment.status] ?? 'default'}
+          size="small"
+          sx={{ fontWeight: 600 }}
+        />
+      ),
+    },
+    { label: 'Amount', value: <Typography component="span" sx={{ fontWeight: 700 }}>{formatPeso(payment.amount)}</Typography> },
+    { label: 'Payment channel', value: paymentChannelLabel(payment) },
+    {
+      label: 'Paid via',
+      value: paidVia ? <PaymentProofProviderChip provider={paidVia} /> : '—',
+    },
+    { label: 'Ref. no.', value: ref ? formatProofReferenceNo(ref) : '—' },
+    { label: 'Payment ID', value: payId ? formatProofPaymentId(payId) : '—' },
+    { label: 'QRPH invoice', value: payment.proofQrphInvoiceNo ?? '—' },
+    { label: 'Transaction', value: transactionAt ? formatDateTime(transactionAt) : '—' },
+    { label: 'Recorded', value: payment.paidAt ? formatDateTime(payment.paidAt) : '—' },
+  ]
+
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', sm: '140px 1fr' },
+        gap: 1,
+        mb: 2,
+        p: 1.5,
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: hexToRgba(primaryDark, 0.02),
+      }}
+    >
+      {rows.map((row) => (
+        <Box key={row.label} sx={{ display: 'contents' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, py: 0.25 }}>
+            {row.label}
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              fontFamily: row.label === 'Ref. no.' || row.label === 'Payment ID' ? 'monospace' : undefined,
+              py: 0.25,
+            }}
+          >
+            {row.value}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  )
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number | string; color: string }) {
@@ -173,9 +243,9 @@ function PaymentSummaryPaper({ payment, variant }: { payment: Payment; variant: 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
         {payment.truckerName} · {formatPeso(payment.amount)}
       </Typography>
-      {payment.proofProvider && (
+      {paymentPaidViaProvider(payment) && (
         <Box sx={{ mt: 0.75 }}>
-          <PaymentProofProviderChip provider={payment.proofProvider} />
+          <PaymentProofProviderChip provider={paymentPaidViaProvider(payment)} />
         </Box>
       )}
       {payment.paidAt && (
@@ -219,18 +289,15 @@ function PaymentActions({
   if (compact) {
     return (
       <Box sx={{ display: 'inline-flex', justifyContent: 'flex-end', gap: 0.5, flexWrap: 'nowrap' }}>
-        {payment.proofFile && (
-          <Tooltip title="View proof">
-            <IconButton
-              size="small"
-              aria-label="View proof"
-              onClick={() => onViewProof(payment)}
-              sx={actionIconButtonSx}
-            >
-              <VisibilityOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<VisibilityOutlinedIcon />}
+          onClick={() => onViewProof(payment)}
+          sx={{ fontWeight: 600, borderRadius: 2, minWidth: 0, px: 1.25 }}
+        >
+          View
+        </Button>
         <Tooltip title="Open schedule">
           <IconButton
             size="small"
@@ -294,17 +361,15 @@ function PaymentActions({
 
   return (
     <Box sx={listMobileActionsSx}>
-      {payment.proofFile && (
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<VisibilityOutlinedIcon />}
-          onClick={() => onViewProof(payment)}
-          sx={{ fontWeight: 600, borderRadius: 2 }}
-        >
-          View proof
-        </Button>
-      )}
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<VisibilityOutlinedIcon />}
+        onClick={() => onViewProof(payment)}
+        sx={{ fontWeight: 600, borderRadius: 2 }}
+      >
+        View
+      </Button>
       <Button
         component={RouterLink}
         to={`/depot/schedules/${payment.scheduleId}`}
@@ -900,29 +965,12 @@ export default function AdminPaymentsPage() {
       )}
 
       <Dialog open={proofPreview !== null} onClose={() => setProofPreview(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Payment proof</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Payment details</DialogTitle>
         <DialogContent>
           {proofPreview && (
             <>
               <PaymentSummaryPaper payment={proofPreview} variant="neutral" />
-              {(proofPreview.proofReferenceNo ||
-                proofPreview.proofPaymentId ||
-                proofPreview.proofQrphInvoiceNo ||
-                proofPreview.proofTransactionAt ||
-                proofPreview.proofProvider) && (
-                <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-                    {proofPreview.proofProvider && (
-                      <PaymentProofProviderChip provider={proofPreview.proofProvider} />
-                    )}
-                    {formatProofMetadataLine(proofPreview) && (
-                      <Typography variant="body2" component="span">
-                        {formatProofMetadataLine(proofPreview)}
-                      </Typography>
-                    )}
-                  </Box>
-                </Alert>
-              )}
+              <PaymentDetailGrid payment={proofPreview} />
               {proofPreview.proofFile ? (
                 <>
                   {isImageProof(proofPreview.proofFile) ? (
@@ -982,7 +1030,11 @@ export default function AdminPaymentsPage() {
                   )}
                 </>
               ) : (
-                <Typography color="text.secondary">No proof file attached.</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  {proofPreview.paymentChannel === 'PayMongo'
+                    ? 'Paid online via PayMongo — no uploaded proof file.'
+                    : 'No proof file attached.'}
+                </Typography>
               )}
             </>
           )}
