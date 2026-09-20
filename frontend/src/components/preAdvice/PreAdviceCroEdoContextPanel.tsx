@@ -16,6 +16,7 @@ import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPa
 import { croEdoApi, type PreAdvice, type PreAdviceDocument } from '../../services/api'
 import { formatDate } from '../../utils/datetime'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
+import { openSignedAsset } from '../../utils/openSignedAsset'
 
 const primaryDark = ICS_PRIMARY
 
@@ -95,13 +96,10 @@ export default function PreAdviceCroEdoContextPanel({
         {croDocuments.map((doc) => (
           <Button
             key={doc.id}
-            component="a"
-            href={doc.filePath}
-            target="_blank"
-            rel="noopener noreferrer"
             size="small"
             variant="outlined"
             startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+            onClick={() => void openSignedAsset(doc.filePath)}
             sx={{ fontWeight: 600, borderRadius: 1.5, maxWidth: '100%' }}
           >
             {doc.fileName ? (doc.fileName.length > 28 ? `${doc.fileName.slice(0, 25)}…` : doc.fileName) : 'CRO/eDO file'}
@@ -202,13 +200,10 @@ export default function PreAdviceCroEdoContextPanel({
           {croDocuments.map((doc) => (
             <Button
               key={doc.id}
-              component="a"
-              href={doc.filePath}
-              target="_blank"
-              rel="noopener noreferrer"
               size="small"
               variant="outlined"
               startIcon={<DownloadIcon />}
+              onClick={() => void openSignedAsset(doc.filePath)}
               sx={{ fontWeight: 600, borderRadius: 2 }}
             >
               {doc.fileName || 'View uploaded CRO/eDO'}
