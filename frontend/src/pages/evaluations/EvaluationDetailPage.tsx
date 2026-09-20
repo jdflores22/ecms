@@ -1,4 +1,25 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormHelperText, InputLabel, MenuItem, Paper, Select, Tab, Tabs, TextField, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormHelperText,
+  InputLabel,
+  Link,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
+} from '@mui/material'
 import CancelIcon from '@mui/icons-material/Cancel'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn'
@@ -25,7 +46,6 @@ import {
   PhotoProgressChip,
   TimezoneChip,
   detailTabsSx,
-  hexToRgba,
   heroMutedChipSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
@@ -55,7 +75,7 @@ import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
-import { formatCySizeOptionLabel, getCapacityDisplayLabel } from '../../utils/cyAllocation'
+import { formatCySizeOptionLabel } from '../../utils/cyAllocation'
 import PreAdviceCroEdoContextPanel from '../../components/preAdvice/PreAdviceCroEdoContextPanel'
 
 const primaryDark = ICS_PRIMARY
@@ -667,127 +687,120 @@ export default function EvaluationDetailPage() {
       />
 
       <Dialog open={approveOpen} onClose={() => setApproveOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Approve pre-forecast</DialogTitle>
-        <DialogContent>
-          {item && (
-            <Paper
-              elevation={0}
-              sx={{
-                p: 1.5,
-                mb: 2,
-                borderRadius: 2,
-                bgcolor: hexToRgba(primaryDark, 0.04),
-                border: '1px solid',
-                borderColor: hexToRgba(primaryDark, 0.1),
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {item.referenceNo}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {item.containerNo} · {item.shippingLineName}
-                {approvalAllocations
-                  ? ` · ${getCapacityDisplayLabel(approvalAllocations.containerSize)} pool`
-                  : item.containerSize
-                    ? ` · ${formatContainerSizeLabel(item.containerSize)} container`
-                    : ''}
-              </Typography>
-            </Paper>
-          )}
-          {item && (
-            <PreAdviceCroEdoContextPanel item={item} documents={documents} compact />
-          )}
-          {approvalAllocations && (
-            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Container {approvalAllocations.containerNo} (
-              {formatContainerSizeLabel(approvalAllocations.containerSize)}) — CY options are ordered by the
-              shipping line&apos;s fill priority. Pick a yard with space in the{' '}
-              {getCapacityDisplayLabel(approvalAllocations.containerSize)} pool.{' '}
-              <RouterLink to={`/evaluations/cy-allocation?preAdviceId=${item?.id ?? ''}`}>
-                View full CY allocation
-              </RouterLink>
-            </Alert>
-          )}
-          {demurrageFromCro ? (
-            <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
-              Demurrage valid until <strong>{demurrageFromCro}</strong> (from CRO/eDO — not editable here).
-            </Alert>
-          ) : legacyManualPreAdvice ? (
-            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Legacy manual pre-forecast — free time is not read from an ICS CRO/eDO. Open the uploaded CRO/eDO
-              above and enter the demurrage valid-until date below.
-            </Alert>
-          ) : (
-            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
-              Demurrage free-time was not captured from the CRO/eDO link. Enter the correct validity date below
-              to continue.
-            </Alert>
-          )}
-          {!demurrageFromCro && (
-            <TextField
-              fullWidth
-              required
-              label="Demurrage valid until"
-              type="date"
-              value={approvalDemurrageUntil}
-              onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayIsoDate() } }}
-              helperText="Required for scheduling returns within free time."
-              margin="normal"
-              sx={fieldSx}
-            />
-          )}
-          {actionError && (
-            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-              {actionError}
-            </Alert>
-          )}
-          <FormControl fullWidth margin="normal" required sx={fieldSx} disabled={allocationsLoading}>
-            <InputLabel>Container yard (CY)</InputLabel>
-            <Select
-              label="Container yard (CY)"
-              value={depotId}
-              onChange={(e) => setDepotId(e.target.value as number)}
-            >
-              {approvalAllocations?.allocations.length
-                ? approvalAllocations.allocations.map((row) => {
-                    const isRecommended =
-                      recommendedDepotIds.length > 0 && row.depotId === recommendedDepotIds[0]
-                    const label = formatCySizeOptionLabel(
-                      row.depotName,
-                      row,
-                      approvalAllocations.containerSize,
-                      row.hasCapacity,
-                    )
-                    return (
-                      <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
-                        {isRecommended ? `${label} · Recommended` : label}
-                      </MenuItem>
-                    )
-                  })
-                : depots.map((d) => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name} — {d.address}
-                    </MenuItem>
-                  ))}
-            </Select>
-            {item?.croEdoContext?.returnEmptyToName && (
-              <FormHelperText>
-                CRO/eDO return CY: <strong>{item.croEdoContext.returnEmptyToName}</strong> — assign the matching
-                operational CY when possible.
-              </FormHelperText>
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Approve pre-forecast</DialogTitle>
+        <DialogContent dividers sx={{ px: 2.5, py: 2 }}>
+          <Stack spacing={2}>
+            {item && (
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  {item.referenceNo}
+                  <Typography component="span" variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                    {' '}
+                    · {item.containerNo} · {item.shippingLineName}
+                  </Typography>
+                </Typography>
+                <Box sx={{ mt: 1 }}>
+                  <PreAdviceCroEdoContextPanel item={item} documents={documents} dialog />
+                </Box>
+              </Box>
             )}
-          </FormControl>
-          <TextField
-            fullWidth
-            label="Remarks (optional)"
-            margin="normal"
-            multiline
-            rows={3}
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            sx={fieldSx}
-          />
+
+            {actionError && (
+              <Alert severity="error" sx={{ borderRadius: 2 }}>
+                {actionError}
+              </Alert>
+            )}
+
+            <Stack spacing={1.5}>
+              {demurrageFromCro ? (
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Demurrage valid until"
+                  value={demurrageFromCro}
+                  disabled
+                  sx={fieldSx}
+                />
+              ) : (
+                <TextField
+                  fullWidth
+                  size="small"
+                  required
+                  label="Demurrage valid until"
+                  type="date"
+                  value={approvalDemurrageUntil}
+                  onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayIsoDate() } }}
+                  helperText={
+                    legacyManualPreAdvice
+                      ? 'Read this date from the uploaded legacy CRO/eDO above.'
+                      : 'Enter free-time end date from the CRO/eDO.'
+                  }
+                  sx={fieldSx}
+                />
+              )}
+
+              <FormControl fullWidth size="small" required sx={fieldSx} disabled={allocationsLoading}>
+                <InputLabel>Container yard (CY)</InputLabel>
+                <Select
+                  label="Container yard (CY)"
+                  value={depotId}
+                  onChange={(e) => setDepotId(e.target.value as number)}
+                >
+                  {approvalAllocations?.allocations.length
+                    ? approvalAllocations.allocations.map((row) => {
+                        const isRecommended =
+                          recommendedDepotIds.length > 0 && row.depotId === recommendedDepotIds[0]
+                        const label = formatCySizeOptionLabel(
+                          row.depotName,
+                          row,
+                          approvalAllocations.containerSize,
+                          row.hasCapacity,
+                        )
+                        return (
+                          <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
+                            {isRecommended ? `${label} · Recommended` : label}
+                          </MenuItem>
+                        )
+                      })
+                    : depots.map((d) => (
+                        <MenuItem key={d.id} value={d.id}>
+                          {d.name} — {d.address}
+                        </MenuItem>
+                      ))}
+                </Select>
+                <FormHelperText>
+                  {approvalAllocations && item ? (
+                    <>
+                      Yards ordered by shipping line fill priority.{' '}
+                      <Link
+                        component={RouterLink}
+                        to={`/evaluations/cy-allocation?preAdviceId=${item.id}`}
+                        underline="hover"
+                      >
+                        View allocation
+                      </Link>
+                      {item.croEdoContext?.returnEmptyToName ? '. ' : ''}
+                    </>
+                  ) : null}
+                  {item?.croEdoContext?.returnEmptyToName
+                    ? `Prefer CY matching CRO return: ${item.croEdoContext.returnEmptyToName}.`
+                    : null}
+                </FormHelperText>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Remarks (optional)"
+                multiline
+                minRows={2}
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                sx={fieldSx}
+              />
+            </Stack>
+          </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setApproveOpen(false)} disabled={submitting}>

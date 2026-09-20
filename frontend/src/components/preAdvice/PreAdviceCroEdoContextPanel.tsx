@@ -23,6 +23,8 @@ type PreAdviceCroEdoContextPanelProps = {
   item: PreAdvice
   documents: PreAdviceDocument[]
   compact?: boolean
+  /** One-line strip for approve dialog — document link + key CRO fields only */
+  dialog?: boolean
 }
 
 function linkTypeLabel(linkType: string): string {
@@ -33,6 +35,7 @@ export default function PreAdviceCroEdoContextPanel({
   item,
   documents,
   compact = false,
+  dialog = false,
 }: PreAdviceCroEdoContextPanelProps) {
   const ctx = item.croEdoContext
   const croDocuments = documents.filter((doc) => doc.category === 'CroEdo')
@@ -41,6 +44,7 @@ export default function PreAdviceCroEdoContextPanel({
 
   const freeTime = ctx?.demurrageValidUntil ?? item.demurrageValidUntil
   const reference = ctx?.referenceNo ?? item.croEdoReferenceNo
+  const returnCy = ctx?.returnEmptyToName
 
   const handleDownloadGeneratedPdf = async () => {
     if (!ctx?.containerReleaseOrderId) return
@@ -51,6 +55,60 @@ export default function PreAdviceCroEdoContextPanel({
     anchor.download = `${reference ?? 'CRO-eDO'}.pdf`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  if (dialog) {
+    const metaParts: string[] = []
+    if (returnCy) metaParts.push(`Return CY: ${returnCy}`)
+    if (freeTime) {
+      const expired = isCroFreeTimeExpired(freeTime)
+      metaParts.push(`Free until ${formatDate(freeTime)}${expired ? ' (expired)' : ''}`)
+    }
+    if (reference) metaParts.push(reference)
+
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, rowGap: 0.5 }}>
+        {ctx?.linkType && (
+          <Chip
+            size="small"
+            label={linkTypeLabel(ctx.linkType)}
+            color={ctx.linkType === 'IcsVerified' ? 'success' : 'default'}
+            sx={{ fontWeight: 700, height: 22 }}
+          />
+        )}
+        {metaParts.length > 0 && (
+          <Typography variant="caption" color="text.secondary" sx={{ flex: '1 1 12rem', minWidth: 0 }}>
+            {metaParts.join(' · ')}
+          </Typography>
+        )}
+        {ctx?.containerReleaseOrderId && (
+          <Button
+            component={RouterLink}
+            to={`/evaluations/cro-edo/${ctx.containerReleaseOrderId}`}
+            size="small"
+            variant="text"
+            sx={{ fontWeight: 600, minWidth: 0, px: 0.5 }}
+          >
+            Open CRO/eDO
+          </Button>
+        )}
+        {croDocuments.map((doc) => (
+          <Button
+            key={doc.id}
+            component="a"
+            href={doc.filePath}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="small"
+            variant="outlined"
+            startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+            sx={{ fontWeight: 600, borderRadius: 1.5, maxWidth: '100%' }}
+          >
+            {doc.fileName ? (doc.fileName.length > 28 ? `${doc.fileName.slice(0, 25)}…` : doc.fileName) : 'CRO/eDO file'}
+          </Button>
+        ))}
+      </Box>
+    )
   }
 
   return (
