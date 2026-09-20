@@ -67,8 +67,10 @@ public class SlotCapacityService : ISlotCapacityService
         var containersPerHour = Math.Max(1, depot.ContainersPerHour);
         var dailyLimit = GetDailyLimit(depot.Capacity);
 
-        var hourlyBooked = await GetHourlyActiveSchedulesQuery(depotId, date, excludeScheduleId)
-            .ToListAsync(cancellationToken);
+        var hourlyBooked = (await GetHourlyActiveSchedulesQuery(depotId, date, excludeScheduleId)
+                .ToListAsync(cancellationToken))
+            .Where(s => !ScheduleAppointmentRules.IsLegacyDateOnly(s.Time))
+            .ToList();
 
         var dailyBooked = await GetActiveSchedulesQuery(depotId, date, excludeScheduleId)
             .CountAsync(cancellationToken);
@@ -137,8 +139,11 @@ public class SlotCapacityService : ISlotCapacityService
         await ValidateAssignmentAsync(depotId, date, 0, excludeScheduleId, cancellationToken);
 
         var containersPerHour = Math.Max(1, depot.ContainersPerHour);
-        var bookedInHour = await GetHourlyActiveSchedulesQuery(depotId, date, excludeScheduleId)
-            .CountAsync(s => s.Time.Hour == time.Hour, cancellationToken);
+        var hourlyOnDate = (await GetHourlyActiveSchedulesQuery(depotId, date, excludeScheduleId)
+                .ToListAsync(cancellationToken))
+            .Where(s => !ScheduleAppointmentRules.IsLegacyDateOnly(s.Time))
+            .ToList();
+        var bookedInHour = hourlyOnDate.Count(s => s.Time.Hour == time.Hour);
 
         if (bookedInHour >= containersPerHour)
         {
@@ -179,7 +184,6 @@ public class SlotCapacityService : ISlotCapacityService
                 s.DepotId == depotId &&
                 s.Date == date &&
                 s.SlotNo == 0 &&
-                !ScheduleAppointmentRules.IsLegacyDateOnly(s.Time) &&
                 (s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Confirmed));
 
         if (excludeScheduleId.HasValue)
