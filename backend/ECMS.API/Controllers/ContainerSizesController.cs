@@ -22,7 +22,7 @@ public class ContainerSizesController : ControllerBase
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
-    [Authorize(Roles = RoleNames.Administrator + "," + RoleNames.ShippingLineEvaluator)]
+    [Authorize(Roles = $"{RoleNames.Administrator},{RoleNames.ShippingLineEvaluator},{RoleNames.DepotPersonnel}")]
     public async Task<ActionResult<IReadOnlyList<ContainerSizeDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _service.GetAllAsync(cancellationToken));
 
