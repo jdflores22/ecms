@@ -18,6 +18,11 @@ import { getAllocationSizeLabel } from '../../utils/cyAllocation'
 
 const primaryDark = ICS_PRIMARY
 
+interface ContainerInventorySummaryTableProps {
+  rows: InventorySummaryRow[]
+  firstColumnLabel?: string
+}
+
 const SUMMARY_TAIL_HEADERS = [
   'Pre-advised',
   'Manual',
@@ -93,7 +98,10 @@ function SummaryMobileCard({ row, isTotal }: { row: InventorySummaryRow; isTotal
   )
 }
 
-export default function ContainerInventorySummaryTable({ rows }: { rows: InventorySummaryRow[] }) {
+export default function ContainerInventorySummaryTable({
+  rows,
+  firstColumnLabel = 'Container yard',
+}: ContainerInventorySummaryTableProps) {
   const totals = sumInventorySummaryRows(rows)
 
   if (rows.length === 0) {
@@ -123,7 +131,7 @@ export default function ContainerInventorySummaryTable({ rows }: { rows: Invento
                   '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
                 }}
               >
-                <TableCell>Container yard</TableCell>
+                <TableCell>{firstColumnLabel}</TableCell>
                 <TableCell align="center">{getAllocationSizeLabel('20')}</TableCell>
                 <TableCell align="center">{getAllocationSizeLabel('40')}</TableCell>
                 {ECMS_INVENTORY_TYPE_CODES.map((code) => (

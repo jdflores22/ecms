@@ -86,6 +86,8 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     actions: [
       { label: 'Daily returns', path: '/depot/daily-returns', icon: CalendarViewDayIcon },
       { label: 'Manage schedules', path: '/depot/schedules', icon: CalendarMonthIcon },
+      { label: 'CY allocation', path: '/depot/cy-allocation', icon: WarehouseIcon },
+      { label: 'CY inventory', path: '/depot/container-inventory', icon: WarehouseIcon },
     ],
   },
   Trucker: {

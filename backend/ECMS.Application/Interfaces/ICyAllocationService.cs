@@ -10,6 +10,12 @@ public interface ICyAllocationService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<CyAllocationDto>> GetAllocationsByDepotAsync(
+        int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
     Task<CyAllocationForApprovalDto?> GetForApprovalAsync(
         int preAdviceId,
         int userId,

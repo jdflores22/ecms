@@ -28,6 +28,16 @@ public class CyAllocationService : ICyAllocationService
         return await BuildAllocationsAsync(lineId, null, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CyAllocationDto>> GetAllocationsByDepotAsync(
+        int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var resolvedDepotId = await ResolveDepotIdAsync(depotId, userId, role, cancellationToken);
+        return await BuildAllocationsForDepotAsync(resolvedDepotId, null, cancellationToken);
+    }
+
     public async Task<CyAllocationForApprovalDto?> GetForApprovalAsync(
         int preAdviceId,
         int userId,
@@ -235,6 +245,94 @@ public class CyAllocationService : ICyAllocationService
         throw new UnauthorizedAccessException("Not allowed.");
     }
 
+    private async Task<int> ResolveDepotIdAsync(
+        int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue)
+                throw new InvalidOperationException("Depot user is not assigned to a container yard.");
+
+            return user.DepotId.Value;
+        }
+
+        if (role == RoleNames.Administrator)
+        {
+            if (!depotId.HasValue)
+                throw new InvalidOperationException("Depot is required.");
+            return depotId.Value;
+        }
+
+        throw new UnauthorizedAccessException("Not allowed.");
+    }
+
+    private async Task<IReadOnlyList<CyAllocationDto>> BuildAllocationsForDepotAsync(
+        int depotId,
+        string? requestedSizeKey,
+        CancellationToken cancellationToken)
+    {
+        var contracts = await _db.ShippingLineDepotContracts
+            .Include(c => c.ShippingLine)
+            .Include(c => c.Depot)
+            .Include(c => c.SizeAllocations)
+            .ThenInclude(s => s.ContainerSize)
+            .Where(c => c.DepotId == depotId && c.IsActive && c.Depot.IsActive)
+            .OrderBy(c => c.ShippingLine.Name)
+            .ToListAsync(cancellationToken);
+
+        if (contracts.Count == 0)
+            return Array.Empty<CyAllocationDto>();
+
+        var results = new List<CyAllocationDto>(contracts.Count);
+        foreach (var contract in contracts)
+        {
+            results.Add(await BuildDtoForSingleContractAsync(contract, requestedSizeKey, cancellationToken));
+        }
+
+        return results;
+    }
+
+    private async Task<CyAllocationDto> BuildDtoForSingleContractAsync(
+        ShippingLineDepotContract contract,
+        string? requestedSizeKey,
+        CancellationToken cancellationToken)
+    {
+        var depotIds = new List<int> { contract.DepotId };
+        var shippingLineId = contract.ShippingLineId;
+        var teuByLabel = await GetTeuByLabelAsync(cancellationToken);
+        var catalogSizes = await GetActiveSizesAsync(cancellationToken);
+        var catalogTypes = await GetActiveTypesAsync(cancellationToken);
+        var releasedDetails = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(_db, shippingLineId, cancellationToken);
+        var workflowAtYardByDepot = await GetWorkflowAtYardUsageByDepotAsync(
+            shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
+        var manualByDepot = await GetManualYardUsageByDepotAsync(
+            shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
+        var (confirmedByDepot, preForecastByDepot) = await GetPipelineUsageByDepotAsync(
+            shippingLineId, depotIds, teuByLabel, releasedDetails, cancellationToken);
+        var bookingByDepot = await GetBookingUsageByDepotAsync(shippingLineId, depotIds, teuByLabel, cancellationToken);
+
+        var atYardUsage = MergeDepotUsage(
+            workflowAtYardByDepot.GetValueOrDefault(contract.DepotId),
+            manualByDepot.GetValueOrDefault(contract.DepotId));
+        var confirmedUsage = confirmedByDepot.GetValueOrDefault(contract.DepotId);
+        var preForecastUsage = preForecastByDepot.GetValueOrDefault(contract.DepotId);
+        var booking = bookingByDepot.GetValueOrDefault(contract.DepotId);
+
+        return MapContractToDto(
+            contract,
+            atYardUsage,
+            confirmedUsage,
+            preForecastUsage,
+            booking,
+            catalogSizes,
+            catalogTypes,
+            requestedSizeKey);
+    }
+
     private async Task<IReadOnlyList<CyAllocationDto>> BuildAllocationsAsync(
         int shippingLineId,
         string? requestedSizeKey,
@@ -272,66 +370,88 @@ public class CyAllocationService : ICyAllocationService
                 manualByDepot.GetValueOrDefault(contract.DepotId));
             var confirmedUsage = confirmedByDepot.GetValueOrDefault(contract.DepotId);
             var preForecastUsage = preForecastByDepot.GetValueOrDefault(contract.DepotId);
-            var committedUsage = MergeDepotUsage(
-                MergeDepotUsage(atYardUsage, confirmedUsage),
-                preForecastUsage);
             var booking = bookingByDepot.GetValueOrDefault(contract.DepotId);
-            var breakdown = BuildBreakdown(
+
+            return MapContractToDto(
                 contract,
                 atYardUsage,
                 confirmedUsage,
                 preForecastUsage,
                 booking,
                 catalogSizes,
-                catalogTypes);
-
-            var atYardTeu = atYardUsage?.UsedTeu ?? 0m;
-            var confirmedTeu = confirmedUsage?.UsedTeu ?? 0m;
-            var preForecastTeu = preForecastUsage?.UsedTeu ?? 0m;
-            var preAdvisedTeu = committedUsage?.UsedTeu ?? 0m;
-            var bookingTeu = booking?.UsedTeu ?? 0m;
-            var atYardCount = atYardUsage?.Count ?? 0;
-            var confirmedCount = confirmedUsage?.Count ?? 0;
-            var preForecastCount = preForecastUsage?.Count ?? 0;
-            var preAdvisedCount = committedUsage?.Count ?? 0;
-            var bookingCount = booking?.Count ?? 0;
-            var contractTeu = contract.ContractTeu;
-            var availableTeu = Math.Max(0m, contractTeu - preAdvisedTeu);
-            var contractCount = breakdown.Sum(r => r.ContractCount);
-            var availableCount = breakdown.Sum(r => r.AvailableCount);
-            var preAdvisedSlotCount = breakdown.Sum(r => r.PreAdvisedCount);
-
-            var hasCapacity = requestedSizeKey is null
-                ? breakdown.Any(row => row.AvailableCount > 0)
-                : breakdown.Any(row =>
-                    CyCapacityGroups.GetGroupKey(row.SizeLabel) == CyCapacityGroups.GetGroupKey(requestedSizeKey)
-                    && row.AvailableCount > 0);
-
-            return new CyAllocationDto(
-                contract.Id,
-                contract.DepotId,
-                contract.Depot.Name,
-                contract.Depot.Address,
-                contract.ShippingLineId,
-                contract.ShippingLine.Code,
-                contract.ShippingLine.Name,
-                contractTeu,
-                contractCount,
-                atYardTeu,
-                confirmedTeu,
-                preForecastTeu,
-                preAdvisedTeu,
-                bookingTeu,
-                availableTeu,
-                availableCount,
-                atYardCount,
-                confirmedCount,
-                preForecastCount,
-                preAdvisedSlotCount,
-                bookingCount,
-                hasCapacity,
-                breakdown);
+                catalogTypes,
+                requestedSizeKey);
         }).ToList();
+    }
+
+    private static CyAllocationDto MapContractToDto(
+        ShippingLineDepotContract contract,
+        DepotUsage? atYardUsage,
+        DepotUsage? confirmedUsage,
+        DepotUsage? preForecastUsage,
+        DepotUsage? booking,
+        IReadOnlyList<ContainerSize> catalogSizes,
+        IReadOnlyList<ContainerType> catalogTypes,
+        string? requestedSizeKey)
+    {
+        var committedUsage = MergeDepotUsage(
+            MergeDepotUsage(atYardUsage, confirmedUsage),
+            preForecastUsage);
+        var breakdown = BuildBreakdown(
+            contract,
+            atYardUsage,
+            confirmedUsage,
+            preForecastUsage,
+            booking,
+            catalogSizes,
+            catalogTypes);
+
+        var atYardTeu = atYardUsage?.UsedTeu ?? 0m;
+        var confirmedTeu = confirmedUsage?.UsedTeu ?? 0m;
+        var preForecastTeu = preForecastUsage?.UsedTeu ?? 0m;
+        var preAdvisedTeu = committedUsage?.UsedTeu ?? 0m;
+        var bookingTeu = booking?.UsedTeu ?? 0m;
+        var atYardCount = atYardUsage?.Count ?? 0;
+        var confirmedCount = confirmedUsage?.Count ?? 0;
+        var preForecastCount = preForecastUsage?.Count ?? 0;
+        var preAdvisedCount = committedUsage?.Count ?? 0;
+        var bookingCount = booking?.Count ?? 0;
+        var contractTeu = contract.ContractTeu;
+        var availableTeu = Math.Max(0m, contractTeu - preAdvisedTeu);
+        var contractCount = breakdown.Sum(r => r.ContractCount);
+        var availableCount = breakdown.Sum(r => r.AvailableCount);
+        var preAdvisedSlotCount = breakdown.Sum(r => r.PreAdvisedCount);
+
+        var hasCapacity = requestedSizeKey is null
+            ? breakdown.Any(row => row.AvailableCount > 0)
+            : breakdown.Any(row =>
+                CyCapacityGroups.GetGroupKey(row.SizeLabel) == CyCapacityGroups.GetGroupKey(requestedSizeKey)
+                && row.AvailableCount > 0);
+
+        return new CyAllocationDto(
+            contract.Id,
+            contract.DepotId,
+            contract.Depot.Name,
+            contract.Depot.Address,
+            contract.ShippingLineId,
+            contract.ShippingLine.Code,
+            contract.ShippingLine.Name,
+            contractTeu,
+            contractCount,
+            atYardTeu,
+            confirmedTeu,
+            preForecastTeu,
+            preAdvisedTeu,
+            bookingTeu,
+            availableTeu,
+            availableCount,
+            atYardCount,
+            confirmedCount,
+            preForecastCount,
+            preAdvisedSlotCount,
+            bookingCount,
+            hasCapacity,
+            breakdown);
     }
 
     private async Task<IReadOnlyList<ContainerSize>> GetActiveSizesAsync(CancellationToken cancellationToken)

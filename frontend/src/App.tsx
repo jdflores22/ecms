@@ -34,6 +34,8 @@ import {
   DashboardPage,
   DemurrageBillingDetailPage,
   DepotSchedulesPage,
+  DepotCyAllocationPage,
+  DepotContainerInventoryPage,
   DepotBroadcastPage,
   DepotWithdrawalDetailPage,
   DepotWithdrawalsPage,
@@ -376,6 +378,22 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <DepotSchedulesPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/cy-allocation"
+          element={
+            <RoleRouteGuard>
+              <DepotCyAllocationPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/container-inventory"
+          element={
+            <RoleRouteGuard>
+              <DepotContainerInventoryPage />
             </RoleRouteGuard>
           }
         />

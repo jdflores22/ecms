@@ -4,6 +4,34 @@ public record ContainerInventoryResponseDto(
     ContainerInventorySummaryDto Summary,
     IReadOnlyList<ContainerInventoryItemDto> Items);
 
+public record DepotContainerInventoryResponseDto(
+    DepotContainerInventorySummaryDto Summary,
+    IReadOnlyList<ContainerInventoryItemDto> Items);
+
+public record DepotContainerInventorySummaryDto(
+    int DepotId,
+    string DepotName,
+    int TotalAtYard,
+    int ReleasedCount,
+    int WithinLimitCount,
+    int ApproachingLimitCount,
+    int OverstayCount,
+    int DwellLimitDays,
+    int WarningThresholdDays,
+    int Size20Count,
+    int Size40Count,
+    decimal UsedTeu,
+    decimal ContractTeu,
+    IReadOnlyList<ContainerInventoryShippingLineSummaryDto> ByShippingLine);
+
+public record ContainerInventoryShippingLineSummaryDto(
+    int ShippingLineId,
+    string ShippingLineCode,
+    string ShippingLineName,
+    int AtYardCount,
+    int ReleasedCount,
+    int OverstayCount);
+
 public record ContainerInventorySummaryDto(
     int ShippingLineId,
     string ShippingLineCode,
@@ -37,6 +65,7 @@ public record ContainerInventoryItemDto(
     string ContainerNo,
     string ContainerSize,
     string ContainerType,
+    int ShippingLineId,
     string ShippingLineCode,
     string ShippingLineName,
     string? TruckerName,

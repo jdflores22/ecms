@@ -1,4 +1,5 @@
 import { Box, Chip, LinearProgress, Paper, Typography } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
 import type { CyAllocation } from '../../services/api'
@@ -22,6 +23,8 @@ interface CyYardAllocationCardProps {
   allocation: CyAllocation
   shippingLineCode: string
   shippingLineName: string
+  /** Shipping-line page: one card per CY. Depot page: one card per line contracted at this CY. */
+  perspective?: 'byYard' | 'byShippingLine'
 }
 
 const primaryDark = ICS_PRIMARY
@@ -108,7 +111,18 @@ export default function CyYardAllocationCard({
   allocation,
   shippingLineCode,
   shippingLineName,
+  perspective = 'byYard',
 }: CyYardAllocationCardProps) {
+  const headerMonogram =
+    perspective === 'byShippingLine'
+      ? (shippingLineCode || allocation.shippingLineCode || '—').slice(0, 4).toUpperCase()
+      : depotMonogram(allocation.depotName)
+  const headerTitle =
+    perspective === 'byShippingLine' ? shippingLineName || allocation.shippingLineName : allocation.depotName
+  const headerCaption =
+    perspective === 'byShippingLine'
+      ? allocation.depotName
+      : `${shippingLineCode || allocation.shippingLineCode} · ${shippingLineName || allocation.shippingLineName}`
   const row20 = getGroupBreakdownRow(allocation, '20')
   const row40 = getGroupBreakdownRow(allocation, '40')
   const teuAtYard = Math.round(allocation.atYardTeu)
@@ -150,13 +164,13 @@ export default function CyYardAllocationCard({
       >
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.1 }}>
-            {depotMonogram(allocation.depotName)}
+            {headerMonogram}
           </Typography>
           <Typography sx={{ mt: 0.5, color: 'text.secondary', fontWeight: 500 }}>
-            {allocation.depotName}
+            {headerTitle}
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary', fontWeight: 600 }}>
-            {shippingLineCode} · {shippingLineName}
+            {headerCaption}
           </Typography>
         </Box>
         <Box
@@ -271,13 +285,35 @@ export default function CyYardAllocationCard({
         )}
       </Box>
 
-      <Box sx={{ px: 2.5, py: 1.25, borderTop: '1px solid', borderColor: '#EEF1F4' }}>
+      <Box
+        sx={{
+          px: 2.5,
+          py: 1.25,
+          borderTop: '1px solid',
+          borderColor: '#EEF1F4',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+          flexWrap: 'wrap',
+        }}
+      >
         <Chip
           size="small"
           label={allocation.hasCapacity ? 'Space available' : 'At or over contract limit'}
           color={allocation.hasCapacity ? 'success' : 'error'}
           sx={{ fontWeight: 700 }}
         />
+        {perspective === 'byShippingLine' && allocation.shippingLineId > 0 && (
+          <Typography
+            component={RouterLink}
+            to={`/depot/container-inventory?shippingLineId=${allocation.shippingLineId}`}
+            variant="caption"
+            sx={{ fontWeight: 700, color: primaryDark, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+          >
+            View inventory
+          </Typography>
+        )}
       </Box>
     </Paper>
   )

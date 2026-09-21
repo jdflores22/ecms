@@ -28,6 +28,8 @@ export type AppPageKey =
   | 'evaluatorCro'
   | 'depotWithdrawals'
   | 'depotBroadcasts'
+  | 'depotCyAllocation'
+  | 'depotContainerInventory'
   | 'truckerQr'
   | 'truckerQrPrint'
   | 'truckerNotifications'
@@ -186,6 +188,22 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/depot/schedules',
     group: 'Depot',
     description: 'Assign return date, slot, and trucker',
+    showInNav: true,
+  },
+  depotCyAllocation: {
+    key: 'depotCyAllocation',
+    label: 'CY allocation',
+    path: '/depot/cy-allocation',
+    group: 'Depot',
+    description: 'Contracted shipping lines at your yard — TEU capacity and on-site inventory by line',
+    showInNav: true,
+  },
+  depotContainerInventory: {
+    key: 'depotContainerInventory',
+    label: 'CY inventory',
+    path: '/depot/container-inventory',
+    group: 'Depot',
+    description: 'Containers at your yard grouped by contracted shipping line (dwell, released ATW)',
     showInNav: true,
   },
   adminPayments: {
@@ -367,6 +385,8 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'evaluations',
   'cyAllocation',
   'containerInventory',
+  'depotCyAllocation',
+  'depotContainerInventory',
   'adminReports',
   'adminPayments',
   'adminUsers',
@@ -400,6 +420,8 @@ export const ROLE_PAGE_ACCESS: Record<UserRole, AppPageKey[]> = {
     'depotDailyReturns',
     'depotGateScan',
     'depotSchedules',
+    'depotCyAllocation',
+    'depotContainerInventory',
     'depotWithdrawals',
     'depotBroadcasts',
     'depotReports',
@@ -451,6 +473,8 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'depotDailyReturns',
   'depotGateScan',
   'depotSchedules',
+  'depotCyAllocation',
+  'depotContainerInventory',
   'depotWithdrawals',
   'adminReports',
   'adminRevenue',
@@ -646,6 +670,8 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'depotDailyReturns',
   'depotGateScan',
   'depotSchedules',
+  'depotCyAllocation',
+  'depotContainerInventory',
   'depotWithdrawals',
   'depotBroadcasts',
   'truckerReturns',

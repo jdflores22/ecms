@@ -1,6 +1,7 @@
 import type { ContainerInventoryItem } from '../services/api'
 import { getAllocationSizeLabel, getCapacityGroupKey, normalizeSizeKey } from './cyAllocation'
 import { todayIsoDate } from './datetime'
+import { getShippingLineDisplayCode, getShippingLineFullName } from './shippingLine'
 
 /** ECMS container type codes from master data (GP, HC, RF, OT). */
 export const ECMS_INVENTORY_TYPE_CODES = ['GP', 'HC', 'RF', 'OT'] as const
@@ -112,6 +113,16 @@ export function buildInventorySummaryRows(items: ContainerInventoryItem[]): Inve
   }
 
   return [...grouped.values()].sort((a, b) => a.depotName.localeCompare(b.depotName))
+}
+
+/** Depot portal: group summary rows by contracted shipping line at the yard. */
+export function buildInventorySummaryRowsByShippingLine(items: ContainerInventoryItem[]): InventorySummaryRow[] {
+  const remapped = items.map((item) => ({
+    ...item,
+    depotId: item.shippingLineId,
+    depotName: `${getShippingLineDisplayCode(item.shippingLineCode, item.shippingLineName)} — ${getShippingLineFullName(item.shippingLineCode, item.shippingLineName)}`,
+  }))
+  return buildInventorySummaryRows(remapped)
 }
 
 export function sumInventorySummaryRows(rows: InventorySummaryRow[]): InventorySummaryRow {

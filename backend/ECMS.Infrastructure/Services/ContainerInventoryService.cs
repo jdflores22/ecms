@@ -86,6 +86,96 @@ public class ContainerInventoryService : IContainerInventoryService
         return new ContainerInventoryResponseDto(summary, items);
     }
 
+    public async Task<DepotContainerInventoryResponseDto> GetInventoryByDepotAsync(
+        int userId,
+        string role,
+        int? depotId,
+        int? shippingLineId,
+        string? complianceStatus,
+        string? yardStatus,
+        CancellationToken cancellationToken = default)
+    {
+        var resolvedDepotId = await ResolveDepotIdAsync(depotId, userId, role, cancellationToken);
+
+        var contractedLines = await _db.ShippingLineDepotContracts
+            .AsNoTracking()
+            .Where(c => c.DepotId == resolvedDepotId && c.IsActive && c.Depot.IsActive)
+            .Select(c => new { c.ShippingLineId, c.ShippingLine.Code, c.ShippingLine.Name })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var lineIds = contractedLines.Select(c => c.ShippingLineId).ToList();
+        if (lineIds.Count == 0)
+        {
+            var depotName = await _db.Depots
+                .Where(d => d.Id == resolvedDepotId)
+                .Select(d => d.Name)
+                .FirstAsync(cancellationToken);
+            var emptySummary = BuildDepotSummary(Array.Empty<ContainerInventoryItemDto>(), 0, resolvedDepotId, depotName);
+            return new DepotContainerInventoryResponseDto(emptySummary, Array.Empty<ContainerInventoryItemDto>());
+        }
+
+        if (shippingLineId.HasValue)
+        {
+            if (!lineIds.Contains(shippingLineId.Value))
+                throw new InvalidOperationException("This shipping line has no active contract at your container yard.");
+            lineIds = new List<int> { shippingLineId.Value };
+        }
+
+        var releasedDetails = await GetReleasedDetailsForLinesAsync(lineIds, cancellationToken);
+
+        var schedules = await _db.Schedules
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.Container)
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.ShippingLine)
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.Trucker)
+            .Include(s => s.Depot)
+            .Include(s => s.Payment)
+            .Include(s => s.QRBooking)
+            .Where(s => s.Status == ScheduleStatus.Completed)
+            .Where(s => s.QRBooking != null && s.QRBooking.GateCheckedInAt != null)
+            .Where(s => s.PreAdvice.Status == PreAdviceStatus.Approved)
+            .Where(s => s.DepotId == resolvedDepotId)
+            .Where(s => lineIds.Contains(s.PreAdvice.ShippingLineId))
+            .ToListAsync(cancellationToken);
+
+        var manualEntries = await _db.ManualYardInventoryEntries
+            .Include(e => e.ContainerSize)
+            .Include(e => e.ContainerType)
+            .Include(e => e.Depot)
+            .Include(e => e.ShippingLine)
+            .Where(e => e.DepotId == resolvedDepotId)
+            .Where(e => lineIds.Contains(e.ShippingLineId))
+            .ToListAsync(cancellationToken);
+
+        var items = schedules
+            .Select(s => MapScheduleItem(s, releasedDetails))
+            .Concat(manualEntries.Select(e => MapManualItem(e, releasedDetails)))
+            .Where(i => MatchesComplianceFilter(i.ComplianceStatus, complianceStatus))
+            .Where(i => MatchesYardStatusFilter(i.YardStatus, yardStatus))
+            .OrderByDescending(i => i.YardStatus == nameof(YardInventoryStatus.AtYard))
+            .ThenBy(i => i.ShippingLineName)
+            .ThenByDescending(i => i.YardInDate)
+            .ToList();
+
+        var depot = await _db.Depots
+            .AsNoTracking()
+            .Where(d => d.Id == resolvedDepotId)
+            .Select(d => new { d.Id, d.Name })
+            .FirstAsync(cancellationToken);
+
+        var contractTeu = await _db.ShippingLineDepotContracts
+            .Where(c => c.DepotId == resolvedDepotId && c.IsActive && c.Depot.IsActive)
+            .Where(c => !shippingLineId.HasValue || c.ShippingLineId == shippingLineId.Value)
+            .SumAsync(c => c.ContractTeu, cancellationToken);
+
+        var summary = BuildDepotSummary(items, contractTeu, depot.Id, depot.Name);
+
+        return new DepotContainerInventoryResponseDto(summary, items);
+    }
+
     public async Task<ManualYardInventoryEntryDto> CreateManualEntryAsync(
         CreateManualYardInventoryRequest request,
         int userId,
@@ -93,6 +183,7 @@ public class ContainerInventoryService : IContainerInventoryService
         CancellationToken cancellationToken = default)
     {
         var lineId = await ResolveShippingLineIdAsync(request.ShippingLineId, userId, role, cancellationToken);
+        await EnsureDepotPersonnelDepotAsync(request.DepotId, userId, role, cancellationToken);
         var entry = await CreateManualEntryCoreAsync(request, lineId, userId, cancellationToken);
         await _auditService.LogAsync(userId, "Create", "ManualYardInventory", entry.ContainerNo, cancellationToken);
         return MapManualEntryDto(entry);
@@ -114,6 +205,7 @@ public class ContainerInventoryService : IContainerInventoryService
             try
             {
                 var lineId = await ResolveShippingLineIdAsync(item.ShippingLineId, userId, role, cancellationToken);
+                await EnsureDepotPersonnelDepotAsync(item.DepotId, userId, role, cancellationToken);
                 await CreateManualEntryCoreAsync(item, lineId, userId, cancellationToken);
                 successCount++;
             }
@@ -148,6 +240,12 @@ public class ContainerInventoryService : IContainerInventoryService
         {
             var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
             if (!user.ShippingLineId.HasValue || entry.ShippingLineId != user.ShippingLineId.Value)
+                throw new InvalidOperationException("You cannot remove this inventory entry.");
+        }
+        else if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue || entry.DepotId != user.DepotId.Value)
                 throw new InvalidOperationException("You cannot remove this inventory entry.");
         }
 
@@ -321,6 +419,7 @@ public class ContainerInventoryService : IContainerInventoryService
             schedule.PreAdvice.Container.ContainerNo,
             schedule.PreAdvice.Container.Size,
             schedule.PreAdvice.Container.Type,
+            schedule.PreAdvice.ShippingLineId,
             schedule.PreAdvice.ShippingLine.Code,
             schedule.PreAdvice.ShippingLine.Name,
             schedule.PreAdvice.Trucker.FullName,
@@ -364,6 +463,7 @@ public class ContainerInventoryService : IContainerInventoryService
             entry.ContainerNo,
             entry.ContainerSize.Label,
             entry.ContainerType.Code,
+            entry.ShippingLineId,
             entry.ShippingLine.Code,
             entry.ShippingLine.Name,
             null,
@@ -497,6 +597,64 @@ public class ContainerInventoryService : IContainerInventoryService
             byDepot);
     }
 
+    private static DepotContainerInventorySummaryDto BuildDepotSummary(
+        IReadOnlyList<ContainerInventoryItemDto> items,
+        decimal contractTeu,
+        int depotId,
+        string depotName)
+    {
+        var atYardItems = items.Where(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)).ToList();
+
+        var byShippingLine = items
+            .GroupBy(i => new { i.ShippingLineId, i.ShippingLineCode, i.ShippingLineName })
+            .Select(g => new ContainerInventoryShippingLineSummaryDto(
+                g.Key.ShippingLineId,
+                g.Key.ShippingLineCode,
+                g.Key.ShippingLineName,
+                g.Count(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)),
+                g.Count(i => i.YardStatus == nameof(YardInventoryStatus.Released)),
+                g.Count(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)
+                    && i.ComplianceStatus == "Overstay")))
+            .Where(d => d.AtYardCount > 0 || d.ReleasedCount > 0)
+            .OrderBy(d => d.ShippingLineName)
+            .ToList();
+
+        var size20Count = atYardItems.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "20");
+        var size40Count = atYardItems.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "40");
+        var usedTeu = atYardItems.Sum(i => TeuCalculator.FromContainerSize(i.ContainerSize));
+
+        return new DepotContainerInventorySummaryDto(
+            depotId,
+            depotName,
+            atYardItems.Count,
+            items.Count(i => i.YardStatus == nameof(YardInventoryStatus.Released)),
+            atYardItems.Count(i => i.ComplianceStatus == "WithinLimit"),
+            atYardItems.Count(i => i.ComplianceStatus == "ApproachingLimit"),
+            atYardItems.Count(i => i.ComplianceStatus == "Overstay"),
+            DwellLimitDays,
+            WarningThresholdDays,
+            size20Count,
+            size40Count,
+            usedTeu,
+            contractTeu,
+            byShippingLine);
+    }
+
+    private async Task<Dictionary<string, ReleasedYardDetail>> GetReleasedDetailsForLinesAsync(
+        IReadOnlyList<int> shippingLineIds,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, ReleasedYardDetail>(StringComparer.OrdinalIgnoreCase);
+        foreach (var lineId in shippingLineIds)
+        {
+            var details = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(_db, lineId, cancellationToken);
+            foreach (var pair in details)
+                result[pair.Key] = pair.Value;
+        }
+
+        return result;
+    }
+
     private async Task<decimal> GetContractTeuAsync(int shippingLineId, CancellationToken cancellationToken)
         => await _db.ShippingLineDepotContracts
             .Where(c => c.ShippingLineId == shippingLineId && c.IsActive && c.Depot.IsActive)
@@ -519,9 +677,69 @@ public class ContainerInventoryService : IContainerInventoryService
             return user.ShippingLineId.Value;
         }
 
+        if (role == RoleNames.DepotPersonnel)
+        {
+            if (!shippingLineId.HasValue)
+                throw new InvalidOperationException("Shipping line is required.");
+
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue)
+                throw new InvalidOperationException("Depot user is not assigned to a container yard.");
+
+            var hasContract = await _db.ShippingLineDepotContracts.AnyAsync(
+                c => c.ShippingLineId == shippingLineId.Value
+                    && c.DepotId == user.DepotId.Value
+                    && c.IsActive,
+                cancellationToken);
+            if (!hasContract)
+                throw new InvalidOperationException("This shipping line has no active contract at your container yard.");
+
+            return shippingLineId.Value;
+        }
+
         if (!shippingLineId.HasValue)
             throw new InvalidOperationException("Shipping line is required.");
 
         return shippingLineId.Value;
+    }
+
+    private async Task<int> ResolveDepotIdAsync(
+        int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue)
+                throw new InvalidOperationException("Depot user is not assigned to a container yard.");
+
+            return user.DepotId.Value;
+        }
+
+        if (role == RoleNames.Administrator)
+        {
+            if (!depotId.HasValue)
+                throw new InvalidOperationException("Depot is required.");
+
+            return depotId.Value;
+        }
+
+        throw new UnauthorizedAccessException("Not allowed.");
+    }
+
+    private async Task EnsureDepotPersonnelDepotAsync(
+        int depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        if (role != RoleNames.DepotPersonnel)
+            return;
+
+        var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+        if (!user.DepotId.HasValue || user.DepotId.Value != depotId)
+            throw new InvalidOperationException("You can only register inventory at your assigned container yard.");
     }
 }

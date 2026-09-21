@@ -16,10 +16,19 @@ const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 const BULK_TEMPLATE = `containerNo,depot,size,type,yardInDate
 ABCD1234567,Manila CY,20,GP,2026-01-15`
 
+export interface ManualInventoryShippingLineOption {
+  shippingLineId: number
+  shippingLineCode: string
+  shippingLineName: string
+}
+
 interface ManualInventoryAddDialogProps {
   open: boolean
   onClose: () => void
   onSaved: () => void
+  variant?: 'evaluator' | 'depot'
+  fixedDepotId?: number
+  shippingLines?: ManualInventoryShippingLineOption[]
 }
 
 function parseCsvLine(line: string): string[] {
@@ -49,7 +58,15 @@ function parseYardInDate(raw: string): string | null {
   return value
 }
 
-export default function ManualInventoryAddDialog({ open, onClose, onSaved }: ManualInventoryAddDialogProps) {
+export default function ManualInventoryAddDialog({
+  open,
+  onClose,
+  onSaved,
+  variant = 'evaluator',
+  fixedDepotId,
+  shippingLines = [],
+}: ManualInventoryAddDialogProps) {
+  const isDepot = variant === 'depot'
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState(0)
   const [loadingLookups, setLoadingLookups] = useState(false)
@@ -63,6 +80,7 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
   const [types, setTypes] = useState<ContainerTypeMaster[]>([])
 
   const [containerNo, setContainerNo] = useState('')
+  const [shippingLineId, setShippingLineId] = useState<number | ''>('')
   const [depotId, setDepotId] = useState<number | ''>('')
   const [containerSizeId, setContainerSizeId] = useState<number | ''>('')
   const [containerTypeId, setContainerTypeId] = useState<number | ''>('')
@@ -72,6 +90,7 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
 
   const resetForm = useCallback(() => {
     setContainerNo('')
+    setShippingLineId('')
     setDepotId('')
     setContainerSizeId('')
     setContainerTypeId('')
@@ -86,7 +105,10 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
 
   const loadLookups = useCallback(() => {
     setLoadingLookups(true)
-    Promise.all([cyAllocationApi.list(), containerSizeApi.list(), containerTypeApi.list()])
+    const depotPromise = isDepot
+      ? Promise.resolve({ data: [] as CyAllocation[] })
+      : cyAllocationApi.list()
+    Promise.all([depotPromise, containerSizeApi.list(), containerTypeApi.list()])
       .then(([depotRes, sizeRes, typeRes]) => {
         setDepots(depotRes.data)
         setSizes(sizeRes.data.filter((s) => s.isActive))
@@ -94,14 +116,15 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
       })
       .catch(() => setError('Failed to load form options.'))
       .finally(() => setLoadingLookups(false))
-  }, [])
+  }, [isDepot])
 
   useEffect(() => {
     if (open) {
       resetForm()
       loadLookups()
+      if (isDepot && fixedDepotId) setDepotId(fixedDepotId)
     }
-  }, [open, resetForm, loadLookups])
+  }, [open, resetForm, loadLookups, isDepot, fixedDepotId])
 
   const depotByName = useMemo(() => {
     const map = new Map<string, CyAllocation>()
@@ -205,7 +228,14 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
   }
 
   const saveSingle = async () => {
-    if (depotId === '' || containerSizeId === '' || containerTypeId === '' || !containerNo.trim() || !yardInDate) {
+    if (
+      depotId === '' ||
+      containerSizeId === '' ||
+      containerTypeId === '' ||
+      !containerNo.trim() ||
+      !yardInDate ||
+      (isDepot && shippingLineId === '')
+    ) {
       setError('Fill in all required fields.')
       return
     }
@@ -219,6 +249,7 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
         depotId,
         yardInDate,
         remarks: remarks.trim() || undefined,
+        shippingLineId: isDepot && shippingLineId !== '' ? shippingLineId : undefined,
       })
       onSaved()
       onClose()
@@ -284,8 +315,9 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
       <DialogTitle sx={{ fontWeight: 700 }}>Register existing yard containers</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Add containers already at your contracted yards without going through pre-forecast. Details only — no
-          photos or documents required.
+          {isDepot
+            ? 'Register containers already at your yard for a contracted shipping line. Details only — no photos or documents required.'
+            : 'Add containers already at your contracted yards without going through pre-forecast. Details only — no photos or documents required.'}
         </Typography>
 
         {error && (
@@ -300,16 +332,18 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
           </Alert>
         )}
 
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Add one" sx={{ textTransform: 'none', fontWeight: 600 }} />
-          <Tab label="Bulk upload" sx={{ textTransform: 'none', fontWeight: 600 }} />
-        </Tabs>
+        {!isDepot && (
+          <Tabs
+            value={tab}
+            onChange={(_, v) => setTab(v)}
+            sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="Add one" sx={{ textTransform: 'none', fontWeight: 600 }} />
+            <Tab label="Bulk upload" sx={{ textTransform: 'none', fontWeight: 600 }} />
+          </Tabs>
+        )}
 
-        {tab === 0 && (
+        {(isDepot || tab === 0) && (
           <Box sx={{ display: 'grid', gap: 0.5 }}>
             <TextField
               fullWidth
@@ -321,20 +355,38 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
               sx={fieldSx}
               disabled={loadingLookups}
             />
-            <FormControl fullWidth margin="normal" sx={fieldSx} disabled={loadingLookups}>
-              <InputLabel>Container yard</InputLabel>
-              <Select
-                label="Container yard"
-                value={depotId}
-                onChange={(e) => setDepotId(e.target.value as number | '')}
-              >
-                {depots.map((d) => (
-                  <MenuItem key={d.depotId} value={d.depotId}>
-                    {d.depotName}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            {isDepot && (
+              <FormControl fullWidth margin="normal" sx={fieldSx} disabled={loadingLookups || shippingLines.length === 0}>
+                <InputLabel>Shipping line</InputLabel>
+                <Select
+                  label="Shipping line"
+                  value={shippingLineId}
+                  onChange={(e) => setShippingLineId(e.target.value as number | '')}
+                >
+                  {shippingLines.map((l) => (
+                    <MenuItem key={l.shippingLineId} value={l.shippingLineId}>
+                      {l.shippingLineCode} — {l.shippingLineName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            {!isDepot && (
+              <FormControl fullWidth margin="normal" sx={fieldSx} disabled={loadingLookups}>
+                <InputLabel>Container yard</InputLabel>
+                <Select
+                  label="Container yard"
+                  value={depotId}
+                  onChange={(e) => setDepotId(e.target.value as number | '')}
+                >
+                  {depots.map((d) => (
+                    <MenuItem key={d.depotId} value={d.depotId}>
+                      {d.depotName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
               <FormControl fullWidth margin="normal" sx={fieldSx} disabled={loadingLookups}>
                 <InputLabel>Size</InputLabel>
@@ -388,7 +440,7 @@ export default function ManualInventoryAddDialog({ open, onClose, onSaved }: Man
           </Box>
         )}
 
-        {tab === 1 && (
+        {!isDepot && tab === 1 && (
           <Box>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
               <Button

@@ -13,6 +13,15 @@ public interface IContainerInventoryService
         string? yardStatus,
         CancellationToken cancellationToken = default);
 
+    Task<DepotContainerInventoryResponseDto> GetInventoryByDepotAsync(
+        int userId,
+        string role,
+        int? depotId,
+        int? shippingLineId,
+        string? complianceStatus,
+        string? yardStatus,
+        CancellationToken cancellationToken = default);
+
     Task<ManualYardInventoryEntryDto> CreateManualEntryAsync(
         CreateManualYardInventoryRequest request,
         int userId,

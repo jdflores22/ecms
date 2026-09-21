@@ -841,6 +841,10 @@ export const cyAllocationApi = {
     api.get<CyAllocation[]>('/cy-allocations', {
       params: shippingLineId ? { shippingLineId } : undefined,
     }),
+  listByDepot: (depotId?: number) =>
+    api.get<CyAllocation[]>('/cy-allocations/by-depot', {
+      params: depotId ? { depotId } : undefined,
+    }),
   forApproval: (preAdviceId: number) =>
     api.get<CyAllocationForApproval>(`/cy-allocations/for-approval/${preAdviceId}`),
   updateContract: (
@@ -910,6 +914,7 @@ export interface ContainerInventoryItem {
   containerNo: string
   containerSize: string
   containerType: string
+  shippingLineId: number
   shippingLineCode: string
   shippingLineName: string
   truckerName: string | null
@@ -961,6 +966,37 @@ export interface ContainerInventoryResponse {
   items: ContainerInventoryItem[]
 }
 
+export interface ContainerInventoryShippingLineSummary {
+  shippingLineId: number
+  shippingLineCode: string
+  shippingLineName: string
+  atYardCount: number
+  releasedCount: number
+  overstayCount: number
+}
+
+export interface DepotContainerInventorySummary {
+  depotId: number
+  depotName: string
+  totalAtYard: number
+  releasedCount: number
+  withinLimitCount: number
+  approachingLimitCount: number
+  overstayCount: number
+  dwellLimitDays: number
+  warningThresholdDays: number
+  size20Count: number
+  size40Count: number
+  usedTeu: number
+  contractTeu: number
+  byShippingLine: ContainerInventoryShippingLineSummary[]
+}
+
+export interface DepotContainerInventoryResponse {
+  summary: DepotContainerInventorySummary
+  items: ContainerInventoryItem[]
+}
+
 export const containerInventoryApi = {
   list: (params?: {
     depotId?: number
@@ -969,6 +1005,13 @@ export const containerInventoryApi = {
     yardStatus?: ContainerYardStatus
   }) =>
     api.get<ContainerInventoryResponse>('/container-inventory', { params }),
+  listByDepot: (params?: {
+    depotId?: number
+    shippingLineId?: number
+    compliance?: ContainerDwellCompliance
+    yardStatus?: ContainerYardStatus
+  }) =>
+    api.get<DepotContainerInventoryResponse>('/container-inventory/by-depot', { params }),
   createManual: (data: {
     containerNo: string
     containerSizeId: number

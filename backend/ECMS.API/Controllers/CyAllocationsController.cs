@@ -9,7 +9,6 @@ namespace ECMS.API.Controllers;
 
 [ApiController]
 [Route("api/cy-allocations")]
-[Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
 public class CyAllocationsController : ControllerBase
 {
     private readonly ICyAllocationService _service;
@@ -23,6 +22,7 @@ public class CyAllocationsController : ControllerBase
     private string Role => User.FindFirstValue(ClaimTypes.Role)!;
 
     [HttpGet]
+    [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
     public async Task<ActionResult<IReadOnlyList<CyAllocationDto>>> GetAll(
         [FromQuery] int? shippingLineId,
         CancellationToken cancellationToken)
@@ -37,7 +37,24 @@ public class CyAllocationsController : ControllerBase
         }
     }
 
+    [HttpGet("by-depot")]
+    [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
+    public async Task<ActionResult<IReadOnlyList<CyAllocationDto>>> GetByDepot(
+        [FromQuery] int? depotId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.GetAllocationsByDepotAsync(depotId, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("for-approval/{preAdviceId:int}")]
+    [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
     public async Task<ActionResult<CyAllocationForApprovalDto>> GetForApproval(
         int preAdviceId,
         CancellationToken cancellationToken)
