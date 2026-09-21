@@ -7,7 +7,9 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
+import axios from 'axios'
+import { useAppSelector } from '../../store/hooks'
 import ManualInventoryAddDialog from '../../components/evaluations/ManualInventoryAddDialog'
 import ContainerInventorySummaryTable from '../../components/evaluations/ContainerInventorySummaryTable'
 import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
@@ -25,10 +27,12 @@ import {
 import { appColors } from '../../theme/colors'
 import {
   containerInventoryApi,
+  shippingLineApi,
   type ContainerDwellCompliance,
   type ContainerInventoryItem,
   type ContainerInventoryResponse,
   type ContainerYardStatus,
+  type ShippingLine,
 } from '../../services/api'
 import { cyUtilizationPctUncapped, getAllocationSizeLabel, progressBarColor } from '../../utils/cyAllocation'
 import { formatDisplayDate } from '../../utils/datetime'
@@ -289,6 +293,14 @@ const TABLE_HEADERS = [
 ] as const
 
 export default function ContainerInventoryPage() {
+  const user = useAppSelector((s) => s.auth.user)
+  const isAdmin = user?.role === 'Administrator'
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialLine = Number(searchParams.get('shippingLineId'))
+  const [adminLineId, setAdminLineId] = useState<number | ''>(
+    Number.isFinite(initialLine) && initialLine > 0 ? initialLine : '',
+  )
+  const [shippingLines, setShippingLines] = useState<ShippingLine[]>([])
   const [activeTab, setActiveTab] = useState<InventoryTab>('inventory')
   const [depotFilter, setDepotFilter] = useState<number | ''>('')
   const [complianceFilter, setComplianceFilter] = useState<ContainerDwellCompliance | ''>('')
@@ -302,11 +314,40 @@ export default function ContainerInventoryPage() {
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE)
 
+  useEffect(() => {
+    if (!isAdmin) return
+    shippingLineApi
+      .list()
+      .then(({ data }) => setShippingLines(data.filter((l) => l.isActive)))
+      .catch(() => setShippingLines([]))
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin || shippingLines.length === 0 || adminLineId !== '') return
+    setAdminLineId(shippingLines[0].id)
+  }, [isAdmin, shippingLines, adminLineId])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    const params = new URLSearchParams()
+    if (adminLineId !== '') params.set('shippingLineId', String(adminLineId))
+    setSearchParams(params, { replace: true })
+  }, [adminLineId, isAdmin, setSearchParams])
+
+  const effectiveShippingLineId = isAdmin ? (adminLineId === '' ? null : adminLineId) : null
+
   const load = useCallback(() => {
+    if (isAdmin && !effectiveShippingLineId) {
+      setItems([])
+      setSummary(null)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError('')
     containerInventoryApi
       .list({
+        shippingLineId: isAdmin ? effectiveShippingLineId ?? undefined : undefined,
         depotId: depotFilter === '' ? undefined : depotFilter,
         compliance: complianceFilter === '' ? undefined : complianceFilter,
         yardStatus: yardStatusFilter === '' ? undefined : yardStatusFilter,
@@ -315,9 +356,12 @@ export default function ContainerInventoryPage() {
         setItems(data.items)
         setSummary(data.summary)
       })
-      .catch(() => setError('Failed to load container yard inventory.'))
+      .catch((err) => {
+        const msg = axios.isAxiosError(err) ? err.response?.data?.message : undefined
+        setError(typeof msg === 'string' && msg.trim() ? msg : 'Failed to load container yard inventory.')
+      })
       .finally(() => setLoading(false))
-  }, [depotFilter, complianceFilter, yardStatusFilter])
+  }, [depotFilter, complianceFilter, yardStatusFilter, isAdmin, effectiveShippingLineId])
 
   useEffect(() => {
     load()
@@ -579,12 +623,29 @@ export default function ContainerInventoryPage() {
             alignItems: 'center',
           }}
         >
+          {isAdmin && shippingLines.length > 0 && (
+            <FormControl size="small" fullWidth>
+              <InputLabel>Shipping line</InputLabel>
+              <Select
+                label="Shipping line"
+                value={adminLineId}
+                onChange={(e) => setAdminLineId(e.target.value as number | '')}
+              >
+                {shippingLines.map((l) => (
+                  <MenuItem key={l.id} value={l.id}>
+                    {l.code} — {l.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           <FormControl size="small" fullWidth>
             <InputLabel>Container yard</InputLabel>
             <Select
               label="Container yard"
               value={depotFilter}
               onChange={(e) => setDepotFilter(e.target.value as number | '')}
+              disabled={isAdmin && !effectiveShippingLineId}
             >
               <MenuItem value="">All yards</MenuItem>
               {depotOptions.map((d) => (
@@ -735,7 +796,12 @@ export default function ContainerInventoryPage() {
         )}
       </Paper>
 
-      <ManualInventoryAddDialog open={addOpen} onClose={() => setAddOpen(false)} onSaved={load} />
+      <ManualInventoryAddDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSaved={load}
+        contextShippingLineId={isAdmin && effectiveShippingLineId ? effectiveShippingLineId : undefined}
+      />
     </Box>
   )
 }

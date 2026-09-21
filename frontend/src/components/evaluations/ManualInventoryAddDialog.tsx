@@ -29,6 +29,8 @@ interface ManualInventoryAddDialogProps {
   variant?: 'evaluator' | 'depot'
   fixedDepotId?: number
   shippingLines?: ManualInventoryShippingLineOption[]
+  /** Administrator viewing a line-scoped page (inventory, etc.) */
+  contextShippingLineId?: number
 }
 
 function parseCsvLine(line: string): string[] {
@@ -65,6 +67,7 @@ export default function ManualInventoryAddDialog({
   variant = 'evaluator',
   fixedDepotId,
   shippingLines = [],
+  contextShippingLineId,
 }: ManualInventoryAddDialogProps) {
   const isDepot = variant === 'depot'
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -107,7 +110,7 @@ export default function ManualInventoryAddDialog({
     setLoadingLookups(true)
     const depotPromise = isDepot
       ? Promise.resolve({ data: [] as CyAllocation[] })
-      : cyAllocationApi.list()
+      : cyAllocationApi.list(contextShippingLineId)
     Promise.all([depotPromise, containerSizeApi.list(), containerTypeApi.list()])
       .then(([depotRes, sizeRes, typeRes]) => {
         setDepots(depotRes.data)
@@ -116,7 +119,7 @@ export default function ManualInventoryAddDialog({
       })
       .catch(() => setError('Failed to load form options.'))
       .finally(() => setLoadingLookups(false))
-  }, [isDepot])
+  }, [isDepot, contextShippingLineId])
 
   useEffect(() => {
     if (open) {
@@ -249,7 +252,10 @@ export default function ManualInventoryAddDialog({
         depotId,
         yardInDate,
         remarks: remarks.trim() || undefined,
-        shippingLineId: isDepot && shippingLineId !== '' ? shippingLineId : undefined,
+        shippingLineId:
+          isDepot && shippingLineId !== ''
+            ? shippingLineId
+            : contextShippingLineId,
       })
       onSaved()
       onClose()
