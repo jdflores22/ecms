@@ -357,7 +357,14 @@ export default function ScheduleDetailPage() {
   }
 
   const showAssignForm = canAssign && (schedule?.status === 'WaitingSchedule' || editing)
-  const showScheduledSummary = canAssign && schedule?.status === 'Scheduled' && !editing
+  const showScheduledSummary =
+    Boolean(schedule?.date) &&
+    ((canAssign && schedule?.status === 'Scheduled' && !editing) ||
+      schedule?.status === 'Confirmed' ||
+      schedule?.status === 'Completed' ||
+      schedule?.status === 'NoShow')
+  const showEditAssignment =
+    Boolean(canAssign && schedule?.status === 'Scheduled' && !editing && showScheduledSummary)
 
   const requestingTrucker = schedule?.truckerName ?? preAdvice?.truckerName
 
@@ -520,9 +527,9 @@ export default function ScheduleDetailPage() {
               qrBooking={qrBooking}
               qrImageUrl={qrImageUrl}
               qrLoading={qrLoading}
-              canAssign={Boolean(canAssign)}
               showAssignForm={Boolean(showAssignForm)}
               showScheduledSummary={Boolean(showScheduledSummary)}
+              showEditAssignment={Boolean(showEditAssignment)}
               editing={editing}
               date={date}
               time={time}

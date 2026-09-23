@@ -126,9 +126,9 @@ type DepotScheduleTabPanelsProps = {
   qrBooking: QrBooking | null
   qrImageUrl: string | null
   qrLoading: boolean
-  canAssign: boolean
   showAssignForm: boolean
   showScheduledSummary: boolean
+  showEditAssignment?: boolean
   editing: boolean
   date: string
   time: string
@@ -163,9 +163,9 @@ export default function DepotScheduleTabPanels({
   qrBooking,
   qrImageUrl,
   qrLoading,
-  canAssign,
   showAssignForm,
   showScheduledSummary,
+  showEditAssignment = false,
   editing,
   date,
   depotRemarks,
@@ -254,14 +254,14 @@ export default function DepotScheduleTabPanels({
       </DetailTabPanel>
 
       <DetailTabPanel value="schedule" activeTab={activeTab}>
-        {!canAssign ? (
+        {!showAssignForm && !showScheduledSummary ? (
           <Typography variant="body2" color="text.secondary">
             This return can no longer be assigned from the depot schedule view.
           </Typography>
         ) : (
           <>
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: showScheduledSummary ? 2 : 0 }}>
-              {showScheduledSummary && (
+              {showEditAssignment && (
                 <Button
                   startIcon={<EditIcon />}
                   variant="outlined"
