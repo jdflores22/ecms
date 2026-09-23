@@ -1,0 +1,1 @@
+import{c,R as a,S as n,H as s}from"./index-BzScN-6-.js";const t=6e4,h=c(()=>a.list().then(({data:e})=>e),t),i=c(()=>n.mine().then(({data:e})=>e),t),f=c(()=>s.list().then(({data:e})=>e),t);function d(e=!1){return h.fetch(e)}function o(e=!1){return i.fetch(e)}function u(e=!1){return f.fetch(e)}export{d as a,o as b,u as f};
