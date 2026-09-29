@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ECMS.API.Security;
 using ECMS.Application.DTOs.Payment;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Enums;
@@ -52,6 +53,7 @@ public class PaymentsController : ControllerBase
     {
         try
         {
+            PaymentSettingsDeveloperGate.Validate(_configuration, _env, request.DeveloperPassword);
             return Ok(await _settings.UpdateReturnFeeAsync(request.ReturnFeeAmount, UserId, cancellationToken));
         }
         catch (InvalidOperationException ex)
@@ -72,6 +74,7 @@ public class PaymentsController : ControllerBase
     {
         try
         {
+            PaymentSettingsDeveloperGate.Validate(_configuration, _env, request.DeveloperPassword);
             return Ok(await _settings.UpdatePayMongoSettingsAsync(
                 request.PayMongoEnabled,
                 request.AllowProofUpload,

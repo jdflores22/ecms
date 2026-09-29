@@ -1441,10 +1441,18 @@ export const paymentApi = {
   depot: () => api.get<Payment[]>('/payments/depot'),
   getSettings: () => api.get<PaymentSettings>('/payments/settings'),
   getPaymentOptions: () => api.get<ReturnPaymentOptions>('/payments/options'),
-  updateSettings: (returnFeeAmount: number) =>
-    api.put<PaymentSettings>('/payments/settings', { returnFeeAmount }),
-  updatePayMongoSettings: (payMongoEnabled: boolean, allowProofUpload: boolean) =>
-    api.put<PaymentSettings>('/payments/settings/paymongo', { payMongoEnabled, allowProofUpload }),
+  updateSettings: (returnFeeAmount: number, developerPassword?: string) =>
+    api.put<PaymentSettings>('/payments/settings', { returnFeeAmount, developerPassword }),
+  updatePayMongoSettings: (
+    payMongoEnabled: boolean,
+    allowProofUpload: boolean,
+    developerPassword?: string,
+  ) =>
+    api.put<PaymentSettings>('/payments/settings/paymongo', {
+      payMongoEnabled,
+      allowProofUpload,
+      developerPassword,
+    }),
   updateDemurrageSettings: (demurrageFeeAmount: number, detentionFeeAmount: number) =>
     api.put<PaymentSettings>('/payments/settings/demurrage', { demurrageFeeAmount, detentionFeeAmount }),
   createPayMongoCheckout: (scheduleId: number) =>

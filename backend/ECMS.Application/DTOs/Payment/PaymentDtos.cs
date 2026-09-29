@@ -51,7 +51,7 @@ public record ReturnPaymentOptionsDto(
     bool AllowProofUpload,
     bool PayMongoConfigured);
 
-public record UpdatePaymentSettingsRequest(decimal ReturnFeeAmount);
+public record UpdatePaymentSettingsRequest(decimal ReturnFeeAmount, string? DeveloperPassword);
 
 public record UpdateDemurrageFeeSettingsRequest(
     decimal DemurrageFeeAmount,

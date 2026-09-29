@@ -1,20 +1,22 @@
 import { CardGridSkeleton, StatCardsSkeleton } from '../../components/layout/SkeletonPrimitives'
-import { Alert, Box, Button, LinearProgress, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, FormControl, InputLabel, LinearProgress, MenuItem, Paper, Select, Typography } from '@mui/material'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useSearchParams } from 'react-router-dom'
 import CyYardAllocationCard from '../../components/evaluations/CyYardAllocationCard'
-import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
+import { DetailBackButton, hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
 import {
   listHeroOutlineActionSx,
   listPageRootSx,
   PageHero,
 } from '../../components/layout/ListPagePrimitives'
 import { appColors } from '../../theme/colors'
+import { portalColors } from '../../theme/portalTheme'
 import { canAccessPage } from '../../config/routeAccess'
-import { cyAllocationApi, type CyAllocation, type CyAllocationForApproval } from '../../services/api'
+import { cyAllocationApi, shippingLineApi, type CyAllocation, type CyAllocationForApproval, type ShippingLine } from '../../services/api'
+import { getShippingLineDisplayCode, getShippingLineFullName } from '../../utils/shippingLine'
 import { useAppSelector } from '../../store/hooks'
 import {
   aggregateAtYardTeuBySize,
@@ -70,12 +72,40 @@ function SummaryCard({ label, value, color }: { label: string; value: number | s
 
 export default function CyAllocationPage() {
   const user = useAppSelector((s) => s.auth.user)
-  const [searchParams] = useSearchParams()
+  const isAdmin = user?.role === 'Administrator'
+  const [searchParams, setSearchParams] = useSearchParams()
   const preAdviceId = searchParams.get('preAdviceId')
+  const initialLine = Number(searchParams.get('shippingLineId'))
+  const [adminLineId, setAdminLineId] = useState<number | ''>(
+    Number.isFinite(initialLine) && initialLine > 0 ? initialLine : '',
+  )
+  const [shippingLines, setShippingLines] = useState<ShippingLine[]>([])
   const [items, setItems] = useState<CyAllocation[]>([])
   const [approvalContext, setApprovalContext] = useState<CyAllocationForApproval | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isAdmin || preAdviceId) return
+    shippingLineApi
+      .list()
+      .then(({ data }) => setShippingLines(data.filter((l) => l.isActive)))
+      .catch(() => setShippingLines([]))
+  }, [isAdmin, preAdviceId])
+
+  useEffect(() => {
+    if (!isAdmin || preAdviceId || shippingLines.length === 0 || adminLineId !== '') return
+    setAdminLineId(shippingLines[0].id)
+  }, [isAdmin, preAdviceId, shippingLines, adminLineId])
+
+  useEffect(() => {
+    if (!isAdmin || preAdviceId) return
+    const params = new URLSearchParams()
+    if (adminLineId !== '') params.set('shippingLineId', String(adminLineId))
+    setSearchParams(params, { replace: true })
+  }, [adminLineId, isAdmin, preAdviceId, setSearchParams])
+
+  const effectiveShippingLineId = isAdmin && !preAdviceId ? (adminLineId === '' ? null : adminLineId) : null
 
   const load = useCallback(() => {
     setLoading(true)
@@ -96,19 +126,45 @@ export default function CyAllocationPage() {
       return
     }
 
+    if (isAdmin && !effectiveShippingLineId) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+
     cyAllocationApi
-      .list()
+      .list(isAdmin ? effectiveShippingLineId ?? undefined : undefined)
       .then(({ data }) => setItems(data))
       .catch((err) => setError(loadErrorMessage(err, 'Failed to load container yard allocations.')))
       .finally(() => setLoading(false))
-  }, [preAdviceId])
+  }, [preAdviceId, isAdmin, effectiveShippingLineId])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const shippingLineCode = items[0]?.shippingLineCode ?? ''
-  const shippingLineName = items[0]?.shippingLineName ?? ''
+  const selectedLine = useMemo(
+    () => shippingLines.find((l) => l.id === adminLineId),
+    [shippingLines, adminLineId],
+  )
+
+  const shippingLineCode =
+    items[0]?.shippingLineCode ?? (selectedLine ? getShippingLineDisplayCode(selectedLine.code, selectedLine.name) : '')
+  const shippingLineName =
+    items[0]?.shippingLineName ?? (selectedLine ? getShippingLineFullName(selectedLine.code, selectedLine.name) : '')
+
+  const heroTitle =
+    preAdviceId
+      ? 'CY allocation — evaluation'
+      : shippingLineCode
+        ? `${shippingLineCode} — CY allocation`
+        : 'CY allocation'
+
+  const heroSubtitle = preAdviceId
+    ? 'Contracted yard capacity for the yard you may assign on this evaluation.'
+    : isAdmin
+      ? 'Read-only contracted yard capacity by shipping line. At-yard counts are physical gate check-ins; orange +confirmed and +pre-forecast are pipeline units not yet at the CY. Released ATW units are excluded.'
+      : 'Read-only view of your contracted yard capacity. At-yard counts are physical gate check-ins; orange +confirmed and +pre-forecast show pipeline units not yet at the CY. Released ATW units are excluded.'
 
   const totals = useMemo(() => {
     const sizeTotals = aggregateAtYardTeuBySize(items)
@@ -141,25 +197,36 @@ export default function CyAllocationPage() {
     return <Navigate to="/" replace />
   }
 
+  const inventoryLink = (
+    <Box
+      component={RouterLink}
+      to={
+        isAdmin && effectiveShippingLineId
+          ? `/evaluations/container-inventory?shippingLineId=${effectiveShippingLineId}`
+          : '/evaluations/container-inventory'
+      }
+      sx={{ color: portalColors.primary, fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
+    >
+      CY inventory
+    </Box>
+  )
+
   return (
     <Box sx={listPageRootSx}>
+      {!preAdviceId && (
+        <DetailBackButton
+          to={isAdmin ? '/' : '/evaluations'}
+          label={isAdmin ? 'Back to dashboard' : 'Back to evaluations'}
+        />
+      )}
+
       <PageHero
         icon={<WarehouseOutlinedIcon />}
-        title="CY allocation"
+        title={heroTitle}
         subtitle={
           <>
-            Read-only view of your shipping line&apos;s contracted yard capacity. At-yard counts are physical gate
-            check-ins; orange +confirmed and +pre-forecast show pipeline units not yet at the CY. Released ATW units are
-            excluded — see{' '}
-            <Box
-              component={RouterLink}
-              to="/evaluations/container-inventory"
-              sx={{ color: '#7dd3fc', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
-            >
-              CY inventory
-            </Box>{' '}
-            for released units.
-            {shippingLineName ? ` ${shippingLineName}.` : ''}
+            {heroSubtitle} See {inventoryLink} for released units.
+            {!preAdviceId && shippingLineName && !isAdmin ? ` ${shippingLineName}.` : ''}
           </>
         }
         actions={
@@ -168,13 +235,60 @@ export default function CyAllocationPage() {
             size="small"
             startIcon={<RefreshIcon />}
             onClick={load}
-            disabled={loading}
+            disabled={loading || (isAdmin && !effectiveShippingLineId)}
             sx={listHeroOutlineActionSx}
           >
             Refresh
           </Button>
         }
       />
+
+      {!preAdviceId && isAdmin && shippingLines.length > 0 && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 1.5, sm: 2 },
+            mb: 2,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: '#fff',
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+            View context
+          </Typography>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
+              gap: 1.5,
+              alignItems: 'center',
+            }}
+          >
+            <FormControl size="small" fullWidth>
+              <InputLabel id="cy-allocation-line-label">Shipping line</InputLabel>
+              <Select
+                labelId="cy-allocation-line-label"
+                label="Shipping line"
+                value={adminLineId === '' ? '' : adminLineId}
+                onChange={(e) => setAdminLineId(Number(e.target.value))}
+              >
+                {shippingLines.map((l) => (
+                  <MenuItem key={l.id} value={l.id}>
+                    {l.code} — {l.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {shippingLineName && (
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, textAlign: { sm: 'right' } }}>
+                {shippingLineName}
+              </Typography>
+            )}
+          </Box>
+        </Paper>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
@@ -193,16 +307,6 @@ export default function CyAllocationPage() {
             Back to evaluation
           </Typography>
         </Alert>
-      )}
-
-      {!preAdviceId && (
-        <Typography
-          component={RouterLink}
-          to="/evaluations"
-          sx={{ display: 'inline-block', mb: 2, fontWeight: 600, color: primaryDark, textDecoration: 'none' }}
-        >
-          ← Back to evaluations
-        </Typography>
       )}
 
       {!loading && items.length > 0 && (
@@ -283,8 +387,9 @@ export default function CyAllocationPage() {
           }}
         >
           <Typography color="text.secondary">
-            No CY contracts are configured for your shipping line yet. Ask an administrator to set up contract
-            allocations in Master Data.
+            {isAdmin && !effectiveShippingLineId
+              ? 'Select a shipping line above to view yard contracts.'
+              : 'No CY contracts are configured for this shipping line yet. Set up contract allocations in Master Data.'}
           </Typography>
         </Paper>
       ) : (

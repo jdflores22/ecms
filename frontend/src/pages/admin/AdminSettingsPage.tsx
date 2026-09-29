@@ -302,6 +302,7 @@ export default function AdminSettingsPage() {
   const [payMongoEnabled, setPayMongoEnabled] = useState(false)
   const [allowProofUpload, setAllowProofUpload] = useState(true)
   const [payMongoConfigured, setPayMongoConfigured] = useState(false)
+  const [paymentDeveloperPassword, setPaymentDeveloperPassword] = useState('')
   const [linePayMongoEnabled, setLinePayMongoEnabled] = useState(false)
   const [lineAllowProofUpload, setLineAllowProofUpload] = useState(true)
   const [linePayMongoSecretKey, setLinePayMongoSecretKey] = useState('')
@@ -357,11 +358,20 @@ export default function AdminSettingsPage() {
   )
 
   const savePayMongoSettings = async () => {
+    if (!paymentDeveloperPassword.trim()) {
+      setError('Enter the developer password to save PayMongo settings.')
+      setSuccessMessage('')
+      return
+    }
     setPaymentSettingsSaving(true)
     setError('')
     setSuccessMessage('')
     try {
-      const { data } = await paymentApi.updatePayMongoSettings(payMongoEnabled, allowProofUpload)
+      const { data } = await paymentApi.updatePayMongoSettings(
+        payMongoEnabled,
+        allowProofUpload,
+        paymentDeveloperPassword.trim(),
+      )
       setPayMongoEnabled(data.payMongoEnabled)
       setAllowProofUpload(data.allowProofUpload)
       setPayMongoConfigured(data.payMongoConfigured)
@@ -384,11 +394,16 @@ export default function AdminSettingsPage() {
       setSuccessMessage('')
       return
     }
+    if (!paymentDeveloperPassword.trim()) {
+      setError('Enter the developer password to save the pre-forecast fee.')
+      setSuccessMessage('')
+      return
+    }
     setPaymentSettingsSaving(true)
     setError('')
     setSuccessMessage('')
     try {
-      const { data } = await paymentApi.updateSettings(amount)
+      const { data } = await paymentApi.updateSettings(amount, paymentDeveloperPassword.trim())
       setReturnFeeAmount(String(data.returnFeeAmount))
       setReturnFeeUpdatedAt(data.updatedAt)
       setSuccessMessage(`Pre-advised fee updated to ${formatPeso(data.returnFeeAmount)}.`)
@@ -1330,6 +1345,16 @@ export default function AdminSettingsPage() {
           </Box>
 
           <Box sx={{ maxWidth: 420 }}>
+            <TextField
+              fullWidth
+              type="password"
+              label="Developer password"
+              value={paymentDeveloperPassword}
+              onChange={(e) => setPaymentDeveloperPassword(e.target.value)}
+              sx={{ ...fieldSx, mb: 2 }}
+              autoComplete="off"
+              helperText="Required to save fee or PayMongo toggles. Set ECMS_PAYMENT_SETTINGS_DEV_PASSWORD (or PaymentSettings:DeveloperPassword) on the API server — separate from PayMongo API keys in Railway."
+            />
             <TextField
               fullWidth
               label="Pre-advised fee (PHP)"
