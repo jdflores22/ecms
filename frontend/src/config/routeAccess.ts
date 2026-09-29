@@ -316,7 +316,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/admin/users',
     group: 'Admin',
     description: 'Create and manage system users',
-    showInNav: true,
+    showInNav: false,
   },
   adminRoles: {
     key: 'adminRoles',
@@ -324,7 +324,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/admin/roles',
     group: 'Admin',
     description: 'Role definitions and page access (RBAC)',
-    showInNav: true,
+    showInNav: false,
   },
   adminMasterData: {
     key: 'adminMasterData',
@@ -340,7 +340,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/admin/certificate-templates',
     group: 'Admin',
     description: 'ATW and other certificate layout templates per shipping line',
-    showInNav: true,
+    showInNav: false,
   },
   adminTruckerNews: {
     key: 'adminTruckerNews',
@@ -348,7 +348,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/admin/trucker-news',
     group: 'Admin',
     description: 'Publish cover stories for the trucker app home carousel',
-    showInNav: true,
+    showInNav: false,
   },
   adminAudit: {
     key: 'adminAudit',
@@ -356,7 +356,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/admin/audit',
     group: 'Admin',
     description: 'System activity and security audit trail',
-    showInNav: true,
+    showInNav: false,
   },
   adminVersion: {
     key: 'adminVersion',
@@ -364,7 +364,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     path: '/admin/version',
     group: 'Admin',
     description: 'Release notes, what is new, and previous versions',
-    showInNav: true,
+    showInNav: false,
   },
   adminRevenue: {
     key: 'adminRevenue',
@@ -385,8 +385,6 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'evaluations',
   'cyAllocation',
   'containerInventory',
-  'depotCyAllocation',
-  'depotContainerInventory',
   'adminReports',
   'adminPayments',
   'adminUsers',
@@ -519,6 +517,8 @@ const ADMIN_RUNTIME_EXCLUDE: AppPageKey[] = [
   'demurrageRates',
   'depotDailyReturns',
   'depotSchedules',
+  'depotCyAllocation',
+  'depotContainerInventory',
 ]
 
 import { migrateLegacyReportPageKey } from './reportConfig'
@@ -640,6 +640,18 @@ export const PAGE_GROUPS_ORDER: PageGroup[] = [
   'Admin',
 ]
 
+/** Administrator sidebar — operational oversight first, configuration under Settings. */
+export const ADMIN_NAV_PAGE_ORDER: AppPageKey[] = [
+  'dashboard',
+  'adminReports',
+  'evaluations',
+  'cyAllocation',
+  'containerInventory',
+  'adminRevenue',
+  'adminPayments',
+  'adminMasterData',
+]
+
 /** Sidebar display order (subset of pages with showInNav). */
 export const NAV_PAGE_ORDER: AppPageKey[] = [
   'dashboard',
@@ -683,9 +695,8 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
 
 export function getNavPagesForRole(role: string, allowedPages?: string[] | null): AppPage[] {
   const keys = new Set(resolveAllowedPageKeys(role, allowedPages))
-  return NAV_PAGE_ORDER.filter((key) => APP_PAGES[key].showInNav && keys.has(key)).map(
-    (key) => APP_PAGES[key],
-  )
+  const order = role === 'Administrator' ? ADMIN_NAV_PAGE_ORDER : NAV_PAGE_ORDER
+  return order.filter((key) => APP_PAGES[key].showInNav && keys.has(key)).map((key) => APP_PAGES[key])
 }
 
 export function groupPagesBySection(pages: AppPage[]): { group: PageGroup; pages: AppPage[] }[] {

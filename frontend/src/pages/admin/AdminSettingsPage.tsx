@@ -54,8 +54,14 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import axios from 'axios'
+import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined'
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
+import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined'
+import SystemUpdateAltOutlinedIcon from '@mui/icons-material/SystemUpdateAltOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   containerSizeApi,
   containerTypeApi,
@@ -138,6 +144,50 @@ const SETTINGS_SECTIONS: {
   },
 ]
 
+const ADMINISTRATION_LINKS: {
+  path: string
+  label: string
+  description: string
+  icon: ReactNode
+}[] = [
+  {
+    path: '/admin/users',
+    label: 'Users',
+    description: 'Create accounts and assign roles.',
+    icon: <PeopleOutlinedIcon fontSize="small" />,
+  },
+  {
+    path: '/admin/roles',
+    label: 'Roles',
+    description: 'Page access and RBAC definitions.',
+    icon: <AdminPanelSettingsOutlinedIcon fontSize="small" />,
+  },
+  {
+    path: '/admin/certificate-templates',
+    label: 'Certificates',
+    description: 'ATW and release certificate layouts.',
+    icon: <DescriptionOutlinedIcon fontSize="small" />,
+  },
+  {
+    path: '/admin/trucker-news',
+    label: 'Trucker news',
+    description: 'Trucker app home carousel stories.',
+    icon: <ArticleOutlinedIcon fontSize="small" />,
+  },
+  {
+    path: '/admin/audit',
+    label: 'Audit log',
+    description: 'Security and activity history.',
+    icon: <HistoryOutlinedIcon fontSize="small" />,
+  },
+  {
+    path: '/admin/version',
+    label: 'Version',
+    description: 'Release notes and app version info.',
+    icon: <SystemUpdateAltOutlinedIcon fontSize="small" />,
+  },
+]
+
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 const tablePaperSx = {
@@ -211,6 +261,8 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 export default function AdminSettingsPage() {
   const user = useAppSelector((s) => s.auth.user)
+  const navigate = useNavigate()
+  const location = useLocation()
   const [activeSection, setActiveSection] = useState<SettingsSection>('payments')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -579,7 +631,7 @@ export default function AdminSettingsPage() {
       <PageHero
         icon={<SettingsOutlinedIcon />}
         title="Settings"
-        subtitle="Configure payments, reference data, and container yard contracts for the platform."
+        subtitle="Payments, reference data, CY contracts, and system administration (users, roles, audit, certificates)."
       />
 
       {error && (
@@ -689,7 +741,57 @@ export default function AdminSettingsPage() {
                   })}
                 </Box>
               ))}
+              <Box sx={{ mt: 1.5 }}>
+                <Typography
+                  sx={{
+                    px: 1.5,
+                    mb: 0.5,
+                    fontSize: '0.6875rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: portalColors.textLight,
+                  }}
+                >
+                  Administration
+                </Typography>
+                {ADMINISTRATION_LINKS.map((link) => (
+                  <SettingsNavButton
+                    key={link.path}
+                    label={link.label}
+                    icon={link.icon}
+                    selected={location.pathname === link.path || location.pathname.startsWith(`${link.path}/`)}
+                    onClick={() => navigate(link.path)}
+                  />
+                ))}
+              </Box>
             </List>
+
+            <Box sx={{ display: { xs: 'block', lg: 'none' }, mt: 2 }}>
+              <Typography
+                sx={{
+                  mb: 1,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: portalColors.textMuted,
+                }}
+              >
+                Administration
+              </Typography>
+              <List disablePadding>
+                {ADMINISTRATION_LINKS.map((link) => (
+                  <SettingsNavButton
+                    key={link.path}
+                    label={link.label}
+                    icon={link.icon}
+                    selected={location.pathname === link.path}
+                    onClick={() => navigate(link.path)}
+                  />
+                ))}
+              </List>
+            </Box>
           </Box>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
