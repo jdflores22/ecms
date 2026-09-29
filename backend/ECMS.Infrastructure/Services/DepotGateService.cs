@@ -1,8 +1,5 @@
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using ECMS.Application;
 using ECMS.Application.DTOs.DepotGate;
-using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Enums;
@@ -10,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ECMS.Infrastructure.Services;
 
-public partial class DepotGateService : IDepotGateService
+public class DepotGateService : IDepotGateService
 {
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
@@ -34,7 +31,7 @@ public partial class DepotGateService : IDepotGateService
         string role,
         CancellationToken cancellationToken = default)
     {
-        var qrRef = NormalizeQrReference(rawQrCode);
+        var qrRef = BookingQrReference.Normalize(rawQrCode);
         if (qrRef is null)
         {
             return new DepotGateCheckInResponse(
@@ -126,7 +123,7 @@ public partial class DepotGateService : IDepotGateService
     {
         _ = persistCheckIn;
 
-        var qrRef = NormalizeQrReference(rawQrCode);
+        var qrRef = BookingQrReference.Normalize(rawQrCode);
         if (qrRef is null)
         {
             return new DepotGateScanResponse(
@@ -325,33 +322,4 @@ public partial class DepotGateService : IDepotGateService
             .Include(x => x.Schedule).ThenInclude(s => s.Trucker)
             .Include(x => x.Schedule).ThenInclude(s => s.Payment);
 
-    private static string? NormalizeQrReference(string raw)
-    {
-        var trimmed = raw.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-            return null;
-
-        if (trimmed.StartsWith("{", StringComparison.Ordinal))
-        {
-            try
-            {
-                var payload = JsonSerializer.Deserialize<QrPayloadDto>(trimmed);
-                if (!string.IsNullOrWhiteSpace(payload?.BookingId))
-                    return payload.BookingId.Trim();
-            }
-            catch (JsonException)
-            {
-                // Fall through to plain reference parsing.
-            }
-        }
-
-        var icsMatch = IcsReferenceRegex().Match(trimmed);
-        if (icsMatch.Success)
-            return icsMatch.Value.ToUpperInvariant();
-
-        return trimmed;
-    }
-
-    [GeneratedRegex(@"ICS-\d+", RegexOptions.IgnoreCase)]
-    private static partial Regex IcsReferenceRegex();
 }

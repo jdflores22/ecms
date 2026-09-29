@@ -14,9 +14,9 @@ import {
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
-import { useCallback, useState } from 'react'
-import { Navigate } from 'react-router-dom'
-import BookingQrScanner from '../../components/depot/BookingQrScanner'
+import FullscreenIcon from '@mui/icons-material/Fullscreen'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PreAdviceFullDossier from '../../components/preAdvice/PreAdviceFullDossier'
 import {
   DetailHero,
@@ -36,6 +36,7 @@ import { useAppSelector } from '../../store/hooks'
 import { formatDateTime } from '../../utils/datetime'
 import { loadPreAdviceDossierByQr, type PreAdviceDossierBundle } from '../../utils/preAdviceDossierLoader'
 import { normalizeBookingQrReference } from '../../utils/bookingQr'
+import type { GateScanNavigationState } from './GateScanCameraPage'
 
 const primaryDark = ICS_PRIMARY
 
@@ -44,6 +45,9 @@ type GateScanTab = 'scan' | 'dossier'
 export default function GateScanPage() {
   const user = useAppSelector((s) => s.auth.user)
   const allowed = user?.role === 'DepotPersonnel' || user?.role === 'Administrator'
+  const navigate = useNavigate()
+  const location = useLocation()
+  const pendingScanRef = useRef<string | null>(null)
   const [activeTab, setActiveTab] = useState<GateScanTab>('scan')
   const [manualCode, setManualCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -92,6 +96,15 @@ export default function GateScanPage() {
       setBusy(false)
     }
   }, [])
+
+  useEffect(() => {
+    const state = location.state as GateScanNavigationState | null
+    const scannedQr = state?.scannedQr?.trim()
+    if (!scannedQr || pendingScanRef.current === scannedQr) return
+    pendingScanRef.current = scannedQr
+    navigate(location.pathname, { replace: true, state: null })
+    void runScan(scannedQr)
+  }, [location.pathname, location.state, navigate, runScan])
 
   const handleCheckIn = async () => {
     if (!scan?.qrCode || !scan.canCheckIn) return
@@ -166,9 +179,19 @@ export default function GateScanPage() {
         <Box sx={{ pt: 2.5 }}>
           {activeTab === 'scan' && (
             <>
-              <BookingQrScanner disabled={busy || checkInBusy} onScan={(code) => void runScan(code)} />
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={<FullscreenIcon />}
+                onClick={() => navigate('/depot/gate-scan/camera')}
+                disabled={busy || checkInBusy}
+                sx={{ mb: 2, fontWeight: 800, borderRadius: 2, minHeight: 52 }}
+              >
+                {DEPOT_GATE.openFullscreenScanner}
+              </Button>
 
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <TextField
                   label={DEPOT_GATE.manualLabel}
                   placeholder={DEPOT_GATE.manualPlaceholder}
@@ -180,7 +203,7 @@ export default function GateScanPage() {
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
                 <Button
-                  variant="contained"
+                  variant="outlined"
                   onClick={() => void runScan(manualCode)}
                   disabled={busy || checkInBusy || !manualCode.trim()}
                   startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <QrCodeScannerIcon />}
@@ -189,6 +212,13 @@ export default function GateScanPage() {
                   {DEPOT_GATE.scanButton}
                 </Button>
               </Stack>
+
+              {busy && (
+                <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'center' }}>
+                  <CircularProgress size={20} />
+                  <Typography variant="body2" color="text.secondary">Validating booking…</Typography>
+                </Stack>
+              )}
 
               {scan?.found && (
                 <Box sx={{ mt: 3, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>

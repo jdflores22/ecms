@@ -5,14 +5,19 @@ export function normalizeBookingQrReference(raw: string): string {
 
   if (trimmed.startsWith('{')) {
     try {
-      const parsed = JSON.parse(trimmed) as { bookingId?: string }
-      if (parsed.bookingId?.trim()) return parsed.bookingId.trim()
+      const parsed = JSON.parse(trimmed) as { bookingId?: string; BookingId?: string }
+      const id = parsed.bookingId?.trim() || parsed.BookingId?.trim()
+      if (id) return id.toUpperCase()
     } catch {
-      // Fall through to plain reference parsing.
+      // Fall through — partial JSON from a bad camera read may still contain ICS-…
     }
   }
 
   const match = trimmed.match(/ICS-\d+/i)
   if (match) return match[0].toUpperCase()
+
+  // Avoid sending huge corrupted scan payloads to the API.
+  if (trimmed.length > 64) return ''
+
   return trimmed
 }

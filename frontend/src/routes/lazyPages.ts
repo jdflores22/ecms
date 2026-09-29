@@ -24,6 +24,7 @@ export const CroEdoNewPage = lazy(() => import('../pages/evaluations/CroEdoNewPa
 export const CroEdoDetailPage = lazy(() => import('../pages/evaluations/CroEdoDetailPage'))
 export const DailyReturnsPage = lazy(() => import('../pages/depot/DailyReturnsPage'))
 export const GateScanPage = lazy(() => import('../pages/depot/GateScanPage'))
+export const GateScanCameraPage = lazy(() => import('../pages/depot/GateScanCameraPage'))
 export const DepotSchedulesPage = lazy(() => import('../pages/depot/SchedulesPage'))
 export const ScheduleDetailPage = lazy(() => import('../pages/depot/ScheduleDetailPage'))
 export const CyAllocationPage = lazy(() => import('../pages/evaluations/CyAllocationPage'))

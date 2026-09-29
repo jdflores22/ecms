@@ -69,7 +69,7 @@ public class QrCodeService : IQrService
         if (booking is null || !await CanAccessBookingAsync(booking, userId, role, cancellationToken))
             return null;
 
-        return RenderQrPng(booking.PayloadJson);
+        return RenderQrPng(GetQrImageContent(booking));
     }
 
     public async Task<byte[]?> DownloadConfirmationPdfAsync(
@@ -104,7 +104,7 @@ public class QrCodeService : IQrService
         Domain.Entities.QRBooking booking,
         CancellationToken cancellationToken)
     {
-        var qrPng = RenderQrPng(booking.PayloadJson);
+        var qrPng = RenderQrPng(GetQrImageContent(booking));
         var data = BuildConfirmationPdfData(booking, qrPng, ResolveLogoPath());
         var pdfBytes = BookingConfirmationPdfRenderer.Render(data);
 
@@ -160,10 +160,14 @@ public class QrCodeService : IQrService
         return Path.Combine(_contentRootPath, _uploadRoot, normalized);
     }
 
-    private static byte[] RenderQrPng(string payloadJson)
+    /// <summary>QR images encode the short ICS reference only — dense JSON scans poorly at the gate.</summary>
+    private static string GetQrImageContent(Domain.Entities.QRBooking booking)
+        => booking.QRCode;
+
+    private static byte[] RenderQrPng(string content)
     {
         using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(payloadJson, QRCodeGenerator.ECCLevel.Q);
+        using var data = generator.CreateQrCode(content, QRCodeGenerator.ECCLevel.Q);
         var png = new PngByteQRCode(data);
         return png.GetGraphic(20);
     }
@@ -350,8 +354,17 @@ public class QrCodeService : IQrService
 
     public async Task<ValidateQrResponse> ValidateAsync(ValidateQrRequest request, CancellationToken cancellationToken = default)
     {
+        var qrRef = BookingQrReference.Normalize(request.QrCode);
+        if (qrRef is null)
+        {
+            return new ValidateQrResponse(
+                false,
+                "Enter a valid ICS booking QR reference.",
+                null, null, null, null, null, null, null, null);
+        }
+
         var booking = await LoadBookingQuery()
-            .FirstOrDefaultAsync(x => x.QRCode == request.QrCode, cancellationToken);
+            .FirstOrDefaultAsync(x => x.QRCode == qrRef, cancellationToken);
 
         if (booking is null)
         {

@@ -44,6 +44,7 @@ import {
   EvaluatorDemurrageBillingPage,
   EvaluatorDemurrageRatesPage,
   EvaluatorStatementOfAccountsPage,
+  GateScanCameraPage,
   GateScanPage,
   StatementOfAccountDetailPage,
   StatementOfAccountTruckerPendingPage,
@@ -402,6 +403,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <ScheduleDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/gate-scan/camera"
+          element={
+            <RoleRouteGuard>
+              <GateScanCameraPage />
             </RoleRouteGuard>
           }
         />

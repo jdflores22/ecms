@@ -4,9 +4,11 @@ import {
   Box,
   Button,
   CircularProgress,
+  IconButton,
   Stack,
   Typography,
 } from '@mui/material'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -16,9 +18,18 @@ import { normalizeBookingQrReference } from '../../utils/bookingQr'
 type BookingQrScannerProps = {
   disabled?: boolean
   onScan: (qrReference: string) => void
+  variant?: 'card' | 'fullscreen'
+  autoStart?: boolean
+  onClose?: () => void
 }
 
-export default function BookingQrScanner({ disabled, onScan }: BookingQrScannerProps) {
+export default function BookingQrScanner({
+  disabled,
+  onScan,
+  variant = 'card',
+  autoStart = false,
+  onClose,
+}: BookingQrScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -26,6 +37,7 @@ export default function BookingQrScanner({ disabled, onScan }: BookingQrScannerP
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraError, setCameraError] = useState('')
   const [starting, setStarting] = useState(false)
+  const fullscreen = variant === 'fullscreen'
 
   const stopCamera = useCallback(() => {
     if (rafRef.current !== null) {
@@ -105,6 +117,143 @@ export default function BookingQrScanner({ disabled, onScan }: BookingQrScannerP
   }, [cameraActive, decodeFrame, disabled, stopCamera])
 
   useEffect(() => () => stopCamera(), [stopCamera])
+
+  useEffect(() => {
+    if (!autoStart || disabled) return
+    void startCamera()
+  }, [autoStart, disabled, startCamera])
+
+  if (fullscreen) {
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1400,
+          bgcolor: '#000',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Box
+          sx={{
+            position: 'relative',
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+          <canvas ref={canvasRef} hidden />
+
+          {!cameraActive && !starting && (
+            <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.75)', px: 3, textAlign: 'center', zIndex: 1 }}>
+              {cameraError || 'Starting camera…'}
+            </Typography>
+          )}
+
+          {starting && (
+            <CircularProgress size={48} sx={{ color: '#fff', zIndex: 1 }} />
+          )}
+
+          <Box
+            sx={{
+              position: 'absolute',
+              width: 'min(78vw, 320px)',
+              height: 'min(78vw, 320px)',
+              border: '3px solid rgba(255,255,255,0.9)',
+              borderRadius: 3,
+              boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+              zIndex: 2,
+              pointerEvents: 'none',
+            }}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            flexShrink: 0,
+            px: 2,
+            py: 2,
+            pb: 'max(16px, env(safe-area-inset-bottom))',
+            bgcolor: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
+            {onClose && (
+              <IconButton
+                onClick={() => {
+                  stopCamera()
+                  onClose()
+                }}
+                aria-label="Back to gate scan"
+                sx={{ color: '#fff' }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+            )}
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#fff', flex: 1 }}>
+              {DEPOT_GATE.scannerTitle}
+            </Typography>
+          </Stack>
+          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', mb: 2 }}>
+            {DEPOT_GATE.scannerHint}
+          </Typography>
+
+          {cameraError && (
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+              {cameraError}
+            </Alert>
+          )}
+
+          <Stack direction="row" spacing={1}>
+            {cameraActive ? (
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<StopCircleOutlinedIcon />}
+                onClick={stopCamera}
+                disabled={disabled}
+                sx={{
+                  fontWeight: 700,
+                  borderRadius: 2,
+                  color: '#fff',
+                  borderColor: 'rgba(255,255,255,0.4)',
+                }}
+              >
+                {DEPOT_GATE.stopCamera}
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                fullWidth
+                startIcon={starting ? <CircularProgress size={16} color="inherit" /> : <QrCodeScannerIcon />}
+                onClick={() => void startCamera()}
+                disabled={disabled || starting}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                {DEPOT_GATE.startCamera}
+              </Button>
+            )}
+          </Stack>
+        </Box>
+      </Box>
+    )
+  }
 
   return (
     <Box

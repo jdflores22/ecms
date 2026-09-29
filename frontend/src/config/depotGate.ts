@@ -6,7 +6,8 @@ export const DEPOT_GATE = {
   heroDescription:
     'Scan the trucker’s pre-forecast QR at the gate, review the dossier tab, then accept the empty return to add the container to CY yard inventory.',
   scannerTitle: 'Scan booking QR',
-  scannerHint: 'Point the camera at the trucker’s ICS booking QR, or enter the reference manually.',
+  scannerHint:
+    'Point the camera at the trucker’s booking QR (encodes the ICS reference, e.g. ICS-202600123). You can also type the reference manually.',
   manualLabel: 'ICS QR reference',
   manualPlaceholder: 'ICS-202600018',
   scanButton: 'Look up',
@@ -19,6 +20,8 @@ export const DEPOT_GATE = {
   cameraUnavailable: 'Camera is not available on this device. Enter the ICS reference manually.',
   stopCamera: 'Stop camera',
   startCamera: 'Start camera',
+  openFullscreenScanner: 'Open full-screen scanner',
+  backFromScanner: 'Back to gate scan',
 } as const
 
 export type DepotGateIssueSeverity = 'error' | 'warning' | 'info'
