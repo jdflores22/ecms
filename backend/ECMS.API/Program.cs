@@ -93,6 +93,8 @@ var productionOrigins = new[]
 {
     "https://deepskyblue-marten-415020.hostingersite.com",
     "https://www.deepskyblue-marten-415020.hostingersite.com",
+    "https://olive-mole-175469.hostingersite.com",
+    "https://www.olive-mole-175469.hostingersite.com",
 };
 var allowedOrigins = corsOrigins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 

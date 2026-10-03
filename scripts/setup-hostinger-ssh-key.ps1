@@ -6,11 +6,11 @@
 #   .\scripts\setup-hostinger-ssh-key.ps1 -Force
 
 param(
-    [string]$KeyPath = (Join-Path $env:USERPROFILE ".ssh\hostinger_ecms"),
-    [string]$SshUser = "u910121167_HVdBWy0pE",
+    [string]$KeyPath = (Join-Path $env:USERPROFILE ".ssh\hostinger_ecms_ics2026"),
+    [string]$SshUser = "u910121167_HvBkp6EsX",
     [string]$SshHost = "82.25.100.95",
     [int]$SshPort = 65002,
-    [string]$SshConfigHost = "hostinger-ecms",
+    [string]$SshConfigHost = "hostinger-ics-olive",
     [switch]$Force
 )
 
