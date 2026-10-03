@@ -1,9 +1,13 @@
 using ECMS.Application;
+using ECMS.Application.Configuration;
 using ECMS.Application.DTOs.Auth;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Entities;
 using ECMS.Domain.Enums;
+using ECMS.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ECMS.Infrastructure.Services;
 
@@ -13,13 +17,26 @@ public class AuthService : IAuthService
     private readonly ITokenService _tokenService;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditService _auditService;
+    private readonly IEmailService _emailService;
+    private readonly IcsAppOptions _appOptions;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(IEcmsDbContext db, ITokenService tokenService, IPasswordHasher passwordHasher, IAuditService auditService)
+    public AuthService(
+        IEcmsDbContext db,
+        ITokenService tokenService,
+        IPasswordHasher passwordHasher,
+        IAuditService auditService,
+        IEmailService emailService,
+        IOptions<IcsAppOptions> appOptions,
+        ILogger<AuthService> logger)
     {
         _db = db;
         _tokenService = tokenService;
         _passwordHasher = passwordHasher;
         _auditService = auditService;
+        _emailService = emailService;
+        _appOptions = appOptions.Value;
+        _logger = logger;
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -69,6 +86,10 @@ public class AuthService : IAuthService
 
         user.Role = role;
         await _auditService.LogAsync(user.Id, "Register", "Auth", $"User {user.Username} registered", cancellationToken);
+
+        if (RoleNames.IsTruckerOrBroker(role.Name))
+            await TrySendWelcomeEmailAsync(user, cancellationToken);
+
         return await CreateAuthResponseAsync(user, cancellationToken);
     }
 
@@ -165,7 +186,39 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(user.Id, "RequestPasswordReset", "Auth", null, cancellationToken);
 
+        await TrySendPasswordResetEmailAsync(user, resetToken.Token, cancellationToken);
+
         return new ForgotPasswordResponse(message, includeResetToken ? resetToken.Token : null);
+    }
+
+    private async Task TrySendPasswordResetEmailAsync(User user, string token, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var baseUrl = (_appOptions.PublicFrontendUrl ?? "http://localhost:5173").TrimEnd('/');
+            var resetUrl = $"{baseUrl}/reset-password?token={Uri.EscapeDataString(token)}";
+            var displayName = user.FullName ?? user.Username;
+            var (subject, html, plain) = SystemEmailTemplates.PasswordReset(displayName, resetUrl, hoursValid: 1);
+            await _emailService.SendAsync(user.Email, subject, html, plain, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send password reset email to user {UserId}", user.Id);
+        }
+    }
+
+    private async Task TrySendWelcomeEmailAsync(User user, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var displayName = user.FullName ?? user.Username;
+            var (subject, html, plain) = SystemEmailTemplates.WelcomeTrucker(displayName, user.Username);
+            await _emailService.SendAsync(user.Email, subject, html, plain, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send welcome email to user {UserId}", user.Id);
+        }
     }
 
     public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)

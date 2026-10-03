@@ -1,9 +1,13 @@
+using ECMS.Application.Configuration;
 using ECMS.Application.DTOs.Notification;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Entities;
 using ECMS.Domain.Enums;
+using ECMS.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ECMS.Infrastructure.Services;
 
@@ -11,11 +15,25 @@ public class NotificationService : INotificationService
 {
     private readonly IEcmsDbContext _db;
     private readonly IPushNotificationService _push;
+    private readonly IEmailService _emailService;
+    private readonly EmailOptions _emailOptions;
+    private readonly IcsAppOptions _appOptions;
+    private readonly ILogger<NotificationService> _logger;
 
-    public NotificationService(IEcmsDbContext db, IPushNotificationService push)
+    public NotificationService(
+        IEcmsDbContext db,
+        IPushNotificationService push,
+        IEmailService emailService,
+        IOptions<EmailOptions> emailOptions,
+        IOptions<IcsAppOptions> appOptions,
+        ILogger<NotificationService> logger)
     {
         _db = db;
         _push = push;
+        _emailService = emailService;
+        _emailOptions = emailOptions.Value;
+        _appOptions = appOptions.Value;
+        _logger = logger;
     }
 
     public async Task NotifyUsersAsync(
@@ -59,6 +77,47 @@ public class NotificationService : INotificationService
             category,
             linkPath,
             cancellationToken);
+
+        if (_emailOptions.Enabled && _emailOptions.SendInAppNotificationsByEmail)
+            await TrySendNotificationEmailsAsync(recipients, title, message, linkPath, cancellationToken);
+    }
+
+    private async Task TrySendNotificationEmailsAsync(
+        List<int> userIds,
+        string title,
+        string message,
+        string? linkPath,
+        CancellationToken cancellationToken)
+    {
+        var users = await _db.Users
+            .AsNoTracking()
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.Email, u.FullName, u.Username })
+            .ToListAsync(cancellationToken);
+
+        var frontendBase = (_appOptions.PublicFrontendUrl ?? "").TrimEnd('/');
+        var actionUrl = string.IsNullOrWhiteSpace(linkPath)
+            ? null
+            : linkPath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                ? linkPath
+                : $"{frontendBase}{(linkPath.StartsWith('/') ? linkPath : "/" + linkPath)}";
+
+        foreach (var user in users)
+        {
+            if (string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@', StringComparison.Ordinal))
+                continue;
+
+            try
+            {
+                var displayName = user.FullName ?? user.Username;
+                var (subject, html, plain) = SystemEmailTemplates.InAppNotification(displayName, title, message, actionUrl);
+                await _emailService.SendAsync(user.Email, subject, html, plain, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send notification email to user {UserId}", user.Id);
+            }
+        }
     }
 
     public async Task<NotificationPageDto> GetForUserAsync(

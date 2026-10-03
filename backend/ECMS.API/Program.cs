@@ -40,6 +40,8 @@ builder.Services.Configure<ECMS.Application.Configuration.LogicteckOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.LogicteckOptions.SectionName));
 builder.Services.Configure<ECMS.Application.Configuration.IcsAppOptions>(
     builder.Configuration.GetSection(ECMS.Application.Configuration.IcsAppOptions.SectionName));
+builder.Services.Configure<ECMS.Application.Configuration.EmailOptions>(
+    builder.Configuration.GetSection(ECMS.Application.Configuration.EmailOptions.SectionName));
 builder.Services.Configure<ECMS.Infrastructure.Options.PayMongoOptions>(
     builder.Configuration.GetSection(ECMS.Infrastructure.Options.PayMongoOptions.SectionName));
 builder.Services.PostConfigure<ECMS.Infrastructure.Options.PayMongoOptions>(options =>
@@ -62,6 +64,17 @@ builder.Services.PostConfigure<ECMS.Application.Configuration.IcsAppOptions>(opt
     var frontendUrl = Environment.GetEnvironmentVariable("PUBLIC_FRONTEND_URL");
     if (!string.IsNullOrWhiteSpace(frontendUrl))
         options.PublicFrontendUrl = frontendUrl.Trim();
+});
+builder.Services.PostConfigure<ECMS.Application.Configuration.EmailOptions>(options =>
+{
+    var password = Environment.GetEnvironmentVariable("ECMS_SMTP_PASSWORD")
+        ?? Environment.GetEnvironmentVariable("SMTP_PASSWORD");
+    if (!string.IsNullOrWhiteSpace(password))
+        options.Password = password;
+
+    var enabled = Environment.GetEnvironmentVariable("ECMS_EMAIL_ENABLED");
+    if (!string.IsNullOrWhiteSpace(enabled) && bool.TryParse(enabled, out var isEnabled))
+        options.Enabled = isEnabled;
 });
 builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>
 {
