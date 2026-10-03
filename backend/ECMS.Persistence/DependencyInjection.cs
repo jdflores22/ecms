@@ -98,7 +98,8 @@ public class DbSeeder
         }
 
         await EnsureBrokerRoleFromCatalogAsync();
-        await EnsureDemoBrokerUserAsync();
+        if (seedDemoUsers)
+            await EnsureDemoBrokerUserAsync();
         await SyncTruckerRoleFromCatalogAsync();
         await SyncAdministratorRoleFromCatalogAsync();
         await SyncDepotPersonnelRoleFromCatalogAsync();

@@ -63,8 +63,9 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
-        if (await _db.Users.AnyAsync(u => u.Username == request.Username || u.Email == request.Email, cancellationToken))
-            throw new InvalidOperationException("Username or email already exists.");
+        var username = request.Username.Trim();
+        var email = request.Email.Trim();
+        await EnsureUsernameAndEmailAvailableAsync(username, email, cancellationToken);
 
         var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == request.Role, cancellationToken);
         if (role is null)
@@ -72,8 +73,8 @@ public class AuthService : IAuthService
 
         var user = new User
         {
-            Username = request.Username,
-            Email = request.Email,
+            Username = username,
+            Email = email,
             PasswordHash = _passwordHasher.Hash(request.Password),
             FullName = request.FullName,
             RoleId = role.Id,
@@ -82,7 +83,14 @@ public class AuthService : IAuthService
         };
 
         _db.Add(user);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateUserException(ex))
+        {
+            throw new InvalidOperationException(await DescribeRegistrationConflictAsync(username, email, cancellationToken));
+        }
 
         user.Role = role;
         await _auditService.LogAsync(user.Id, "Register", "Auth", $"User {user.Username} registered", cancellationToken);
@@ -205,6 +213,50 @@ public class AuthService : IAuthService
         {
             _logger.LogWarning(ex, "Failed to send password reset email to user {UserId}", user.Id);
         }
+    }
+
+    private async Task EnsureUsernameAndEmailAvailableAsync(
+        string username,
+        string email,
+        CancellationToken cancellationToken)
+    {
+        var conflict = await DescribeRegistrationConflictAsync(username, email, cancellationToken);
+        if (conflict is not null)
+            throw new InvalidOperationException(conflict);
+    }
+
+    private async Task<string?> DescribeRegistrationConflictAsync(
+        string username,
+        string email,
+        CancellationToken cancellationToken)
+    {
+        var normalizedUsername = username.ToLowerInvariant();
+        var normalizedEmail = email.ToLowerInvariant();
+
+        var usernameTaken = await _db.Users.AnyAsync(
+            u => u.Username.ToLower() == normalizedUsername,
+            cancellationToken);
+        if (usernameTaken)
+            return "That username is already taken. Choose a different username.";
+
+        var emailTaken = await _db.Users.AnyAsync(
+            u => u.Email.ToLower() == normalizedEmail,
+            cancellationToken);
+        if (emailTaken)
+            return "That email is already registered. Sign in or use forgot password.";
+
+        return null;
+    }
+
+    private static bool IsDuplicateUserException(DbUpdateException ex)
+    {
+        for (Exception? inner = ex.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            if (inner.Message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private async Task TrySendWelcomeEmailAsync(User user, CancellationToken cancellationToken)
