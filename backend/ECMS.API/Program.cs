@@ -110,11 +110,25 @@ var productionOrigins = new[]
     "https://www.olive-mole-175469.hostingersite.com",
 };
 var allowedOrigins = corsOrigins.Concat(productionOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+var isDevelopment = builder.Environment.IsDevelopment();
+
+bool IsAllowedCorsOrigin(string? origin)
+{
+    if (string.IsNullOrWhiteSpace(origin)) return false;
+    if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) return true;
+    if (Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        && uri.Scheme == "https"
+        && uri.Host.EndsWith(".hostingersite.com", StringComparison.OrdinalIgnoreCase))
+        return true;
+    if (isDevelopment && origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase))
+        return true;
+    return false;
+}
 
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.WithOrigins(allowedOrigins)
+        policy.SetIsOriginAllowed(IsAllowedCorsOrigin)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials());
@@ -234,8 +248,7 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = ctx =>
     {
         var origin = ctx.Context.Request.Headers.Origin.ToString();
-        if (!string.IsNullOrEmpty(origin)
-            && allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(origin) && IsAllowedCorsOrigin(origin))
         {
             ctx.Context.Response.Headers.AccessControlAllowOrigin = origin;
             ctx.Context.Response.Headers.AccessControlAllowCredentials = "true";
@@ -256,7 +269,12 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    signup = "email-verification-v2",
+    emailQueue = "background",
+}));
 app.MapControllers();
 
 await using (var scope = app.Services.CreateAsyncScope())

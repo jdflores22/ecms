@@ -24,5 +24,6 @@ public class User : BaseEntity
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new List<PasswordResetToken>();
+    public ICollection<EmailVerificationToken> EmailVerificationTokens { get; set; } = new List<EmailVerificationToken>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
 }

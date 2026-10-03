@@ -27,6 +27,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<DevicePushToken> DevicePushTokensSet => Set<DevicePushToken>();
     public DbSet<RefreshToken> RefreshTokensSet => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokensSet => Set<PasswordResetToken>();
+    public DbSet<EmailVerificationToken> EmailVerificationTokensSet => Set<EmailVerificationToken>();
     public DbSet<ManualYardInventoryEntry> ManualYardInventoryEntriesSet => Set<ManualYardInventoryEntry>();
     public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
     public DbSet<ShippingLinePaymentConfig> ShippingLinePaymentConfigsSet => Set<ShippingLinePaymentConfig>();
@@ -69,6 +70,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<DevicePushToken> IEcmsDbContext.DevicePushTokens => DevicePushTokensSet;
     IQueryable<RefreshToken> IEcmsDbContext.RefreshTokens => RefreshTokensSet;
     IQueryable<PasswordResetToken> IEcmsDbContext.PasswordResetTokens => PasswordResetTokensSet;
+    IQueryable<EmailVerificationToken> IEcmsDbContext.EmailVerificationTokens => EmailVerificationTokensSet;
     IQueryable<ManualYardInventoryEntry> IEcmsDbContext.ManualYardInventoryEntries => ManualYardInventoryEntriesSet;
     IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
     IQueryable<ShippingLinePaymentConfig> IEcmsDbContext.ShippingLinePaymentConfigs => ShippingLinePaymentConfigsSet;
@@ -267,6 +269,12 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         {
             e.HasIndex(x => x.Token).IsUnique();
             e.HasOne(x => x.User).WithMany(x => x.PasswordResetTokens).HasForeignKey(x => x.UserId);
+        });
+
+        modelBuilder.Entity<EmailVerificationToken>(e =>
+        {
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasOne(x => x.User).WithMany(x => x.EmailVerificationTokens).HasForeignKey(x => x.UserId);
         });
 
         modelBuilder.Entity<ManualYardInventoryEntry>(e =>

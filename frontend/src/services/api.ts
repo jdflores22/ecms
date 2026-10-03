@@ -213,7 +213,13 @@ export const authApi = {
     password: string
     fullName: string
     role: 'Trucker'
-  }) => api.post<LoginResponse>('/auth/signup', data),
+  }) => api.post<{ message: string; verificationToken?: string | null }>('/auth/signup', data),
+  verifyEmail: (token: string) =>
+    api.post<{ message: string }>('/auth/verify-email', { token }),
+  resendVerification: (emailOrUsername: string) =>
+    api.post<{ message: string; verificationToken?: string | null }>('/auth/resend-verification', {
+      emailOrUsername,
+    }),
   forgotPassword: (emailOrUsername: string) =>
     api.post<{ message: string; resetToken?: string | null }>('/auth/forgot-password', {
       emailOrUsername,

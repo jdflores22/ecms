@@ -17,7 +17,8 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IUploadAccessService, UploadAccessService>();
         services.AddScoped<IAuditService, AuditService>();
-        services.AddScoped<IEmailService, SmtpEmailService>();
+        services.AddScoped<SmtpEmailService>();
+        services.AddScoped<IEmailService, BackgroundEmailService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
         services.AddHttpClient<LogicteckOutboundClient>();

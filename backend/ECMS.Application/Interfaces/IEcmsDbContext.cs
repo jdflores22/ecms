@@ -23,6 +23,7 @@ public interface IEcmsDbContext
     IQueryable<DevicePushToken> DevicePushTokens { get; }
     IQueryable<RefreshToken> RefreshTokens { get; }
     IQueryable<PasswordResetToken> PasswordResetTokens { get; }
+    IQueryable<EmailVerificationToken> EmailVerificationTokens { get; }
     IQueryable<ManualYardInventoryEntry> ManualYardInventoryEntries { get; }
     IQueryable<PaymentSettings> PaymentSettings { get; }
     IQueryable<ShippingLinePaymentConfig> ShippingLinePaymentConfigs { get; }

@@ -56,15 +56,19 @@ public class SmtpEmailService : IEmailService
         };
         message.Body = body.ToMessageBody();
 
-        using var client = new SmtpClient();
+        using var client = new SmtpClient { Timeout = 10_000 };
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(12));
+        var sendToken = timeoutCts.Token;
+
         var secureSocket = _options.UseSsl
             ? SecureSocketOptions.SslOnConnect
             : SecureSocketOptions.StartTlsWhenAvailable;
 
-        await client.ConnectAsync(_options.Host, _options.Port, secureSocket, cancellationToken);
-        await client.AuthenticateAsync(_options.UserName, _options.Password, cancellationToken);
-        await client.SendAsync(message, cancellationToken);
-        await client.DisconnectAsync(true, cancellationToken);
+        await client.ConnectAsync(_options.Host, _options.Port, secureSocket, sendToken);
+        await client.AuthenticateAsync(_options.UserName, _options.Password, sendToken);
+        await client.SendAsync(message, sendToken);
+        await client.DisconnectAsync(true, sendToken);
 
         _logger.LogInformation("Email sent: {Subject} to {To}", subject, toEmail);
     }

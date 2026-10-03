@@ -10,6 +10,7 @@ import TruckerAppDownloadPage from './pages/public/TruckerAppDownloadPage'
 import LandingPage from './pages/LandingPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
 import { CertificateVerifyPage, CroEdoVerifyPage } from './routes/lazyPages'
 import AppLayout from './layouts/AppLayout'
 import RoleRouteGuard from './components/auth/RoleRouteGuard'
@@ -138,6 +139,7 @@ export default function App() {
       <Route path="/download/trucker-app" element={<TruckerAppDownloadPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route
         path="/verify/certificate/:token"
         element={

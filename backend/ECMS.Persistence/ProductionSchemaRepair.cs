@@ -77,6 +77,8 @@ public static class ProductionSchemaRepair
 
         await EnsureDevicePushTokensTableAsync(db, logger, cancellationToken);
 
+        await EnsureEmailVerificationTokensTableAsync(db, logger, cancellationToken);
+
         await EnsureCertificateTemplatesTableAsync(db, logger, cancellationToken);
 
         await EnsureCertificateVerificationsTableAsync(db, logger, cancellationToken);
@@ -472,6 +474,50 @@ public static class ProductionSchemaRepair
             """
             INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
             VALUES ('20260702150000_AddDevicePushTokens', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureEmailVerificationTokensTableAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (await TableExistsAsync(db, "EmailVerificationTokensSet", cancellationToken))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+                VALUES ('20261003044849_AddEmailVerificationTokens', '7.0.20')
+                """,
+                cancellationToken);
+            return;
+        }
+
+        logger.LogWarning("Creating missing table EmailVerificationTokensSet");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE `EmailVerificationTokensSet` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `UserId` int NOT NULL,
+                `Token` varchar(255) CHARACTER SET utf8mb4 NOT NULL,
+                `ExpiresAt` datetime(6) NOT NULL,
+                `IsUsed` tinyint(1) NOT NULL,
+                `UsedAt` datetime(6) NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_EmailVerificationTokensSet_Token` (`Token`),
+                KEY `IX_EmailVerificationTokensSet_UserId` (`UserId`),
+                CONSTRAINT `FK_EmailVerificationTokensSet_UsersSet_UserId`
+                    FOREIGN KEY (`UserId`) REFERENCES `UsersSet` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('20261003044849_AddEmailVerificationTokens', '7.0.20')
             """,
             cancellationToken);
     }

@@ -61,18 +61,44 @@ public class AuthController : ControllerBase
     [HttpPost("signup")]
     [AllowAnonymous]
     [EnableRateLimiting("auth-login")]
-    public async Task<ActionResult<AuthResponse>> SignUp([FromBody] SignUpRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<SignUpResponse>> SignUp([FromBody] SignUpRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var response = await _authService.SignUpAsync(request, cancellationToken);
-            AuthCookieHelper.SetAccessTokenCookie(Response, Request, response.AccessToken, response.ExpiresAt);
-            return Ok(response);
+            var includeToken = _env.IsDevelopment();
+            return Ok(await _authService.SignUpAsync(request, includeToken, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth-login")]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _authService.VerifyEmailAsync(request, cancellationToken);
+            return Ok(new { message = "Email verified. You can sign in now." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("resend-verification")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth-login")]
+    public async Task<ActionResult<SignUpResponse>> ResendVerification(
+        [FromBody] ResendVerificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var includeToken = _env.IsDevelopment();
+        return Ok(await _authService.ResendVerificationAsync(request, includeToken, cancellationToken));
     }
 
     [HttpPost("refresh")]

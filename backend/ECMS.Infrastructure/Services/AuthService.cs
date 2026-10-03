@@ -55,7 +55,14 @@ public class AuthService : IAuthService
         if (user is null)
             throw new UnauthorizedAccessException("Invalid username or password.");
 
-        if (user.Status != UserStatus.Active || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+        if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
+            throw new UnauthorizedAccessException("Invalid username or password.");
+
+        if (user.Status == UserStatus.PendingEmailVerification)
+            throw new UnauthorizedAccessException(
+                "Please verify your email before signing in. Check your inbox for the verification link.");
+
+        if (user.Status != UserStatus.Active)
             throw new UnauthorizedAccessException("Invalid username or password.");
 
         return await CreateAuthResponseAsync(user, cancellationToken);
@@ -96,15 +103,18 @@ public class AuthService : IAuthService
         await _auditService.LogAsync(user.Id, "Register", "Auth", $"User {user.Username} registered", cancellationToken);
 
         if (RoleNames.IsTruckerOrBroker(role.Name))
-            await TrySendWelcomeEmailAsync(user, cancellationToken);
+            QueueWelcomeEmail(user);
 
         return await CreateAuthResponseAsync(user, cancellationToken);
     }
 
-    public async Task<AuthResponse> SignUpAsync(SignUpRequest request, CancellationToken cancellationToken = default)
+    public async Task<SignUpResponse> SignUpAsync(
+        SignUpRequest request,
+        bool includeVerificationToken,
+        CancellationToken cancellationToken = default)
     {
-        var role = string.IsNullOrWhiteSpace(request.Role) ? RoleNames.Trucker : request.Role.Trim();
-        if (role is not RoleNames.Trucker)
+        var roleName = string.IsNullOrWhiteSpace(request.Role) ? RoleNames.Trucker : request.Role.Trim();
+        if (roleName is not RoleNames.Trucker)
             throw new InvalidOperationException("Self-service sign-up is only available for trucker accounts.");
 
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.FullName))
@@ -113,14 +123,108 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
             throw new InvalidOperationException("Password must be at least 8 characters.");
 
-        return await RegisterAsync(
-            new RegisterRequest(
-                request.Username.Trim(),
-                request.Email.Trim(),
-                request.Password,
-                request.FullName.Trim(),
-                role),
+        var username = request.Username.Trim();
+        var email = request.Email.Trim();
+
+        var pendingByEmail = await _db.Users.FirstOrDefaultAsync(
+            u => u.Email.ToLower() == email.ToLowerInvariant() && u.Status == UserStatus.PendingEmailVerification,
             cancellationToken);
+        if (pendingByEmail is not null)
+        {
+            var token = await IssueEmailVerificationTokenAsync(pendingByEmail, cancellationToken);
+            QueueVerificationEmail(pendingByEmail, token);
+            return BuildSignUpResponse(includeVerificationToken, token);
+        }
+
+        await EnsureUsernameAndEmailAvailableAsync(username, email, cancellationToken);
+
+        var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == roleName, cancellationToken);
+        if (role is null)
+            throw new InvalidOperationException("Invalid role.");
+
+        var user = new User
+        {
+            Username = username,
+            Email = email,
+            PasswordHash = _passwordHasher.Hash(request.Password),
+            FullName = request.FullName.Trim(),
+            RoleId = role.Id,
+            Status = UserStatus.PendingEmailVerification,
+        };
+
+        _db.Add(user);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateUserException(ex))
+        {
+            throw new InvalidOperationException(await DescribeRegistrationConflictAsync(username, email, cancellationToken));
+        }
+
+        user.Role = role;
+
+        var verificationToken = CreateEmailVerificationToken(user);
+        _auditService.QueueLog(user.Id, "SignUp", "Auth", $"User {user.Username} signed up (pending email)");
+        await _db.SaveChangesAsync(cancellationToken);
+        QueueVerificationEmail(user, verificationToken);
+
+        return BuildSignUpResponse(includeVerificationToken, verificationToken);
+    }
+
+    public async Task VerifyEmailAsync(VerifyEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+            throw new InvalidOperationException("Verification token is required.");
+
+        var verification = await _db.EmailVerificationTokens
+            .Include(t => t.User).ThenInclude(u => u.Role)
+            .FirstOrDefaultAsync(t => t.Token == request.Token.Trim(), cancellationToken);
+
+        if (verification is null || !verification.IsActive)
+            throw new InvalidOperationException("Invalid or expired verification link.");
+
+        if (verification.User.Status != UserStatus.PendingEmailVerification)
+            throw new InvalidOperationException("This account is already verified or cannot be verified.");
+
+        verification.User.Status = UserStatus.Active;
+        verification.IsUsed = true;
+        verification.UsedAt = DateTime.UtcNow;
+
+        _db.Update(verification.User);
+        _db.Update(verification);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _auditService.LogAsync(verification.UserId, "VerifyEmail", "Auth", null, cancellationToken);
+
+        if (RoleNames.IsTruckerOrBroker(verification.User.Role.Name))
+            QueueWelcomeEmail(verification.User);
+    }
+
+    public async Task<SignUpResponse> ResendVerificationAsync(
+        ResendVerificationRequest request,
+        bool includeVerificationToken,
+        CancellationToken cancellationToken = default)
+    {
+        const string message =
+            "If an account is waiting for verification, we sent a new confirmation email.";
+
+        if (string.IsNullOrWhiteSpace(request.EmailOrUsername))
+            return new SignUpResponse(message);
+
+        var identifier = request.EmailOrUsername.Trim();
+        var user = await _db.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(
+                u => u.Username == identifier || u.Email == identifier,
+                cancellationToken);
+
+        if (user is null || user.Status != UserStatus.PendingEmailVerification)
+            return new SignUpResponse(message);
+
+        var token = await IssueEmailVerificationTokenAsync(user, cancellationToken);
+        QueueVerificationEmail(user, token);
+
+        return BuildSignUpResponse(includeVerificationToken, token);
     }
 
     public async Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
@@ -259,17 +363,73 @@ public class AuthService : IAuthService
         return false;
     }
 
-    private async Task TrySendWelcomeEmailAsync(User user, CancellationToken cancellationToken)
+    private static SignUpResponse BuildSignUpResponse(bool includeVerificationToken, string verificationToken)
+    {
+        const string message =
+            "Account created. Check your email and click the verification link before signing in.";
+        return new SignUpResponse(message, includeVerificationToken ? verificationToken : null);
+    }
+
+    private string CreateEmailVerificationToken(User user)
+    {
+        const int hoursValid = 48;
+        var verification = new EmailVerificationToken
+        {
+            UserId = user.Id,
+            Token = _tokenService.GenerateRefreshToken(),
+            ExpiresAt = DateTime.UtcNow.AddHours(hoursValid),
+        };
+
+        _db.Add(verification);
+        return verification.Token;
+    }
+
+    private async Task<string> IssueEmailVerificationTokenAsync(User user, CancellationToken cancellationToken)
+    {
+        var existing = await _db.EmailVerificationTokens
+            .Where(t => t.UserId == user.Id && !t.IsUsed)
+            .ToListAsync(cancellationToken);
+
+        foreach (var token in existing)
+        {
+            token.IsUsed = true;
+            token.UsedAt = DateTime.UtcNow;
+            _db.Update(token);
+        }
+
+        var plainToken = CreateEmailVerificationToken(user);
+        await _db.SaveChangesAsync(cancellationToken);
+        return plainToken;
+    }
+
+    private void QueueVerificationEmail(User user, string token)
+    {
+        try
+        {
+            const int hoursValid = 48;
+            var baseUrl = (_appOptions.PublicFrontendUrl ?? "http://localhost:5173").TrimEnd('/');
+            var verifyUrl = $"{baseUrl}/verify-email?token={Uri.EscapeDataString(token)}";
+            var displayName = user.FullName ?? user.Username;
+            var (subject, html, plain) = SystemEmailTemplates.VerifyEmail(displayName, verifyUrl, hoursValid);
+            _ = _emailService.SendAsync(user.Email, subject, html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to queue verification email for user {UserId}", user.Id);
+        }
+    }
+
+    private void QueueWelcomeEmail(User user)
     {
         try
         {
             var displayName = user.FullName ?? user.Username;
             var (subject, html, plain) = SystemEmailTemplates.WelcomeTrucker(displayName, user.Username);
-            await _emailService.SendAsync(user.Email, subject, html, plain, cancellationToken);
+            _ = _emailService.SendAsync(user.Email, subject, html, plain);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send welcome email to user {UserId}", user.Id);
+            _logger.LogWarning(ex, "Failed to queue welcome email for user {UserId}", user.Id);
         }
     }
 

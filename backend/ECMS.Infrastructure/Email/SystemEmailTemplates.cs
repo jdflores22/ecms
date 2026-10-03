@@ -46,6 +46,30 @@ internal static class SystemEmailTemplates
         return ("Reset your ICS password", html, plain);
     }
 
+    public static (string Subject, string Html, string Plain) VerifyEmail(string displayName, string verifyUrl, int hoursValid)
+    {
+        var safeName = WebUtility.HtmlEncode(displayName);
+        var html = Wrap(
+            "Verify your ICS email",
+            $"""
+              <p>Hello {safeName},</p>
+              <p>Thanks for signing up. Confirm your email address within {hoursValid} hour(s) to activate your trucker account.</p>
+              <p style="margin:24px 0;">
+                <a href="{WebUtility.HtmlEncode(verifyUrl)}"
+                   style="background:#0b3d91;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                  Verify email
+                </a>
+              </p>
+              <p style="font-size:13px;color:#64748b;">If you did not create an account, you can ignore this email.</p>
+              <p style="font-size:12px;color:#94a3b8;word-break:break-all;">{WebUtility.HtmlEncode(verifyUrl)}</p>
+              """);
+
+        var plain =
+            $"Hello {displayName},\r\n\r\nVerify your ICS email (valid {hoursValid} hour(s)):\r\n{verifyUrl}\r\n\r\nIf you did not sign up, ignore this email.";
+
+        return ("Verify your ICS email", html, plain);
+    }
+
     public static (string Subject, string Html, string Plain) WelcomeTrucker(string displayName, string username)
     {
         var safeName = WebUtility.HtmlEncode(displayName);

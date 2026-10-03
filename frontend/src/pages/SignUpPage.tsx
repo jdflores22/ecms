@@ -8,7 +8,7 @@ import {
 } from '@mui/material'
 import axios from 'axios'
 import { useMemo, useState } from 'react'
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import AuthShell, {
   AuthAlert,
   AuthLink,
@@ -18,9 +18,8 @@ import AuthShell, {
 } from '../components/auth/AuthShell'
 import PasswordField from '../components/auth/PasswordField'
 import { ICS_BRAND } from '../config/brandCopy'
-import { authApi, resetAuthRefreshState } from '../services/api'
-import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { setCredentials } from '../store/slices/authSlice'
+import { authApi } from '../services/api'
+import { useAppSelector } from '../store/hooks'
 import { evaluatePasswordStrength, passwordStrengthMessage } from '../utils/passwordStrength'
 
 const TRUCKER_SIGNUP = {
@@ -40,7 +39,7 @@ function apiErrorMessage(err: unknown, fallback: string) {
 export default function SignUpPage() {
   const { role: roleParam } = useParams()
   const token = useAppSelector((s) => s.auth.accessToken)
-  const dispatch = useAppDispatch()
+  const navigate = useNavigate()
 
   const config = useMemo(() => {
     const key = roleParam?.toLowerCase()
@@ -54,6 +53,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   const passwordStrength = useMemo(() => evaluatePasswordStrength(password), [password])
@@ -77,6 +77,7 @@ export default function SignUpPage() {
     }
 
     setLoading(true)
+    setSuccess('')
     try {
       const { data } = await authApi.signUp({
         fullName: fullName.trim(),
@@ -85,14 +86,8 @@ export default function SignUpPage() {
         password,
         role: config.apiRole,
       })
-      resetAuthRefreshState()
-      dispatch(
-        setCredentials({
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-          user: data.user,
-        }),
-      )
+      setSuccess(data.message)
+      setTimeout(() => navigate('/verify-email'), 1500)
     } catch (err) {
       setError(apiErrorMessage(err, 'Registration failed. Please review your details.'))
     } finally {
@@ -111,7 +106,12 @@ export default function SignUpPage() {
           if you already have an account.
         </>
       }
-      alerts={error ? <AuthAlert>{error}</AuthAlert> : null}
+      alerts={
+        <>
+          {error ? <AuthAlert>{error}</AuthAlert> : null}
+          {success ? <AuthAlert severity="success">{success}</AuthAlert> : null}
+        </>
+      }
     >
       <Box
         component="form"

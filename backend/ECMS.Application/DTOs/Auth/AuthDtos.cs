@@ -44,3 +44,9 @@ public record ForgotPasswordRequest(string EmailOrUsername);
 public record ForgotPasswordResponse(string Message, string? ResetToken = null);
 
 public record ResetPasswordRequest(string Token, string NewPassword);
+
+public record SignUpResponse(string Message, string? VerificationToken = null);
+
+public record VerifyEmailRequest(string Token);
+
+public record ResendVerificationRequest(string EmailOrUsername);

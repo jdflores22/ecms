@@ -57,7 +57,7 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
     }
 
     [Fact]
-    public async Task SignUp_trucker_creates_account_and_returns_token()
+    public async Task SignUp_trucker_requires_email_verification_before_login()
     {
         var username = $"trucker_{Guid.NewGuid():N}"[..20];
         var response = await _client.PostAsJsonAsync("/api/auth/signup", new
@@ -70,10 +70,26 @@ public class AuthIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<ApiTestHelper.AuthResponse>();
-        Assert.NotNull(body);
-        Assert.Equal("Trucker", body.User.Role);
+        var signUp = await response.Content.ReadFromJsonAsync<SignUpPayload>();
+        Assert.NotNull(signUp);
+        Assert.False(string.IsNullOrWhiteSpace(signUp.Message));
+        Assert.False(string.IsNullOrWhiteSpace(signUp.VerificationToken));
+
+        var loginBeforeVerify = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            username,
+            password = "Trucker@123",
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, loginBeforeVerify.StatusCode);
+
+        var verify = await _client.PostAsJsonAsync("/api/auth/verify-email", new { token = signUp.VerificationToken });
+        Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
+
+        var token = await ApiTestHelper.LoginAsync(_client, username, "Trucker@123");
+        Assert.False(string.IsNullOrWhiteSpace(token));
     }
+
+    private record SignUpPayload(string Message, string? VerificationToken);
 
     [Fact]
     public async Task SignUp_admin_role_is_rejected()
