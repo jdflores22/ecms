@@ -28,7 +28,7 @@ public class SmtpEmailService : IEmailService
     {
         if (!_options.Enabled)
         {
-            _logger.LogDebug("Email skipped (disabled): {Subject} to {To}", subject, toEmail);
+            _logger.LogWarning("Email skipped (disabled): {Subject} to {To}", subject, toEmail);
             return;
         }
 
@@ -65,12 +65,39 @@ public class SmtpEmailService : IEmailService
             ? SecureSocketOptions.SslOnConnect
             : SecureSocketOptions.StartTlsWhenAvailable;
 
-        await client.ConnectAsync(_options.Host, _options.Port, secureSocket, sendToken);
-        await client.AuthenticateAsync(_options.UserName, _options.Password, sendToken);
-        await client.SendAsync(message, sendToken);
-        await client.DisconnectAsync(true, sendToken);
+        try
+        {
+            await ConnectSendDisconnectAsync(client, message, _options.Host, _options.Port, secureSocket, sendToken);
+        }
+        catch (Exception ex) when (_options.Port == 465 && _options.UseSsl)
+        {
+            _logger.LogWarning(ex, "SMTP SSL on port 465 failed; retrying with STARTTLS on port 587");
+            if (client.IsConnected)
+                await client.DisconnectAsync(true, sendToken);
+            await ConnectSendDisconnectAsync(
+                client,
+                message,
+                _options.Host,
+                587,
+                SecureSocketOptions.StartTls,
+                sendToken);
+        }
 
         _logger.LogInformation("Email sent: {Subject} to {To}", subject, toEmail);
+    }
+
+    private async Task ConnectSendDisconnectAsync(
+        SmtpClient client,
+        MimeMessage message,
+        string host,
+        int port,
+        SecureSocketOptions secureSocket,
+        CancellationToken cancellationToken)
+    {
+        await client.ConnectAsync(host, port, secureSocket, cancellationToken);
+        await client.AuthenticateAsync(_options.UserName, _options.Password, cancellationToken);
+        await client.SendAsync(message, cancellationToken);
+        await client.DisconnectAsync(true, cancellationToken);
     }
 
     private static string StripHtml(string html)

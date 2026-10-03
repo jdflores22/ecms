@@ -75,6 +75,8 @@ builder.Services.PostConfigure<ECMS.Application.Configuration.EmailOptions>(opti
     var enabled = Environment.GetEnvironmentVariable("ECMS_EMAIL_ENABLED");
     if (!string.IsNullOrWhiteSpace(enabled) && bool.TryParse(enabled, out var isEnabled))
         options.Enabled = isEnabled;
+    else if (!string.IsNullOrWhiteSpace(options.Password))
+        options.Enabled = true;
 });
 builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(options =>
 {
@@ -269,12 +271,24 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapGet("/health", () => Results.Ok(new
+app.MapGet("/health", (Microsoft.Extensions.Options.IOptions<ECMS.Application.Configuration.EmailOptions> emailOptions) =>
 {
-    status = "ok",
-    signup = "email-verification-v2",
-    emailQueue = "background",
-}));
+    var email = emailOptions.Value;
+    var configured = !string.IsNullOrWhiteSpace(email.Password);
+    return Results.Ok(new
+    {
+        status = "ok",
+        signup = "email-verification-v2",
+        emailQueue = "background",
+        email = new
+        {
+            enabled = email.Enabled,
+            configured,
+            ready = email.Enabled && configured,
+            host = email.Host,
+        },
+    });
+});
 app.MapControllers();
 
 await using (var scope = app.Services.CreateAsyncScope())
@@ -307,6 +321,15 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         startupLogger.LogWarning(ex, "Demurrage billing sync skipped.");
     }
+
+    var email = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ECMS.Application.Configuration.EmailOptions>>().Value;
+    if (email.Enabled && !string.IsNullOrWhiteSpace(email.Password))
+        startupLogger.LogInformation("Transactional email is enabled ({Host}, from {From}).", email.Host, email.FromAddress);
+    else
+        startupLogger.LogWarning(
+            "Transactional email is OFF (Enabled={Enabled}, password set={HasPassword}). Set ECMS_SMTP_PASSWORD on Railway.",
+            email.Enabled,
+            !string.IsNullOrWhiteSpace(email.Password));
 }
 
 app.Run();

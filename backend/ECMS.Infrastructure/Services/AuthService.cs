@@ -6,6 +6,7 @@ using ECMS.Domain.Entities;
 using ECMS.Domain.Enums;
 using ECMS.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +19,7 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditService _auditService;
     private readonly IEmailService _emailService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IcsAppOptions _appOptions;
     private readonly ILogger<AuthService> _logger;
 
@@ -27,6 +29,7 @@ public class AuthService : IAuthService
         IPasswordHasher passwordHasher,
         IAuditService auditService,
         IEmailService emailService,
+        IServiceScopeFactory scopeFactory,
         IOptions<IcsAppOptions> appOptions,
         ILogger<AuthService> logger)
     {
@@ -35,6 +38,7 @@ public class AuthService : IAuthService
         _passwordHasher = passwordHasher;
         _auditService = auditService;
         _emailService = emailService;
+        _scopeFactory = scopeFactory;
         _appOptions = appOptions.Value;
         _logger = logger;
     }
@@ -132,7 +136,7 @@ public class AuthService : IAuthService
         if (pendingByEmail is not null)
         {
             var token = await IssueEmailVerificationTokenAsync(pendingByEmail, cancellationToken);
-            QueueVerificationEmail(pendingByEmail, token);
+            await SendVerificationEmailAsync(pendingByEmail, token, cancellationToken);
             return BuildSignUpResponse(includeVerificationToken, token);
         }
 
@@ -167,7 +171,7 @@ public class AuthService : IAuthService
         var verificationToken = CreateEmailVerificationToken(user);
         _auditService.QueueLog(user.Id, "SignUp", "Auth", $"User {user.Username} signed up (pending email)");
         await _db.SaveChangesAsync(cancellationToken);
-        QueueVerificationEmail(user, verificationToken);
+        await SendVerificationEmailAsync(user, verificationToken, cancellationToken);
 
         return BuildSignUpResponse(includeVerificationToken, verificationToken);
     }
@@ -222,7 +226,7 @@ public class AuthService : IAuthService
             return new SignUpResponse(message);
 
         var token = await IssueEmailVerificationTokenAsync(user, cancellationToken);
-        QueueVerificationEmail(user, token);
+        await SendVerificationEmailAsync(user, token, cancellationToken);
 
         return BuildSignUpResponse(includeVerificationToken, token);
     }
@@ -402,7 +406,7 @@ public class AuthService : IAuthService
         return plainToken;
     }
 
-    private void QueueVerificationEmail(User user, string token)
+    private async Task SendVerificationEmailAsync(User user, string token, CancellationToken cancellationToken)
     {
         try
         {
@@ -411,11 +415,14 @@ public class AuthService : IAuthService
             var verifyUrl = $"{baseUrl}/verify-email?token={Uri.EscapeDataString(token)}";
             var displayName = user.FullName ?? user.Username;
             var (subject, html, plain) = SystemEmailTemplates.VerifyEmail(displayName, verifyUrl, hoursValid);
-            _ = _emailService.SendAsync(user.Email, subject, html, plain);
+
+            using var scope = _scopeFactory.CreateScope();
+            var smtp = scope.ServiceProvider.GetRequiredService<SmtpEmailService>();
+            await smtp.SendAsync(user.Email, subject, html, plain, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to queue verification email for user {UserId}", user.Id);
+            _logger.LogWarning(ex, "Failed to send verification email for user {UserId}", user.Id);
         }
     }
 
