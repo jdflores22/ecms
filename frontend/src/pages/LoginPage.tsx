@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Chip,
   CircularProgress,
   FormControlLabel,
   Stack,
@@ -28,14 +27,6 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setCredentials } from '../store/slices/authSlice'
 
 const REMEMBER_USERNAME_KEY = 'ics.rememberUsername'
-
-const DEMO_ACCOUNTS = [
-  { role: 'Trucker', username: 'trucker1', password: 'Trucker@123' },
-  { role: 'Broker', username: 'broker1', password: 'Broker@123' },
-  { role: 'Admin', username: 'admin', password: 'Admin@123' },
-  { role: 'Evaluator', username: 'evaluator1', password: 'Evaluator@123' },
-  { role: 'Depot', username: 'depot1', password: 'Depot@123' },
-]
 
 export default function LoginPage() {
   const token = useAppSelector((s) => s.auth.accessToken)
@@ -87,12 +78,6 @@ export default function LoginPage() {
     }
   }
 
-  const fillDemo = (account: (typeof DEMO_ACCOUNTS)[number]) => {
-    setUsername(account.username)
-    setPassword(account.password)
-    setError('')
-  }
-
   return (
     <AuthShell
       title="Sign in"
@@ -104,32 +89,6 @@ export default function LoginPage() {
         </>
       }
       alerts={error ? <AuthAlert>{error}</AuthAlert> : null}
-      footer={
-        <Box sx={{ mt: 3, pt: 2.5, borderTop: `1px solid ${authColors.border}` }}>
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 600, color: authColors.textMuted, display: 'block', mb: 1 }}
-          >
-            Quick demo access
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-            {DEMO_ACCOUNTS.map((account) => (
-              <Chip
-                key={account.username}
-                label={account.role}
-                size="small"
-                clickable
-                onClick={() => fillDemo(account)}
-                sx={{
-                  fontWeight: 600,
-                  bgcolor: 'rgba(11, 61, 145, 0.06)',
-                  '&:hover': { bgcolor: 'rgba(11, 61, 145, 0.12)' },
-                }}
-              />
-            ))}
-          </Box>
-        </Box>
-      }
     >
       <Box
         component="form"
