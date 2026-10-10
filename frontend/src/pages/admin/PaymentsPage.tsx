@@ -931,7 +931,7 @@ export default function AdminPaymentsPage() {
                       <Button
                         size="small"
                         component={RouterLink}
-                        to={`/evaluations/demurrage-billing/${item.id}`}
+                        to={`/admin/det-dem/${item.id}`}
                         sx={{ mr: 1, fontWeight: 600 }}
                       >
                         Review

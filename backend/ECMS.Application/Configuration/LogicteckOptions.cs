@@ -19,6 +19,12 @@ public class LogicteckOptions
     /// <summary>LOGICTECK empty return booking URL — ICS POSTs full return form payload.</summary>
     public string EmptyReturnUrl { get; set; } = string.Empty;
 
+    /// <summary>LOGICTECK CY allocation feed. ICS calls this with <see cref="IcsInboundApiKey"/>.</summary>
+    public string AllocationsUrl { get; set; } = string.Empty;
+
+    /// <summary>Sent as X-ICS-Api-Key when reading <see cref="AllocationsUrl"/>. Prefer ICS_INBOUND_API_KEY.</summary>
+    public string IcsInboundApiKey { get; set; } = string.Empty;
+
     /// <summary>
     /// When true, ICS POSTs transfer data to BookUrl as soon as the transfer QR is published.
     /// Default false — payment approval only publishes the QR; use BookLogicteck (Send to LOGICTECK) explicitly.

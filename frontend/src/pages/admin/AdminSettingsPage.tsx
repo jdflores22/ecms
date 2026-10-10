@@ -51,6 +51,7 @@ import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined'
 import StraightenOutlinedIcon from '@mui/icons-material/StraightenOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import axios from 'axios'
@@ -67,6 +68,7 @@ import {
   containerTypeApi,
   depotApi,
   paymentApi,
+  portalApi,
   shippingLineApi,
   shippingLinePaymentConfigApi,
   type ContainerSizeMaster,
@@ -74,6 +76,7 @@ import {
   type Depot,
   type ShippingLine,
 } from '../../services/api'
+import { usePortalSettings } from '../../context/PortalSettingsContext'
 import { useAppSelector } from '../../store/hooks'
 import { portalColors } from '../../theme/portalTheme'
 import {
@@ -86,6 +89,7 @@ import {
 const DEPOT_BOOKABLE_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour)
 
 type SettingsSection =
+  | 'portal-features'
   | 'payments'
   | 'shipping-lines'
   | 'depots'
@@ -100,6 +104,13 @@ const SETTINGS_SECTIONS: {
   icon: ReactNode
   group: string
 }[] = [
+  {
+    id: 'portal-features',
+    label: 'Portal features',
+    description: 'CRO/eDO QR, SOA, and withdrawals availability.',
+    icon: <TuneOutlinedIcon fontSize="small" />,
+    group: 'Portal',
+  },
   {
     id: 'payments',
     label: 'Payments',
@@ -261,6 +272,7 @@ function apiErrorMessage(err: unknown, fallback: string) {
 
 export default function AdminSettingsPage() {
   const user = useAppSelector((s) => s.auth.user)
+  const { refresh: refreshPortalSettings } = usePortalSettings()
   const navigate = useNavigate()
   const location = useLocation()
   const [activeSection, setActiveSection] = useState<SettingsSection>('payments')
@@ -293,6 +305,7 @@ export default function AdminSettingsPage() {
     operatingHourStart: 8,
     operatingHourEnd: 17,
     isActive: true,
+    isLogicteck: false,
   })
   const [sizeForm, setSizeForm] = useState({ label: '', teu: 2, sortOrder: 1, isActive: true })
   const [typeForm, setTypeForm] = useState({ code: '', label: '', sortOrder: 1, isActive: true })
@@ -302,7 +315,17 @@ export default function AdminSettingsPage() {
   const [payMongoEnabled, setPayMongoEnabled] = useState(false)
   const [allowProofUpload, setAllowProofUpload] = useState(true)
   const [payMongoConfigured, setPayMongoConfigured] = useState(false)
+  const [pilotTestingEnabled, setPilotTestingEnabled] = useState(false)
+  const [pilotDurationDays, setPilotDurationDays] = useState('14')
+  const [pilotTestingActive, setPilotTestingActive] = useState(false)
+  const [pilotDaysRemaining, setPilotDaysRemaining] = useState<number | null>(null)
+  const [effectiveReturnFee, setEffectiveReturnFee] = useState<number | null>(null)
   const [paymentDeveloperPassword, setPaymentDeveloperPassword] = useState('')
+  const [icsCroEdoQrEnabled, setIcsCroEdoQrEnabled] = useState(true)
+  const [soaEnabled, setSoaEnabled] = useState(true)
+  const [withdrawalsEnabled, setWithdrawalsEnabled] = useState(true)
+  const [portalSettingsUpdatedAt, setPortalSettingsUpdatedAt] = useState<string | null>(null)
+  const [portalSettingsSaving, setPortalSettingsSaving] = useState(false)
   const [linePayMongoEnabled, setLinePayMongoEnabled] = useState(false)
   const [lineAllowProofUpload, setLineAllowProofUpload] = useState(true)
   const [linePayMongoSecretKey, setLinePayMongoSecretKey] = useState('')
@@ -318,8 +341,9 @@ export default function AdminSettingsPage() {
       containerSizeApi.list(),
       containerTypeApi.list(),
       paymentApi.getSettings(),
+      portalApi.getSettings(),
     ])
-      .then(([l, d, sizes, types, paymentSettings]) => {
+      .then(([l, d, sizes, types, paymentSettings, portalSettings]) => {
         setLines(l.data)
         setDepots(d.data)
         setContainerSizes(sizes.data)
@@ -329,6 +353,17 @@ export default function AdminSettingsPage() {
         setPayMongoEnabled(paymentSettings.data.payMongoEnabled)
         setAllowProofUpload(paymentSettings.data.allowProofUpload)
         setPayMongoConfigured(paymentSettings.data.payMongoConfigured)
+        setPilotTestingEnabled(paymentSettings.data.pilotTestingEnabled)
+        setPilotTestingActive(paymentSettings.data.pilotTestingActive)
+        setPilotDaysRemaining(paymentSettings.data.pilotDaysRemaining)
+        setEffectiveReturnFee(paymentSettings.data.effectiveReturnFeeAmount)
+        if (paymentSettings.data.pilotTestingDurationDays > 0) {
+          setPilotDurationDays(String(paymentSettings.data.pilotTestingDurationDays))
+        }
+        setIcsCroEdoQrEnabled(portalSettings.data.icsCroEdoQrEnabled)
+        setSoaEnabled(portalSettings.data.soaEnabled)
+        setWithdrawalsEnabled(portalSettings.data.withdrawalsEnabled)
+        setPortalSettingsUpdatedAt(portalSettings.data.updatedAt)
       })
       .catch(() => setError('Failed to load settings.'))
       .finally(() => setLoading(false))
@@ -356,6 +391,73 @@ export default function AdminSettingsPage() {
     () => [...new Set(SETTINGS_SECTIONS.map((section) => section.group))],
     [],
   )
+
+  const savePortalSettings = async () => {
+    if (!paymentDeveloperPassword.trim()) {
+      setError('Enter the developer password to save portal feature settings.')
+      setSuccessMessage('')
+      return
+    }
+    setPortalSettingsSaving(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const { data } = await portalApi.updateSettings({
+        icsCroEdoQrEnabled,
+        soaEnabled,
+        withdrawalsEnabled,
+        developerPassword: paymentDeveloperPassword.trim(),
+      })
+      setIcsCroEdoQrEnabled(data.icsCroEdoQrEnabled)
+      setSoaEnabled(data.soaEnabled)
+      setWithdrawalsEnabled(data.withdrawalsEnabled)
+      setPortalSettingsUpdatedAt(data.updatedAt)
+      await refreshPortalSettings()
+      setSuccessMessage('Portal feature settings saved.')
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to update portal feature settings.'))
+    } finally {
+      setPortalSettingsSaving(false)
+    }
+  }
+
+  const savePilotTestingSettings = async () => {
+    if (!paymentDeveloperPassword.trim()) {
+      setError('Enter the developer password to save pilot testing settings.')
+      setSuccessMessage('')
+      return
+    }
+    const days = Number(pilotDurationDays)
+    if (pilotTestingEnabled && (!Number.isFinite(days) || days < 1 || days > 365)) {
+      setError('Pilot duration must be between 1 and 365 days.')
+      return
+    }
+    setPaymentSettingsSaving(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const { data } = await paymentApi.updatePilotTestingSettings(
+        pilotTestingEnabled,
+        pilotTestingEnabled ? days : 0,
+        paymentDeveloperPassword.trim(),
+      )
+      setPilotTestingEnabled(data.pilotTestingEnabled)
+      setPilotTestingActive(data.pilotTestingActive)
+      setPilotDaysRemaining(data.pilotDaysRemaining)
+      setEffectiveReturnFee(data.effectiveReturnFeeAmount)
+      setPayMongoEnabled(data.payMongoEnabled)
+      setAllowProofUpload(data.allowProofUpload)
+      setSuccessMessage(
+        data.pilotTestingActive
+          ? `Pilot testing on — truckers pay ₱0 for ${data.pilotDaysRemaining ?? days} day(s) remaining. PayMongo and manual proof are off.`
+          : 'Pilot testing turned off. PayMongo restored when configured.',
+      )
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to update pilot testing settings.'))
+    } finally {
+      setPaymentSettingsSaving(false)
+    }
+  }
 
   const savePayMongoSettings = async () => {
     if (!paymentDeveloperPassword.trim()) {
@@ -490,6 +592,7 @@ export default function AdminSettingsPage() {
       operatingHourStart: 8,
       operatingHourEnd: 17,
       isActive: true,
+      isLogicteck: false,
     })
     setDepotDialog('create')
   }
@@ -504,6 +607,7 @@ export default function AdminSettingsPage() {
       operatingHourStart: depot.operatingHourStart ?? 8,
       operatingHourEnd: depot.operatingHourEnd ?? 17,
       isActive: depot.isActive,
+      isLogicteck: depot.isLogicteck,
     })
     setDepotDialog('edit')
   }
@@ -524,6 +628,7 @@ export default function AdminSettingsPage() {
           containersPerHour: depotForm.containersPerHour,
           operatingHourStart: depotForm.operatingHourStart,
           operatingHourEnd: depotForm.operatingHourEnd,
+          isLogicteck: depotForm.isLogicteck,
         })
       } else if (selectedDepot) {
         await depotApi.update(selectedDepot.id, depotForm)
@@ -995,6 +1100,12 @@ export default function AdminSettingsPage() {
                         size="small"
                         sx={{ fontWeight: 600 }}
                       />
+                      <Chip
+                        label={depot.isLogicteck ? 'Logicteck' : 'Manual'}
+                        size="small"
+                        variant={depot.isLogicteck ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: 600 }}
+                      />
                     </ListMobileChipRow>
                     <Box sx={listMobileActionsSx}>
                       <Button
@@ -1033,6 +1144,7 @@ export default function AdminSettingsPage() {
                         <TableCell align="right">Per hour</TableCell>
                         <TableCell>Bookable hours</TableCell>
                         <TableCell>Status</TableCell>
+                        <TableCell>Process</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -1060,6 +1172,14 @@ export default function AdminSettingsPage() {
                               label={depot.isActive ? 'Active' : 'Inactive'}
                               color={depot.isActive ? 'success' : 'default'}
                               size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={depot.isLogicteck ? 'Logicteck' : 'Manual'}
+                              size="small"
+                              variant={depot.isLogicteck ? 'filled' : 'outlined'}
                               sx={{ fontWeight: 600 }}
                             />
                           </TableCell>
@@ -1317,6 +1437,101 @@ export default function AdminSettingsPage() {
         </Paper>
       )}
 
+      {activeSection === 'portal-features' && (
+        <Paper elevation={0} sx={{ ...listTablePaperSx, p: { xs: 2.5, sm: 3 } }}>
+          <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'flex-start' }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 2,
+                bgcolor: hexToRgba(ICS_PRIMARY, 0.08),
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <TuneOutlinedIcon sx={{ color: ICS_PRIMARY }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: ICS_PRIMARY }}>
+                Portal features
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 560 }}>
+                Turn modules on or off for truckers, evaluators, and depots. Disabled features are hidden from
+                navigation and blocked on the API.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ maxWidth: 520 }}>
+            <TextField
+              fullWidth
+              type="password"
+              label="Developer password"
+              value={paymentDeveloperPassword}
+              onChange={(e) => setPaymentDeveloperPassword(e.target.value)}
+              sx={{ ...fieldSx, mb: 3 }}
+              autoComplete="off"
+              helperText="Same password as payment settings (ECMS_PAYMENT_SETTINGS_DEV_PASSWORD on the API)."
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={icsCroEdoQrEnabled}
+                  onChange={(e) => setIcsCroEdoQrEnabled(e.target.checked)}
+                />
+              }
+              label="Enable ICS CRO/eDO QR on new pre-forecast"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, ml: 4.5 }}>
+              When off, truckers only see manual entry and CRO/eDO upload — no QR tab or “legacy” wording.
+            </Typography>
+
+            <FormControlLabel
+              control={
+                <Switch checked={soaEnabled} onChange={(e) => setSoaEnabled(e.target.checked)} />
+              }
+              label="Enable statements of account (SOA)"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, ml: 4.5 }}>
+              Hides SOA pages for evaluators and truckers when off.
+            </Typography>
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={withdrawalsEnabled}
+                  onChange={(e) => setWithdrawalsEnabled(e.target.checked)}
+                />
+              }
+              label="Enable withdrawals (ATW / CY)"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, ml: 4.5 }}>
+              Hides withdrawal queues, ATW tools, and trucker withdrawal flows when off.
+            </Typography>
+
+            {portalSettingsUpdatedAt && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                Last updated {formatDateTime(portalSettingsUpdatedAt)}
+              </Typography>
+            )}
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained"
+                onClick={() => void savePortalSettings()}
+                disabled={portalSettingsSaving}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                {portalSettingsSaving ? 'Saving…' : 'Save portal features'}
+              </Button>
+            </Box>
+          </Box>
+        </Paper>
+      )}
+
       {activeSection === 'payments' && (
         <Paper elevation={0} sx={{ ...tablePaperSx, p: { xs: 2, sm: 3 } }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 3 }}>
@@ -1394,9 +1609,65 @@ export default function AdminSettingsPage() {
                 Preview (trucker view)
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 800, color: ICS_PRIMARY, mt: 0.5 }}>
-                {formatPeso(Number(returnFeeAmount) || 0)}
+                {formatPeso(
+                  pilotTestingActive ? 0 : (effectiveReturnFee ?? (Number(returnFeeAmount) || 0)),
+                )}
               </Typography>
+              {pilotTestingActive && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  Pilot active — configured fee after pilot: {formatPeso(Number(returnFeeAmount) || 0)}
+                </Typography>
+              )}
             </Paper>
+          </Box>
+
+          <Divider sx={{ my: 4 }} />
+
+          <Box sx={{ maxWidth: 520, mb: 4 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
+              Pilot testing (promo — ₱0 pre-forecast)
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              While active, truckers complete payment at <strong>₱0</strong> (no PayMongo, no manual proof).
+              When the duration ends, PayMongo turns on automatically and manual proof stays off.
+            </Typography>
+            {pilotTestingActive && pilotDaysRemaining != null && (
+              <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                Pilot running — <strong>{pilotDaysRemaining}</strong> day(s) left. Truckers are notified at 3 days
+                and 1 day before it ends.
+              </Alert>
+            )}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={pilotTestingEnabled}
+                  onChange={(e) => setPilotTestingEnabled(e.target.checked)}
+                />
+              }
+              label="Enable pilot testing"
+            />
+            {pilotTestingEnabled && (
+              <TextField
+                label="Duration (days)"
+                type="number"
+                value={pilotDurationDays}
+                onChange={(e) => setPilotDurationDays(e.target.value)}
+                slotProps={{ htmlInput: { min: 1, max: 365 } }}
+                size="small"
+                fullWidth
+                sx={{ mt: 2, maxWidth: 200 }}
+              />
+            )}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={() => void savePilotTestingSettings()}
+                disabled={paymentSettingsSaving}
+                sx={{ fontWeight: 700, borderRadius: 2 }}
+              >
+                {paymentSettingsSaving ? 'Saving…' : 'Save pilot settings'}
+              </Button>
+            </Box>
           </Box>
 
           <Divider sx={{ my: 4 }} />
@@ -1406,10 +1677,15 @@ export default function AdminSettingsPage() {
               PayMongo (pre-forecast payments)
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Enable online checkout for truckers. API keys are set in Railway env vars
+              Enable online checkout for truckers. API keys are set on the API server
               (<code>PAYMONGO_SECRET_KEY</code>, <code>PAYMONGO_WEBHOOK_SECRET</code>).
               Truckers can still upload proof when manual payment is allowed.
             </Typography>
+            {pilotTestingActive && (
+              <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                PayMongo and manual proof are locked off while pilot testing is active.
+              </Alert>
+            )}
             {!payMongoConfigured && (
               <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
                 PayMongo secret key is not configured on the server yet.
@@ -1420,6 +1696,7 @@ export default function AdminSettingsPage() {
                 <Switch
                   checked={payMongoEnabled}
                   onChange={(e) => setPayMongoEnabled(e.target.checked)}
+                  disabled={pilotTestingActive}
                 />
               }
               label="Enable PayMongo for pre-forecast fee"
@@ -1429,6 +1706,7 @@ export default function AdminSettingsPage() {
                 <Switch
                   checked={allowProofUpload}
                   onChange={(e) => setAllowProofUpload(e.target.checked)}
+                  disabled={pilotTestingActive}
                 />
               }
               label="Allow manual proof upload (e-wallet, bank transfer, cash)"
@@ -1638,6 +1916,25 @@ export default function AdminSettingsPage() {
               </Select>
             </FormControl>
           </Box>
+          <FormControlLabel
+            sx={{ mt: 1, display: 'flex', alignItems: 'flex-start' }}
+            control={
+              <Switch
+                checked={depotForm.isLogicteck}
+                onChange={(e) => setDepotForm({ ...depotForm, isLogicteck: e.target.checked })}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  LOGICTECK
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Tagged yards are integrated with LOGICTECK. Untagged yards stay on the manual ICS gate scan.
+                </Typography>
+              </Box>
+            }
+          />
           {depotDialog === 'edit' && (
             <FormControlLabel
               control={

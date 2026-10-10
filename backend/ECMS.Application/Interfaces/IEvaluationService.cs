@@ -9,6 +9,22 @@ public interface IEvaluationService
     Task<bool> CanAccessPreAdviceAsync(int preAdviceId, int userId, string role, CancellationToken cancellationToken = default);
     Task<EvaluationDto?> GetByPreAdviceIdAsync(int preAdviceId, int userId, string role, CancellationToken cancellationToken = default);
     Task<EvaluationDto> ApproveAsync(ApproveEvaluationRequest request, int evaluatorId, string role, CancellationToken cancellationToken = default);
-    Task<EvaluationDto> RejectAsync(RejectEvaluationRequest request, int evaluatorId, CancellationToken cancellationToken = default);
-    Task<EvaluationDto> ReturnForComplianceAsync(ReturnForComplianceRequest request, int evaluatorId, CancellationToken cancellationToken = default);
+    Task<EvaluationDto> RejectAsync(
+        RejectEvaluationRequest request,
+        int evaluatorId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<EvaluationDto> ReturnForComplianceAsync(
+        ReturnForComplianceRequest request,
+        int evaluatorId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task SetCroFreeTimeAsync(
+        int preAdviceId,
+        DateOnly freeTimeDate,
+        int adminId,
+        string role,
+        CancellationToken cancellationToken = default);
 }

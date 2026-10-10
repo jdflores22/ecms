@@ -2,7 +2,12 @@ import axios from 'axios'
 import { store } from '../store'
 import { logout, setCredentials } from '../store/slices/authSlice'
 import { resolveAssetUrl } from '../utils/assetUrl'
-import { applyHostingerProxyRequest, toHostingerProxyUrl, USE_HOSTINGER_API_PROXY } from '../utils/hostingerApiProxy'
+import {
+  applyHostingerProxyRequest,
+  prepareFormDataUploadHeaders,
+  toHostingerProxyUrl,
+  USE_HOSTINGER_API_PROXY,
+} from '../utils/hostingerApiProxy'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -11,6 +16,7 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
+  prepareFormDataUploadHeaders(config)
   applyHostingerProxyRequest(config)
   return config
 })
@@ -24,6 +30,8 @@ function isPublicAuthEndpoint(url: string): boolean {
     '/auth/refresh',
     '/auth/forgot-password',
     '/auth/reset-password',
+    '/auth/verify-email',
+    '/auth/resend-verification',
     '/auth/logout',
   ]
   return publicPaths.some((path) => u.includes(path) || u.includes(path.replace(/\//g, '%2f')))
@@ -43,6 +51,7 @@ api.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  prepareFormDataUploadHeaders(config)
   return config
 })
 
@@ -345,7 +354,6 @@ export const preAdviceApi = {
     form.append('category', category)
     if (comment) form.append('comment', comment)
     return api.post<PreAdviceDocument>(`/preforecast/${id}/documents`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: onProgress
         ? (event) => {
             if (event.total) onProgress(Math.round((event.loaded / event.total) * 100))
@@ -730,6 +738,9 @@ export interface PreAdvice {
   qrCode?: string | null
   qrBookingId?: number | null
   logicteckStatus?: string | null
+  logicteckLocation?: string | null
+  logicteckUpdateMessage?: string | null
+  logicteckUpdatedAt?: string | null
   scheduleStatus?: string | null
 }
 
@@ -755,6 +766,7 @@ export interface Depot {
   operatingHourStart: number
   operatingHourEnd: number
   isActive: boolean
+  isLogicteck: boolean
 }
 
 export const evaluationApi = {
@@ -770,13 +782,15 @@ export const evaluationApi = {
   approve: (data: {
     preAdviceId: number
     depotId: number
-    demurrageValidUntil?: string
+    demurrageValidUntil: string
     remarks?: string
   }) => api.post<Evaluation>('/evaluations/approve', data),
   reject: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/reject', data),
   returnForCompliance: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/return-for-compliance', data),
+  setCroFreeTime: (preAdviceId: number, freeTimeDate: string) =>
+    api.put(`/evaluations/preforecast/${preAdviceId}/cro-free-time`, { freeTimeDate }),
 }
 
 export interface CyAllocationBreakdownCell {
@@ -832,6 +846,7 @@ export interface CyAllocation {
   bookingCount: number
   hasCapacity: boolean
   breakdown: CyAllocationBreakdownRow[]
+  isLogicteck: boolean
 }
 
 export interface CyAllocationForApproval {
@@ -840,6 +855,40 @@ export interface CyAllocationForApproval {
   containerNo: string
   containerSize: string
   allocations: CyAllocation[]
+}
+
+export interface LogicteckSizeSnapshot {
+  inYard: number
+  pending: number
+  effective: number
+  limit: number
+  percent: number
+  onHold: boolean
+  autoHold: boolean
+}
+
+export interface LogicteckTeuSnapshot {
+  used: number
+  limit: number
+  percent: number
+}
+
+export interface LogicteckCyLine {
+  code: string
+  fullName: string
+  teu: LogicteckTeuSnapshot
+  size20: LogicteckSizeSnapshot
+  size40: LogicteckSizeSnapshot
+}
+
+export interface LogicteckCyAllocationFeed {
+  yard: string
+  generatedAt: string
+  shippingLineId: number
+  shippingLineCode: string
+  shippingLineName: string
+  matchedLine: LogicteckCyLine | null
+  lines: LogicteckCyLine[]
 }
 
 export const cyAllocationApi = {
@@ -851,8 +900,16 @@ export const cyAllocationApi = {
     api.get<CyAllocation[]>('/cy-allocations/by-depot', {
       params: depotId ? { depotId } : undefined,
     }),
+  logicteckByDepot: (depotId?: number) =>
+    api.get<LogicteckCyAllocationFeed>('/cy-allocations/by-depot/logicteck', {
+      params: depotId ? { depotId } : undefined,
+    }),
   forApproval: (preAdviceId: number) =>
     api.get<CyAllocationForApproval>(`/cy-allocations/for-approval/${preAdviceId}`),
+  logicteck: (shippingLineId?: number) =>
+    api.get<LogicteckCyAllocationFeed>('/cy-allocations/logicteck', {
+      params: shippingLineId ? { shippingLineId } : undefined,
+    }),
   updateContract: (
     contractId: number,
     data: { sizes: { containerSizeId: number; contractCount: number }[]; isActive?: boolean },
@@ -1086,6 +1143,7 @@ export const depotApi = {
     containersPerHour: number
     operatingHourStart: number
     operatingHourEnd: number
+    isLogicteck: boolean
   }) => api.post<Depot>('/depots', data),
   update: (
     id: number,
@@ -1097,6 +1155,7 @@ export const depotApi = {
       operatingHourStart: number
       operatingHourEnd: number
       isActive: boolean
+      isLogicteck: boolean
     },
   ) => api.put<Depot>(`/depots/${id}`, data),
   deactivate: (id: number) => api.delete(`/depots/${id}`),
@@ -1315,6 +1374,9 @@ export interface QrBooking {
   logicteckBookedAt?: string | null
   logicteckStatus: string
   confirmationPdfPath?: string | null
+  logicteckLocation?: string | null
+  logicteckUpdateMessage?: string | null
+  logicteckUpdatedAt?: string | null
 }
 
 export interface BookLogicteckResponse {
@@ -1409,6 +1471,12 @@ export interface PaymentSettings {
   payMongoEnabled: boolean
   allowProofUpload: boolean
   payMongoConfigured: boolean
+  pilotTestingActive: boolean
+  pilotTestingEnabled: boolean
+  pilotTestingDurationDays: number
+  pilotDaysRemaining: number | null
+  pilotTestingEndsAtUtc: string | null
+  effectiveReturnFeeAmount: number
   updatedAt: string
 }
 
@@ -1416,6 +1484,10 @@ export interface ReturnPaymentOptions {
   payMongoEnabled: boolean
   allowProofUpload: boolean
   payMongoConfigured: boolean
+  pilotTestingActive: boolean
+  effectiveReturnFeeAmount: number
+  pilotDaysRemaining: number | null
+  pilotTestingEndsAtUtc: string | null
 }
 
 export interface PayMongoCheckout {
@@ -1459,6 +1531,18 @@ export const paymentApi = {
       allowProofUpload,
       developerPassword,
     }),
+  updatePilotTestingSettings: (
+    pilotTestingEnabled: boolean,
+    durationDays: number,
+    developerPassword?: string,
+  ) =>
+    api.put<PaymentSettings>('/payments/settings/pilot', {
+      pilotTestingEnabled,
+      durationDays,
+      developerPassword,
+    }),
+  completePilotReturn: (scheduleId: number) =>
+    api.post<Payment>(`/payments/schedule/${scheduleId}/pilot-complete`),
   updateDemurrageSettings: (demurrageFeeAmount: number, detentionFeeAmount: number) =>
     api.put<PaymentSettings>('/payments/settings/demurrage', { demurrageFeeAmount, detentionFeeAmount }),
   createPayMongoCheckout: (scheduleId: number) =>
@@ -1500,6 +1584,23 @@ export const paymentApi = {
       proofTransactionAt: metadata?.proofTransactionAt ?? null,
       proofProvider: metadata?.proofProvider ?? null,
     }),
+}
+
+export interface PortalSettings {
+  icsCroEdoQrEnabled: boolean
+  soaEnabled: boolean
+  withdrawalsEnabled: boolean
+  updatedAt: string
+}
+
+export const portalApi = {
+  getSettings: () => api.get<PortalSettings>('/portal/settings'),
+  updateSettings: (data: {
+    icsCroEdoQrEnabled: boolean
+    soaEnabled: boolean
+    withdrawalsEnabled: boolean
+    developerPassword?: string
+  }) => api.put<PortalSettings>('/portal/settings', data),
 }
 
 export interface DemurrageBillingFeeLine {
@@ -1579,6 +1680,8 @@ export const demurrageBillingApi = {
       totalAmount: number
       preAdviceId: number
     }>(`/demurrage-billing/by-pre-forecast/${preAdviceId}`),
+  getByPreAdviceForStaff: (preAdviceId: number) =>
+    api.get<DemurrageBilling | null>(`/demurrage-billing/by-pre-forecast/${preAdviceId}/staff`),
   eligiblePreAdvices: () => api.get<EligibleDemurragePreAdvice[]>('/demurrage-billing/eligible-pre-forecasts'),
   create: (payload: { preAdviceId: number; feeLines?: DemurrageBillingFeeInput[] }) =>
     api.post<DemurrageBilling>('/demurrage-billing', payload),

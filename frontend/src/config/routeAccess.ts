@@ -41,8 +41,30 @@ export type AppPageKey =
   | 'adminAudit'
   | 'adminVersion'
   | 'adminRevenue'
+  | 'adminDetDem'
 
 export type PageGroup = 'Common' | 'Evaluation' | 'Depot' | 'Trucker' | 'Admin' | 'Reports'
+
+export type PortalFeatureFlags = {
+  icsCroEdoQrEnabled: boolean
+  soaEnabled: boolean
+  withdrawalsEnabled: boolean
+}
+
+const PORTAL_GATED_PAGES: Partial<Record<AppPageKey, 'soaEnabled' | 'withdrawalsEnabled'>> = {
+  statementOfAccounts: 'soaEnabled',
+  truckerStatementOfAccounts: 'soaEnabled',
+  truckerWithdrawals: 'withdrawalsEnabled',
+  depotWithdrawals: 'withdrawalsEnabled',
+  evaluatorAtw: 'withdrawalsEnabled',
+}
+
+export function isPageEnabledByPortal(pageKey: AppPageKey, portal?: PortalFeatureFlags | null): boolean {
+  if (!portal) return true
+  const gate = PORTAL_GATED_PAGES[pageKey]
+  if (!gate) return true
+  return portal[gate]
+}
 
 export interface AppPage {
   key: AppPageKey
@@ -112,7 +134,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
   },
   demurrageBilling: {
     key: 'demurrageBilling',
-    label: 'Demurrage billing',
+    label: 'DET-DEM',
     path: '/evaluations/demurrage-billing',
     group: 'Evaluation',
     description: 'Expired pre-forecast with outstanding demurrage and detention charges',
@@ -192,10 +214,10 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
   },
   depotCyAllocation: {
     key: 'depotCyAllocation',
-    label: 'CY allocation',
+    label: 'Shipping lines',
     path: '/depot/cy-allocation',
     group: 'Depot',
-    description: 'Contracted shipping lines at your yard — TEU capacity and on-site inventory by line',
+    description: 'Shipping line allocations at your yard — TEU capacity by contracted line',
     showInNav: true,
   },
   depotContainerInventory: {
@@ -232,7 +254,7 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
   },
   truckerDemurrageBilling: {
     key: 'truckerDemurrageBilling',
-    label: 'Demurrage',
+    label: 'DET-DEM',
     path: '/trucker/demurrage-billing',
     group: 'Trucker',
     description: 'Settle demurrage and detention before new pre-forecast',
@@ -366,6 +388,14 @@ export const APP_PAGES: Record<AppPageKey, AppPage> = {
     description: 'Release notes, what is new, and previous versions',
     showInNav: false,
   },
+  adminDetDem: {
+    key: 'adminDetDem',
+    label: 'DET-DEM',
+    path: '/admin/det-dem',
+    group: 'Admin',
+    description: 'Review trucker shipping-line DET-DEM receipts and verify payment proof',
+    showInNav: true,
+  },
   adminRevenue: {
     key: 'adminRevenue',
     label: 'Revenue',
@@ -395,6 +425,7 @@ export const ADMINISTRATOR_PAGES: AppPageKey[] = [
   'adminAudit',
   'adminVersion',
   'adminRevenue',
+  'adminDetDem',
 ]
 
 /** Default page pool per role — maximum pages that can be assigned. */
@@ -477,6 +508,7 @@ const PAGE_MATCH_ORDER: AppPageKey[] = [
   'adminReports',
   'adminRevenue',
   'adminPayments',
+  'adminDetDem',
   'adminUsers',
   'adminRoles',
   'adminMasterData',
@@ -596,19 +628,36 @@ export function resolvePageKey(pathname: string): AppPageKey | null {
   return null
 }
 
-export function canAccessPage(role: string, pageKey: AppPageKey, allowedPages?: string[] | null): boolean {
+export function canAccessPage(
+  role: string,
+  pageKey: AppPageKey,
+  allowedPages?: string[] | null,
+  portal?: PortalFeatureFlags | null,
+): boolean {
+  if (!isPageEnabledByPortal(pageKey, portal)) return false
   const keys = resolveAllowedPageKeys(role, allowedPages)
   return keys.includes(pageKey)
 }
 
-export function canAccessPath(role: string, pathname: string, allowedPages?: string[] | null): boolean {
+export function canAccessPath(
+  role: string,
+  pathname: string,
+  allowedPages?: string[] | null,
+  portal?: PortalFeatureFlags | null,
+): boolean {
   const pageKey = resolvePageKey(pathname)
   if (!pageKey) return false
-  return canAccessPage(role, pageKey, allowedPages)
+  return canAccessPage(role, pageKey, allowedPages, portal)
 }
 
-export function getDefaultPathForRole(role: string, allowedPages?: string[] | null): string {
-  const pages = resolveAccessiblePages(role, allowedPages).filter((p) => p.showInNav)
+export function getDefaultPathForRole(
+  role: string,
+  allowedPages?: string[] | null,
+  portal?: PortalFeatureFlags | null,
+): string {
+  const pages = resolveAccessiblePages(role, allowedPages).filter(
+    (p) => p.showInNav && isPageEnabledByPortal(p.key, portal),
+  )
   return pages[0]?.path ?? '/'
 }
 
@@ -649,6 +698,7 @@ export const ADMIN_NAV_PAGE_ORDER: AppPageKey[] = [
   'containerInventory',
   'adminRevenue',
   'adminPayments',
+  'adminDetDem',
   'adminMasterData',
 ]
 
@@ -693,10 +743,16 @@ export const NAV_PAGE_ORDER: AppPageKey[] = [
   'truckerQr',
 ]
 
-export function getNavPagesForRole(role: string, allowedPages?: string[] | null): AppPage[] {
+export function getNavPagesForRole(
+  role: string,
+  allowedPages?: string[] | null,
+  portal?: PortalFeatureFlags | null,
+): AppPage[] {
   const keys = new Set(resolveAllowedPageKeys(role, allowedPages))
   const order = role === 'Administrator' ? ADMIN_NAV_PAGE_ORDER : NAV_PAGE_ORDER
-  return order.filter((key) => APP_PAGES[key].showInNav && keys.has(key)).map((key) => APP_PAGES[key])
+  return order
+    .filter((key) => APP_PAGES[key].showInNav && keys.has(key) && isPageEnabledByPortal(key, portal))
+    .map((key) => APP_PAGES[key])
 }
 
 export function groupPagesBySection(pages: AppPage[]): { group: PageGroup; pages: AppPage[] }[] {

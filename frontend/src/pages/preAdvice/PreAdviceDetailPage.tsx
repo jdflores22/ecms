@@ -658,6 +658,7 @@ export default function PreAdviceDetailPage() {
   const logicteckHeroStatus = qrBooking
     ? qrLookupStatusLabel(qrBooking)
     : qrLogicteckStatusFromPreAdvice(item ?? {})
+  const logicteckUpdateMessage = qrBooking?.logicteckUpdateMessage || item?.logicteckUpdateMessage
 
   const handleUpdate = async (values: {
     shippingLineId: number
@@ -792,7 +793,11 @@ export default function PreAdviceDetailPage() {
                     icon={
                       <QrCode2OutlinedIcon sx={{ fontSize: '16px !important', color: 'inherit !important' }} />
                     }
-                    label={`LOGICTECK · ${logicteckHeroStatus}`}
+                    label={
+                      logicteckUpdateMessage
+                        ? `LOGICTECK · ${logicteckHeroStatus} — ${logicteckUpdateMessage}`
+                        : `LOGICTECK · ${logicteckHeroStatus}`
+                    }
                     size="small"
                     color={qrLookupStatusColor(logicteckHeroStatus)}
                     sx={{ fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}

@@ -17,6 +17,7 @@ import { isTruckerOrBroker, roleLabel } from '../config/roleConfig'
 import { cyAllocationApi } from '../services/api'
 import { fetchCachedDashboard } from '../utils/dashboardApiCache'
 import type { CyAllocation } from '../services/api'
+import { usePortalSettings } from '../context/PortalSettingsContext'
 import { useAppSelector } from '../store/hooks'
 import { dashboardConfig, isUserRole } from '../config/dashboardConfig'
 import { portalColors } from '../theme/portalTheme'
@@ -78,6 +79,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [cyLoading, setCyLoading] = useState(false)
   const [error, setError] = useState('')
+  const { settings: portal } = usePortalSettings()
 
   const config = useMemo(() => {
     if (!user || !isUserRole(user.role)) return null
@@ -187,7 +189,13 @@ export default function DashboardPage() {
     return items.slice(0, 5)
   }, [config.stats, data, user.role, widgetTargetPath, widgets, navigate])
 
-  const quickActions = config.actions.slice(0, 8)
+  const quickActions = config.actions
+    .filter((action) => {
+      if (!portal.withdrawalsEnabled && action.path.includes('/withdrawals')) return false
+      if (!portal.soaEnabled && action.path.includes('statement-of-account')) return false
+      return true
+    })
+    .slice(0, 8)
 
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -206,26 +214,28 @@ export default function DashboardPage() {
               >
                 New pre-forecast
               </Button>
-              <Button
-                variant="outlined"
-                startIcon={<UnarchiveOutlinedIcon />}
-                onClick={() => navigate('/trucker/withdrawals/new')}
-                sx={{
-                  minHeight: 44,
-                  borderColor: portalColors.borderStrong,
-                  color: portalColors.textDark,
-                  borderRadius: '0.5rem',
-                  textTransform: 'none',
-                  fontWeight: 500,
-                  '&:hover': {
-                    borderColor: portalColors.primary,
-                    bgcolor: portalColors.bgMuted,
-                    color: portalColors.primary,
-                  },
-                }}
-              >
-                New withdrawal
-              </Button>
+              {portal.withdrawalsEnabled && (
+                <Button
+                  variant="outlined"
+                  startIcon={<UnarchiveOutlinedIcon />}
+                  onClick={() => navigate('/trucker/withdrawals/new')}
+                  sx={{
+                    minHeight: 44,
+                    borderColor: portalColors.borderStrong,
+                    color: portalColors.textDark,
+                    borderRadius: '0.5rem',
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    '&:hover': {
+                      borderColor: portalColors.primary,
+                      bgcolor: portalColors.bgMuted,
+                      color: portalColors.primary,
+                    },
+                  }}
+                >
+                  New withdrawal
+                </Button>
+              )}
             </Box>
           ) : undefined
         }

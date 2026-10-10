@@ -40,3 +40,21 @@ export function showPaymentStatus(schedule: Schedule, payment: Payment | null): 
 export function truckerPaymentPath(scheduleId: number) {
   return `/trucker/payments/${scheduleId}`
 }
+
+/** Amount shown to truckers (₱0 while pilot testing is active and payment is still due). */
+export function truckerPaymentDisplayAmount(
+  payment: Payment | null,
+  options: {
+    effectiveReturnFeeAmount: number
+    returnFeeAmount: number
+    pilotTestingActive: boolean
+    uploadNeeded: boolean
+  },
+): number {
+  if (payment && !(options.pilotTestingActive && options.uploadNeeded)) {
+    return payment.amount
+  }
+  const effective = options.effectiveReturnFeeAmount
+  if (Number.isFinite(effective)) return effective
+  return options.returnFeeAmount
+}

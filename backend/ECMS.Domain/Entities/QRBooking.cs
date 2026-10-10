@@ -11,6 +11,11 @@ public class QRBooking : BaseEntity
     public bool IsUsed { get; set; }
     public DateTime? LogicteckBookedAt { get; set; }
     public string? LogicteckExternalRef { get; set; }
+    /// <summary>Latest status label received from a LOGICTECK callback.</summary>
+    public string? LogicteckUpdateStatus { get; set; }
+    public string? LogicteckUpdateLocation { get; set; }
+    public string? LogicteckUpdateMessage { get; set; }
+    public DateTime? LogicteckUpdatedAt { get; set; }
     /// <summary>Relative path under /uploads for the booking confirmation PDF generated on payment approval.</summary>
     public string? ConfirmationPdfPath { get; set; }
     /// <summary>When CY gate staff scanned and accepted the trucker for empty return (ICS gate, separate from LOGICTECK IsUsed).</summary>

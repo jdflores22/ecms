@@ -4,6 +4,7 @@ import type { PreAdviceLookups } from '../../services/api'
 import { preAdviceApi } from '../../services/api'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { croFreeTimeExpiredMessage } from '../../utils/croFreeTime'
+import { containerNumberError, formatContainerNumberInput, normalizeContainerNo } from '../../utils/containerNumber'
 import { formatPreAdviceDuplicateWarning } from '../../utils/preAdviceDuplicate'
 
 const fieldSx = {
@@ -71,6 +72,7 @@ export default function PreAdviceForm({
   const [demurrageBlock, setDemurrageBlock] = useState<string | null>(null)
   const [checkingValidation, setCheckingValidation] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
+  const containerIsoError = containerNumberError(containerNo)
 
   useEffect(() => {
     setShippingLineId(initial.shippingLineId)
@@ -85,7 +87,8 @@ export default function PreAdviceForm({
       shippingLineId === '' ||
       containerSizeId === '' ||
       containerTypeId === '' ||
-      !containerNo.trim()
+      !containerNo.trim() ||
+      containerIsoError
     ) {
       setDemurrageBlock(null)
       setDuplicateWarning(null)
@@ -96,7 +99,7 @@ export default function PreAdviceForm({
     const timer = window.setTimeout(() => {
       preAdviceApi
         .validateContainer({
-          containerNo: containerNo.trim().toUpperCase(),
+          containerNo: normalizeContainerNo(containerNo),
           shippingLineId,
           containerSizeId,
           containerTypeId,
@@ -120,7 +123,7 @@ export default function PreAdviceForm({
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [shippingLineId, containerNo, containerSizeId, containerTypeId, excludePreAdviceId])
+  }, [shippingLineId, containerNo, containerSizeId, containerTypeId, excludePreAdviceId, containerIsoError])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -129,6 +132,7 @@ export default function PreAdviceForm({
       containerSizeId === '' ||
       containerTypeId === '' ||
       !containerNo.trim() ||
+      containerIsoError ||
       demurrageBlock ||
       duplicateWarning ||
       (requireCroLink && !croLinked) ||
@@ -138,7 +142,7 @@ export default function PreAdviceForm({
     }
     onSubmit({
       shippingLineId,
-      containerNo: containerNo.trim().toUpperCase(),
+      containerNo: normalizeContainerNo(containerNo),
       containerSizeId,
       containerTypeId,
       remarks: remarks.trim() || undefined,
@@ -150,6 +154,7 @@ export default function PreAdviceForm({
     containerSizeId !== '' &&
     containerTypeId !== '' &&
     containerNo.trim().length > 0 &&
+    !containerIsoError &&
     !demurrageBlock &&
     !duplicateWarning &&
     !checkingValidation &&
@@ -181,11 +186,17 @@ export default function PreAdviceForm({
               value={shippingLineId}
               onChange={(e) => setShippingLineId(e.target.value as number | '')}
             >
-              {lookups.shippingLines.map((line) => (
-                <MenuItem key={line.id} value={line.id}>
-                  {line.name} ({line.code})
+              {lookups.shippingLines.length === 0 ? (
+                <MenuItem disabled value="">
+                  No shipping lines available
                 </MenuItem>
-              ))}
+              ) : (
+                lookups.shippingLines.map((line) => (
+                  <MenuItem key={line.id} value={line.id}>
+                    {line.name} ({line.code})
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
 
@@ -201,11 +212,16 @@ export default function PreAdviceForm({
               required
               label="Container number"
               value={containerNo}
-              onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
+              onChange={(e) => setContainerNo(formatContainerNumberInput(e.target.value))}
               placeholder="e.g. MSCU1234567"
               disabled={lockCatalogFields}
+              error={Boolean(containerIsoError)}
+              helperText={
+                containerIsoError ??
+                'ISO 6346: 4 letters + 7 digits (11 characters, valid check digit).'
+              }
               slotProps={{
-                input: { style: { fontFamily: 'monospace' } },
+                htmlInput: { maxLength: 11, style: { fontFamily: 'monospace' } },
               }}
               sx={fieldSx}
             />

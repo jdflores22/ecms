@@ -24,7 +24,7 @@ public class FcmPushNotificationService : IPushNotificationService
     {
         _db = db;
         _logger = logger;
-        _isConfigured = TryInitializeFirebase(options.Value.CredentialsJson);
+        _isConfigured = TryInitializeFirebase(options.Value.CredentialsJson, logger);
     }
 
     public bool IsConfigured => _isConfigured;
@@ -190,10 +190,13 @@ public class FcmPushNotificationService : IPushNotificationService
         _logger.LogInformation("Removed {Count} stale FCM tokens", rows.Count);
     }
 
-    private static bool TryInitializeFirebase(string? credentialsJson)
+    private static bool TryInitializeFirebase(string? credentialsJson, ILogger logger)
     {
         if (string.IsNullOrWhiteSpace(credentialsJson))
+        {
+            logger.LogWarning("FCM push disabled: no Firebase credentials configured.");
             return false;
+        }
 
         try
         {
@@ -207,8 +210,9 @@ public class FcmPushNotificationService : IPushNotificationService
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "FCM push disabled: Firebase initialization failed.");
             return false;
         }
     }

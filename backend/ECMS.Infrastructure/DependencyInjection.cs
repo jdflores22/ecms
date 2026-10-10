@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
         services.AddHttpClient<LogicteckOutboundClient>();
+        services.AddHttpClient<LogicteckAllocationClient>();
         services.AddScoped<IQrService, QrCodeService>();
         services.AddScoped<IDepotGateService, DepotGateService>();
 
@@ -38,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<ICertificateGenerationService, CertificateGenerationService>();
         services.AddScoped<ICertificateVerificationService, CertificateVerificationService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
+        services.AddScoped<IPortalSettingsService, PortalSettingsService>();
         services.AddScoped<IPayMongoService, PayMongoService>();
         services.AddScoped<IShippingLinePaymentConfigService, ShippingLinePaymentConfigService>();
         services.AddHttpClient(nameof(PayMongoService));
@@ -62,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<ILogicteckEmptyReturnService, LogicteckEmptyReturnService>();
         services.AddHostedService<ScheduleNoShowBackgroundService>();
+        services.AddHostedService<PilotTestingBackgroundService>();
 
         return services;
     }

@@ -491,6 +491,59 @@ public class PaymentService : IPaymentService
         return true;
     }
 
+    public async Task<PaymentDto> CompletePilotReturnAsync(
+        int scheduleId,
+        int truckerId,
+        CancellationToken cancellationToken = default)
+    {
+        var options = await _paymentSettings.GetReturnPaymentOptionsAsync(cancellationToken);
+        if (!options.PilotTestingActive)
+            throw new InvalidOperationException("Pilot testing is not active for pre-forecast payments.");
+
+        var schedule = await _db.Schedules
+            .Include(s => s.PreAdvice)
+            .FirstOrDefaultAsync(s => s.Id == scheduleId && s.TruckerId == truckerId, cancellationToken)
+            ?? throw new InvalidOperationException("Schedule not found.");
+
+        var payment = await _db.Payments.FirstOrDefaultAsync(p => p.ScheduleId == scheduleId, cancellationToken)
+            ?? new Payment { ScheduleId = scheduleId, TruckerId = truckerId };
+
+        if (payment.Status == PaymentStatus.Paid)
+            throw new InvalidOperationException("This return payment is already settled.");
+
+        payment.Amount = 0m;
+        payment.PaymentChannel = PaymentChannel.PilotPromotion;
+        payment.ProofFile = null;
+        payment.PayMongoCheckoutSessionId = null;
+        payment.PayMongoPaymentIntentId = null;
+        payment.Status = PaymentStatus.Paid;
+        payment.PaidAt = PhilippinesTime.UtcNow;
+        schedule.Status = ScheduleStatus.Confirmed;
+
+        if (payment.Id == 0)
+            _db.Add(payment);
+        else
+            _db.Update(payment);
+        _db.Update(schedule);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _qrService.GenerateForScheduleAsync(scheduleId, truckerId, RoleNames.Administrator, cancellationToken);
+
+        var refNo = schedule.PreAdvice.ReferenceNo;
+        await _notifications.NotifyUsersAsync(
+            new[] { truckerId },
+            "Pilot payment confirmed — return confirmed",
+            $"{refNo} pre-forecast pilot fee (₱0) recorded. Download your booking confirmation PDF and QR.",
+            "Payment",
+            $"/trucker/returns/{scheduleId}",
+            truckerId,
+            refNo,
+            cancellationToken);
+
+        payment.Trucker = await _db.Users.FirstAsync(u => u.Id == truckerId, cancellationToken);
+        return MapToDto(payment);
+    }
+
     public async Task<bool> ApplyPayMongoSettlementAsync(
         int scheduleId,
         PayMongoSettlementDetails settlement,

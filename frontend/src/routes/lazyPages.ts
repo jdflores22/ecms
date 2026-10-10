@@ -36,6 +36,7 @@ export const DepotWithdrawalsPage = lazy(() => import('../pages/depot/Withdrawal
 export const TruckerNotificationsPage = lazy(() => import('../pages/trucker/TruckerNotificationsPage'))
 export const DepotWithdrawalDetailPage = lazy(() => import('../pages/depot/WithdrawalDetailPage'))
 export const AdminPaymentsPage = lazy(() => import('../pages/admin/PaymentsPage'))
+export const AdminDetDemPage = lazy(() => import('../pages/admin/AdminDetDemPage'))
 export const TruckerReturnsPage = lazy(() => import('../pages/trucker/ReturnsPage'))
 export const TruckerReturnDetailPage = lazy(() => import('../pages/trucker/ReturnDetailPage'))
 export const TruckerPaymentsPage = lazy(() => import('../pages/trucker/PaymentsPage'))

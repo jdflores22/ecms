@@ -1,8 +1,11 @@
 # ICS Trucker APK (Hostinger static hosting)
 
+Olive ICS (`android-trucker/local.properties` → `API_BASE_URL=http://201.18.216.37/api`).
+
 Place the release APK here before building the frontend:
 
-- `ics-trucker-latest.apk` — stable download URL for truckers
+- `ics-trucker-latest.apk` — stable download URL for truckers (always overwrite on release)
+- `ICS-Trucker-v{version}-release.apk` — versioned archive
 
 The Android build script copies here automatically:
 

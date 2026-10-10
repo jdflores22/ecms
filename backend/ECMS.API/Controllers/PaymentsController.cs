@@ -66,6 +66,27 @@ public class PaymentsController : ControllerBase
     public async Task<ActionResult<ReturnPaymentOptionsDto>> GetPaymentOptions(CancellationToken cancellationToken)
         => Ok(await _settings.GetReturnPaymentOptionsAsync(cancellationToken));
 
+    [HttpPut("settings/pilot")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<ActionResult<PaymentSettingsDto>> UpdatePilotTestingSettings(
+        [FromBody] UpdatePilotTestingSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            PaymentSettingsDeveloperGate.Validate(_configuration, _env, request.DeveloperPassword);
+            return Ok(await _settings.UpdatePilotTestingSettingsAsync(
+                request.PilotTestingEnabled,
+                request.DurationDays,
+                UserId,
+                cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPut("settings/paymongo")]
     [Authorize(Roles = RoleNames.Administrator)]
     public async Task<ActionResult<PaymentSettingsDto>> UpdatePayMongoSettings(
@@ -130,6 +151,20 @@ public class PaymentsController : ControllerBase
         {
             var updated = await _payMongoService.RefreshReturnPaymentMetadataAsync(cancellationToken);
             return Ok(new { updated });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("schedule/{scheduleId:int}/pilot-complete")]
+    [Authorize(Roles = RoleNames.TruckerOrBroker)]
+    public async Task<ActionResult<PaymentDto>> CompletePilotReturn(int scheduleId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.CompletePilotReturnAsync(scheduleId, UserId, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {

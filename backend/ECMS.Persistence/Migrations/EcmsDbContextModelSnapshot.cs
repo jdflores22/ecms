@@ -692,6 +692,9 @@ namespace ECMS.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<bool>("IsLogicteck")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -855,6 +858,48 @@ namespace ECMS.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EvaluationsSet");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.LogicteckStatusUpdate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("EventId")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("QRBookingId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("QRBookingId", "CreatedAt");
+
+                    b.ToTable("LogicteckStatusUpdatesSet");
                 });
 
             modelBuilder.Entity("ECMS.Domain.Entities.ManualYardInventoryEntry", b =>
@@ -1104,6 +1149,29 @@ namespace ECMS.Persistence.Migrations
                     b.ToTable("PaymentSettingsSet");
                 });
 
+            modelBuilder.Entity("ECMS.Domain.Entities.PortalSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IcsCroEdoQrEnabled")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("SoaEnabled")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("WithdrawalsEnabled")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PortalSettingsSet");
+                });
+
             modelBuilder.Entity("ECMS.Domain.Entities.PreAdvice", b =>
                 {
                     b.Property<int>("Id")
@@ -1264,6 +1332,21 @@ namespace ECMS.Persistence.Migrations
 
                     b.Property<string>("LogicteckExternalRef")
                         .HasColumnType("longtext");
+
+                    b.Property<string>("LogicteckUpdateLocation")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("LogicteckUpdateMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("LogicteckUpdateStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime?>("LogicteckUpdatedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("PayloadJson")
                         .IsRequired()
@@ -2381,6 +2464,17 @@ namespace ECMS.Persistence.Migrations
                     b.Navigation("Evaluator");
 
                     b.Navigation("PreAdvice");
+                });
+
+            modelBuilder.Entity("ECMS.Domain.Entities.LogicteckStatusUpdate", b =>
+                {
+                    b.HasOne("ECMS.Domain.Entities.QRBooking", "QRBooking")
+                        .WithMany()
+                        .HasForeignKey("QRBookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("QRBooking");
                 });
 
             modelBuilder.Entity("ECMS.Domain.Entities.ManualYardInventoryEntry", b =>

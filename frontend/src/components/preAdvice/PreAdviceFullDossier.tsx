@@ -37,6 +37,8 @@ type PreAdviceFullDossierProps = {
   item: PreAdvice
   documents: PreAdviceDocument[]
   documentsLoading?: boolean
+  /** When false, CRO/eDO block is shown only on the evaluation CRO tab. */
+  showCroEdoPanel?: boolean
   lookups?: PreAdviceLookups | null
   schedule?: Schedule | null
   scheduleLoading?: boolean
@@ -67,6 +69,7 @@ export default function PreAdviceFullDossier({
   qrLoading = false,
   decision,
   compact = false,
+  showCroEdoPanel = true,
 }: PreAdviceFullDossierProps) {
   const containerTypeDisplay = (() => {
     const match = lookups?.containerTypes.find(
@@ -143,7 +146,7 @@ export default function PreAdviceFullDossier({
         </Box>
       </Paper>
 
-      <PreAdviceCroEdoContextPanel item={item} documents={documents} />
+      {showCroEdoPanel && <PreAdviceCroEdoContextPanel item={item} documents={documents} />}
 
       {decision && (
         <Paper

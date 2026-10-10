@@ -19,6 +19,7 @@ import { isPreAdviceManager } from '../../config/roleConfig'
 import { preAdviceApi, type PreAdviceLookups } from '../../services/api'
 import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
 import type { CroEdoVerificationLine } from '../../services/publicApi'
+import { usePortalSettings } from '../../context/PortalSettingsContext'
 import { useAppSelector } from '../../store/hooks'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
@@ -48,8 +49,8 @@ const icsWorkflowSteps = [
   'Save as draft — then add identity photos and submit from the detail page.',
 ]
 
-const legacyWorkflowSteps = [
-  'Upload a copy of your legacy CRO/eDO and enter container details manually.',
+const manualWorkflowSteps = [
+  'Upload a copy of your CRO/eDO and enter container details manually.',
   'Save as draft, then add identity photos on the detail page.',
   'Submit when complete. The evaluator will review your uploaded CRO/eDO.',
 ]
@@ -120,6 +121,8 @@ function mapCroLineToForm(
 export default function PreAdviceNewPage() {
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
+  const { settings: portal } = usePortalSettings()
+  const icsCroEdoQrEnabled = portal.icsCroEdoQrEnabled
   const [lookups, setLookups] = useState<PreAdviceLookups | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -129,6 +132,9 @@ export default function PreAdviceNewPage() {
   const [croLink, setCroLink] = useState<CroEdoAttachSuccess | null>(null)
   const [legacyFile, setLegacyFile] = useState<File | null>(null)
 
+  const effectiveEntryMode: PreForecastEntryMode =
+    icsCroEdoQrEnabled ? entryMode : 'legacy'
+
   useEffect(() => {
     fetchPreAdviceLookups()
       .then((data) => setLookups(data))
@@ -137,7 +143,12 @@ export default function PreAdviceNewPage() {
           setError('Access denied. Log out and sign in again to refresh your session.')
           return
         }
-        setError('Failed to load form options.')
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          setError('Session expired. Log in again to load shipping lines and container options.')
+          return
+        }
+        const msg = axios.isAxiosError(err) ? err.response?.data?.message : null
+        setError(typeof msg === 'string' ? msg : 'Failed to load form options.')
       })
       .finally(() => setLoading(false))
   }, [])
@@ -152,8 +163,8 @@ export default function PreAdviceNewPage() {
   )
 
   const croLinked = useMemo(
-    () => entryMode === 'ics' && !!croLink && formComplete,
-    [entryMode, croLink, formComplete],
+    () => effectiveEntryMode === 'ics' && !!croLink && formComplete,
+    [effectiveEntryMode, croLink, formComplete],
   )
 
   const freeTimeExpired = useMemo(
@@ -161,12 +172,12 @@ export default function PreAdviceNewPage() {
     [croLink],
   )
 
-  const workflowSteps = entryMode === 'ics' ? icsWorkflowSteps : legacyWorkflowSteps
+  const workflowSteps =
+    effectiveEntryMode === 'ics' ? icsWorkflowSteps : manualWorkflowSteps
 
-  const heroSubtitle =
-    entryMode === 'ics'
-      ? 'Attach your ICS CRO/eDO first. Free demurrage time and container details come from the verified document.'
-      : 'For older CRO/eDO documents issued outside ICS. Enter container details manually and upload a copy of the paper document.'
+  const heroSubtitle = effectiveEntryMode === 'ics'
+    ? 'Attach your ICS CRO/eDO first. Free demurrage time and container details come from the verified document.'
+    : 'Enter container details manually and upload a clear photo or PDF of your issued CRO/eDO.'
 
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
@@ -210,11 +221,11 @@ export default function PreAdviceNewPage() {
   }
 
   const handleCreate = async (values: PreAdviceFormSubmitValues) => {
-    if (entryMode === 'ics' && !croLink) {
+    if (effectiveEntryMode === 'ics' && !croLink) {
       setError('Attach and verify a CRO/eDO before creating the pre-forecast.')
       return
     }
-    if (entryMode === 'legacy' && !legacyFile) {
+    if (effectiveEntryMode === 'legacy' && !legacyFile) {
       setError('Upload a copy of your CRO/eDO document before creating the pre-forecast.')
       return
     }
@@ -224,7 +235,7 @@ export default function PreAdviceNewPage() {
     try {
       const { data } = await preAdviceApi.create({
         ...values,
-        ...(entryMode === 'ics' && croLink
+        ...(effectiveEntryMode === 'ics' && croLink
           ? {
               croVerificationToken: croLink.token,
               croLineNo: croLink.line.lineNo,
@@ -232,7 +243,7 @@ export default function PreAdviceNewPage() {
           : {}),
       })
 
-      const attachment = entryMode === 'ics' ? croLink?.file : legacyFile
+      const attachment = effectiveEntryMode === 'ics' ? croLink?.file : legacyFile
       if (attachment) {
         try {
           await preAdviceApi.uploadDocument(data.id, attachment, 'CroEdo')
@@ -301,39 +312,47 @@ export default function PreAdviceNewPage() {
             <FormWizardSkeleton />
           ) : lookups ? (
             <>
-              <Box sx={{ mb: 2.5 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                  How are you filing this pre-forecast?
-                </Typography>
-                <ToggleButtonGroup
-                  exclusive
-                  fullWidth
-                  value={entryMode}
-                  onChange={(_, value: PreForecastEntryMode | null) => {
-                    if (value) switchEntryMode(value)
-                  }}
-                  disabled={submitting}
-                  sx={{
-                    '& .MuiToggleButton-root': {
-                      py: 1.25,
-                      fontWeight: 700,
-                      borderRadius: 2,
-                      textTransform: 'none',
-                    },
-                  }}
-                >
-                  <ToggleButton value="ics">
-                    <QrCodeScannerIcon sx={{ mr: 1, fontSize: 18 }} />
-                    ICS CRO/eDO (QR)
-                  </ToggleButton>
-                  <ToggleButton value="legacy">
-                    <DescriptionOutlinedIcon sx={{ mr: 1, fontSize: 18 }} />
-                    Legacy manual entry
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
+              {lookups.shippingLines.length === 0 && (
+                <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                  No active shipping lines are configured yet. An administrator must add shipping lines under
+                  Settings before you can create a pre-forecast.
+                </Alert>
+              )}
+              {icsCroEdoQrEnabled && (
+                <Box sx={{ mb: 2.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                    How are you filing this pre-forecast?
+                  </Typography>
+                  <ToggleButtonGroup
+                    exclusive
+                    fullWidth
+                    value={entryMode}
+                    onChange={(_, value: PreForecastEntryMode | null) => {
+                      if (value) switchEntryMode(value)
+                    }}
+                    disabled={submitting}
+                    sx={{
+                      '& .MuiToggleButton-root': {
+                        py: 1.25,
+                        fontWeight: 700,
+                        borderRadius: 2,
+                        textTransform: 'none',
+                      },
+                    }}
+                  >
+                    <ToggleButton value="ics">
+                      <QrCodeScannerIcon sx={{ mr: 1, fontSize: 18 }} />
+                      ICS CRO/eDO (QR)
+                    </ToggleButton>
+                    <ToggleButton value="legacy">
+                      <DescriptionOutlinedIcon sx={{ mr: 1, fontSize: 18 }} />
+                      Manual entry
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+              )}
 
-              {entryMode === 'ics' ? (
+              {effectiveEntryMode === 'ics' ? (
                 <CroEdoAttachPanel
                   disabled={submitting}
                   onLinked={onCroLinked}
@@ -341,10 +360,11 @@ export default function PreAdviceNewPage() {
                 />
               ) : (
                 <>
-                  <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                    For older CRO/eDO documents issued outside ICS. Enter container details manually and
-                    upload a photo or PDF of the paper document.
-                  </Alert>
+                  {icsCroEdoQrEnabled && (
+                    <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                      Enter container details manually and upload a photo or PDF of your issued CRO/eDO.
+                    </Alert>
+                  )}
                   <CroEdoLegacyUploadPanel
                     fileName={legacyFile?.name ?? ''}
                     onFileChange={setLegacyFile}
@@ -360,9 +380,9 @@ export default function PreAdviceNewPage() {
                 onCancel={() => navigate('/preforecast')}
                 submitLabel="Create draft"
                 submitting={submitting}
-                lockCatalogFields={entryMode === 'ics' && croLinked}
-                requireCroLink={entryMode === 'ics'}
-                requireLegacyDocument={entryMode === 'legacy'}
+                lockCatalogFields={effectiveEntryMode === 'ics' && croLinked}
+                requireCroLink={effectiveEntryMode === 'ics'}
+                requireLegacyDocument={effectiveEntryMode === 'legacy'}
                 legacyDocumentReady={!!legacyFile}
                 croLinked={croLinked}
                 freeTimeExpired={freeTimeExpired}

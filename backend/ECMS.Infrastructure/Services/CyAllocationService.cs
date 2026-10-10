@@ -11,11 +11,16 @@ public class CyAllocationService : ICyAllocationService
 {
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
+    private readonly LogicteckAllocationClient _logicteckAllocations;
 
-    public CyAllocationService(IEcmsDbContext db, IAuditService auditService)
+    public CyAllocationService(
+        IEcmsDbContext db,
+        IAuditService auditService,
+        LogicteckAllocationClient logicteckAllocations)
     {
         _db = db;
         _auditService = auditService;
+        _logicteckAllocations = logicteckAllocations;
     }
 
     public async Task<IReadOnlyList<CyAllocationDto>> GetAllocationsAsync(
@@ -144,6 +149,68 @@ public class CyAllocationService : ICyAllocationService
         var allocations = await BuildAllocationsAsync(contract.ShippingLineId, null, cancellationToken);
         return allocations.First(a => a.DepotId == updated.DepotId);
     }
+
+    public async Task<LogicteckCyAllocationFeedDto> GetLogicteckFeedAsync(
+        int? shippingLineId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var lineId = await ResolveShippingLineIdAsync(shippingLineId, userId, role, cancellationToken);
+        var line = await _db.ShippingLines.FirstOrDefaultAsync(s => s.Id == lineId, cancellationToken)
+            ?? throw new InvalidOperationException("Shipping line not found.");
+
+        var (yard, generatedAt, lines) = await _logicteckAllocations.GetAsync(cancellationToken);
+        var matched = lines.FirstOrDefault(row =>
+            CodesMatch(row.Code, line.Code) || CodesMatch(row.Code, line.Name));
+
+        return new LogicteckCyAllocationFeedDto(
+            yard,
+            generatedAt,
+            line.Id,
+            line.Code,
+            line.Name,
+            matched,
+            lines);
+    }
+
+    public async Task<LogicteckCyAllocationFeedDto> GetLogicteckFeedForDepotAsync(
+        int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var resolvedDepotId = await ResolveDepotIdAsync(depotId, userId, role, cancellationToken);
+        var depot = await _db.Depots.FirstOrDefaultAsync(d => d.Id == resolvedDepotId, cancellationToken)
+            ?? throw new InvalidOperationException("Container yard not found.");
+
+        if (!depot.IsLogicteck)
+        {
+            return new LogicteckCyAllocationFeedDto(
+                depot.Name,
+                DateTimeOffset.UtcNow,
+                0,
+                string.Empty,
+                depot.Name,
+                null,
+                Array.Empty<LogicteckCyLineDto>());
+        }
+
+        var (yard, generatedAt, lines) = await _logicteckAllocations.GetAsync(cancellationToken);
+        return new LogicteckCyAllocationFeedDto(
+            yard,
+            generatedAt,
+            0,
+            string.Empty,
+            depot.Name,
+            null,
+            lines);
+    }
+
+    private static bool CodesMatch(string logicteckCode, string localValue) =>
+        !string.IsNullOrWhiteSpace(logicteckCode)
+        && !string.IsNullOrWhiteSpace(localValue)
+        && string.Equals(logicteckCode.Trim(), localValue.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private async Task<ShippingLineDepotContract> ApplyContractUpdateAsync(
         int contractId,
@@ -451,7 +518,8 @@ public class CyAllocationService : ICyAllocationService
             preAdvisedSlotCount,
             bookingCount,
             hasCapacity,
-            breakdown);
+            breakdown,
+            contract.Depot.IsLogicteck);
     }
 
     private async Task<IReadOnlyList<ContainerSize>> GetActiveSizesAsync(CancellationToken cancellationToken)

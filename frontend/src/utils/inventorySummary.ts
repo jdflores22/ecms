@@ -46,6 +46,36 @@ function emptyTypeCounts(): Record<EcmsInventoryTypeCode, number> {
   )
 }
 
+export function emptyInventorySummaryRow(depotId: number, depotName: string): InventorySummaryRow {
+  return {
+    depotId,
+    depotName,
+    size20Count: 0,
+    size40Count: 0,
+    typeCounts: emptyTypeCounts(),
+    preAdvisedCount: 0,
+    manualCount: 0,
+    bookingCount: 0,
+    overstayCount: 0,
+    releasedCount: 0,
+    yardInToday: 0,
+    teus: 0,
+    units: 0,
+  }
+}
+
+/** Keep contracted yards visible even when they have no containers yet. */
+export function includeContractedDepots(
+  rows: InventorySummaryRow[],
+  depots: { depotId: number; depotName: string }[],
+): InventorySummaryRow[] {
+  const known = new Set(rows.map((row) => row.depotId))
+  const missing = depots
+    .filter((depot) => !known.has(depot.depotId))
+    .map((depot) => emptyInventorySummaryRow(depot.depotId, depot.depotName))
+  return [...rows, ...missing].sort((a, b) => a.depotName.localeCompare(b.depotName))
+}
+
 export function buildInventorySummaryRows(items: ContainerInventoryItem[]): InventorySummaryRow[] {
   const today = todayIsoDate()
   const grouped = new Map<number, InventorySummaryRow>()

@@ -33,19 +33,11 @@ public class DbSeeder
         _passwordHasher = passwordHasher;
     }
 
-    public async Task SeedAsync(bool seedDemoUsers = false)
+    public async Task SeedAsync(bool seedDemoUsers = false, bool minimalSeed = false)
     {
-        try
-        {
+        // Migrations run in Program.cs before schema repair; keep idempotent no-op here for design-time/tools.
+        if (_context.Database.GetPendingMigrations().Any())
             await _context.Database.MigrateAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException(
-                $"Database migration failed: {ex.Message}. " +
-                "Run .\\scripts\\migrate-production-mysql.ps1 from your PC or import scripts/withdrawal-migrations-idempotent.sql via phpMyAdmin.",
-                ex);
-        }
 
         if (!await _context.RolesSet.AnyAsync())
         {
@@ -118,20 +110,15 @@ public class DbSeeder
             await _context.SaveChangesAsync();
         }
 
-        if (!await _context.ShippingLinesSet.AnyAsync())
+        if (!await _context.PortalSettingsSet.AnyAsync())
         {
-            _context.ShippingLinesSet.Add(new ShippingLine { Name = "MAERSK", Code = "MAERSK" });
-            _context.ShippingLinesSet.Add(new ShippingLine { Name = "MSC", Code = "MSC" });
-            await _context.SaveChangesAsync();
-        }
-
-        if (!await _context.DepotsSet.AnyAsync())
-        {
-            _context.DepotsSet.Add(new Depot
+            _context.PortalSettingsSet.Add(new PortalSettings
             {
-                Name = "ICTSI CY",
-                Address = "Manila, Philippines",
-                Capacity = 100
+                Id = 1,
+                IcsCroEdoQrEnabled = true,
+                SoaEnabled = true,
+                WithdrawalsEnabled = true,
+                UpdatedAt = Domain.Common.PhilippinesTime.UtcNow,
             });
             await _context.SaveChangesAsync();
         }
@@ -152,6 +139,62 @@ public class DbSeeder
                 new ContainerType { Code = "HC", Label = "High Cube", SortOrder = 2 },
                 new ContainerType { Code = "RF", Label = "Reefer", SortOrder = 3 },
                 new ContainerType { Code = "OT", Label = "Open Top", SortOrder = 4 });
+            await _context.SaveChangesAsync();
+        }
+
+        if (seedDemoUsers && !minimalSeed)
+        {
+            await SeedDemoReferenceDataAsync();
+        }
+
+        if (minimalSeed)
+        {
+            await EnsureAdministratorUserAsync();
+        }
+        else if (seedDemoUsers && !await _context.UsersSet.AnyAsync())
+        {
+            var roles = await _context.RolesSet.ToDictionaryAsync(x => x.Name, x => x.Id);
+            var maersk = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MAERSK");
+            var depot = await _context.DepotsSet.FirstAsync();
+
+            var users = new[]
+            {
+                new User { Username = "admin", Email = "admin@ecms.local", PasswordHash = _passwordHasher.Hash("Admin@123"), RoleId = roles[RoleNames.Administrator], FullName = "System Admin" },
+                new User { Username = "evaluator1", Email = "evaluator@ecms.local", PasswordHash = _passwordHasher.Hash("Evaluator@123"), RoleId = roles[RoleNames.ShippingLineEvaluator], FullName = "Demo Evaluator", ShippingLineId = maersk.Id },
+                new User { Username = "depot1", Email = "depot@ecms.local", PasswordHash = _passwordHasher.Hash("Depot@123"), RoleId = roles[RoleNames.DepotPersonnel], FullName = "Demo Depot", DepotId = depot.Id },
+                new User { Username = "trucker1", Email = "trucker@ecms.local", PasswordHash = _passwordHasher.Hash("Trucker@123"), RoleId = roles[RoleNames.Trucker], FullName = "ABC Trucking" },
+                new User { Username = "broker1", Email = "broker@ecms.local", PasswordHash = _passwordHasher.Hash("Broker@123"), RoleId = roles[RoleNames.Broker], FullName = "Demo Broker" }
+            };
+
+            _context.UsersSet.AddRange(users);
+            await _context.SaveChangesAsync();
+        }
+
+        if (seedDemoUsers)
+        {
+            await SeedDemurrageBillingTestDataAsync();
+            await DemurrageDetentionRateDemoSeeder.SeedAsync(_context);
+            await YardInventoryDemoSeeder.SeedAsync(_context);
+        }
+    }
+
+    private async Task SeedDemoReferenceDataAsync()
+    {
+        if (!await _context.ShippingLinesSet.AnyAsync())
+        {
+            _context.ShippingLinesSet.Add(new ShippingLine { Name = "MAERSK", Code = "MAERSK" });
+            _context.ShippingLinesSet.Add(new ShippingLine { Name = "MSC", Code = "MSC" });
+            await _context.SaveChangesAsync();
+        }
+
+        if (!await _context.DepotsSet.AnyAsync())
+        {
+            _context.DepotsSet.Add(new Depot
+            {
+                Name = "ICTSI CY",
+                Address = "Manila, Philippines",
+                Capacity = 100
+            });
             await _context.SaveChangesAsync();
         }
 
@@ -215,32 +258,41 @@ public class DbSeeder
             });
             await _context.SaveChangesAsync();
         }
+    }
 
-        if (seedDemoUsers && !await _context.UsersSet.AnyAsync())
+    /// <summary>
+    /// Fresh production (e.g. Olive VPS): roles + fee defaults + catalog sizes/types + one admin user only.
+    /// </summary>
+    private async Task EnsureAdministratorUserAsync()
+    {
+        if (await _context.UsersSet.AnyAsync())
+            return;
+
+        var adminRole = await _context.RolesSet.FirstOrDefaultAsync(r => r.Name == RoleNames.Administrator);
+        if (adminRole is null)
+            return;
+
+        var username = Environment.GetEnvironmentVariable("ECMS_INITIAL_ADMIN_USERNAME");
+        if (string.IsNullOrWhiteSpace(username))
+            username = "admin";
+
+        var email = Environment.GetEnvironmentVariable("ECMS_INITIAL_ADMIN_EMAIL");
+        if (string.IsNullOrWhiteSpace(email))
+            email = "admin@ecms.local";
+
+        var password = Environment.GetEnvironmentVariable("ECMS_INITIAL_ADMIN_PASSWORD");
+        if (string.IsNullOrWhiteSpace(password))
+            password = "Admin@123";
+
+        _context.UsersSet.Add(new User
         {
-            var roles = await _context.RolesSet.ToDictionaryAsync(x => x.Name, x => x.Id);
-            var maersk = await _context.ShippingLinesSet.FirstAsync(x => x.Code == "MAERSK");
-            var depot = await _context.DepotsSet.FirstAsync();
-
-            var users = new[]
-            {
-                new User { Username = "admin", Email = "admin@ecms.local", PasswordHash = _passwordHasher.Hash("Admin@123"), RoleId = roles[RoleNames.Administrator], FullName = "System Admin" },
-                new User { Username = "evaluator1", Email = "evaluator@ecms.local", PasswordHash = _passwordHasher.Hash("Evaluator@123"), RoleId = roles[RoleNames.ShippingLineEvaluator], FullName = "Demo Evaluator", ShippingLineId = maersk.Id },
-                new User { Username = "depot1", Email = "depot@ecms.local", PasswordHash = _passwordHasher.Hash("Depot@123"), RoleId = roles[RoleNames.DepotPersonnel], FullName = "Demo Depot", DepotId = depot.Id },
-                new User { Username = "trucker1", Email = "trucker@ecms.local", PasswordHash = _passwordHasher.Hash("Trucker@123"), RoleId = roles[RoleNames.Trucker], FullName = "ABC Trucking" },
-                new User { Username = "broker1", Email = "broker@ecms.local", PasswordHash = _passwordHasher.Hash("Broker@123"), RoleId = roles[RoleNames.Broker], FullName = "Demo Broker" }
-            };
-
-            _context.UsersSet.AddRange(users);
-            await _context.SaveChangesAsync();
-        }
-
-        if (seedDemoUsers)
-        {
-            await SeedDemurrageBillingTestDataAsync();
-            await DemurrageDetentionRateDemoSeeder.SeedAsync(_context);
-            await YardInventoryDemoSeeder.SeedAsync(_context);
-        }
+            Username = username.Trim(),
+            Email = email.Trim(),
+            PasswordHash = _passwordHasher.Hash(password),
+            RoleId = adminRole.Id,
+            FullName = "System Administrator",
+        });
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>

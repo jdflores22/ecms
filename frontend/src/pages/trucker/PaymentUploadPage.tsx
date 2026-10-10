@@ -57,6 +57,7 @@ import {
   paymentStatusLabel,
   resolvePaymentStatus,
   showPaymentStatus,
+  truckerPaymentDisplayAmount,
 } from '../../utils/truckerPayment'
 
 const primaryDark = ICS_PRIMARY
@@ -202,6 +203,7 @@ export default function TruckerPaymentUploadPage() {
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [payMongoLoading, setPayMongoLoading] = useState(false)
+  const [pilotLoading, setPilotLoading] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'manual'>('online')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -302,18 +304,39 @@ export default function TruckerPaymentUploadPage() {
   const contextualAlert =
     schedule && showPaymentContent ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status) : null
 
-  const displayAmount = payment?.amount ?? configuredFee ?? 0
+  const pilotActive = Boolean(paymentOptions?.pilotTestingActive)
+  const displayAmount = truckerPaymentDisplayAmount(payment, {
+    effectiveReturnFeeAmount: paymentOptions?.effectiveReturnFeeAmount ?? 0,
+    returnFeeAmount: configuredFee ?? paymentOptions?.effectiveReturnFeeAmount ?? 0,
+    pilotTestingActive: pilotActive,
+    uploadNeeded: paymentUploadNeeded,
+  })
 
   const payOnlineAvailable = Boolean(
-    paymentOptions?.payMongoEnabled && paymentOptions.payMongoConfigured,
+    !pilotActive && paymentOptions?.payMongoEnabled && paymentOptions.payMongoConfigured,
   )
-  const manualUploadAvailable = Boolean(paymentOptions?.allowProofUpload)
+  const manualUploadAvailable = Boolean(!pilotActive && paymentOptions?.allowProofUpload)
   const showPaymentMethodChoice = payOnlineAvailable && manualUploadAvailable
 
   useEffect(() => {
     if (payOnlineAvailable) setPaymentMethod('online')
     else if (manualUploadAvailable) setPaymentMethod('manual')
   }, [payOnlineAvailable, manualUploadAvailable, scheduleId])
+
+  const handlePilotComplete = async () => {
+    if (!schedule) return
+    setPilotLoading(true)
+    setActionError('')
+    try {
+      await paymentApi.completePilotReturn(schedule.id)
+      setSaveSuccess(true)
+      load()
+    } catch (err) {
+      setActionError(apiErrorMessage(err, 'Unable to confirm payment.'))
+    } finally {
+      setPilotLoading(false)
+    }
+  }
 
   const handlePayMongoCheckout = async () => {
     if (!schedule) return
@@ -385,7 +408,7 @@ export default function TruckerPaymentUploadPage() {
       setActionError('Please choose a proof file to upload.')
       return
     }
-    if (displayAmount <= 0) {
+    if (!pilotActive && displayAmount <= 0) {
       setActionError('Payment amount is not configured. Contact the administrator.')
       return
     }
@@ -695,7 +718,44 @@ export default function TruckerPaymentUploadPage() {
                     </Box>
                   )}
 
-                  {paymentUploadNeeded && (
+                  {paymentUploadNeeded && pilotActive && (
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        borderRadius: 2.5,
+                        border: '1px solid',
+                        borderColor: hexToRgba(primaryDark, 0.2),
+                        bgcolor: hexToRgba(primaryDark, 0.03),
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                        Confirm payment
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 2, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+                      >
+                        Confirm your pre-forecast fee of {formatPeso(displayAmount)}. Your booking confirmation PDF and
+                        QR will be issued right away.
+                      </Typography>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="secondary"
+                        size="large"
+                        startIcon={<PaymentsOutlinedIcon />}
+                        disabled={pilotLoading || submitting}
+                        onClick={() => void handlePilotComplete()}
+                        sx={{ fontWeight: 700, borderRadius: 2 }}
+                      >
+                        {pilotLoading ? 'Confirming…' : 'Confirm payment'}
+                      </Button>
+                    </Paper>
+                  )}
+
+                  {paymentUploadNeeded && !pilotActive && (
                     <>
                       {showPaymentMethodChoice && (
                         <ToggleButtonGroup

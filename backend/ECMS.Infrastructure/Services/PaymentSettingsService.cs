@@ -1,3 +1,4 @@
+using ECMS.Application;
 using ECMS.Application.DTOs.Payment;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
@@ -17,28 +18,32 @@ public class PaymentSettingsService : IPaymentSettingsService
 
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
+    private readonly INotificationService _notifications;
     private readonly IMemoryCache _cache;
     private readonly PayMongoOptions _payMongoOptions;
 
     public PaymentSettingsService(
         IEcmsDbContext db,
         IAuditService auditService,
+        INotificationService notifications,
         IMemoryCache cache,
         IOptions<PayMongoOptions> payMongoOptions)
     {
         _db = db;
         _auditService = auditService;
+        _notifications = notifications;
         _cache = cache;
         _payMongoOptions = payMongoOptions.Value;
     }
 
-    public Task<PaymentSettingsDto> GetAsync(CancellationToken cancellationToken = default)
-        => MapDtoAsync(cancellationToken);
+    public async Task<PaymentSettingsDto> GetAsync(CancellationToken cancellationToken = default)
+        => await MapDtoAsync(cancellationToken);
 
     public async Task<decimal> GetReturnFeeAmountAsync(CancellationToken cancellationToken = default)
     {
         var settings = await EnsureSettingsAsync(cancellationToken);
-        return settings.ReturnFeeAmount;
+        await SyncPilotStateAsync(settings, cancellationToken);
+        return GetEffectiveReturnFee(settings);
     }
 
     public async Task<decimal> GetDemurrageFeeAmountAsync(CancellationToken cancellationToken = default)
@@ -122,10 +127,16 @@ public class PaymentSettingsService : IPaymentSettingsService
         int adminUserId,
         CancellationToken cancellationToken = default)
     {
+        var settings = await EnsureSettingsAsync(cancellationToken, bypassCache: true);
+        await SyncPilotStateAsync(settings, cancellationToken);
+
+        if (IsPilotActive(settings))
+            throw new InvalidOperationException(
+                "PayMongo and manual proof upload cannot be changed while pilot testing is active.");
+
         if (payMongoEnabled && !allowProofUpload && !IsPayMongoConfigured())
             throw new InvalidOperationException("Configure PayMongo API keys before disabling proof upload.");
 
-        var settings = await EnsureSettingsAsync(cancellationToken, bypassCache: true);
         settings.PayMongoEnabled = payMongoEnabled;
         settings.AllowProofUpload = allowProofUpload;
         settings.UpdatedAt = PhilippinesTime.UtcNow;
@@ -143,18 +154,117 @@ public class PaymentSettingsService : IPaymentSettingsService
         return MapToDto(settings);
     }
 
+    public async Task<PaymentSettingsDto> UpdatePilotTestingSettingsAsync(
+        bool pilotTestingEnabled,
+        int durationDays,
+        int adminUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await EnsureSettingsAsync(cancellationToken, bypassCache: true);
+        await SyncPilotStateAsync(settings, cancellationToken);
+
+        if (pilotTestingEnabled)
+        {
+            if (durationDays < 1 || durationDays > 365)
+                throw new InvalidOperationException("Pilot duration must be between 1 and 365 days.");
+
+            var endsAt = PhilippinesTime.UtcNow.AddDays(durationDays);
+            settings.PilotTestingEnabled = true;
+            settings.PilotTestingDurationDays = durationDays;
+            settings.PilotTestingEndsAtUtc = endsAt;
+            settings.PilotNotified3DaysBefore = false;
+            settings.PilotNotified1DayBefore = false;
+            settings.PayMongoEnabled = false;
+            settings.AllowProofUpload = false;
+        }
+        else
+        {
+            await EndPilotTestingAsync(settings, payMongoOnAfterEnd: IsPayMongoConfigured(), cancellationToken);
+        }
+
+        settings.UpdatedAt = PhilippinesTime.UtcNow;
+        _db.Update(settings);
+        await _db.SaveChangesAsync(cancellationToken);
+        InvalidateCache();
+
+        await _auditService.LogAsync(
+            adminUserId,
+            "Update",
+            "PaymentSettings",
+            pilotTestingEnabled
+                ? $"Pilot testing on for {durationDays} day(s), ends {settings.PilotTestingEndsAtUtc:yyyy-MM-dd} UTC"
+                : "Pilot testing turned off",
+            cancellationToken);
+
+        if (pilotTestingEnabled)
+        {
+            var truckerIds = await NotificationService.TruckerIdsAsync(_db, cancellationToken);
+            await _notifications.NotifyUsersAsync(
+                truckerIds,
+                "Pilot testing — pre-forecast fee is ₱0",
+                $"For the next {durationDays} day(s), complete pre-forecast payment at ₱0 while we pilot ICS. PayMongo checkout is paused during this period.",
+                "Payment",
+                "/trucker/payments",
+                adminUserId,
+                null,
+                cancellationToken);
+        }
+
+        return MapToDto(settings);
+    }
+
+    public async Task ProcessPilotTestingLifecycleAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await EnsureSettingsAsync(cancellationToken, bypassCache: true);
+        if (!settings.PilotTestingEnabled || settings.PilotTestingEndsAtUtc is null)
+            return;
+
+        var daysLeft = GetPilotDaysRemaining(settings);
+        if (daysLeft is null)
+        {
+            await SyncPilotStateAsync(settings, cancellationToken);
+            return;
+        }
+
+        if (daysLeft <= 3 && daysLeft > 1 && !settings.PilotNotified3DaysBefore)
+        {
+            await NotifyPilotCountdownAsync(settings, daysLeft.Value, cancellationToken);
+            settings.PilotNotified3DaysBefore = true;
+            _db.Update(settings);
+            await _db.SaveChangesAsync(cancellationToken);
+            InvalidateCache();
+        }
+        else if (daysLeft == 1 && !settings.PilotNotified1DayBefore)
+        {
+            await NotifyPilotCountdownAsync(settings, 1, cancellationToken);
+            settings.PilotNotified1DayBefore = true;
+            _db.Update(settings);
+            await _db.SaveChangesAsync(cancellationToken);
+            InvalidateCache();
+        }
+
+        await SyncPilotStateAsync(settings, cancellationToken);
+    }
+
     public async Task<ReturnPaymentOptionsDto> GetReturnPaymentOptionsAsync(CancellationToken cancellationToken = default)
     {
         var settings = await EnsureSettingsAsync(cancellationToken);
+        await SyncPilotStateAsync(settings, cancellationToken);
+        var pilotActive = IsPilotActive(settings);
         return new ReturnPaymentOptionsDto(
-            settings.PayMongoEnabled,
-            settings.AllowProofUpload,
-            IsPayMongoConfigured());
+            pilotActive ? false : settings.PayMongoEnabled,
+            pilotActive ? false : settings.AllowProofUpload,
+            IsPayMongoConfigured(),
+            pilotActive,
+            GetEffectiveReturnFee(settings),
+            GetPilotDaysRemaining(settings),
+            settings.PilotTestingEndsAtUtc);
     }
 
     private async Task<PaymentSettingsDto> MapDtoAsync(CancellationToken cancellationToken)
     {
         var settings = await EnsureSettingsAsync(cancellationToken);
+        await SyncPilotStateAsync(settings, cancellationToken);
         return MapToDto(settings);
     }
 
@@ -189,19 +299,109 @@ public class PaymentSettingsService : IPaymentSettingsService
     private void InvalidateCache() => _cache.Remove(SettingsCacheKey);
 
     private PaymentSettingsDto MapToDto(PaymentSettings settings)
-        => new(
+    {
+        var pilotActive = IsPilotActive(settings);
+        return new(
             settings.ReturnFeeAmount,
             settings.DemurrageFeeAmount,
             settings.DetentionFeeAmount,
             settings.PayMongoEnabled,
             settings.AllowProofUpload,
             IsPayMongoConfigured(),
+            pilotActive,
+            settings.PilotTestingEnabled,
+            settings.PilotTestingDurationDays,
+            GetPilotDaysRemaining(settings),
+            settings.PilotTestingEndsAtUtc,
+            GetEffectiveReturnFee(settings),
             settings.UpdatedAt);
+    }
 
     private bool IsPayMongoConfigured()
     {
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY")))
             return true;
         return !string.IsNullOrWhiteSpace(_payMongoOptions.SecretKey);
+    }
+
+    private static bool IsPilotActive(PaymentSettings settings) =>
+        settings.PilotTestingEnabled
+        && settings.PilotTestingEndsAtUtc is not null
+        && settings.PilotTestingEndsAtUtc > PhilippinesTime.UtcNow;
+
+    private static decimal GetEffectiveReturnFee(PaymentSettings settings) =>
+        IsPilotActive(settings) ? 0m : settings.ReturnFeeAmount;
+
+    private static int? GetPilotDaysRemaining(PaymentSettings settings)
+    {
+        if (!settings.PilotTestingEnabled || settings.PilotTestingEndsAtUtc is null)
+            return null;
+        var remaining = settings.PilotTestingEndsAtUtc.Value - PhilippinesTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+            return 0;
+        return (int)Math.Ceiling(remaining.TotalDays);
+    }
+
+    private async Task SyncPilotStateAsync(PaymentSettings settings, CancellationToken cancellationToken)
+    {
+        if (!settings.PilotTestingEnabled || settings.PilotTestingEndsAtUtc is null)
+            return;
+
+        if (settings.PilotTestingEndsAtUtc > PhilippinesTime.UtcNow)
+            return;
+
+        await EndPilotTestingAsync(settings, payMongoOnAfterEnd: IsPayMongoConfigured(), cancellationToken);
+        settings.UpdatedAt = PhilippinesTime.UtcNow;
+        _db.Update(settings);
+        await _db.SaveChangesAsync(cancellationToken);
+        InvalidateCache();
+    }
+
+    private async Task EndPilotTestingAsync(
+        PaymentSettings settings,
+        bool payMongoOnAfterEnd,
+        CancellationToken cancellationToken)
+    {
+        if (!settings.PilotTestingEnabled)
+            return;
+
+        settings.PilotTestingEnabled = false;
+        settings.PilotTestingEndsAtUtc = null;
+        settings.PilotNotified3DaysBefore = false;
+        settings.PilotNotified1DayBefore = false;
+        settings.PayMongoEnabled = payMongoOnAfterEnd;
+        settings.AllowProofUpload = false;
+
+        var fee = settings.ReturnFeeAmount;
+        var truckerIds = await NotificationService.TruckerIdsAsync(_db, cancellationToken);
+        await _notifications.NotifyUsersAsync(
+            truckerIds,
+            "Pilot testing ended — pre-forecast fee applies",
+            $"The ₱0 pilot period has ended. Pre-forecast payment is now ₱{fee:N0}. Pay online via PayMongo when you file returns.",
+            "Payment",
+            "/trucker/payments",
+            null,
+            null,
+            cancellationToken);
+    }
+
+    private async Task NotifyPilotCountdownAsync(
+        PaymentSettings settings,
+        int daysLeft,
+        CancellationToken cancellationToken)
+    {
+        var truckerIds = await NotificationService.TruckerIdsAsync(_db, cancellationToken);
+        var fee = settings.ReturnFeeAmount;
+        await _notifications.NotifyUsersAsync(
+            truckerIds,
+            daysLeft == 1 ? "Pilot testing ends tomorrow" : $"Pilot testing — {daysLeft} days left",
+            daysLeft == 1
+                ? $"Tomorrow the ₱0 pilot ends. After that, pre-forecast fee will be ₱{fee:N0} (PayMongo checkout)."
+                : $"About {daysLeft} day(s) left in the ₱0 pilot. Plan for ₱{fee:N0} pre-forecast fee after the pilot ends.",
+            "Payment",
+            "/trucker/payments",
+            null,
+            null,
+            cancellationToken);
     }
 }

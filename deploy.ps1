@@ -22,6 +22,7 @@ param(
     [switch]$Full,
     [switch]$UsePassword,
     [switch]$UseScp,
+    [switch]$SkipApkUpload,
     [int]$BatchMaxKb = 1200
 )
 
@@ -36,12 +37,22 @@ $dist = Join-Path $frontend 'dist'
 $manifestPath = Join-Path $PSScriptRoot 'scripts\.hostinger-deploy-manifest.json'
 
     if (-not $SkipBuild) {
-        $apiBase = if ($config.ApiBaseUrl) { $config.ApiBaseUrl } else { 'https://ecms-production-42be.up.railway.app/api' }
-        Write-Host ("Building frontend (API: {0}, direct)" -f $apiBase) -ForegroundColor Cyan
+        $useProxy = $false
+        if ($config.UseHostingerApiProxy -eq $true) { $useProxy = $true }
+        $apiBase = if ($config.ApiBaseUrl) { $config.ApiBaseUrl } else { '/api' }
+        if ($useProxy -and ($apiBase -match 'railway\.app')) {
+            Write-Host 'UseHostingerApiProxy is on; building with /api (not Railway).' -ForegroundColor Yellow
+            $apiBase = '/api'
+        }
+        if ($useProxy) {
+            Write-Host 'Building frontend (API: same-origin ecms-api-proxy.php)' -ForegroundColor Cyan
+        } else {
+            Write-Host ("Building frontend (API: {0}, direct)" -f $apiBase) -ForegroundColor Cyan
+        }
         Push-Location $frontend
         try {
-            $env:VITE_USE_HOSTINGER_API_PROXY = 'false'
-            $env:VITE_API_BASE_URL = $apiBase
+            $env:VITE_USE_HOSTINGER_API_PROXY = if ($useProxy) { 'true' } else { 'false' }
+            $env:VITE_API_BASE_URL = if ($useProxy) { '/api' } else { $apiBase }
         npm run build
         if ($LASTEXITCODE -ne 0) {
             throw 'npm run build failed'
@@ -92,6 +103,17 @@ if ($UseScp) {
     Test-DeploySsh -Config $config -UsePassword:$usePassword
     Invoke-HostingerGitPull -Config $config
 
+    if (-not $SkipApkUpload) {
+        $latestApk = Join-Path $PSScriptRoot 'frontend\public\downloads\ics-trucker-latest.apk'
+        if (Test-Path $latestApk) {
+            Write-Host 'Uploading trucker APK(s) via SCP (avoids stale git binaries on Hostinger)...' -ForegroundColor Cyan
+            & "$PSScriptRoot\scripts\publish-trucker-apks.ps1" -SkipBuild
+            if ($LASTEXITCODE -ne 0) { throw 'Trucker APK SCP upload failed' }
+        }
+    } else {
+        Write-Host 'Skipping trucker APK upload (-SkipApkUpload).' -ForegroundColor DarkGray
+    }
+
     $current = Get-DistFileHashes -DistRoot $dist
     Save-DeployManifest -Path $manifestPath -Map $current
     Write-Host ("Saved deploy manifest: {0}" -f $manifestPath) -ForegroundColor DarkGray
@@ -103,13 +125,13 @@ Write-Host ''
 if (-not $SkipGitPush) {
     $dirty = git status --porcelain
     if ($dirty) {
-        Write-Host 'Warning: uncommitted local changes will NOT reach Railway until you commit and push.' -ForegroundColor Yellow
+        Write-Host 'Warning: uncommitted local changes will NOT reach the remote API until you commit and push.' -ForegroundColor Yellow
         $dirty | ForEach-Object { Write-Host ("  {0}" -f $_) -ForegroundColor DarkYellow }
         Write-Host ''
     }
 
     $branch = if ($config.GitBranch) { $config.GitBranch } else { git rev-parse --abbrev-ref HEAD }
-    Write-Host ("Pushing {0} to origin (Railway API auto-redeploys)..." -f $branch) -ForegroundColor Cyan
+    Write-Host ("Pushing {0} to origin..." -f $branch) -ForegroundColor Cyan
     git push origin $branch
     if ($LASTEXITCODE -ne 0) {
         throw 'git push failed'
@@ -120,5 +142,9 @@ if (-not $SkipGitPush) {
 Write-Host ''
 Write-Host 'Production deploy complete.' -ForegroundColor Green
 Write-Host ("  Frontend: {0}" -f $config.AppUrl)
-Write-Host ("  API:      {0}" -f ($config.ApiBaseUrl -replace '/api$', ''))
+if ($config.UseHostingerApiProxy -eq $true -and $config.VpsUpstream) {
+    Write-Host ("  API:      {0} (browser → ecms-api-proxy.php)" -f $config.VpsUpstream) -ForegroundColor DarkGray
+} elseif (-not [string]::IsNullOrWhiteSpace($config.ApiBaseUrl)) {
+    Write-Host ("  API:      {0}" -f ($config.ApiBaseUrl -replace '/api$', ''))
+}
 Write-Host ("  Hostinger branch: origin/{0}" -f $config.HostingerGitBranch)

@@ -103,6 +103,8 @@ public static class ProductionSchemaRepair
 
         await EnsurePayMongoAsync(db, logger, cancellationToken);
 
+        await EnsurePortalSettingsAsync(db, logger, cancellationToken);
+
         await EnsureDepotContainersPerHourAsync(db, logger, cancellationToken);
 
         await EnsureDepotOperatingHoursAsync(db, logger, cancellationToken);
@@ -226,6 +228,45 @@ public static class ProductionSchemaRepair
             cancellationToken);
     }
 
+    private static async Task EnsurePortalSettingsAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20261006143000_AddPortalSettings";
+
+        if (!await TableExistsAsync(db, "PortalSettingsSet", cancellationToken))
+        {
+            logger.LogWarning("Creating missing table PortalSettingsSet");
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE `PortalSettingsSet` (
+                    `Id` int NOT NULL,
+                    `IcsCroEdoQrEnabled` tinyint(1) NOT NULL DEFAULT 1,
+                    `SoaEnabled` tinyint(1) NOT NULL DEFAULT 1,
+                    `WithdrawalsEnabled` tinyint(1) NOT NULL DEFAULT 1,
+                    `UpdatedAt` datetime(6) NOT NULL,
+                    PRIMARY KEY (`Id`)
+                ) CHARACTER SET=utf8mb4;
+                """,
+                cancellationToken);
+
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT IGNORE INTO `PortalSettingsSet` (`Id`, `IcsCroEdoQrEnabled`, `SoaEnabled`, `WithdrawalsEnabled`, `UpdatedAt`)
+                VALUES (1, 1, 1, 1, UTC_TIMESTAMP(6));
+                """,
+                cancellationToken);
+        }
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            INSERT IGNORE INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+            VALUES ('{migrationId}', '7.0.20')
+            """,
+            cancellationToken);
+    }
+
     private static async Task EnsurePayMongoAsync(
         EcmsDbContext db,
         ILogger logger,
@@ -235,6 +276,11 @@ public static class ProductionSchemaRepair
 
         await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PayMongoEnabled", "tinyint(1) NOT NULL DEFAULT 0", migrationId, cancellationToken);
         await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "AllowProofUpload", "tinyint(1) NOT NULL DEFAULT 1", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PilotTestingEnabled", "tinyint(1) NOT NULL DEFAULT 0", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PilotTestingEndsAtUtc", "datetime(6) NULL", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PilotTestingDurationDays", "int NOT NULL DEFAULT 0", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PilotNotified3DaysBefore", "tinyint(1) NOT NULL DEFAULT 0", migrationId, cancellationToken);
+        await EnsureColumnAsync(db, logger, "PaymentSettingsSet", "PilotNotified1DayBefore", "tinyint(1) NOT NULL DEFAULT 0", migrationId, cancellationToken);
 
         await EnsureColumnAsync(db, logger, "PaymentsSet", "PaymentChannel", "int NOT NULL DEFAULT 0", migrationId, cancellationToken);
         await EnsureColumnAsync(db, logger, "PaymentsSet", "PayMongoCheckoutSessionId", "varchar(64) CHARACTER SET utf8mb4 NULL", migrationId, cancellationToken);

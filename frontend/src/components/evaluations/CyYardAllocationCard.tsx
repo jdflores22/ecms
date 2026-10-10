@@ -1,8 +1,9 @@
 import { Box, Chip, LinearProgress, Paper, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { hexToRgba, ICS_PRIMARY } from '../layout/DetailPagePrimitives'
-import type { CyAllocation } from '../../services/api'
+import type { CyAllocation, LogicteckCyLine } from '../../services/api'
 import CyPipelineTeuInline, { CY_PIPELINE_COLORS } from './CyPipelineTeuInline'
 import {
   breakdownAtYardTeu,
@@ -25,6 +26,10 @@ interface CyYardAllocationCardProps {
   shippingLineName: string
   /** Shipping-line page: one card per CY. Depot page: one card per line contracted at this CY. */
   perspective?: 'byYard' | 'byShippingLine'
+  /** This yard's allocation is supplied by LOGICTECK. */
+  logicteck?: boolean
+  /** LOGICTECK allocation for the selected shipping line at this yard. */
+  logicteckLine?: LogicteckCyLine | null
 }
 
 const primaryDark = ICS_PRIMARY
@@ -36,6 +41,7 @@ function PipelineRow({
   preForecastTeu,
   limitTeu,
   atLimit = false,
+  percent,
 }: {
   label: string
   atYardTeu: number
@@ -43,13 +49,14 @@ function PipelineRow({
   preForecastTeu: number
   limitTeu: number
   atLimit?: boolean
+  percent?: number
 }) {
-  if (limitTeu <= 0) return null
+  if (limitTeu <= 0 && atYardTeu <= 0) return null
 
   const atYard = Math.round(atYardTeu)
   const committedTeu = atYard + Math.round(confirmedTeu) + Math.round(preForecastTeu)
-  const pct = cyUtilizationPctCapped(committedTeu, limitTeu)
-  const over = committedTeu > limitTeu
+  const pct = percent ?? cyUtilizationPctCapped(committedTeu, limitTeu)
+  const over = committedTeu > limitTeu || pct >= 100 && limitTeu > 0 && committedTeu >= limitTeu
 
   return (
     <Box sx={{ mb: 1.75 }}>
@@ -73,7 +80,11 @@ function PipelineRow({
           )}
         </Box>
         <Typography variant="body2" sx={{ fontWeight: 700, color: over ? '#C62828' : 'text.primary' }}>
-          {formatUtilizationPctLabel(committedTeu, limitTeu)}
+          {percent != null
+            ? over && committedTeu > limitTeu
+              ? `${percent}% · over limit`
+              : `${percent}%`
+            : formatUtilizationPctLabel(committedTeu, limitTeu)}
         </Typography>
       </Box>
       <Box sx={{ mb: 0.75 }}>
@@ -112,6 +123,8 @@ export default function CyYardAllocationCard({
   shippingLineCode,
   shippingLineName,
   perspective = 'byYard',
+  logicteck = allocation.isLogicteck,
+  logicteckLine = null,
 }: CyYardAllocationCardProps) {
   const headerMonogram =
     perspective === 'byShippingLine'
@@ -121,21 +134,39 @@ export default function CyYardAllocationCard({
     perspective === 'byShippingLine' ? shippingLineName || allocation.shippingLineName : allocation.depotName
   const headerCaption =
     perspective === 'byShippingLine'
-      ? allocation.depotName
+      ? ''
       : `${shippingLineCode || allocation.shippingLineCode} · ${shippingLineName || allocation.shippingLineName}`
   const row20 = getGroupBreakdownRow(allocation, '20')
   const row40 = getGroupBreakdownRow(allocation, '40')
-  const teuAtYard = Math.round(allocation.atYardTeu)
-  const teuConfirmed = Math.round(allocation.confirmedTeu)
-  const teuPreForecast = Math.round(allocation.preForecastTeu)
-  const teuCommitted = Math.round(allocation.preAdvisedTeu)
-  const teuLimit = allocation.contractTeu
-  const teuAtYard20 = breakdownAtYardTeu(row20)
-  const teuAtYard40 = breakdownAtYardTeu(row40)
-  const teuLimit20 = breakdownContractTeu(row20)
-  const teuLimit40 = breakdownContractTeu(row40)
-  const teuPct = cyUtilizationPctCapped(teuCommitted, teuLimit)
-  const teuOver = teuLimit > 0 && teuCommitted > teuLimit
+  const teuAtYard = logicteckLine ? logicteckLine.teu.used : Math.round(allocation.atYardTeu)
+  const teuConfirmed = logicteckLine ? 0 : Math.round(allocation.confirmedTeu)
+  const teuPreForecast = logicteckLine
+    ? logicteckLine.size20.pending + logicteckLine.size40.pending * 2
+    : Math.round(allocation.preForecastTeu)
+  const teuCommitted = logicteckLine ? logicteckLine.teu.used + teuPreForecast : Math.round(allocation.preAdvisedTeu)
+  const teuLimit = logicteckLine ? logicteckLine.teu.limit : allocation.contractTeu
+  const teuAtYard20 = logicteckLine ? logicteckLine.size20.inYard : breakdownAtYardTeu(row20)
+  const teuAtYard40 = logicteckLine ? logicteckLine.size40.inYard * 2 : breakdownAtYardTeu(row40)
+  const teuLimit20 = logicteckLine ? logicteckLine.size20.limit : breakdownContractTeu(row20)
+  const teuLimit40 = logicteckLine ? logicteckLine.size40.limit * 2 : breakdownContractTeu(row40)
+  const teuConfirmed20 = logicteckLine ? 0 : breakdownConfirmedTeu(row20)
+  const teuConfirmed40 = logicteckLine ? 0 : breakdownConfirmedTeu(row40)
+  const teuPreForecast20 = logicteckLine ? logicteckLine.size20.pending : breakdownPreForecastTeu(row20)
+  const teuPreForecast40 = logicteckLine ? logicteckLine.size40.pending * 2 : breakdownPreForecastTeu(row40)
+  const teuPct = logicteckLine
+    ? Math.min(100, logicteckLine.teu.percent)
+    : cyUtilizationPctCapped(teuCommitted, teuLimit)
+  const teuOver = logicteckLine
+    ? logicteckLine.teu.used > logicteckLine.teu.limit
+    : teuLimit > 0 && teuCommitted > teuLimit
+  const logicteckAtLimit = Boolean(
+    logicteckLine &&
+      (logicteckLine.size20.onHold ||
+        logicteckLine.size40.onHold ||
+        logicteckLine.size20.percent >= 100 ||
+        logicteckLine.size40.percent >= 100 ||
+        logicteckLine.teu.percent >= 100),
+  )
 
   return (
     <Paper
@@ -166,12 +197,29 @@ export default function CyYardAllocationCard({
           <Typography sx={{ fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.1 }}>
             {headerMonogram}
           </Typography>
-          <Typography sx={{ mt: 0.5, color: 'text.secondary', fontWeight: 500 }}>
-            {headerTitle}
-          </Typography>
-          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary', fontWeight: 600 }}>
-            {headerCaption}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>
+              {headerTitle}
+            </Typography>
+            {logicteck && perspective !== 'byShippingLine' && (
+              <Chip
+                label="Logicteck"
+                size="small"
+                sx={{
+                  height: 18,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  bgcolor: hexToRgba(primaryDark, 0.08),
+                  color: primaryDark,
+                }}
+              />
+            )}
+          </Box>
+          {headerCaption ? (
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary', fontWeight: 600 }}>
+              {headerCaption}
+            </Typography>
+          ) : null}
         </Box>
         <Box
           sx={{
@@ -186,13 +234,17 @@ export default function CyYardAllocationCard({
             flexShrink: 0,
           }}
         >
-          <WarehouseOutlinedIcon sx={{ color: '#78909C' }} />
+          {perspective === 'byShippingLine' ? (
+            <LocalShippingOutlinedIcon sx={{ color: '#78909C' }} />
+          ) : (
+            <WarehouseOutlinedIcon sx={{ color: '#78909C' }} />
+          )}
         </Box>
       </Box>
 
       <Box sx={{ px: 2.5, py: 2, flex: 1, borderTop: '1px solid', borderColor: '#EEF1F4' }}>
         <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: '0.06em' }}>
-          YARD UTILIZATION
+          {perspective === 'byShippingLine' ? 'ALLOCATION' : 'YARD UTILIZATION'}
         </Typography>
 
         <Box sx={{ mt: 1.25, mb: 2 }}>
@@ -216,7 +268,11 @@ export default function CyYardAllocationCard({
               />
             </Box>
             <Typography sx={{ fontWeight: 800, color: teuOver ? '#C62828' : 'text.primary', flexShrink: 0 }}>
-              {formatUtilizationPctLabel(teuCommitted, teuLimit)}
+              {logicteckLine
+                ? teuOver
+                  ? `${logicteckLine.teu.percent}% · over limit`
+                  : `${logicteckLine.teu.percent}%`
+                : formatUtilizationPctLabel(teuCommitted, teuLimit)}
             </Typography>
           </Box>
           <LinearProgress
@@ -245,8 +301,8 @@ export default function CyYardAllocationCard({
                 {getAllocationSizeLabel('20')}: {teuAtYard20} TEU at yard
               </Typography>
               <CyPipelineTeuInline
-                confirmedTeu={breakdownConfirmedTeu(row20)}
-                preForecastTeu={breakdownPreForecastTeu(row20)}
+                confirmedTeu={teuConfirmed20}
+                preForecastTeu={teuPreForecast20}
                 variant="caption"
               />
             </Box>
@@ -255,32 +311,42 @@ export default function CyYardAllocationCard({
                 {getAllocationSizeLabel('40')}: {teuAtYard40} TEU at yard
               </Typography>
               <CyPipelineTeuInline
-                confirmedTeu={breakdownConfirmedTeu(row40)}
-                preForecastTeu={breakdownPreForecastTeu(row40)}
+                confirmedTeu={teuConfirmed40}
+                preForecastTeu={teuPreForecast40}
                 variant="caption"
               />
             </Box>
           </Box>
         </Box>
 
-        {row20 && (
+        {(row20 || logicteckLine) && (
           <PipelineRow
             label={getAllocationReturnsLabel('20')}
-            atYardTeu={breakdownAtYardTeu(row20)}
-            confirmedTeu={breakdownConfirmedTeu(row20)}
-            preForecastTeu={breakdownPreForecastTeu(row20)}
+            atYardTeu={teuAtYard20}
+            confirmedTeu={teuConfirmed20}
+            preForecastTeu={teuPreForecast20}
             limitTeu={teuLimit20}
-            atLimit={teuLimit20 > 0 && breakdownCommittedTeu(row20) >= teuLimit20}
+            atLimit={
+              logicteckLine
+                ? logicteckLine.size20.onHold || logicteckLine.size20.percent >= 100
+                : teuLimit20 > 0 && breakdownCommittedTeu(row20) >= teuLimit20
+            }
+            percent={logicteckLine ? logicteckLine.size20.percent : undefined}
           />
         )}
-        {row40 && (
+        {(row40 || logicteckLine) && (
           <PipelineRow
             label={getAllocationReturnsLabel('40')}
-            atYardTeu={breakdownAtYardTeu(row40)}
-            confirmedTeu={breakdownConfirmedTeu(row40)}
-            preForecastTeu={breakdownPreForecastTeu(row40)}
+            atYardTeu={teuAtYard40}
+            confirmedTeu={teuConfirmed40}
+            preForecastTeu={teuPreForecast40}
             limitTeu={teuLimit40}
-            atLimit={teuLimit40 > 0 && breakdownCommittedTeu(row40) >= teuLimit40}
+            atLimit={
+              logicteckLine
+                ? logicteckLine.size40.onHold || logicteckLine.size40.percent >= 100
+                : teuLimit40 > 0 && breakdownCommittedTeu(row40) >= teuLimit40
+            }
+            percent={logicteckLine ? logicteckLine.size40.percent : undefined}
           />
         )}
       </Box>
@@ -300,8 +366,12 @@ export default function CyYardAllocationCard({
       >
         <Chip
           size="small"
-          label={allocation.hasCapacity ? 'Space available' : 'At or over contract limit'}
-          color={allocation.hasCapacity ? 'success' : 'error'}
+          label={
+            (logicteckLine ? !logicteckAtLimit : allocation.hasCapacity)
+              ? 'Space available'
+              : 'At or over contract limit'
+          }
+          color={(logicteckLine ? !logicteckAtLimit : allocation.hasCapacity) ? 'success' : 'error'}
           sx={{ fontWeight: 700 }}
         />
         {perspective === 'byShippingLine' && allocation.shippingLineId > 0 && (

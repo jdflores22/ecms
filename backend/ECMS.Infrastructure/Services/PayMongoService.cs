@@ -59,6 +59,8 @@ public class PayMongoService : IPayMongoService
         CancellationToken cancellationToken = default)
     {
         var options = await _paymentSettings.GetReturnPaymentOptionsAsync(cancellationToken);
+        if (options.PilotTestingActive)
+            throw new InvalidOperationException("Pre-forecast pilot testing is active. Use the ₱0 pilot confirmation instead of PayMongo.");
         if (!options.PayMongoEnabled)
             throw new InvalidOperationException("PayMongo is not enabled for pre-forecast payments.");
         if (!options.PayMongoConfigured)

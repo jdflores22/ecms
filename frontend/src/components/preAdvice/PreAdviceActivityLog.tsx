@@ -23,6 +23,7 @@ const MODULE_LABELS: Record<string, string> = {
   QR: 'Booking QR',
   BookingConfirmationPdf: 'Confirmation PDF',
   LOGICTECK: 'LOGICTECK',
+  DemurrageBilling: 'DET-DEM',
 }
 
 const moduleColor: Record<string, 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error'> = {
@@ -34,6 +35,7 @@ const moduleColor: Record<string, 'default' | 'primary' | 'secondary' | 'info' |
   QR: 'success',
   BookingConfirmationPdf: 'success',
   LOGICTECK: 'primary',
+  DemurrageBilling: 'warning',
 }
 
 type PreAdviceActivityLogProps = {

@@ -35,4 +35,16 @@ public interface ICyAllocationService
         int userId,
         string role,
         CancellationToken cancellationToken = default);
+
+    Task<LogicteckCyAllocationFeedDto> GetLogicteckFeedAsync(
+        int? shippingLineId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<LogicteckCyAllocationFeedDto> GetLogicteckFeedForDepotAsync(
+        int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
 }

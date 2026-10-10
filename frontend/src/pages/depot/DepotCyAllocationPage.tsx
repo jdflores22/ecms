@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   FormControl,
   InputLabel,
   LinearProgress,
@@ -12,12 +13,13 @@ import {
   Typography,
 } from '@mui/material'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate } from 'react-router-dom'
 import CyYardAllocationCard from '../../components/evaluations/CyYardAllocationCard'
 import { hexToRgba, ICS_PRIMARY } from '../../components/layout/DetailPagePrimitives'
+import { pageHeroMutedChipSx } from '../../components/layout/PageHeroPrimitives'
 import {
   listHeroOutlineActionSx,
   listPageRootSx,
@@ -25,26 +27,40 @@ import {
 } from '../../components/layout/ListPagePrimitives'
 import { appColors } from '../../theme/colors'
 import { canAccessPage } from '../../config/routeAccess'
-import { cyAllocationApi, depotApi, type CyAllocation, type Depot } from '../../services/api'
+import { cyAllocationApi, depotApi, type CyAllocation, type Depot, type LogicteckCyAllocationFeed, type LogicteckCyLine } from '../../services/api'
 import { useAppSelector } from '../../store/hooks'
 import {
   aggregateAtYardTeuBySize,
   aggregatePreAdvisedTeuBySize,
+  breakdownAtYardTeu,
   cyUtilizationPctCapped,
   formatUtilizationPctLabel,
   getAllocationSizeLabel,
+  getGroupBreakdownRow,
   progressBarColor,
 } from '../../utils/cyAllocation'
 import axios from 'axios'
 
 const primaryDark = ICS_PRIMARY
 
+function matchLogicteckLine(row: CyAllocation, lines: LogicteckCyLine[] | undefined): LogicteckCyLine | null {
+  if (!row.isLogicteck || !lines?.length) return null
+  const code = row.shippingLineCode.trim().toUpperCase()
+  const name = row.shippingLineName.trim().toUpperCase()
+  return (
+    lines.find((line) => {
+      const logicteckCode = line.code.trim().toUpperCase()
+      return logicteckCode === code || logicteckCode === name
+    }) ?? null
+  )
+}
+
 function loadErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
     const msg = err.response?.data?.message
     if (typeof msg === 'string' && msg.trim()) return msg
     if (err.response?.status === 403) {
-      return 'Your role does not have access to CY allocation for this depot.'
+      return 'Your role does not have access to shipping line allocation for this depot.'
     }
   }
   return fallback
@@ -83,6 +99,7 @@ export default function DepotCyAllocationPage() {
   const [items, setItems] = useState<CyAllocation[]>([])
   const [depots, setDepots] = useState<Depot[]>([])
   const [depotId, setDepotId] = useState<number | ''>('')
+  const [logicteckFeed, setLogicteckFeed] = useState<LogicteckCyAllocationFeed | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -121,15 +138,22 @@ export default function DepotCyAllocationPage() {
     if (!allowed) return
     if (isAdmin && !effectiveDepotId) {
       setItems([])
+      setLogicteckFeed(null)
       setLoading(false)
       return
     }
 
     setLoading(true)
     setError('')
-    cyAllocationApi
-      .listByDepot(isAdmin ? effectiveDepotId ?? undefined : undefined)
-      .then(({ data }) => setItems(data))
+    const depotQuery = isAdmin ? effectiveDepotId ?? undefined : undefined
+    Promise.all([
+      cyAllocationApi.listByDepot(depotQuery),
+      cyAllocationApi.logicteckByDepot(depotQuery).catch(() => ({ data: null })),
+    ])
+      .then(([allocations, feed]) => {
+        setItems(allocations.data)
+        setLogicteckFeed(feed.data)
+      })
       .catch((err) => setError(loadErrorMessage(err, 'Failed to load shipping line allocations for this yard.')))
       .finally(() => setLoading(false))
   }, [allowed, isAdmin, effectiveDepotId])
@@ -146,22 +170,53 @@ export default function DepotCyAllocationPage() {
     const confirmedTeu = Math.round(items.reduce((sum, i) => sum + i.confirmedTeu, 0))
     const preForecastTeu = Math.round(items.reduce((sum, i) => sum + i.preForecastTeu, 0))
     const committedTeu = Math.round(items.reduce((sum, i) => sum + i.preAdvisedTeu, 0))
-    const linesAtLimit = items.filter((i) => !i.hasCapacity).length
-    const teuPct = cyUtilizationPctCapped(committedTeu, contractTeu)
-    const teuOver = contractTeu > 0 && committedTeu > contractTeu
+    let contract = contractTeu
+    let atYard = atYardTeu
+    let confirmed = confirmedTeu
+    let preForecast = preForecastTeu
+    let committed = committedTeu
+    let teu20 = sizeTotals.teu20
+    let teu40 = sizeTotals.teu40
+    let linesAtLimit = 0
+    for (const item of items) {
+      const line = matchLogicteckLine(item, logicteckFeed?.lines)
+      if (!line) {
+        if (!item.hasCapacity) linesAtLimit += 1
+        continue
+      }
+      const pendingTeu = line.size20.pending + line.size40.pending * 2
+      contract = contract - item.contractTeu + line.teu.limit
+      atYard = atYard - Math.round(item.atYardTeu) + line.teu.used
+      confirmed -= Math.round(item.confirmedTeu)
+      preForecast = preForecast - Math.round(item.preForecastTeu) + pendingTeu
+      committed = committed - Math.round(item.preAdvisedTeu) + line.teu.used + pendingTeu
+      teu20 = teu20 - breakdownAtYardTeu(getGroupBreakdownRow(item, '20')) + line.size20.inYard
+      teu40 = teu40 - breakdownAtYardTeu(getGroupBreakdownRow(item, '40')) + line.size40.inYard * 2
+      const atLimit =
+        line.size20.onHold ||
+        line.size40.onHold ||
+        line.size20.percent >= 100 ||
+        line.size40.percent >= 100 ||
+        line.teu.percent >= 100
+      if (atLimit) linesAtLimit += 1
+    }
+    const teuPct = cyUtilizationPctCapped(committed, contract)
+    const teuOver = contract > 0 && committed > contract
     return {
       ...sizeTotals,
+      teu20,
+      teu40,
       committedTotals,
-      contractTeu,
-      atYardTeu,
-      confirmedTeu,
-      preForecastTeu,
-      committedTeu,
+      contractTeu: contract,
+      atYardTeu: atYard,
+      confirmedTeu: confirmed,
+      preForecastTeu: preForecast,
+      committedTeu: committed,
       linesAtLimit,
       teuPct,
       teuOver,
     }
-  }, [items])
+  }, [items, logicteckFeed])
 
   if (user?.role && !canAccessPage(user.role, 'depotCyAllocation', user.allowedPages)) {
     return <Navigate to="/" replace />
@@ -174,21 +229,24 @@ export default function DepotCyAllocationPage() {
   return (
     <Box sx={listPageRootSx}>
       <PageHero
-        icon={<WarehouseOutlinedIcon />}
-        title="CY allocation"
+        icon={<LocalShippingOutlinedIcon />}
+        title={depotName ? `${depotName} — Shipping lines` : 'Shipping lines'}
+        titleAddon={
+          items.some((item) => item.isLogicteck) ? (
+            <Chip label="Logicteck" size="small" sx={pageHeroMutedChipSx} />
+          ) : undefined
+        }
         subtitle={
           <>
-            Read-only view of shipping lines contracted at your container yard. At-yard counts are physical gate
-            check-ins; orange +confirmed and +pre-forecast show pipeline units not yet at the CY. See{' '}
+            Allocation for each shipping line contracted at this yard. See{' '}
             <Box
               component={RouterLink}
               to="/depot/container-inventory"
-              sx={{ color: '#7dd3fc', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
+              sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
             >
               CY inventory
             </Box>{' '}
-            for container-level detail by line.
-            {depotName ? ` ${depotName}.` : ''}
+            for container-level detail.
           </>
         }
         actions={
@@ -261,7 +319,7 @@ export default function DepotCyAllocationPage() {
               <Inventory2OutlinedIcon sx={{ color: 'text.secondary', mt: 0.25 }} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Yard utilization (all lines)
+                  Allocation across shipping lines
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {getAllocationSizeLabel('20')}: {totals.teu20} at yard · {getAllocationSizeLabel('40')}: {totals.teu40}{' '}
@@ -347,6 +405,8 @@ export default function DepotCyAllocationPage() {
               shippingLineCode={row.shippingLineCode}
               shippingLineName={row.shippingLineName}
               perspective="byShippingLine"
+              logicteck={false}
+              logicteckLine={matchLogicteckLine(row, logicteckFeed?.lines)}
             />
           ))}
         </Box>

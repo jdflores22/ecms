@@ -17,3 +17,5 @@ public record ApproveEvaluationRequest(int PreAdviceId, int DepotId, DateOnly? D
 public record RejectEvaluationRequest(int PreAdviceId, string Remarks);
 
 public record ReturnForComplianceRequest(int PreAdviceId, string Remarks);
+
+public record SetCroFreeTimeRequest(DateOnly FreeTimeDate);

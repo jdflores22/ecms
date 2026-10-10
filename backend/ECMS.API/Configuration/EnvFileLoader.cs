@@ -2,13 +2,29 @@ namespace ECMS.API.Configuration;
 
 public static class EnvFileLoader
 {
+    public static void LoadIntegrationsEnvIfPresent(IWebHostEnvironment environment)
+    {
+        LoadEnvFile(Path.Combine(environment.ContentRootPath, ".env.integrations"));
+    }
+
     public static void LoadProductionEnvIfPresent(IWebHostEnvironment environment)
     {
         // Keep local Development on appsettings.Development.json (XAMPP). Production/Railway uses .env.production.
         if (!environment.IsProduction())
             return;
 
-        var path = Path.Combine(environment.ContentRootPath, ".env.production");
+        LoadEnvFile(Path.Combine(environment.ContentRootPath, ".env.production"));
+
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LOGICTECK_API_KEY")))
+        {
+            var logicteck = Environment.GetEnvironmentVariable("Logicteck__ApiKey");
+            if (!string.IsNullOrWhiteSpace(logicteck))
+                Environment.SetEnvironmentVariable("LOGICTECK_API_KEY", logicteck);
+        }
+    }
+
+    private static void LoadEnvFile(string path)
+    {
         if (!File.Exists(path))
             return;
 
@@ -27,13 +43,6 @@ public static class EnvFileLoader
 
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
                 Environment.SetEnvironmentVariable(key, value);
-        }
-
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LOGICTECK_API_KEY")))
-        {
-            var logicteck = Environment.GetEnvironmentVariable("Logicteck__ApiKey");
-            if (!string.IsNullOrWhiteSpace(logicteck))
-                Environment.SetEnvironmentVariable("LOGICTECK_API_KEY", logicteck);
         }
     }
 }

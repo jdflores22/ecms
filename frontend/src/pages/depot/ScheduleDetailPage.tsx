@@ -447,6 +447,13 @@ export default function ScheduleDetailPage() {
                   onClick={() => setActiveTab('photos')}
                   sx={{ ...heroMutedChipSx, fontWeight: 600, cursor: 'pointer' }}
                 />
+                {preAdvice.demurrageValidUntil && (
+                  <Chip
+                    label={`Free time until ${formatScheduleDate(preAdvice.demurrageValidUntil)}`}
+                    size="small"
+                    sx={{ ...heroMutedChipSx, fontWeight: 700 }}
+                  />
+                )}
                 <TimezoneChip />
               </>
             }
@@ -504,7 +511,7 @@ export default function ScheduleDetailPage() {
               allowScrollButtonsMobile
               sx={detailTabsSx}
             >
-              <Tab label="Request details" value="details" />
+              <Tab label="Container details" value="details" />
               <Tab
                 label={`Container photos (${photoProgress.uploaded}/${photoProgress.total})`}
                 value="photos"

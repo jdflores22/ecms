@@ -9,7 +9,8 @@ import {
   Typography,
 } from '@mui/material'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
-import PreAdviceFullDossier from '../preAdvice/PreAdviceFullDossier'
+import EvaluationOverviewTabPanel from './EvaluationOverviewTabPanel'
+import EvaluationContainerDetailsTabPanel from './EvaluationContainerDetailsTabPanel'
 import {
   DetailTabPanel,
   ICS_PRIMARY,
@@ -20,6 +21,7 @@ import {
 import { InlineLoadingSkeleton, QrImageSkeleton } from '../layout/SkeletonPrimitives'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
+  DemurrageBilling,
   Evaluation,
   PreAdvice,
   PreAdviceDocument,
@@ -27,12 +29,13 @@ import type {
   Schedule,
 } from '../../services/api'
 import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { formatContainerSizeLabel } from '../../utils/containerSize'
 import DamageReportChip from './DamageReportChip'
+import EvaluationCroEdoTabPanel from './EvaluationCroEdoTabPanel'
+import PreAdviceActivityLog from '../preAdvice/PreAdviceActivityLog'
 
 const primaryDark = ICS_PRIMARY
 
-export type EvaluationDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr'
+export type EvaluationDetailTab = 'overview' | 'croEdo' | 'details' | 'photos' | 'schedule' | 'qr' | 'activity'
 
 const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   WaitingSchedule: 'warning',
@@ -74,6 +77,16 @@ type EvaluationDetailTabPanelsProps = {
   onReloadDocuments: () => void
   onDownloadQr: () => void
   onQrPreview?: () => void
+  croFreeTimeDate: string
+  onCroFreeTimeDateChange: (value: string) => void
+  canEditCroFreeTime: boolean
+  croFreeTimeSaving: boolean
+  croFreeTimeSaveError: string
+  onSaveCroFreeTime: () => void
+  detDemBilling: DemurrageBilling | null
+  detDemDetailPath: string | null
+  showExpiredRejectAction: boolean
+  onOpenRejectExpired: () => void
 }
 
 export default function EvaluationDetailTabPanels({
@@ -91,6 +104,16 @@ export default function EvaluationDetailTabPanels({
   onReloadDocuments,
   onDownloadQr,
   onQrPreview,
+  croFreeTimeDate,
+  onCroFreeTimeDateChange,
+  canEditCroFreeTime,
+  croFreeTimeSaving,
+  croFreeTimeSaveError,
+  onSaveCroFreeTime,
+  detDemBilling,
+  detDemDetailPath,
+  showExpiredRejectAction,
+  onOpenRejectExpired,
 }: EvaluationDetailTabPanelsProps) {
   const isApproved = item.status === 'Approved'
 
@@ -107,16 +130,29 @@ export default function EvaluationDetailTabPanels({
             </Box>
           </Alert>
         )}
-        <PreAdviceFullDossier
+        <EvaluationOverviewTabPanel
           item={item}
-          documents={documents}
-          documentsLoading={documentsLoading}
+          decision={decision}
           schedule={schedule}
           scheduleLoading={scheduleLoading}
           qrBooking={qrBooking}
-          qrImageUrl={qrImageUrl}
-          qrLoading={qrLoading}
-          decision={decision}
+        />
+      </DetailTabPanel>
+
+      <DetailTabPanel value="croEdo" activeTab={activeTab}>
+        <EvaluationCroEdoTabPanel
+          item={item}
+          documents={documents}
+          freeTimeDate={croFreeTimeDate}
+          onFreeTimeDateChange={onCroFreeTimeDateChange}
+          canEdit={canEditCroFreeTime}
+          saving={croFreeTimeSaving}
+          saveError={croFreeTimeSaveError}
+          onSave={onSaveCroFreeTime}
+          detDemBilling={detDemBilling}
+          detDemDetailPath={detDemDetailPath}
+          showExpiredRejectAction={showExpiredRejectAction}
+          onOpenRejectExpired={onOpenRejectExpired}
         />
       </DetailTabPanel>
 
@@ -131,61 +167,7 @@ export default function EvaluationDetailTabPanels({
             </Box>
           </Alert>
         )}
-        <Box sx={infoGridSx}>
-          <InfoTile label="Trucker" value={item.truckerName} />
-          <InfoTile label="Shipping line" value={item.shippingLineName} />
-          <Box
-            sx={{
-              gridColumn: { xs: '1', sm: '1 / -1' },
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
-              gap: { xs: 1.5, sm: 2 },
-            }}
-          >
-            <InfoTile label="Container number" value={item.containerNo} mono />
-            <InfoTile label="Container size" value={formatContainerSizeLabel(item.containerSize)} />
-            <InfoTile label="Container type" value={item.containerType} />
-          </Box>
-          {item.demurrageValidUntil && (
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <InfoTile label="Demurrage valid until" value={item.demurrageValidUntil} />
-            </Box>
-          )}
-          {item.remarks?.trim() && (
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <InfoTile label="Trucker remarks" value={item.remarks.trim()} />
-            </Box>
-          )}
-          {decision?.depotName && <InfoTile label="Assigned CY" value={decision.depotName} />}
-          {decision && (
-            <InfoTile
-              label="Evaluation"
-              value={
-                <Chip
-                  label={decision.status}
-                  size="small"
-                  color={decision.status === 'Approved' ? 'success' : 'error'}
-                  sx={{ fontWeight: 600 }}
-                />
-              }
-            />
-          )}
-          {decision?.evaluatorName && (
-            <InfoTile label="Evaluator" value={decision.evaluatorName} />
-          )}
-          {decision?.evaluatedAt && (
-            <InfoTile label="Evaluated" value={formatDateTime(decision.evaluatedAt)} />
-          )}
-          {decision?.remarks && (
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <InfoTile label="Evaluation remarks" value={decision.remarks} />
-            </Box>
-          )}
-          <InfoTile label="Submitted" value={formatDateTime(item.createdAt)} />
-          <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-            <InfoTile label="Submitted by remarks" value={item.remarks || '—'} />
-          </Box>
-        </Box>
+        <EvaluationContainerDetailsTabPanel item={item} decision={decision} />
       </DetailTabPanel>
 
       <DetailTabPanel value="photos" activeTab={activeTab}>
@@ -341,6 +323,10 @@ export default function EvaluationDetailTabPanels({
             </Typography>
           </Paper>
         )}
+      </DetailTabPanel>
+
+      <DetailTabPanel value="activity" activeTab={activeTab}>
+        <PreAdviceActivityLog preAdviceId={preAdviceId} active={activeTab === 'activity'} />
       </DetailTabPanel>
     </Box>
   )

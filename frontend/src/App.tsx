@@ -17,6 +17,7 @@ import RoleRouteGuard from './components/auth/RoleRouteGuard'
 import {
   AdminAuditLogPage,
   AdminPaymentsPage,
+  AdminDetDemPage,
   AdminRevenuePage,
   AdminTransactionReportsPage,
   AdminUsersPage,
@@ -446,6 +447,22 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <AdminPaymentsPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="admin/det-dem/:id"
+          element={
+            <RoleRouteGuard>
+              <DemurrageBillingDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="admin/det-dem"
+          element={
+            <RoleRouteGuard>
+              <AdminDetDemPage />
             </RoleRouteGuard>
           }
         />

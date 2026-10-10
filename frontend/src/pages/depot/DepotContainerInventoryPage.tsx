@@ -555,7 +555,7 @@ export default function DepotContainerInventoryPage() {
               to="/depot/cy-allocation"
               sx={{ color: '#7dd3fc', fontWeight: 600, textDecoration: 'underline', display: 'inline' }}
             >
-              CY allocation
+              Shipping lines
             </Box>{' '}
             for contract TEU limits.
             {depotTitle ? ` ${depotTitle}.` : ''}

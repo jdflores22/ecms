@@ -71,7 +71,29 @@ public class EvaluationsController : ControllerBase
     {
         try
         {
-            return Ok(await _service.RejectAsync(request, UserId, cancellationToken));
+            return Ok(await _service.RejectAsync(request, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("preforecast/{preAdviceId:int}/cro-free-time")]
+    [Authorize(Roles = RoleNames.Administrator)]
+    public async Task<IActionResult> SetCroFreeTime(
+        int preAdviceId,
+        [FromBody] SetCroFreeTimeRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _service.SetCroFreeTimeAsync(preAdviceId, request.FreeTimeDate, UserId, Role, cancellationToken);
+            return NoContent();
         }
         catch (InvalidOperationException ex)
         {
@@ -91,7 +113,7 @@ public class EvaluationsController : ControllerBase
     {
         try
         {
-            return Ok(await _service.ReturnForComplianceAsync(request, UserId, cancellationToken));
+            return Ok(await _service.ReturnForComplianceAsync(request, UserId, Role, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {

@@ -33,7 +33,10 @@ import {
 } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { demurrageBillingDetailPath } from '../demurrage/DemurrageBillingDetailPage'
+import {
+  demurrageBillingDetailPath,
+  type DemurrageBillingAudience,
+} from '../../utils/demurrageRoutes'
 import DemurrageFeeLineEditor from '../../components/demurrage/DemurrageFeeLineEditor'
 import {
   BillingContextCard,
@@ -98,8 +101,13 @@ const tabEmptyMessage: Record<StatusTab, string> = {
 
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
-export default function DemurrageBillingPage() {
+type DemurrageBillingPageProps = {
+  audience?: DemurrageBillingAudience
+}
+
+export default function DemurrageBillingPage({ audience = 'evaluator' }: DemurrageBillingPageProps) {
   const navigate = useNavigate()
+  const isAdminAudience = audience === 'admin'
   const [items, setItems] = useState<DemurrageBilling[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -266,28 +274,34 @@ export default function DemurrageBillingPage() {
     <Box sx={listPageRootSx}>
       <DemurrageHero
         icon={<ReceiptLongOutlinedIcon />}
-        title="Demurrage billing"
-        description="Manage charges when pre-forecast expires without CY return. Add demurrage, detention, storage, and other fee lines — truckers must settle before re-filing the same container."
+        title={isAdminAudience ? 'DET-DEM' : 'Demurrage billing'}
+        description={
+          isAdminAudience
+            ? 'Shipping line detention and demurrage linked to pre-forecasts. Review trucker payment receipts and verify proof — same flow as ICS payment verification.'
+            : 'Manage charges when pre-forecast expires without CY return. Add demurrage, detention, storage, and other fee lines — truckers must settle before re-filing the same container.'
+        }
         action={
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            <Button
-              component={RouterLink}
-              to="/evaluations/demurrage-rates"
-              variant="outlined"
-              startIcon={<SettingsOutlinedIcon />}
-              sx={listHeroOutlinedActionSx}
-            >
-              Manage rates
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => void openCreateDialog()}
-              sx={listHeroActionSx}
-            >
-              Create billing
-            </Button>
-          </Box>
+          isAdminAudience ? undefined : (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Button
+                component={RouterLink}
+                to="/evaluations/demurrage-rates"
+                variant="outlined"
+                startIcon={<SettingsOutlinedIcon />}
+                sx={listHeroOutlinedActionSx}
+              >
+                Manage rates
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => void openCreateDialog()}
+                sx={listHeroActionSx}
+              >
+                Create billing
+              </Button>
+            </Box>
+          )
         }
       />
 
@@ -388,7 +402,7 @@ export default function DemurrageBillingPage() {
                   {filtered.map((item) => (
                     <TableRow key={item.id} hover>
                       <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                        <RouterLink to={demurrageBillingDetailPath(item.id, 'evaluator')}>{item.referenceNo}</RouterLink>
+                        <RouterLink to={demurrageBillingDetailPath(item.id, audience)}>{item.referenceNo}</RouterLink>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -430,12 +444,12 @@ export default function DemurrageBillingPage() {
                             size="small"
                             variant="text"
                             endIcon={<OpenInNewIcon />}
-                            onClick={() => navigate(demurrageBillingDetailPath(item.id, 'evaluator'))}
+                            onClick={() => navigate(demurrageBillingDetailPath(item.id, audience))}
                             sx={{ fontWeight: 600 }}
                           >
                             View
                           </Button>
-                          {canEditFees(item) && (
+                          {!isAdminAudience && canEditFees(item) && (
                             <Button
                               size="small"
                               variant="outlined"
@@ -457,7 +471,7 @@ export default function DemurrageBillingPage() {
 
           <ListMobileOnly>
             {filtered.map((item) => (
-              <ListMobileCard key={item.id} onClick={() => navigate(demurrageBillingDetailPath(item.id, 'evaluator'))}>
+              <ListMobileCard key={item.id} onClick={() => navigate(demurrageBillingDetailPath(item.id, audience))}>
                 <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
                 <ListMobileMeta>
                   {item.containerNo} · {item.truckerName}

@@ -42,6 +42,7 @@ import {
   ECMS_INVENTORY_TYPE_CODES,
   INVENTORY_SOURCE_LABELS,
   buildInventorySummaryRows,
+  includeContractedDepots,
   formatInventorySizeLabel,
   sumInventorySummaryRows,
 } from '../../utils/inventorySummary'
@@ -424,7 +425,10 @@ export default function ContainerInventoryPage() {
     return cyUtilizationPctUncapped(summary.usedTeu, summary.contractTeu)
   }, [summary])
 
-  const summaryRows = useMemo(() => buildInventorySummaryRows(filteredItems), [filteredItems])
+  const summaryRows = useMemo(
+    () => includeContractedDepots(buildInventorySummaryRows(filteredItems), summary?.byDepot ?? []),
+    [filteredItems, summary],
+  )
 
   const handleDeleteManual = async (id: number) => {
     if (!window.confirm('Remove this manual inventory entry?')) return

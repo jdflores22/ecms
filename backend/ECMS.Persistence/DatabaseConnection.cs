@@ -30,7 +30,7 @@ public static class DatabaseConnection
             Environment.GetEnvironmentVariable("MYSQL_DATABASE"),
             Environment.GetEnvironmentVariable("MYSQL_USER"),
             Environment.GetEnvironmentVariable("MYSQL_PASSWORD"),
-            sslRequired: true);
+            sslRequired: SslRequiredForHost(host));
     }
 
     public static string? BuildFromMysqlConfig(IConfiguration config)
@@ -45,7 +45,23 @@ public static class DatabaseConnection
             config["MYSQL_DATABASE"],
             config["MYSQL_USER"],
             config["MYSQL_PASSWORD"],
-            sslRequired: true);
+            sslRequired: SslRequiredForHost(host));
+    }
+
+    private static bool SslRequiredForHost(string host)
+    {
+        var overrideMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE");
+        if (!string.IsNullOrWhiteSpace(overrideMode))
+        {
+            if (overrideMode.Equals("None", StringComparison.OrdinalIgnoreCase)
+                || overrideMode.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (overrideMode.Equals("Required", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        var normalized = host.Trim().ToLowerInvariant();
+        return normalized is not ("127.0.0.1" or "localhost" or "::1");
     }
 
     public static string? BuildFromMysqlParts(

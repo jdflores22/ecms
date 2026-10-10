@@ -18,6 +18,7 @@ public interface IEcmsDbContext
     IQueryable<Schedule> Schedules { get; }
     IQueryable<Payment> Payments { get; }
     IQueryable<QRBooking> QRBookings { get; }
+    IQueryable<LogicteckStatusUpdate> LogicteckStatusUpdates { get; }
     IQueryable<AuditLog> AuditLogs { get; }
     IQueryable<Notification> Notifications { get; }
     IQueryable<DevicePushToken> DevicePushTokens { get; }
@@ -26,6 +27,7 @@ public interface IEcmsDbContext
     IQueryable<EmailVerificationToken> EmailVerificationTokens { get; }
     IQueryable<ManualYardInventoryEntry> ManualYardInventoryEntries { get; }
     IQueryable<PaymentSettings> PaymentSettings { get; }
+    IQueryable<PortalSettings> PortalSettings { get; }
     IQueryable<ShippingLinePaymentConfig> ShippingLinePaymentConfigs { get; }
     IQueryable<DemurrageBilling> DemurrageBillings { get; }
     IQueryable<DemurrageBillingFeeLine> DemurrageBillingFeeLines { get; }

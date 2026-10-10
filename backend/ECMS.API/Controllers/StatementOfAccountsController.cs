@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ECMS.API.Filters;
 using ECMS.Application.DTOs.Common;
 using ECMS.Application.DTOs.StatementOfAccount;
 using ECMS.Application.Interfaces;
@@ -11,6 +12,7 @@ namespace ECMS.API.Controllers;
 [ApiController]
 [Route("api/statement-of-accounts")]
 [Authorize]
+[RequirePortalFeature(PortalFeature.Soa)]
 public class StatementOfAccountsController : ControllerBase
 {
     private readonly IStatementOfAccountService _service;

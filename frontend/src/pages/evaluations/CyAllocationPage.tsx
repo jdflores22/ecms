@@ -15,13 +15,15 @@ import {
 import { appColors } from '../../theme/colors'
 import { portalColors } from '../../theme/portalTheme'
 import { canAccessPage } from '../../config/routeAccess'
-import { cyAllocationApi, shippingLineApi, type CyAllocation, type CyAllocationForApproval, type ShippingLine } from '../../services/api'
+import { cyAllocationApi, shippingLineApi, type CyAllocation, type CyAllocationForApproval, type LogicteckCyAllocationFeed, type ShippingLine } from '../../services/api'
 import { getShippingLineDisplayCode, getShippingLineFullName } from '../../utils/shippingLine'
 import { useAppSelector } from '../../store/hooks'
 import {
   aggregateAtYardTeuBySize,
   aggregatePreAdvisedTeuBySize,
+  breakdownAtYardTeu,
   cyUtilizationPctCapped,
+  getGroupBreakdownRow,
   formatUtilizationPctLabel,
   getAllocationSizeLabel,
   progressBarColor,
@@ -84,6 +86,7 @@ export default function CyAllocationPage() {
   const [approvalContext, setApprovalContext] = useState<CyAllocationForApproval | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [logicteckFeed, setLogicteckFeed] = useState<LogicteckCyAllocationFeed | null>(null)
 
   useEffect(() => {
     if (!isAdmin || preAdviceId) return
@@ -107,6 +110,13 @@ export default function CyAllocationPage() {
 
   const effectiveShippingLineId = isAdmin && !preAdviceId ? (adminLineId === '' ? null : adminLineId) : null
 
+  const loadLogicteck = useCallback((shippingLineId?: number) => {
+    cyAllocationApi
+      .logicteck(shippingLineId)
+      .then(({ data }) => setLogicteckFeed(data))
+      .catch(() => setLogicteckFeed(null))
+  }, [])
+
   const load = useCallback(() => {
     setLoading(true)
     setError('')
@@ -118,6 +128,8 @@ export default function CyAllocationPage() {
         .then(({ data }) => {
           setApprovalContext(data)
           setItems(data.allocations)
+          const lineId = data.allocations[0]?.shippingLineId
+          if (lineId) loadLogicteck(lineId)
         })
         .catch((err) =>
           setError(loadErrorMessage(err, 'Failed to load container yard allocations for this evaluation.')),
@@ -128,16 +140,18 @@ export default function CyAllocationPage() {
 
     if (isAdmin && !effectiveShippingLineId) {
       setItems([])
+      setLogicteckFeed(null)
       setLoading(false)
       return
     }
 
+    loadLogicteck(isAdmin ? effectiveShippingLineId ?? undefined : undefined)
     cyAllocationApi
       .list(isAdmin ? effectiveShippingLineId ?? undefined : undefined)
       .then(({ data }) => setItems(data))
       .catch((err) => setError(loadErrorMessage(err, 'Failed to load container yard allocations.')))
       .finally(() => setLoading(false))
-  }, [preAdviceId, isAdmin, effectiveShippingLineId])
+  }, [preAdviceId, isAdmin, effectiveShippingLineId, loadLogicteck])
 
   useEffect(() => {
     load()
@@ -175,23 +189,35 @@ export default function CyAllocationPage() {
     const preForecastTeu = Math.round(items.reduce((sum, i) => sum + i.preForecastTeu, 0))
     const committedTeu = Math.round(items.reduce((sum, i) => sum + i.preAdvisedTeu, 0))
     const bookingTeu = Math.round(items.reduce((sum, i) => sum + i.bookingTeu, 0))
-    const yardsAtLimit = items.filter((i) => !i.hasCapacity).length
-    const teuPct = cyUtilizationPctCapped(committedTeu, contractTeu)
-    const teuOver = contractTeu > 0 && committedTeu > contractTeu
+    const line = logicteckFeed?.matchedLine
+    const logicteckYard = line ? items.find((item) => item.isLogicteck) : undefined
+    const logicteckAtLimit = Boolean(
+      line && (line.size20.onHold || line.size40.onHold || line.size20.percent >= 100 || line.size40.percent >= 100 || line.teu.percent >= 100),
+    )
+    const contract = logicteckYard && line ? contractTeu - logicteckYard.contractTeu + line.teu.limit : contractTeu
+    const atYard = logicteckYard && line ? atYardTeu - Math.round(logicteckYard.atYardTeu) + line.teu.used : atYardTeu
+    const committed = logicteckYard && line ? atYard : committedTeu
+    const teu20 = logicteckYard && line ? sizeTotals.teu20 - breakdownAtYardTeu(getGroupBreakdownRow(logicteckYard, '20')) + line.size20.inYard : sizeTotals.teu20
+    const teu40 = logicteckYard && line ? sizeTotals.teu40 - breakdownAtYardTeu(getGroupBreakdownRow(logicteckYard, '40')) + line.size40.inYard * 2 : sizeTotals.teu40
+    const yardsAtLimit = items.filter((item) => (logicteckYard && line && item.depotId === logicteckYard.depotId ? logicteckAtLimit : !item.hasCapacity)).length
+    const teuPct = cyUtilizationPctCapped(committed, contract)
+    const teuOver = contract > 0 && committed > contract
     return {
       ...sizeTotals,
+      teu20,
+      teu40,
       committedTotals,
-      contractTeu,
-      atYardTeu,
+      contractTeu: contract,
+      atYardTeu: atYard,
       confirmedTeu,
       preForecastTeu,
-      committedTeu,
+      committedTeu: committed,
       bookingTeu,
       yardsAtLimit,
       teuPct,
       teuOver,
     }
-  }, [items])
+  }, [items, logicteckFeed])
 
   if (user?.role && !canAccessPage(user.role, 'cyAllocation', user.allowedPages)) {
     return <Navigate to="/" replace />
@@ -410,6 +436,7 @@ export default function CyAllocationPage() {
               allocation={row}
               shippingLineCode={shippingLineCode}
               shippingLineName={shippingLineName}
+              logicteckLine={row.isLogicteck ? logicteckFeed?.matchedLine ?? null : null}
             />
           ))}
         </Box>

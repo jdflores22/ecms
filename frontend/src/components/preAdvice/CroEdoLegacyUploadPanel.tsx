@@ -39,8 +39,7 @@ export default function CroEdoLegacyUploadPanel({
         </Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Upload a clear photo or PDF of your issued CRO/eDO. No ICS QR is required for legacy documents
-        issued outside the system.
+        Upload a clear photo or PDF of your issued CRO/eDO. Container details below must match the document.
       </Typography>
 
       <Stack spacing={1.5}>

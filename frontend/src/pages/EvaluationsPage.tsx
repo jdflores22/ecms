@@ -1,5 +1,21 @@
 import { ListLoadingState } from '../components/layout/ListPagePrimitives'
-import { Alert, Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Paper,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tabs,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -25,13 +41,45 @@ import { formatContainerSizeLabel } from '../utils/containerSize'
 
 const primaryDark = LIST_PRIMARY
 
+const REMARKS_COLUMN_MAX_WIDTH = 200
+const REMARKS_LINE_CLAMP = 2
+
 function remarksPreview(value?: string | null) {
   const text = value?.trim()
   if (!text) return '—'
   return (
-    <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 220, wordBreak: 'break-word' }}>
-      {text}
-    </Typography>
+    <Tooltip
+      title={text}
+      placement="top-start"
+      enterDelay={300}
+      slotProps={{
+        tooltip: {
+          sx: {
+            maxWidth: 360,
+            whiteSpace: 'pre-wrap',
+            fontSize: 12,
+            lineHeight: 1.45,
+          },
+        },
+      }}
+    >
+      <Typography
+        component="span"
+        variant="body2"
+        color="text.secondary"
+        sx={{
+          maxWidth: REMARKS_COLUMN_MAX_WIDTH,
+          display: '-webkit-box',
+          WebkitLineClamp: REMARKS_LINE_CLAMP,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'break-word',
+          cursor: 'default',
+        }}
+      >
+        {text}
+      </Typography>
+    </Tooltip>
   )
 }
 
@@ -164,7 +212,7 @@ function DataTable({
           {mobile && <ListMobileOnly>{mobile}</ListMobileOnly>}
           <ListDesktopOnly>
             <TableContainer>
-              <Table>
+              <Table size="small">
                 <TableHead>
                   <TableRow
                     sx={{
@@ -302,13 +350,19 @@ export default function EvaluationsPage() {
       <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.containerNo}</TableCell>
       <TableCell>{formatContainerSizeLabel(item.containerSize)}</TableCell>
       <TableCell>{item.containerType}</TableCell>
-      <TableCell>{remarksPreview(item.truckerRemarks)}</TableCell>
+      <TableCell sx={{ maxWidth: REMARKS_COLUMN_MAX_WIDTH, verticalAlign: 'top' }}>
+        {remarksPreview(item.truckerRemarks)}
+      </TableCell>
       {!isPendingTab && (
         <>
           <TableCell>{item.depotName ?? '—'}</TableCell>
           <TableCell>{item.evaluatorName ?? '—'}</TableCell>
-          <TableCell>{remarksPreview(item.evaluatorRemarks)}</TableCell>
-          <TableCell>{demurrageChip(item.demurrageValidUntil) ?? '—'}</TableCell>
+          <TableCell sx={{ maxWidth: REMARKS_COLUMN_MAX_WIDTH, verticalAlign: 'top' }}>
+            {remarksPreview(item.evaluatorRemarks)}
+          </TableCell>
+          <TableCell sx={{ maxWidth: 168, verticalAlign: 'top' }}>
+            {demurrageChip(item.demurrageValidUntil) ?? '—'}
+          </TableCell>
         </>
       )}
       <TableCell>
@@ -432,7 +486,7 @@ export default function EvaluationsPage() {
               <TableCell>Container</TableCell>
               <TableCell>Size</TableCell>
               <TableCell>Type</TableCell>
-              <TableCell>Trucker remarks</TableCell>
+              <TableCell sx={{ width: REMARKS_COLUMN_MAX_WIDTH }}>Trucker remarks</TableCell>
               <TableCell>Submitted</TableCell>
               <TableCell align="right">Actions</TableCell>
             </>
@@ -443,10 +497,10 @@ export default function EvaluationsPage() {
               <TableCell>Container</TableCell>
               <TableCell>Size</TableCell>
               <TableCell>Type</TableCell>
-              <TableCell>Trucker remarks</TableCell>
+              <TableCell sx={{ width: REMARKS_COLUMN_MAX_WIDTH }}>Trucker remarks</TableCell>
               <TableCell>Assigned CY</TableCell>
               <TableCell>Evaluator</TableCell>
-              <TableCell>Evaluator remarks</TableCell>
+              <TableCell sx={{ width: REMARKS_COLUMN_MAX_WIDTH }}>Evaluator remarks</TableCell>
               <TableCell>Demurrage</TableCell>
               <TableCell>Evaluated</TableCell>
               <TableCell align="right">Actions</TableCell>

@@ -34,6 +34,10 @@ import {
 } from '../../components/layout/DetailPagePrimitives'
 import AssetImage from '../../components/layout/AssetImage'
 import { demurrageBillingApi, type DemurrageBilling, type DemurragePaymentOptions } from '../../services/api'
+import {
+  demurrageAudienceFromPath,
+  demurrageBillingListPath,
+} from '../../utils/demurrageRoutes'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
 import { openSignedAsset } from '../../utils/openSignedAsset'
 import { formatDate, formatDateTime, formatPeso } from '../../utils/datetime'
@@ -77,7 +81,9 @@ function statusMessage(item: DemurrageBilling, isTrucker: boolean) {
   switch (item.status) {
     case 'Pending':
       return isTrucker
-        ? 'Payment is due. Upload proof of payment to start verification.'
+        ? item.totalAmount <= 0
+          ? 'Pay DET-DEM to the shipping line, then upload your payment receipt here (no ICS auto-compute).'
+          : 'Payment is due. Upload proof of payment to start verification.'
         : 'Outstanding — trucker has not uploaded payment proof yet.'
     case 'ForVerification':
       return isTrucker
@@ -101,8 +107,9 @@ export default function DemurrageBillingDetailPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const billingId = Number(id)
-  const isTrucker = location.pathname.startsWith('/trucker/')
-  const listPath = isTrucker ? '/trucker/demurrage-billing' : '/evaluations/demurrage-billing'
+  const audience = demurrageAudienceFromPath(location.pathname)
+  const isTrucker = audience === 'trucker'
+  const listPath = demurrageBillingListPath(audience)
 
   const [item, setItem] = useState<DemurrageBilling | null>(null)
   const [loading, setLoading] = useState(true)
@@ -716,6 +723,4 @@ export default function DemurrageBillingDetailPage() {
   )
 }
 
-export function demurrageBillingDetailPath(id: number, role: 'evaluator' | 'trucker') {
-  return role === 'trucker' ? `/trucker/demurrage-billing/${id}` : `/evaluations/demurrage-billing/${id}`
-}
+export { demurrageBillingDetailPath } from '../../utils/demurrageRoutes'

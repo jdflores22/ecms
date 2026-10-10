@@ -64,7 +64,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     ],
     actions: [
       { label: 'CY fill priority', path: '/evaluations/cy-fill-priority', icon: WarehouseIcon },
-      { label: 'Demurrage billing', path: '/evaluations/demurrage-billing', icon: PaymentsIcon },
+      { label: 'DET-DEM', path: '/evaluations/demurrage-billing', icon: PaymentsIcon },
       { label: 'Demurrage rates', path: '/evaluations/demurrage-rates', icon: PaymentsIcon },
       { label: 'Statements (SOA)', path: '/evaluations/statement-of-accounts', icon: AssignmentIcon },
       { label: 'CY allocation', path: '/evaluations/cy-allocation', icon: WarehouseIcon },
@@ -86,7 +86,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
     actions: [
       { label: 'Daily returns', path: '/depot/daily-returns', icon: CalendarViewDayIcon },
       { label: 'Manage schedules', path: '/depot/schedules', icon: CalendarMonthIcon },
-      { label: 'CY allocation', path: '/depot/cy-allocation', icon: WarehouseIcon },
+      { label: 'Shipping lines', path: '/depot/cy-allocation', icon: WarehouseIcon },
       { label: 'CY inventory', path: '/depot/container-inventory', icon: WarehouseIcon },
     ],
   },
@@ -173,6 +173,7 @@ export const dashboardConfig: Record<UserRole, RoleDashboardConfig> = {
       { label: 'Revenue', path: '/admin/revenue', icon: PaymentsIcon },
       { label: 'Audit log', path: '/admin/audit', icon: HistoryIcon },
       { label: 'Verify payments', path: '/admin/payments', icon: PaymentsIcon },
+      { label: 'DET-DEM', path: '/admin/det-dem', icon: PaymentsIcon },
     ],
   },
 }

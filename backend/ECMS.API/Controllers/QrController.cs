@@ -130,4 +130,21 @@ public class LogicteckController : ControllerBase
         var result = await _service.LookupDossierForLogicteckAsync(qrCode, cancellationToken);
         return result!.Found ? Ok(result) : NotFound(result);
     }
+
+    /// <summary>LOGICTECK posts each container status change. Tagged yards only.</summary>
+    [HttpPost("callback")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LogicteckStatusCallbackResponse>> Callback(
+        [FromBody] LogicteckStatusCallbackRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(new LogicteckStatusCallbackResponse(
+                false, false, "status is required.", null, null, null, null, null));
+        }
+
+        var outcome = await _service.ApplyStatusCallbackAsync(request, cancellationToken);
+        return StatusCode(outcome.HttpStatus, outcome.Body);
+    }
 }

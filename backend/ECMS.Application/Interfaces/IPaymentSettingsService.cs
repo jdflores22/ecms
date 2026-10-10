@@ -19,5 +19,11 @@ public interface IPaymentSettingsService
         bool allowProofUpload,
         int adminUserId,
         CancellationToken cancellationToken = default);
+    Task<PaymentSettingsDto> UpdatePilotTestingSettingsAsync(
+        bool pilotTestingEnabled,
+        int durationDays,
+        int adminUserId,
+        CancellationToken cancellationToken = default);
+    Task ProcessPilotTestingLifecycleAsync(CancellationToken cancellationToken = default);
     Task<ReturnPaymentOptionsDto> GetReturnPaymentOptionsAsync(CancellationToken cancellationToken = default);
 }

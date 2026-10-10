@@ -72,7 +72,7 @@
       line-height: 1.35;
     }
     label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-    input {
+    input, select {
       width: 100%;
       max-width: 100%;
       padding: 10px 12px;
@@ -80,6 +80,7 @@
       border-radius: 10px;
       font-size: 0.95rem;
       margin-bottom: 14px;
+      background: #fff;
     }
     input.mono { font-family: ui-monospace, monospace; font-weight: 700; }
     input:focus { outline: 2px solid var(--ics-light); border-color: var(--ics-light); }
@@ -226,8 +227,6 @@
       flex-shrink: 0;
     }
     .qr-row .fields { flex: 1; min-width: 0; margin: 0; }
-    .doc-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--muted); word-break: break-word; }
-    .doc-text code { font-size: 0.85em; word-break: break-all; }
     .raw-json { margin-top: 16px; }
     .raw-json summary {
       cursor: pointer;
@@ -236,6 +235,23 @@
       font-size: 0.85rem;
       padding: 4px 0;
     }
+    ol.steps { margin: 0; padding-left: 1.2rem; }
+    ol.steps li { margin: 0 0 10px; line-height: 1.5; font-size: 0.9rem; }
+    ol.steps li:last-child { margin-bottom: 0; }
+    table.statuses {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+    table.statuses th, table.statuses td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    table.statuses th { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    table.statuses code { font-size: 0.85em; }
 
     @media (max-width: 639px) {
       body { padding: 12px 12px 28px; }
@@ -254,7 +270,7 @@
       }
       .card h2 { font-size: 0.95rem; }
       .note { padding: 10px 12px; font-size: 0.8125rem; margin-bottom: 12px; }
-      input { font-size: 16px; margin-bottom: 12px; }
+      input, select { font-size: 16px; margin-bottom: 12px; }
       .fields { grid-template-columns: 1fr; }
       .actions {
         flex-direction: column;
@@ -293,18 +309,42 @@
     <header>
       <h1>ICS → LOGICTECK API test</h1>
       <p>
-        Standalone page — <strong>no ICS login</strong>. Look up ICS transfer data by
-        <strong>reference</strong> (e.g. <code>ICS-202600018</code>) to receive pre-forecast details and book the empty
-        return on <strong>LOGICTECK</strong> via the public Railway API.
+        Standalone page — <strong>no ICS login</strong>. Pull the ICS dossier by reference, then post every container
+        status change back through the callback. Same flow LOGICTECK uses in production.
       </p>
       <span class="badge">OUTSIDE ICS APP · PUBLIC API ONLY</span>
     </header>
 
     <div class="note">
-      <strong>Permanent connection:</strong> Every ICS transfer includes a <code>transferLink</code> block with the reference,
-      trucker name, and API URLs. LOGICTECK uses the reference to pull the dossier and create the empty-return booking.
-      ICS also auto-pushes data when the transfer QR is published (if <code>Logicteck:BookUrl</code> is set).
-      No shared user accounts or JWT — only the API key and ICS reference.
+      <strong>Permanent connection:</strong> store <code>transferLink</code> from the dossier. It has the reference,
+      trucker, and the lookup, dossier, validate, and callback URLs. No shared user accounts or JWT — only
+      <code>X-Logicteck-Api-Key</code> and the ICS reference. Callbacks apply only when the yard is tagged LOGICTECK.
+    </div>
+
+    <div class="card">
+      <h2>How LOGICTECK integrates</h2>
+      <ol class="steps">
+        <li><strong>Dossier.</strong> <code>GET /api/logicteck/booking/{reference}/dossier</code> — full pre-forecast, photos, QR, and <code>transferLink</code>. Does not change status.</li>
+        <li><strong>Lookup.</strong> <code>GET /api/logicteck/booking/{reference}</code> — summary only, when photos are not needed.</li>
+        <li><strong>Validate.</strong> <code>POST /api/logicteck/validate-qr</code> with <code>{"qrCode":"..."}</code> — marks the QR retrieved. Once only.</li>
+        <li><strong>Callback.</strong> <code>POST /api/logicteck/callback</code> on every container update. Use <code>transferLink.callbackUrl</code>. Same <code>eventId</code> is ignored.</li>
+        <li><strong>ICS send.</strong> When ICS clicks Send to LOGICTECK, ICS POSTs the booking to LOGICTECK <code>BookUrl</code>. Save the returned <code>reference</code> and send it back as <code>externalRef</code>.</li>
+      </ol>
+      <table class="statuses">
+        <thead>
+          <tr><th>status</th><th>Shown in ICS</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>booked</code></td><td>Booked</td></tr>
+          <tr><td><code>with_trucker</code></td><td>With trucker</td></tr>
+          <tr><td><code>near_yard</code></td><td>Near yard</td></tr>
+          <tr><td><code>at_yard</code></td><td>At yard, and counted in yard inventory</td></tr>
+          <tr><td><code>retrieved</code></td><td>Retrieved</td></tr>
+          <tr><td><code>on_hold</code></td><td>On hold</td></tr>
+          <tr><td><code>cancelled</code></td><td>Cancelled</td></tr>
+        </tbody>
+      </table>
+      <p class="hint" style="margin:12px 0 0;">Need <code>status</code> plus one of <code>qrCode</code>, <code>externalRef</code>, or <code>containerNo</code>. Untagged yards return 409 and stay on the manual ICS gate scan.</p>
     </div>
 
     <div class="card">
@@ -313,7 +353,7 @@
       <div class="grid">
         <div class="full">
           <label for="apiBase">ICS API base URL</label>
-          <input id="apiBase" type="url" placeholder="http://localhost:5275 or Railway URL" />
+          <input id="apiBase" type="text" placeholder="https://yoursite.com/ecms-api-proxy.php or http://localhost:5275" />
         </div>
         <div class="full">
           <label for="apiKey">X-Logicteck-Api-Key</label>
@@ -335,6 +375,37 @@
         <button type="button" class="btn-ghost" id="btnCopyDossier">Copy dossier curl</button>
         <button type="button" class="btn-ghost" id="btnCopyValidate">Copy validate curl</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Status callback</h2>
+      <p class="hint" style="margin-top:0;">Posts to <code>/api/logicteck/callback</code> using the reference above. Leave event id blank to send a new event each time.</p>
+      <div class="grid">
+        <div>
+          <label for="callbackStatus">status</label>
+          <select id="callbackStatus">
+            <option value="booked">booked</option>
+            <option value="with_trucker" selected>with_trucker</option>
+            <option value="near_yard">near_yard</option>
+            <option value="at_yard">at_yard</option>
+            <option value="retrieved">retrieved</option>
+            <option value="on_hold">on_hold</option>
+            <option value="cancelled">cancelled</option>
+          </select>
+        </div>
+        <div>
+          <label for="eventId">eventId (optional)</label>
+          <input id="eventId" class="mono" type="text" placeholder="auto if blank" />
+        </div>
+        <div class="full">
+          <label for="callbackMessage">message</label>
+          <input id="callbackMessage" type="text" placeholder="Container is still with the trucker" />
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-primary" id="btnCallback">Send status callback</button>
+        <button type="button" class="btn-ghost" id="btnCopyCallback">Copy callback curl</button>
+      </div>
       <p id="toast" class="msg msg--ok hidden"></p>
       <p id="error" class="msg msg--err hidden"></p>
     </div>
@@ -348,17 +419,14 @@
       </details>
     </div>
 
+    <div class="card hidden" id="callbackCard">
+      <h2>Callback result <span id="callbackStatusBadge" class="status"></span></h2>
+      <pre id="callbackJson"></pre>
+    </div>
+
     <div class="card hidden" id="validateCard">
       <h2>Validate result <span id="validateStatus" class="status"></span></h2>
       <pre id="validateJson"></pre>
-    </div>
-
-    <div class="card">
-      <h2>Documentation</h2>
-      <p class="doc-text">
-        Handoff for LOGICTECK team: <code>docs/LOGICTECK-API-HANDOFF.md</code> in the ICS repo.
-        Production API: <a href="https://ecms-production-42be.up.railway.app/health" target="_blank" rel="noopener">health check</a>
-      </p>
     </div>
 
     <footer>
@@ -369,19 +437,36 @@
   <script>
     const STORAGE_BASE = 'ics.logicteckTest.apiBase'
     const STORAGE_KEY = 'ics.logicteckTest.apiKey'
-    const PRODUCTION_BASE = 'https://ecms-production-42be.up.railway.app'
+    const RAILWAY_BASE = 'https://ecms-production-42be.up.railway.app'
+    const VPS_HTTP_BASE = 'http://201.18.216.37'
     const LOCAL_BASE = 'http://localhost:5275'
+    const HOSTINGER_PATTERN = /\.hostingersite\.com$/i
     // Matches Logicteck:ApiKey in backend/ECMS.API/appsettings.Development.json (local dev only).
     const LOCAL_DEV_API_KEY = 'dev-logicteck-local-key'
     const LOOKUP_PATH = '/api/logicteck/booking'
     const DOSSIER_PATH = '/api/logicteck/booking'
     const VALIDATE_PATH = '/api/logicteck/validate-qr'
+    const CALLBACK_PATH = '/api/logicteck/callback'
     const KEY_HEADER = 'X-Logicteck-Api-Key'
 
     const $ = (id) => document.getElementById(id)
     const apiBase = $('apiBase')
     const apiKey = $('apiKey')
     const qrCode = $('qrCode')
+
+    function hostingerProxyBase() {
+      return location.origin.replace(/\/$/, '') + '/ecms-api-proxy.php'
+    }
+
+    function isHostingerHttps() {
+      return location.protocol === 'https:' && HOSTINGER_PATTERN.test(location.hostname)
+    }
+
+    function shouldMigrateToProxy(stored) {
+      if (!stored) return false
+      const s = stored.replace(/\/$/, '')
+      return s === VPS_HTTP_BASE || s === RAILWAY_BASE || s.startsWith(VPS_HTTP_BASE + '/')
+    }
 
     function resolveApiBase() {
       const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
@@ -391,12 +476,20 @@
           return stored
         return LOCAL_BASE
       }
-      return stored || PRODUCTION_BASE
+      if (isHostingerHttps()) {
+        if (stored && stored.includes('ecms-api-proxy.php')) return stored.replace(/\/$/, '')
+        if (shouldMigrateToProxy(stored)) return hostingerProxyBase()
+        return stored || hostingerProxyBase()
+      }
+      return stored || RAILWAY_BASE
     }
 
     const params = new URLSearchParams(location.search)
     const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
     apiBase.value = resolveApiBase()
+    if (isHostingerHttps() && shouldMigrateToProxy(sessionStorage.getItem(STORAGE_BASE))) {
+      sessionStorage.setItem(STORAGE_BASE, apiBase.value)
+    }
     apiKey.value = sessionStorage.getItem(STORAGE_KEY) || (onLocal ? LOCAL_DEV_API_KEY : '')
     if (onLocal) $('apiKeyHint').classList.remove('hidden')
     qrCode.value = params.get('qr') || params.get('ref') || ''
@@ -453,6 +546,49 @@
       return apiBase.value.trim().replace(/\/$/, '')
     }
 
+    /** Build request URL; Hostinger HTTPS must use ecms-api-proxy.php (not http:// VPS). */
+    function buildApiUrl(apiPath) {
+      const b = base()
+      const path = apiPath.startsWith('/') ? apiPath : '/' + apiPath
+      if (b.includes('ecms-api-proxy.php')) {
+        const proxyRoot = b.split('?')[0]
+        const ecmsPath = path.replace(/^\//, '').replace(/\//g, ':')
+        return proxyRoot + '?ecms_path=' + encodeURIComponent(ecmsPath)
+      }
+      return b + path
+    }
+
+    /** Signed upload URLs from API use PublicApiBaseUrl (http VPS) — rewrite for HTTPS Hostinger proxy. */
+    function resolvePublicAssetUrl(url) {
+      if (!url || typeof url !== 'string') return url
+      if (url.startsWith('data:') || url.startsWith('blob:')) return url
+
+      var pathname = ''
+      var search = ''
+      try {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          var u = new URL(url)
+          pathname = u.pathname
+          search = u.search ? u.search.substring(1) : ''
+        } else if (url.startsWith('/')) {
+          var parts = url.split('?')
+          pathname = parts[0]
+          search = parts[1] || ''
+        } else {
+          return url
+        }
+      } catch (_) {
+        return url
+      }
+
+      if (!pathname.startsWith('/uploads/')) return url
+      if (!isHostingerHttps() && !base().includes('ecms-api-proxy.php')) return url
+
+      var ecmsPath = pathname.replace(/^\//, '').replace(/\//g, ':')
+      var proxy = hostingerProxyBase() + '?ecms_path=' + encodeURIComponent(ecmsPath)
+      return search ? proxy + '&' + search : proxy
+    }
+
     function ref() {
       return qrCode.value.trim()
     }
@@ -483,6 +619,8 @@
 
     function externalStatus(data) {
       if (!data || !data.found) return null
+      const fromCallback = data.qrBooking && data.qrBooking.logicteckStatus
+      if (fromCallback && fromCallback !== 'Available') return fromCallback
       if (data.isRetrieved) return 'Retrieved'
       if (data.isBooked) return 'Booked on LOGICTECK'
       return 'Ready to send'
@@ -531,6 +669,7 @@
         html += tile('Lookup URL', link.lookupUrl)
         html += tile('Dossier URL', link.dossierUrl)
         html += tile('Validate URL', link.validateUrl)
+        html += tile('Callback URL', link.callbackUrl)
         html += '</div>'
       }
 
@@ -597,8 +736,9 @@
         docs.forEach(function (doc) {
           html += '<div class="photo-card">'
           if (doc.url) {
-            html += '<a href="' + escapeHtml(doc.url) + '" target="_blank" rel="noopener">'
-            html += '<img src="' + escapeHtml(doc.url) + '" alt="' + escapeHtml(doc.categoryLabel || doc.fileName) + '" loading="lazy" onerror="this.alt=\'Image unavailable\';this.style.objectFit=\'contain\'" />'
+            var assetUrl = resolvePublicAssetUrl(doc.url)
+            html += '<a href="' + escapeHtml(assetUrl) + '" target="_blank" rel="noopener">'
+            html += '<img src="' + escapeHtml(assetUrl) + '" alt="' + escapeHtml(doc.categoryLabel || doc.fileName) + '" loading="lazy" onerror="this.alt=\'Image unavailable\';this.style.objectFit=\'contain\'" />'
             html += '</a>'
           }
           html += '<div class="cap">' + escapeHtml(doc.categoryLabel || doc.category || 'Photo') + '</div>'
@@ -632,7 +772,7 @@
       if (!requireApiKey()) return
       const code = ref()
       if (!code) return showError('Enter an ICS transfer reference (e.g. ICS-202600018).')
-      const url = base() + DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier'
+      const url = buildApiUrl(DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier')
       try {
         const res = await fetch(url, { method: 'GET', headers: headers() })
         const text = await res.text()
@@ -644,9 +784,11 @@
         renderDossier(res.status, body)
       } catch (e) {
         const onLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-        const hint = onLocal && base().includes('railway.app')
-          ? ' On localhost, use ' + LOCAL_BASE + ' (not Railway) unless production is redeployed with Logicteck CORS.'
-          : ''
+        let hint = ''
+        if (isHostingerHttps() && base().startsWith('http://'))
+          hint = ' Use ' + hostingerProxyBase() + ' (HTTPS proxy), not raw http:// VPS — browsers block mixed content.'
+        else if (onLocal && base().includes('railway.app'))
+          hint = ' On localhost, use ' + LOCAL_BASE + ' (not Railway) unless production is redeployed with Logicteck CORS.'
         showError('Dossier request failed. Check API URL, CORS, and that the API is running.' + hint)
       }
     }
@@ -657,7 +799,7 @@
       if (!requireApiKey()) return
       const code = ref()
       if (!code) return showError('Enter an ICS transfer reference first.')
-      const url = base() + VALIDATE_PATH
+      const url = buildApiUrl(VALIDATE_PATH)
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -680,16 +822,82 @@
     function curlDossier() {
       const code = ref()
       if (!code) return ''
-      const url = base() + DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier'
+      const url = buildApiUrl(DOSSIER_PATH + '/' + encodeURIComponent(code) + '/dossier')
       const key = apiKey.value.trim()
       const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
       return 'curl -s -X GET "' + url + '" \\\n' + keyLine + '  -H "Accept: application/json"'
     }
 
+    function callbackPayload() {
+      const code = ref()
+      const eventId = $('eventId').value.trim() || ('lt-test-' + Date.now())
+      const message = $('callbackMessage').value.trim()
+      const payload = {
+        eventId: eventId,
+        qrCode: code,
+        status: $('callbackStatus').value,
+      }
+      if (message) payload.message = message
+      return payload
+    }
+
+    function renderCallback(httpStatus, body) {
+      $('callbackCard').classList.remove('hidden')
+      $('callbackJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('callbackStatusBadge')
+      if (body && body.accepted && !body.duplicate) {
+        badge.textContent = body.status || 'Applied'
+        badge.className = 'status ok'
+      } else if (body && body.duplicate) {
+        badge.textContent = 'Duplicate'
+        badge.className = 'status warn'
+      } else {
+        badge.textContent = body && body.message ? body.message : 'Rejected'
+        badge.className = 'status err'
+      }
+    }
+
+    async function runCallback() {
+      clearError()
+      saveSettings()
+      if (!requireApiKey()) return
+      const code = ref()
+      if (!code) return showError('Enter an ICS transfer reference first.')
+      const payload = callbackPayload()
+      const url = buildApiUrl(CALLBACK_PATH)
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { ...headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const text = await res.text()
+        let body = text
+        try { body = JSON.parse(text) } catch (_) {}
+        if (res.status === 401) {
+          return showError((body && body.message ? body.message : 'Unauthorized.') + apiKeyErrorHint(401))
+        }
+        renderCallback(res.status, body)
+        if (body && body.accepted) await runLookup()
+      } catch (e) {
+        showError('Callback failed. Check API URL and that the API is running.')
+      }
+    }
+
+    function curlCallback() {
+      const code = ref()
+      if (!code) return ''
+      const url = buildApiUrl(CALLBACK_PATH)
+      const key = apiKey.value.trim()
+      const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
+      const payload = callbackPayload()
+      return 'curl -s -X POST "' + url + '" \\\n  -H "Content-Type: application/json" \\\n' + keyLine + '  -d \'' + JSON.stringify(payload) + '\''
+    }
+
     function curlValidate() {
       const code = ref()
       if (!code) return ''
-      const url = base() + VALIDATE_PATH
+      const url = buildApiUrl(VALIDATE_PATH)
       const key = apiKey.value.trim()
       const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
       return 'curl -s -X POST "' + url + '" \\\n  -H "Content-Type: application/json" \\\n' + keyLine + '  -d "{\\"qrCode\\":\\"' + code + '\\"}"'
@@ -706,6 +914,12 @@
       const c = curlValidate()
       if (!c) return showError('Enter ICS reference first.')
       navigator.clipboard.writeText(c).then(() => toast('Validate curl copied'))
+    })
+    $('btnCallback').addEventListener('click', runCallback)
+    $('btnCopyCallback').addEventListener('click', () => {
+      const c = curlCallback()
+      if (!c) return showError('Enter ICS reference first.')
+      navigator.clipboard.writeText(c).then(() => toast('Callback curl copied'))
     })
 
     if (qrCode.value) runLookup()

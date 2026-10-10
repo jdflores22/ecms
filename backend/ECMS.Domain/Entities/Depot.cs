@@ -14,6 +14,8 @@ public class Depot : BaseEntity
     /// <summary>Last bookable hour (0–23), inclusive.</summary>
     public int OperatingHourEnd { get; set; } = 17;
     public bool IsActive { get; set; } = true;
+    /// <summary>When true, confirmed bookings and yard status come from LOGICTECK. Untagged yards stay on the ICS gate scan.</summary>
+    public bool IsLogicteck { get; set; }
 
     public ICollection<Evaluation> Evaluations { get; set; } = new List<Evaluation>();
     public ICollection<Schedule> Schedules { get; set; } = new List<Schedule>();

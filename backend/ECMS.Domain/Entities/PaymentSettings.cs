@@ -10,5 +10,11 @@ public class PaymentSettings
     public bool PayMongoEnabled { get; set; }
     /// <summary>Allow manual proof upload (e-wallet screenshot, bank transfer, etc.).</summary>
     public bool AllowProofUpload { get; set; } = true;
+    /// <summary>When true and before <see cref="PilotTestingEndsAtUtc"/>, pre-forecast fee is ₱0 and PayMongo/proof are off.</summary>
+    public bool PilotTestingEnabled { get; set; }
+    public DateTime? PilotTestingEndsAtUtc { get; set; }
+    public int PilotTestingDurationDays { get; set; }
+    public bool PilotNotified3DaysBefore { get; set; }
+    public bool PilotNotified1DayBefore { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

@@ -7,6 +7,7 @@ using ECMS.API.Middleware;
 using ECMS.Application.Interfaces;
 using ECMS.Infrastructure;
 using ECMS.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.FileProviders;
@@ -15,6 +16,7 @@ using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
+EnvFileLoader.LoadIntegrationsEnvIfPresent(builder.Environment);
 EnvFileLoader.LoadProductionEnvIfPresent(builder.Environment);
 
 builder.Services.AddControllers()
@@ -83,13 +85,29 @@ builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(
     var envKey = Environment.GetEnvironmentVariable("LOGICTECK_API_KEY");
     if (!string.IsNullOrWhiteSpace(envKey))
         options.ApiKey = envKey;
+
+    var allocationsUrl = Environment.GetEnvironmentVariable("LOGICTECK_ALLOCATIONS_URL")
+        ?? Environment.GetEnvironmentVariable("Logicteck__AllocationsUrl");
+    if (!string.IsNullOrWhiteSpace(allocationsUrl))
+        options.AllocationsUrl = allocationsUrl;
+
+    var inboundKey = Environment.GetEnvironmentVariable("ICS_INBOUND_API_KEY")
+        ?? Environment.GetEnvironmentVariable("Logicteck__IcsInboundApiKey");
+    if (!string.IsNullOrWhiteSpace(inboundKey))
+        options.IcsInboundApiKey = inboundKey;
 });
 
+var firebaseCredentialsJson = Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_JSON");
+if (string.IsNullOrWhiteSpace(firebaseCredentialsJson))
+{
+    var credPath = Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_PATH");
+    if (!string.IsNullOrWhiteSpace(credPath) && File.Exists(credPath))
+        firebaseCredentialsJson = File.ReadAllText(credPath);
+}
 builder.Services.Configure<ECMS.Application.Configuration.FirebasePushOptions>(options =>
 {
-    var envJson = Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_JSON");
-    if (!string.IsNullOrWhiteSpace(envJson))
-        options.CredentialsJson = envJson;
+    if (!string.IsNullOrWhiteSpace(firebaseCredentialsJson))
+        options.CredentialsJson = firebaseCredentialsJson;
     else
         options.CredentialsJson = builder.Configuration["Firebase:CredentialsJson"];
 });
@@ -271,10 +289,16 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapGet("/health", (Microsoft.Extensions.Options.IOptions<ECMS.Application.Configuration.EmailOptions> emailOptions) =>
+app.MapGet("/health", (
+    Microsoft.Extensions.Options.IOptions<ECMS.Application.Configuration.EmailOptions> emailOptions,
+    Microsoft.Extensions.Options.IOptions<ECMS.Application.Configuration.LogicteckOptions> logicteckOptions,
+    ECMS.Application.Interfaces.IPushNotificationService pushNotifications,
+    IConfiguration configuration) =>
 {
     var email = emailOptions.Value;
     var configured = !string.IsNullOrWhiteSpace(email.Password);
+    var logicteck = logicteckOptions.Value;
+    var redis = configuration.GetConnectionString("Redis");
     return Results.Ok(new
     {
         status = "ok",
@@ -287,6 +311,15 @@ app.MapGet("/health", (Microsoft.Extensions.Options.IOptions<ECMS.Application.Co
             ready = email.Enabled && configured,
             host = email.Host,
         },
+        push = new { configured = pushNotifications.IsConfigured },
+        logicteck = new
+        {
+            publicApiBaseUrl = logicteck.PublicApiBaseUrl,
+            bookUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.BookUrl),
+            portalUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.PortalUrl),
+            emptyReturnUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.EmptyReturnUrl),
+        },
+        redis = new { configured = !string.IsNullOrWhiteSpace(redis) },
     });
 });
 app.MapControllers();
@@ -294,15 +327,61 @@ app.MapControllers();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<EcmsDbContext>();
+    try
+    {
+        await db.Database.MigrateAsync();
+        startupLogger.LogInformation("EF migrations applied.");
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "EF Database.MigrateAsync failed.");
+        throw;
+    }
+
     await ProductionSchemaRepair.ApplyAsync(db, startupLogger);
 
     try
     {
-        var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
-        var seedDemoUsers = app.Environment.IsDevelopment()
-            || string.Equals(Environment.GetEnvironmentVariable("ECMS_SEED_DEMO_USERS"), "true", StringComparison.OrdinalIgnoreCase);
-        await seeder.SeedAsync(seedDemoUsers);
-        startupLogger.LogInformation("Database migrate/seed completed.");
+        var isProduction = app.Environment.IsProduction();
+        var runStartupSeed = !isProduction
+            || string.Equals(
+                Environment.GetEnvironmentVariable("ECMS_RUN_STARTUP_SEED"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (isProduction && !runStartupSeed)
+        {
+            startupLogger.LogInformation(
+                "Startup seed skipped in Production (migrations + schema repair only). "
+                + "First-time install: set ECMS_RUN_STARTUP_SEED=true once, then remove it.");
+        }
+        else
+        {
+            if (isProduction
+                && string.Equals(
+                    Environment.GetEnvironmentVariable("ECMS_SEED_DEMO_USERS"),
+                    "true",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                startupLogger.LogError(
+                    "ECMS_SEED_DEMO_USERS=true is ignored in Production.");
+            }
+
+            var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+            var seedDemoUsers = !isProduction
+                && (app.Environment.IsDevelopment()
+                    || string.Equals(
+                        Environment.GetEnvironmentVariable("ECMS_SEED_DEMO_USERS"),
+                        "true",
+                        StringComparison.OrdinalIgnoreCase));
+            var minimalSeed = isProduction
+                || string.Equals(
+                    Environment.GetEnvironmentVariable("ECMS_MINIMAL_SEED"),
+                    "true",
+                    StringComparison.OrdinalIgnoreCase);
+            await seeder.SeedAsync(seedDemoUsers, minimalSeed);
+            startupLogger.LogInformation("Database seed sync completed.");
+        }
     }
     catch (Exception ex)
     {

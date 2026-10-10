@@ -274,6 +274,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
   const documentImagePaths = useMemo(
     () =>
       documents.flatMap((d) => {
+        if (d.category === 'CroEdo') return []
         const paths = [d.filePath]
         if (d.thumbPath) paths.push(d.thumbPath)
         return paths

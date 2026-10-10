@@ -165,7 +165,7 @@ public class DepotGateService : IDepotGateService
         else if (alreadyCheckedIn)
             message = "Trucker already checked in at the gate.";
         else if (hasErrors)
-            message = "QR is not valid for empty return. Trucker must file a new pre-forecast.";
+            message = ResolveScanSummaryMessage(issues);
         else
             message = "QR is valid. Review the pre-forecast dossier and accept the trucker.";
 
@@ -275,6 +275,41 @@ public class DepotGateService : IDepotGateService
         }
 
         return issues;
+    }
+
+    /// <summary>Top-line scan message — avoid implying a new pre-forecast when the booking is fine but not yet in the gate window.</summary>
+    private static string ResolveScanSummaryMessage(IReadOnlyList<DepotGateIssueDto> issues)
+    {
+        var errors = issues
+            .Where(i => string.Equals(i.Severity, "error", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (errors.Count == 0)
+            return "QR cannot be used for gate check-in yet.";
+
+        static bool RequiresNewPreForecast(string code) => code is
+            "FREE_TIME_EXPIRED" or "NO_SHOW_WINDOW" or "SCHEDULE_DATE_PASSED";
+
+        if (errors.All(e => RequiresNewPreForecast(e.Code)))
+            return "QR is not valid for empty return. Trucker must file a new pre-forecast.";
+
+        if (errors.Count == 1)
+            return errors[0].Message;
+
+        foreach (var code in new[]
+                 {
+                     "WRONG_DEPOT",
+                     "TOO_EARLY",
+                     "PAYMENT_NOT_VERIFIED",
+                     "SCHEDULE_NOT_CONFIRMED",
+                     "PRE_ADVICE_NOT_APPROVED",
+                 })
+        {
+            var match = errors.FirstOrDefault(e => string.Equals(e.Code, code, StringComparison.Ordinal));
+            if (match is not null)
+                return match.Message;
+        }
+
+        return errors[0].Message;
     }
 
     private async Task TryMarkNoShowAsync(Domain.Entities.Schedule schedule, CancellationToken cancellationToken)

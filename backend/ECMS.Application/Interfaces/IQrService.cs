@@ -14,4 +14,7 @@ public interface IQrService
     Task<LogicteckBookingLookupResponse?> LookupForLogicteckAsync(string qrCode, CancellationToken cancellationToken = default);
     Task<LogicteckBookingDossierResponse?> LookupDossierForLogicteckAsync(string qrCode, CancellationToken cancellationToken = default);
     Task<BookLogicteckResponse> BookLogicteckAsync(int bookingId, int userId, string role, CancellationToken cancellationToken = default);
+    Task<(int HttpStatus, LogicteckStatusCallbackResponse Body)> ApplyStatusCallbackAsync(
+        LogicteckStatusCallbackRequest request,
+        CancellationToken cancellationToken = default);
 }

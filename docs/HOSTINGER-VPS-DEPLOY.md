@@ -248,7 +248,7 @@ View logs:
 journalctl -u ecms-api -f
 ```
 
-On first start, the API runs **DbSeeder** — demo users are created if tables are empty.
+On first start, the API runs **DbSeeder** in **minimal** mode only (roles, fee defaults, container catalog, optional first `admin` if no users). Demo MAERSK/users never run when `ASPNETCORE_ENVIRONMENT=Production`. Set `ECMS_MINIMAL_SEED=true` and `ECMS_SEED_DEMO_USERS=false` on the VPS (`/etc/ecms/ecms-api.env`). Never use `migrate-production-mysql.ps1 -SeedFromLocal` against production.
 
 Quick local test on VPS:
 

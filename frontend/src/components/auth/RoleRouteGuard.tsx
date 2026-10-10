@@ -2,20 +2,22 @@ import { Alert, Box, Button, Paper, Typography } from '@mui/material'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import { Navigate, useLocation } from 'react-router-dom'
 import { canAccessPath, getDefaultPathForRole } from '../../config/routeAccess'
+import { usePortalSettings } from '../../context/PortalSettingsContext'
 import { useAppSelector } from '../../store/hooks'
 
 export default function RoleRouteGuard({ children }: { children: React.ReactNode }) {
   const user = useAppSelector((s) => s.auth.user)
   const location = useLocation()
+  const { settings: portal } = usePortalSettings()
 
   if (!user?.role) return <>{children}</>
 
-  if (canAccessPath(user.role, location.pathname, user.allowedPages)) {
+  if (canAccessPath(user.role, location.pathname, user.allowedPages, portal)) {
     return <>{children}</>
   }
 
   if (location.pathname !== '/') {
-    return <Navigate to={getDefaultPathForRole(user.role, user.allowedPages)} replace />
+    return <Navigate to={getDefaultPathForRole(user.role, user.allowedPages, portal)} replace />
   }
 
   return (

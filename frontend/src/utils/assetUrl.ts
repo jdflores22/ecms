@@ -2,23 +2,26 @@
  * Resolve API-relative asset paths (e.g. /uploads/photo.jpg) to a full URL.
  * Required in production when the React app is on Hostinger and the API is on Railway.
  */
-import { toHostingerProxyUrl, USE_HOSTINGER_API_PROXY } from './hostingerApiProxy'
+import { proxiedUploadAssetUrl, toHostingerProxyUrl, USE_HOSTINGER_API_PROXY } from './hostingerApiProxy'
 
 const SIGNED_CACHE_KEY = 'ecms.signedAssetUrls.v1'
 const SIGNED_CACHE_SKEW_MS = 60_000
 
 export function resolveAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
-    return path
+  if (path.startsWith('data:') || path.startsWith('blob:')) return path
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return proxiedUploadAssetUrl(path)
   }
 
   if (USE_HOSTINGER_API_PROXY) {
+    const proxied = proxiedUploadAssetUrl(path)
+    if (proxied !== path) return proxied
     const normalized = path.startsWith('/') ? path.slice(1) : path
     const [pathname, query = ''] = normalized.split('?')
     if (pathname.startsWith('api/') || pathname.startsWith('uploads/')) {
-      const proxied = toHostingerProxyUrl(pathname)
-      return query ? `${proxied}&${query}` : proxied
+      const proxyPath = toHostingerProxyUrl(pathname)
+      return query ? `${proxyPath}&${query}` : proxyPath
     }
   }
 

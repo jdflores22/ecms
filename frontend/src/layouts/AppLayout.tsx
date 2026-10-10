@@ -40,6 +40,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { updateUser } from '../store/slices/authSlice'
 import { ICS_BRAND } from '../config/brandCopy'
 import { getNavPagesForRole, type AppPageKey } from '../config/routeAccess'
+import { usePortalSettings } from '../context/PortalSettingsContext'
 import { useAdminPendingPaymentCount } from '../hooks/useAdminPendingPaymentCount'
 import { useDepotWaitingScheduleCount } from '../hooks/useDepotWaitingScheduleCount'
 import { useDepotPendingWithdrawalCount } from '../hooks/useDepotPendingWithdrawalCount'
@@ -127,6 +128,7 @@ const navIcons: Record<AppPageKey, React.ReactNode> = {
   depotCyAllocation: <WarehouseOutlinedIcon fontSize="small" />,
   depotContainerInventory: <Inventory2OutlinedIcon fontSize="small" />,
   adminPayments: <PaymentsIcon fontSize="small" />,
+  adminDetDem: <PaymentsIcon fontSize="small" />,
   truckerReturns: <LocalShippingIcon fontSize="small" />,
   truckerPayments: <PaymentsIcon fontSize="small" />,
   truckerDemurrageBilling: <PaymentsIcon fontSize="small" />,
@@ -163,6 +165,7 @@ export default function AppLayout() {
   const pendingPaymentVerifyCount = useAdminPendingPaymentCount(user?.role, user?.allowedPages)
   const awaitingCyCount = useEvaluatorAwaitingCyCount(user?.role, user?.allowedPages)
   const pendingEvaluationCount = useEvaluatorPendingEvaluationCount(user?.role, user?.allowedPages)
+  const { settings: portal, ready: portalReady } = usePortalSettings()
   useEffect(() => {
     if (!user?.role) return undefined
     const cancel = scheduleNonCritical(() => {
@@ -212,7 +215,7 @@ export default function AppLayout() {
   const menuItems = useMemo(
     () =>
       user?.role
-        ? getNavPagesForRole(user.role, user.allowedPages).map((page) => ({
+        ? getNavPagesForRole(user.role, user.allowedPages, portalReady ? portal : null).map((page) => ({
             text: page.label,
             icon: navIcons[page.key],
             path: page.path,
@@ -228,7 +231,7 @@ export default function AppLayout() {
               badgeAriaLabel: undefined,
             },
           ],
-    [navBadgeConfig, user?.allowedPages, user?.role],
+    [navBadgeConfig, portal, portalReady, user?.allowedPages, user?.role],
   )
 
   const navPaths = useMemo(() => menuItems.map((item) => item.path), [menuItems])

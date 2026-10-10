@@ -3,7 +3,9 @@ using ECMS.Application;
 using ECMS.Application.Configuration;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
+using ECMS.Application.Logicteck;
 using ECMS.Domain.Common;
+using ECMS.Domain.Entities;
 using ECMS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -20,6 +22,7 @@ public class QrCodeService : IQrService
     private readonly LogicteckOutboundClient _logicteckClient;
     private readonly LogicteckOptions _logicteckOptions;
     private readonly IAuditService _auditService;
+    private readonly INotificationService _notifications;
     private readonly IUploadUrlSigner _uploadUrlSigner;
     private readonly string _contentRootPath;
     private readonly string _uploadRoot;
@@ -29,6 +32,7 @@ public class QrCodeService : IQrService
         LogicteckOutboundClient logicteckClient,
         IOptions<LogicteckOptions> logicteckOptions,
         IAuditService auditService,
+        INotificationService notifications,
         IUploadUrlSigner uploadUrlSigner,
         IConfiguration configuration,
         IHostEnvironment environment)
@@ -37,6 +41,7 @@ public class QrCodeService : IQrService
         _logicteckClient = logicteckClient;
         _logicteckOptions = logicteckOptions.Value;
         _auditService = auditService;
+        _notifications = notifications;
         _uploadUrlSigner = uploadUrlSigner;
         _contentRootPath = environment.ContentRootPath;
         _uploadRoot = configuration["FileStorage:UploadPath"] ?? "uploads";
@@ -659,7 +664,8 @@ public class QrCodeService : IQrService
             booking.Id,
             BuildLookupUrl(booking.QRCode),
             BuildDossierUrl(booking.QRCode),
-            BuildValidateUrl());
+            BuildValidateUrl(),
+            BuildCallbackUrl());
     }
 
     private string BuildLookupUrl(string qrCode)
@@ -713,6 +719,12 @@ public class QrCodeService : IQrService
     {
         var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
         return $"{baseUrl}/api/logicteck/validate-qr";
+    }
+
+    private string BuildCallbackUrl()
+    {
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/logicteck/callback";
     }
 
     private async Task<bool> CanAccessBookingAsync(
@@ -777,13 +789,185 @@ public class QrCodeService : IQrService
             booking.IsUsed,
             booking.LogicteckBookedAt,
             ResolveLogicteckStatus(booking),
-            booking.ConfirmationPdfPath);
+            booking.ConfirmationPdfPath,
+            booking.LogicteckUpdateLocation,
+            booking.LogicteckUpdateMessage,
+            booking.LogicteckUpdatedAt);
     }
 
     private static string ResolveLogicteckStatus(Domain.Entities.QRBooking booking)
     {
+        if (!string.IsNullOrWhiteSpace(booking.LogicteckUpdateStatus))
+            return booking.LogicteckUpdateStatus;
         if (booking.IsUsed) return "Retrieved";
         if (booking.LogicteckBookedAt.HasValue) return "Booked";
         return "Available";
+    }
+
+    public async Task<(int HttpStatus, LogicteckStatusCallbackResponse Body)> ApplyStatusCallbackAsync(
+        LogicteckStatusCallbackRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!LogicteckCallbackStatus.TryNormalize(request.Status, out var status, out var impliedLocation, out var error))
+        {
+            return (400, Reject(error ?? "status is required."));
+        }
+
+        var location = LogicteckCallbackStatus.NormalizeLocation(request.Location, impliedLocation);
+        var message = TrimTo(request.Message, 500);
+        var eventId = TrimTo(request.EventId, 64);
+
+        if (string.IsNullOrWhiteSpace(request.QrCode)
+            && string.IsNullOrWhiteSpace(request.ExternalRef)
+            && string.IsNullOrWhiteSpace(request.ContainerNo))
+        {
+            return (400, Reject("Provide qrCode, externalRef, or containerNo."));
+        }
+
+        var booking = await FindCallbackBookingAsync(request, cancellationToken);
+        if (booking is null)
+            return (404, Reject("Booking not found for this LOGICTECK update."));
+
+        var containerNo = booking.Schedule.PreAdvice.Container.ContainerNo;
+        if (!booking.Schedule.Depot.IsLogicteck)
+        {
+            return (409, Reject(
+                $"{booking.Schedule.Depot.Name} is not tagged as LOGICTECK. Status stays on the manual ICS gate scan.",
+                booking.QRCode,
+                containerNo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventId))
+        {
+            var already = await _db.LogicteckStatusUpdates
+                .AsNoTracking()
+                .AnyAsync(x => x.EventId == eventId, cancellationToken);
+            if (already)
+            {
+                return (200, Accept(booking, containerNo, status, location, duplicate: true,
+                    "This LOGICTECK event was already applied."));
+            }
+        }
+        else if (booking.LogicteckUpdateStatus == status
+            && booking.LogicteckUpdateLocation == location
+            && booking.LogicteckUpdateMessage == message)
+        {
+            return (200, Accept(booking, containerNo, status, location, duplicate: true,
+                "LOGICTECK status is already current."));
+        }
+
+        var occurredAt = request.OccurredAt?.UtcDateTime ?? PhilippinesTime.UtcNow;
+        _db.Add(new LogicteckStatusUpdate
+        {
+            QRBookingId = booking.Id,
+            EventId = eventId,
+            Status = status,
+            Location = location,
+            Message = message,
+            OccurredAt = occurredAt,
+        });
+
+        booking.LogicteckUpdateStatus = status;
+        booking.LogicteckUpdateLocation = location;
+        booking.LogicteckUpdateMessage = message;
+        booking.LogicteckUpdatedAt = occurredAt;
+
+        if (LogicteckCallbackStatus.MarksBooked(status) && !booking.LogicteckBookedAt.HasValue)
+            booking.LogicteckBookedAt = occurredAt;
+
+        if (!string.IsNullOrWhiteSpace(request.ExternalRef))
+            booking.LogicteckExternalRef = request.ExternalRef.Trim();
+
+        if (LogicteckCallbackStatus.MarksRetrieved(status))
+            booking.IsUsed = true;
+
+        if (LogicteckCallbackStatus.MarksAtYard(status))
+        {
+            if (!booking.GateCheckedInAt.HasValue)
+                booking.GateCheckedInAt = occurredAt;
+            if (booking.Schedule.Status == ScheduleStatus.Confirmed)
+                booking.Schedule.Status = ScheduleStatus.Completed;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var preAdvice = booking.Schedule.PreAdvice;
+        await _auditService.LogAsync(
+            preAdvice.TruckerId,
+            "LOGICTECK_CALLBACK",
+            "QR",
+            $"LOGICTECK {status} for {containerNo} ({booking.QRCode}) at {booking.Schedule.Depot.Name}.",
+            cancellationToken);
+
+        var evaluators = await NotificationService.EvaluatorIdsForShippingLineAsync(
+            _db, preAdvice.ShippingLineId, cancellationToken);
+        var depotUsers = await NotificationService.DepotPersonnelIdsAsync(
+            _db, booking.Schedule.DepotId, cancellationToken);
+        var note = string.IsNullOrWhiteSpace(message) ? status : $"{status}. {message}";
+        await _notifications.NotifyUsersAsync(
+            evaluators.Append(preAdvice.TruckerId).Concat(depotUsers),
+            $"LOGICTECK · {status}",
+            $"{containerNo} ({preAdvice.ReferenceNo}) — {note}",
+            "Logicteck",
+            $"/preforecast/{preAdvice.Id}",
+            actorUserId: null,
+            preAdvice.ReferenceNo,
+            cancellationToken);
+
+        return (200, Accept(booking, containerNo, status, location, duplicate: false,
+            "LOGICTECK status applied."));
+    }
+
+    private async Task<QRBooking?> FindCallbackBookingAsync(
+        LogicteckStatusCallbackRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.QrCode))
+        {
+            var qrRef = BookingQrReference.Normalize(request.QrCode) ?? request.QrCode.Trim();
+            var byQr = await LoadBookingQuery().FirstOrDefaultAsync(x => x.QRCode == qrRef, cancellationToken);
+            if (byQr is not null)
+                return byQr;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ExternalRef))
+        {
+            var externalRef = request.ExternalRef.Trim();
+            var byRef = await LoadBookingQuery()
+                .Where(x => x.LogicteckExternalRef == externalRef)
+                .OrderByDescending(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (byRef is not null)
+                return byRef;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ContainerNo))
+            return null;
+
+        var containerNo = request.ContainerNo.Trim();
+        return await LoadBookingQuery()
+            .Where(x => x.Schedule.Depot.IsLogicteck && x.Schedule.PreAdvice.Container.ContainerNo == containerNo)
+            .OrderByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static LogicteckStatusCallbackResponse Reject(string message, string? qrCode = null, string? containerNo = null) =>
+        new(false, false, message, qrCode, containerNo, null, null, null);
+
+    private static LogicteckStatusCallbackResponse Accept(
+        QRBooking booking,
+        string containerNo,
+        string status,
+        string? location,
+        bool duplicate,
+        string message) =>
+        new(true, duplicate, message, booking.QRCode, containerNo, status, location, booking.LogicteckUpdatedAt);
+
+    private static string? TrimTo(string? value, int max)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var trimmed = value.Trim();
+        return trimmed.Length <= max ? trimmed : trimmed[..max];
     }
 }

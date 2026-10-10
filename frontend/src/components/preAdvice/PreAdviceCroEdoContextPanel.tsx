@@ -11,8 +11,10 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
+import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import AssetImage from '../layout/AssetImage'
 import { croEdoApi, type PreAdvice, type PreAdviceDocument } from '../../services/api'
 import { formatDate } from '../../utils/datetime'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
@@ -26,10 +28,22 @@ type PreAdviceCroEdoContextPanelProps = {
   compact?: boolean
   /** One-line strip for approve dialog — document link + key CRO fields only */
   dialog?: boolean
+  /** Embedded in evaluation tab — no card chrome, title, intro, or free-time tile (set separately). */
+  referenceOnly?: boolean
 }
 
 function linkTypeLabel(linkType: string): string {
   return linkType === 'IcsVerified' ? 'ICS CRO/eDO (QR verified)' : 'Legacy CRO/eDO upload'
+}
+
+function isPdfDocument(doc: PreAdviceDocument): boolean {
+  if (doc.contentType?.toLowerCase().includes('pdf')) return true
+  return /\.pdf$/i.test(doc.fileName) || /\.pdf$/i.test(doc.filePath)
+}
+
+async function viewCroEdoDocument(doc: PreAdviceDocument, onFail: () => void) {
+  const ok = await openSignedAsset(doc.filePath)
+  if (!ok) onFail()
 }
 
 export default function PreAdviceCroEdoContextPanel({
@@ -37,9 +51,11 @@ export default function PreAdviceCroEdoContextPanel({
   documents,
   compact = false,
   dialog = false,
+  referenceOnly = false,
 }: PreAdviceCroEdoContextPanelProps) {
   const ctx = item.croEdoContext
   const croDocuments = documents.filter((doc) => doc.category === 'CroEdo')
+  const [openError, setOpenError] = useState('')
 
   if (!ctx && croDocuments.length === 0) return null
 
@@ -99,7 +115,12 @@ export default function PreAdviceCroEdoContextPanel({
             size="small"
             variant="outlined"
             startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-            onClick={() => void openSignedAsset(doc.filePath)}
+            onClick={() => {
+              setOpenError('')
+              void viewCroEdoDocument(doc, () =>
+                setOpenError('Could not open CRO/eDO file. Try again or contact support.'),
+              )
+            }}
             sx={{ fontWeight: 600, borderRadius: 1.5, maxWidth: '100%' }}
           >
             {doc.fileName ? (doc.fileName.length > 28 ? `${doc.fileName.slice(0, 25)}…` : doc.fileName) : 'CRO/eDO file'}
@@ -109,44 +130,36 @@ export default function PreAdviceCroEdoContextPanel({
     )
   }
 
-  return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: compact ? 1.5 : { xs: 2, sm: 2.5 },
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: hexToRgba(primaryDark, 0.15),
-        bgcolor: hexToRgba(primaryDark, 0.03),
-      }}
-    >
+  const body = (
       <Stack spacing={1.5}>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
-          <Typography variant={compact ? 'subtitle2' : 'subtitle1'} sx={{ fontWeight: 800, color: primaryDark }}>
-            CRO / eDO — return CY & free time
-          </Typography>
-          {ctx?.linkType && (
-            <Chip
-              size="small"
-              label={linkTypeLabel(ctx.linkType)}
-              color={ctx.linkType === 'IcsVerified' ? 'success' : 'default'}
-              sx={{ fontWeight: 700 }}
-            />
-          )}
-        </Box>
+        {!referenceOnly && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            <Typography variant={compact ? 'subtitle2' : 'subtitle1'} sx={{ fontWeight: 800, color: primaryDark }}>
+              CRO / eDO — return CY & free time
+            </Typography>
+            {ctx?.linkType && (
+              <Chip
+                size="small"
+                label={linkTypeLabel(ctx.linkType)}
+                color={ctx.linkType === 'IcsVerified' ? 'success' : 'default'}
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+          </Box>
+        )}
 
-        {!compact && (
+        {!compact && !referenceOnly && (
           <Typography variant="body2" color="text.secondary">
             Return CY and free time below come from the CRO/eDO the trucker attached. Use them as reference when
             assigning the operational CY for this pre-forecast.
           </Typography>
         )}
 
-        <Box sx={infoGridSx}>
+        <Box sx={referenceOnly ? { display: 'flex', flexDirection: 'column', gap: 1.5 } : infoGridSx}>
           {ctx?.returnEmptyToName && (
             <InfoTile label="Return CY (from CRO/eDO)" value={ctx.returnEmptyToName} />
           )}
-          {freeTime && (
+          {freeTime && !referenceOnly && (
             <InfoTile
               label="CRO free demurrage until"
               value={
@@ -171,6 +184,53 @@ export default function PreAdviceCroEdoContextPanel({
             The issued CRO/eDO specifies return to <strong>{ctx.returnEmptyToName}</strong>. Pick the matching
             operational CY below when approving.
           </Alert>
+        )}
+
+        {openError && (
+          <Alert severity="error" sx={{ borderRadius: 2 }} onClose={() => setOpenError('')}>
+            {openError}
+          </Alert>
+        )}
+
+        {croDocuments.some((d) => !isPdfDocument(d)) && (
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+              gap: 1.5,
+            }}
+          >
+            {croDocuments
+              .filter((d) => !isPdfDocument(d))
+              .map((doc) => (
+                <Paper
+                  key={doc.id}
+                  variant="outlined"
+                  sx={{
+                    p: 1,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    '&:hover': { borderColor: primaryDark },
+                  }}
+                  onClick={() => {
+                    setOpenError('')
+                    void viewCroEdoDocument(doc, () =>
+                      setOpenError('Could not open CRO/eDO image.'),
+                    )
+                  }}
+                >
+                  <AssetImage
+                    path={doc.thumbPath ?? doc.filePath}
+                    alt={doc.fileName || 'CRO/eDO'}
+                    skeletonHeight={160}
+                    sx={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 1 }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, px: 0.5 }}>
+                    {doc.fileName || 'CRO/eDO image'} — tap to open
+                  </Typography>
+                </Paper>
+              ))}
+          </Box>
         )}
 
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
@@ -203,7 +263,12 @@ export default function PreAdviceCroEdoContextPanel({
               size="small"
               variant="outlined"
               startIcon={<DownloadIcon />}
-              onClick={() => void openSignedAsset(doc.filePath)}
+              onClick={() => {
+              setOpenError('')
+              void viewCroEdoDocument(doc, () =>
+                setOpenError('Could not open CRO/eDO file. Try again or contact support.'),
+              )
+            }}
               sx={{ fontWeight: 600, borderRadius: 2 }}
             >
               {doc.fileName || 'View uploaded CRO/eDO'}
@@ -217,7 +282,7 @@ export default function PreAdviceCroEdoContextPanel({
           </Typography>
         )}
 
-        {ctx?.containerReleaseOrderId && !compact && (
+        {ctx?.containerReleaseOrderId && !compact && !referenceOnly && (
           <Typography variant="caption" color="text.secondary">
             <Link component={RouterLink} to={`/evaluations/cro-edo/${ctx.containerReleaseOrderId}`}>
               View full CRO/eDO details
@@ -225,6 +290,22 @@ export default function PreAdviceCroEdoContextPanel({
           </Typography>
         )}
       </Stack>
+  )
+
+  if (referenceOnly) return body
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: compact ? 1.5 : { xs: 2, sm: 2.5 },
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: hexToRgba(primaryDark, 0.15),
+        bgcolor: hexToRgba(primaryDark, 0.03),
+      }}
+    >
+      {body}
     </Paper>
   )
 }

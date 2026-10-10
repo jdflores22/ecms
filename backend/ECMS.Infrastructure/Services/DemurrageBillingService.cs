@@ -121,7 +121,11 @@ public class DemurrageBillingService : IDemurrageBillingService
         string role,
         CancellationToken cancellationToken = default)
     {
-        if (role is not (RoleNames.Trucker or RoleNames.Broker or RoleNames.ShippingLineEvaluator))
+        if (role is not (
+            RoleNames.Trucker
+            or RoleNames.Broker
+            or RoleNames.ShippingLineEvaluator
+            or RoleNames.Administrator))
             return Array.Empty<DemurrageBillingDto>();
 
         var query = BillingQueryWithIncludes();
@@ -444,6 +448,27 @@ public class DemurrageBillingService : IDemurrageBillingService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<DemurrageBillingDto?> GetByPreAdviceForStaffAsync(
+        int preAdviceId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        if (role is not (RoleNames.Administrator or RoleNames.ShippingLineEvaluator))
+            return null;
+
+        var billing = await BillingQueryWithIncludes()
+            .FirstOrDefaultAsync(b => b.PreAdviceId == preAdviceId, cancellationToken);
+
+        if (billing is null)
+            return null;
+
+        if (!await CanAccessBillingAsync(billing, userId, role, cancellationToken))
+            return null;
+
+        return MapToDto(billing);
+    }
+
     public async Task EnsureTruckerCanCreatePreAdviceAsync(
         int truckerId,
         string containerNo,
@@ -480,7 +505,8 @@ public class DemurrageBillingService : IDemurrageBillingService
     public async Task<DemurrageBillingDto> EnsureBillingForExpiredFreeTimeAsync(
         int preAdviceId,
         int actorUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool shippingLineReceiptOnly = false)
     {
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Schedule!)
@@ -506,10 +532,6 @@ public class DemurrageBillingService : IDemurrageBillingService
         if (existing is not null)
             return MapToDto(existing);
 
-        var resolved = await ResolveFeesAsync(preAdvice, today, cancellationToken);
-        var feeInputs = BuildDefaultFeeInputs(resolved.DemurrageAmount, resolved.DetentionAmount);
-        ValidateFeeInputs(feeInputs);
-
         var billing = new DemurrageBilling
         {
             ReferenceNo = await GenerateReferenceNoAsync(cancellationToken),
@@ -523,7 +545,23 @@ public class DemurrageBillingService : IDemurrageBillingService
             ExpiredOn = today,
             Status = PaymentStatus.Pending,
         };
-        ApplyResolvedRates(billing, resolved);
+
+        IReadOnlyList<DemurrageBillingFeeInput> feeInputs;
+        if (shippingLineReceiptOnly)
+        {
+            feeInputs = BuildShippingLineReceiptFeeInputs();
+            ValidateFeeInputs(feeInputs, receiptOnlySettlement: true);
+        }
+        else
+        {
+            var resolved = await ResolveFeesAsync(preAdvice, today, cancellationToken);
+            feeInputs = BuildDefaultFeeInputs(resolved.DemurrageAmount, resolved.DetentionAmount);
+            ValidateFeeInputs(feeInputs);
+            ApplyResolvedRates(billing, resolved);
+        }
+
+        ApplyFeeLines(billing, feeInputs);
+        SyncLegacyAmounts(billing);
 
         _db.Add(billing);
         await _db.SaveChangesAsync(cancellationToken);
@@ -554,11 +592,15 @@ public class DemurrageBillingService : IDemurrageBillingService
 
         if (billing.TruckerId > 0)
         {
+            var truckerBody = shippingLineReceiptOnly
+                ? $"{preAdvice.ReferenceNo} — CRO/eDO free time expired. Pay DET-DEM to the shipping line, then upload your receipt in DET-DEM (linked to this pre-forecast)."
+                : $"{preAdvice.ReferenceNo} — CRO/eDO free demurrage expired. Charges ₱{total:N0}. " +
+                  "Settle demurrage and detention with the shipping line before you can submit this pre-forecast.";
+
             await _notifications.NotifyUsersAsync(
                 new[] { billing.TruckerId },
-                "Demurrage charges must be settled",
-                $"{preAdvice.ReferenceNo} — CRO/eDO free demurrage expired. Charges ₱{total:N0}. " +
-                "Settle demurrage and detention with the shipping line before you can submit this pre-forecast.",
+                shippingLineReceiptOnly ? "Upload shipping line DET-DEM receipt" : "Demurrage charges must be settled",
+                truckerBody,
                 "DemurrageBilling",
                 $"/trucker/demurrage-billing/{billing.Id}",
                 actorUserId,
@@ -700,8 +742,8 @@ public class DemurrageBillingService : IDemurrageBillingService
         if (!await CanAccessBillingAsync(billing, actorUserId, role, cancellationToken))
             return null;
 
-        if (role != RoleNames.ShippingLineEvaluator)
-            throw new InvalidOperationException("Only the shipping line can verify demurrage payments.");
+        if (role is not (RoleNames.ShippingLineEvaluator or RoleNames.Administrator))
+            throw new InvalidOperationException("Only ICS admin or shipping line staff can verify demurrage payments.");
 
         if (billing.Status != PaymentStatus.ForVerification)
             throw new InvalidOperationException("Only payments awaiting verification can be approved or rejected.");
@@ -714,6 +756,13 @@ public class DemurrageBillingService : IDemurrageBillingService
         billing.Status = request.Approved ? PaymentStatus.Paid : PaymentStatus.Rejected;
         if (request.Approved)
             billing.PaidAt = PhilippinesTime.UtcNow;
+
+        if (request.Approved
+            && billing.PreAdvice.Status is PreAdviceStatus.ForCompliance or PreAdviceStatus.Submitted)
+        {
+            billing.PreAdvice.Status = PreAdviceStatus.UnderEvaluation;
+            _db.Update(billing.PreAdvice);
+        }
 
         _db.Update(billing);
         await _db.SaveChangesAsync(cancellationToken);
@@ -729,18 +778,34 @@ public class DemurrageBillingService : IDemurrageBillingService
         {
             await _notifications.NotifyUsersAsync(
                 new[] { billing.TruckerId },
-                request.Approved ? "Demurrage payment approved" : "Demurrage payment rejected",
+                request.Approved ? "DET-DEM receipt approved" : "DET-DEM receipt rejected",
                 request.Approved
-                    ? $"{billing.PreAdvice.ReferenceNo} demurrage charges verified. You can now submit your pre-forecast."
-                    : $"{billing.PreAdvice.ReferenceNo} demurrage payment was rejected. Upload a new proof.",
+                    ? $"{billing.PreAdvice.ReferenceNo} — shipping line DET-DEM receipt verified. ICS can continue evaluation."
+                    : $"{billing.PreAdvice.ReferenceNo} DET-DEM payment was rejected. Upload a new proof.",
                 "DemurrageBilling",
                 request.Approved
-                    && billing.PreAdvice.Status is PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance
-                    ? $"/preforecast/{billing.PreAdviceId}"
+                    ? $"/trucker/preforecast/{billing.PreAdviceId}"
                     : $"/trucker/demurrage-billing/{billing.Id}",
                 actorUserId,
                 billing.ReferenceNo,
                 cancellationToken);
+        }
+
+        if (request.Approved)
+        {
+            var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
+            if (adminIds.Count > 0)
+            {
+                await _notifications.NotifyUsersAsync(
+                    adminIds,
+                    "DET-DEM verified — resume evaluation",
+                    $"{billing.PreAdvice.ReferenceNo} shipping line DET-DEM receipt verified. You may approve the pre-forecast.",
+                    "Evaluation",
+                    $"/evaluations/{billing.PreAdviceId}",
+                    actorUserId,
+                    billing.PreAdvice.ReferenceNo,
+                    cancellationToken);
+            }
         }
 
         return MapToDto(billing);
@@ -768,6 +833,7 @@ public class DemurrageBillingService : IDemurrageBillingService
     {
         return role switch
         {
+            RoleNames.Administrator => true,
             RoleNames.Trucker or RoleNames.Broker => billing.TruckerId == userId,
             RoleNames.ShippingLineEvaluator => await EvaluatorOwnsShippingLineAsync(
                 userId, billing.ShippingLineId, cancellationToken),
@@ -848,6 +914,9 @@ public class DemurrageBillingService : IDemurrageBillingService
         return lines;
     }
 
+    private static IReadOnlyList<DemurrageBillingFeeInput> BuildShippingLineReceiptFeeInputs() =>
+        new[] { new DemurrageBillingFeeInput("DET-DEM paid to shipping line (upload receipt)", 0m) };
+
     private static void ApplyFeeLines(DemurrageBilling billing, IReadOnlyList<DemurrageBillingFeeInput> inputs)
     {
         var sort = 1;
@@ -873,7 +942,9 @@ public class DemurrageBillingService : IDemurrageBillingService
             ?? 0;
     }
 
-    private static void ValidateFeeInputs(IReadOnlyList<DemurrageBillingFeeInput> feeLines)
+    private static void ValidateFeeInputs(
+        IReadOnlyList<DemurrageBillingFeeInput> feeLines,
+        bool receiptOnlySettlement = false)
     {
         if (feeLines is null || feeLines.Count == 0)
             throw new InvalidOperationException("At least one fee line is required.");
@@ -882,8 +953,10 @@ public class DemurrageBillingService : IDemurrageBillingService
         {
             if (string.IsNullOrWhiteSpace(line.Description))
                 throw new InvalidOperationException("Each fee line must have a description.");
-            if (line.Amount <= 0)
+            if (!receiptOnlySettlement && line.Amount <= 0)
                 throw new InvalidOperationException("Each fee amount must be greater than zero.");
+            if (receiptOnlySettlement && line.Amount < 0)
+                throw new InvalidOperationException("Fee amounts cannot be negative.");
         }
     }
 

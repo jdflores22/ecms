@@ -46,33 +46,47 @@ export type LogicteckQrStatus =
   | typeof LOGICTECK_QR.statusBooked
   | typeof LOGICTECK_QR.statusUsed
 
+function displayLogicteckStatus(status: string | null | undefined, fallback: LogicteckQrStatus): string {
+  const value = status?.trim()
+  if (!value || value === 'Available' || value === LOGICTECK_QR.statusActive) return fallback
+  if (value === 'Retrieved' || value === LOGICTECK_QR.statusUsed) return LOGICTECK_QR.statusUsed
+  if (value === 'Booked' || value === LOGICTECK_QR.statusBooked) return LOGICTECK_QR.statusBooked
+  return value
+}
+
 export function qrLookupStatusLabel(booking: {
   isUsed: boolean
   logicteckBookedAt?: string | null
   logicteckStatus?: string
-}): LogicteckQrStatus {
-  if (booking.logicteckStatus === LOGICTECK_QR.statusUsed || booking.isUsed) return LOGICTECK_QR.statusUsed
-  if (booking.logicteckStatus === LOGICTECK_QR.statusBooked || booking.logicteckBookedAt)
-    return LOGICTECK_QR.statusBooked
+}): string {
+  if (booking.logicteckStatus && booking.logicteckStatus !== 'Available' && booking.logicteckStatus !== LOGICTECK_QR.statusActive) {
+    return displayLogicteckStatus(booking.logicteckStatus, LOGICTECK_QR.statusActive)
+  }
+  if (booking.isUsed) return LOGICTECK_QR.statusUsed
+  if (booking.logicteckBookedAt) return LOGICTECK_QR.statusBooked
   return LOGICTECK_QR.statusActive
 }
 
-export function qrLookupStatusColor(status: LogicteckQrStatus): 'success' | 'info' | 'default' {
-  if (status === LOGICTECK_QR.statusUsed) return 'default'
-  if (status === LOGICTECK_QR.statusBooked) return 'info'
-  return 'success'
+export function qrLookupStatusColor(status: string): 'success' | 'info' | 'warning' | 'default' {
+  if (status === 'At yard') return 'success'
+  if (status === 'On hold' || status === 'Cancelled') return 'warning'
+  if (status === LOGICTECK_QR.statusUsed || status === 'Retrieved') return 'default'
+  if (
+    status === LOGICTECK_QR.statusBooked ||
+    status === 'Booked' ||
+    status === 'With trucker' ||
+    status === 'Near yard'
+  ) {
+    return 'info'
+  }
+  if (status === LOGICTECK_QR.statusActive) return 'success'
+  return 'info'
 }
 
 export function qrLogicteckStatusFromPreAdvice(item: {
   hasQrBooking?: boolean
   logicteckStatus?: string | null
-}): LogicteckQrStatus | null {
+}): string | null {
   if (!item.hasQrBooking) return null
-  if (item.logicteckStatus === LOGICTECK_QR.statusUsed || item.logicteckStatus === 'Retrieved')
-    return LOGICTECK_QR.statusUsed
-  if (item.logicteckStatus === LOGICTECK_QR.statusBooked || item.logicteckStatus === 'Booked')
-    return LOGICTECK_QR.statusBooked
-  if (item.logicteckStatus === LOGICTECK_QR.statusActive || item.logicteckStatus === 'Available')
-    return LOGICTECK_QR.statusActive
-  return LOGICTECK_QR.statusActive
+  return displayLogicteckStatus(item.logicteckStatus, LOGICTECK_QR.statusActive)
 }

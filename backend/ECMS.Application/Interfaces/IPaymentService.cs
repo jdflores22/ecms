@@ -56,4 +56,8 @@ public interface IPaymentService
         int scheduleId,
         PayMongoSettlementDetails settlement,
         CancellationToken cancellationToken = default);
+    Task<PaymentDto> CompletePilotReturnAsync(
+        int scheduleId,
+        int truckerId,
+        CancellationToken cancellationToken = default);
 }

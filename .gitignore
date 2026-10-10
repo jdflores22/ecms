@@ -19,10 +19,15 @@ android-trucker/app/build/
 .env.local
 .env.production
 backend/ECMS.API/.env.production
+backend/ECMS.API/.env.olive
+backend/ECMS.API/.env.integrations
+**/firebase-service-account*.json
+**/firebase-credentials.json
 backend/ECMS.API/appsettings.Production.json
 
 # Local deploy secrets (copy from deploy-config.ps1.example)
 deploy-config.ps1
+frontend/public/ecms-api-upstream.php
 
 # Uploads
 backend/ECMS.API/uploads/

@@ -50,7 +50,8 @@ public record CyAllocationDto(
     int PreAdvisedCount,
     int BookingCount,
     bool HasCapacity,
-    IReadOnlyList<CyAllocationBreakdownRowDto> Breakdown);
+    IReadOnlyList<CyAllocationBreakdownRowDto> Breakdown,
+    bool IsLogicteck);
 
 public record CyAllocationForApprovalDto(
     int PreAdviceId,
@@ -87,3 +88,30 @@ public record CreateShippingLineDepotContractRequest(
 public record UpdateShippingLineDepotContractRequest(
     IReadOnlyList<ContractSizeAllocationInput> Sizes,
     bool IsActive);
+
+public record LogicteckSizeSnapshotDto(
+    int InYard,
+    int Pending,
+    int Effective,
+    int Limit,
+    int Percent,
+    bool OnHold,
+    bool AutoHold);
+
+public record LogicteckTeuSnapshotDto(int Used, int Limit, int Percent);
+
+public record LogicteckCyLineDto(
+    string Code,
+    string FullName,
+    LogicteckTeuSnapshotDto Teu,
+    LogicteckSizeSnapshotDto Size20,
+    LogicteckSizeSnapshotDto Size40);
+
+public record LogicteckCyAllocationFeedDto(
+    string Yard,
+    DateTimeOffset GeneratedAt,
+    int ShippingLineId,
+    string ShippingLineCode,
+    string ShippingLineName,
+    LogicteckCyLineDto? MatchedLine,
+    IReadOnlyList<LogicteckCyLineDto> Lines);

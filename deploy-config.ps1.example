@@ -10,9 +10,16 @@
     SshPassword = ''  # Hostinger SSH Access password
     RemotePath  = '/home/u910121167/websites/HvBkp6EsX/public_html'
     AppUrl      = 'https://olive-mole-175469.hostingersite.com'
-    # Production frontend calls Railway API directly (CORS). ecms-api-proxy.php is fallback only.
+    # Direct API URL (CORS). Leave empty when using Hostinger proxy to VPS.
     ApiBaseUrl  = 'https://ecms-production-42be.up.railway.app/api'
-    GitBranch   = 'main'                 # source branch pushed for Railway API
+    # Olive on VPS: set UseHostingerApiProxy = $true and run scripts/deploy-olive-vps.ps1
+    UseHostingerApiProxy = $true
+    VpsHost     = '201.18.216.37'
+    VpsUser     = 'root'
+    # SSH key for VPS (optional; defaults to SshKey if empty)
+    VpsSshKey   = ''
+    VpsUpstream = 'http://201.18.216.37'
+    GitBranch   = 'main'
     HostingerGitBranch = 'hostinger'     # orphan branch with frontend/dist contents
     GitHubRepo  = 'jdflores22/ecms'
     # Required for private repos (Hostinger git fetch). Prefer a fine-scoped PAT (contents:read).

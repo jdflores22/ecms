@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ECMS.API.Filters;
 using ECMS.Application.DTOs.Withdrawal;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Enums;
@@ -10,6 +11,7 @@ namespace ECMS.API.Controllers;
 [ApiController]
 [Route("api/withdrawals")]
 [Authorize]
+[RequirePortalFeature(PortalFeature.Withdrawals)]
 public class WithdrawalsController : ControllerBase
 {
     private readonly IWithdrawalService _service;

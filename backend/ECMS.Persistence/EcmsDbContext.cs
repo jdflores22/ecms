@@ -22,6 +22,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<Schedule> SchedulesSet => Set<Schedule>();
     public DbSet<Payment> PaymentsSet => Set<Payment>();
     public DbSet<QRBooking> QRBookingsSet => Set<QRBooking>();
+    public DbSet<LogicteckStatusUpdate> LogicteckStatusUpdatesSet => Set<LogicteckStatusUpdate>();
     public DbSet<AuditLog> AuditLogsSet => Set<AuditLog>();
     public DbSet<Notification> NotificationsSet => Set<Notification>();
     public DbSet<DevicePushToken> DevicePushTokensSet => Set<DevicePushToken>();
@@ -30,6 +31,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     public DbSet<EmailVerificationToken> EmailVerificationTokensSet => Set<EmailVerificationToken>();
     public DbSet<ManualYardInventoryEntry> ManualYardInventoryEntriesSet => Set<ManualYardInventoryEntry>();
     public DbSet<PaymentSettings> PaymentSettingsSet => Set<PaymentSettings>();
+    public DbSet<PortalSettings> PortalSettingsSet => Set<PortalSettings>();
     public DbSet<ShippingLinePaymentConfig> ShippingLinePaymentConfigsSet => Set<ShippingLinePaymentConfig>();
     public DbSet<DemurrageBilling> DemurrageBillingsSet => Set<DemurrageBilling>();
     public DbSet<DemurrageBillingFeeLine> DemurrageBillingFeeLinesSet => Set<DemurrageBillingFeeLine>();
@@ -65,6 +67,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<Schedule> IEcmsDbContext.Schedules => SchedulesSet;
     IQueryable<Payment> IEcmsDbContext.Payments => PaymentsSet;
     IQueryable<QRBooking> IEcmsDbContext.QRBookings => QRBookingsSet;
+    IQueryable<LogicteckStatusUpdate> IEcmsDbContext.LogicteckStatusUpdates => LogicteckStatusUpdatesSet;
     IQueryable<AuditLog> IEcmsDbContext.AuditLogs => AuditLogsSet;
     IQueryable<Notification> IEcmsDbContext.Notifications => NotificationsSet;
     IQueryable<DevicePushToken> IEcmsDbContext.DevicePushTokens => DevicePushTokensSet;
@@ -73,6 +76,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
     IQueryable<EmailVerificationToken> IEcmsDbContext.EmailVerificationTokens => EmailVerificationTokensSet;
     IQueryable<ManualYardInventoryEntry> IEcmsDbContext.ManualYardInventoryEntries => ManualYardInventoryEntriesSet;
     IQueryable<PaymentSettings> IEcmsDbContext.PaymentSettings => PaymentSettingsSet;
+    IQueryable<PortalSettings> IEcmsDbContext.PortalSettings => PortalSettingsSet;
     IQueryable<ShippingLinePaymentConfig> IEcmsDbContext.ShippingLinePaymentConfigs => ShippingLinePaymentConfigsSet;
     IQueryable<DemurrageBilling> IEcmsDbContext.DemurrageBillings => DemurrageBillingsSet;
     IQueryable<DemurrageBillingFeeLine> IEcmsDbContext.DemurrageBillingFeeLines => DemurrageBillingFeeLinesSet;
@@ -233,6 +237,20 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasOne(x => x.Schedule).WithOne(x => x.QRBooking).HasForeignKey<QRBooking>(x => x.ScheduleId);
             e.HasOne(x => x.GateCheckedInBy).WithMany().HasForeignKey(x => x.GateCheckedInByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+            e.Property(x => x.LogicteckUpdateStatus).HasMaxLength(40);
+            e.Property(x => x.LogicteckUpdateLocation).HasMaxLength(40);
+            e.Property(x => x.LogicteckUpdateMessage).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<LogicteckStatusUpdate>(e =>
+        {
+            e.Property(x => x.EventId).HasMaxLength(64);
+            e.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Location).HasMaxLength(40);
+            e.Property(x => x.Message).HasMaxLength(500);
+            e.HasIndex(x => x.EventId).IsUnique();
+            e.HasIndex(x => new { x.QRBookingId, x.CreatedAt });
+            e.HasOne(x => x.QRBooking).WithMany().HasForeignKey(x => x.QRBookingId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AuditLog>(e =>
@@ -294,6 +312,8 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.Property(x => x.DemurrageFeeAmount).HasPrecision(18, 2);
             e.Property(x => x.DetentionFeeAmount).HasPrecision(18, 2);
         });
+
+        modelBuilder.Entity<PortalSettings>(e => e.HasKey(x => x.Id));
 
         modelBuilder.Entity<ShippingLinePaymentConfig>(e =>
         {

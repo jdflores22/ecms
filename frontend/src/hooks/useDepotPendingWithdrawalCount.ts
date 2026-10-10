@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { canAccessPage } from '../config/routeAccess'
 import { COUNT_POLL_MS, fetchCachedDepotWithdrawalReviewCount } from '../utils/countApiCache'
+import { usePortalPageAccess } from './usePortalPageAccess'
 import { scheduleNonCritical } from '../utils/deferWork'
 
 export function useDepotPendingWithdrawalCount(
@@ -8,10 +8,9 @@ export function useDepotPendingWithdrawalCount(
   allowedPages: string[] | null | undefined,
 ) {
   const [count, setCount] = useState(0)
+  const withdrawalsAllowed = usePortalPageAccess(role, 'depotWithdrawals', allowedPages)
 
-  const enabled = Boolean(
-    role && role === 'DepotPersonnel' && canAccessPage(role, 'depotWithdrawals', allowedPages),
-  )
+  const enabled = Boolean(role && role === 'DepotPersonnel' && withdrawalsAllowed)
 
   const load = useCallback(() => {
     if (!enabled) {

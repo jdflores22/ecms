@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { canAccessPage } from '../config/routeAccess'
 import { isTruckerOrBroker } from '../config/roleConfig'
+import { usePortalPageAccess } from './usePortalPageAccess'
 import { fetchCachedWithdrawalActionCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 
@@ -11,12 +11,9 @@ export function useTruckerPendingWithdrawalCount(
   allowedPages: string[] | null | undefined,
 ) {
   const [count, setCount] = useState(0)
+  const withdrawalsAllowed = usePortalPageAccess(role, 'truckerWithdrawals', allowedPages)
 
-  const enabled = Boolean(
-    role
-      && isTruckerOrBroker(role)
-      && canAccessPage(role, 'truckerWithdrawals', allowedPages),
-  )
+  const enabled = Boolean(role && isTruckerOrBroker(role) && withdrawalsAllowed)
 
   const load = useCallback(() => {
     if (!enabled) {

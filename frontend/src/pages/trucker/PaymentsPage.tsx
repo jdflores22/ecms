@@ -36,6 +36,7 @@ import {
   paymentStatusColor,
   paymentStatusLabel,
   resolvePaymentStatus,
+  truckerPaymentDisplayAmount,
   truckerPaymentPath,
 } from '../../utils/truckerPayment'
 
@@ -157,6 +158,8 @@ export default function TruckerPaymentsPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [returnFeeAmount, setReturnFeeAmount] = useState<number | null>(null)
+  const [effectiveReturnFeeAmount, setEffectiveReturnFeeAmount] = useState<number | null>(null)
+  const [pilotTestingActive, setPilotTestingActive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -184,6 +187,8 @@ export default function TruckerPaymentsPage() {
         setSchedules(schedules.filter((x) => x.status === 'Scheduled' || x.status === 'Confirmed'))
         setPayments(payments)
         setReturnFeeAmount(settings.data.returnFeeAmount)
+        setEffectiveReturnFeeAmount(settings.data.effectiveReturnFeeAmount)
+        setPilotTestingActive(settings.data.pilotTestingActive)
       })
       .catch(() => setError('Failed to load payments.'))
       .finally(() => setLoading(false))
@@ -219,6 +224,18 @@ export default function TruckerPaymentsPage() {
   }, [schedules, activeStatus, statusFor])
 
   const activeTabMeta = STATUS_TABS.find((t) => t.key === activeStatus)!
+
+  const amountLabel = (schedule: Schedule, payment: Payment | null) => {
+    const uploadNeeded = needsPaymentUpload(schedule, payment)
+    const amount = truckerPaymentDisplayAmount(payment, {
+      effectiveReturnFeeAmount: effectiveReturnFeeAmount ?? 0,
+      returnFeeAmount: returnFeeAmount ?? 0,
+      pilotTestingActive,
+      uploadNeeded,
+    })
+    if (!payment && returnFeeAmount == null && effectiveReturnFeeAmount == null) return 'Amount pending'
+    return formatPeso(amount)
+  }
 
   return (
     <Box sx={listPageRootSx}>
@@ -341,9 +358,7 @@ export default function TruckerPaymentsPage() {
                     <ListMobileMeta>
                       {formatTruckerScheduleSlot(item, formatScheduleSlot)}
                     </ListMobileMeta>
-                    <ListMobileMeta>
-                      {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : 'Amount pending'}
-                    </ListMobileMeta>
+                    <ListMobileMeta>{amountLabel(item, payment)}</ListMobileMeta>
                     <ListMobileChipRow>
                       <Chip
                         label={paymentStatusLabel[status] ?? status}
@@ -396,9 +411,7 @@ export default function TruckerPaymentsPage() {
                           <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
                           <TableCell>{isScheduleDetailsVisible(item) ? item.depotName : '—'}</TableCell>
                           <TableCell>{formatTruckerScheduleSlot(item, formatScheduleSlot)}</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>
-                            {payment ? formatPeso(payment.amount) : returnFeeAmount ? formatPeso(returnFeeAmount) : '—'}
-                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{amountLabel(item, payment)}</TableCell>
                           <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                             <PaymentRowActions
                               item={item}

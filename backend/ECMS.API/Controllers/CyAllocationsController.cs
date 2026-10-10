@@ -37,6 +37,38 @@ public class CyAllocationsController : ControllerBase
         }
     }
 
+    [HttpGet("logicteck")]
+    [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
+    public async Task<ActionResult<LogicteckCyAllocationFeedDto>> GetLogicteck(
+        [FromQuery] int? shippingLineId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.GetLogicteckFeedAsync(shippingLineId, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("by-depot/logicteck")]
+    [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
+    public async Task<ActionResult<LogicteckCyAllocationFeedDto>> GetLogicteckByDepot(
+        [FromQuery] int? depotId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.GetLogicteckFeedForDepotAsync(depotId, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("by-depot")]
     [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
     public async Task<ActionResult<IReadOnlyList<CyAllocationDto>>> GetByDepot(

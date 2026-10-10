@@ -76,12 +76,21 @@ public class ContainerInventoryService : IContainerInventoryService
             .Select(s => new { s.Id, s.Code, s.Name })
             .FirstAsync(cancellationToken);
 
+        var contractedDepots = await _db.ShippingLineDepotContracts
+            .AsNoTracking()
+            .Where(c => c.ShippingLineId == lineId && c.IsActive && c.Depot.IsActive)
+            .Where(c => !depotId.HasValue || c.DepotId == depotId.Value)
+            .Select(c => new { c.DepotId, c.Depot.Name })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
         var summary = BuildSummary(
             items,
             await GetContractTeuAsync(lineId, cancellationToken),
             shippingLine.Id,
             shippingLine.Code,
-            shippingLine.Name);
+            shippingLine.Name,
+            contractedDepots.Select(d => (d.DepotId, d.Name)).ToList());
 
         return new ContainerInventoryResponseDto(summary, items);
     }
@@ -558,7 +567,8 @@ public class ContainerInventoryService : IContainerInventoryService
         decimal contractTeu,
         int shippingLineId,
         string shippingLineCode,
-        string shippingLineName)
+        string shippingLineName,
+        IReadOnlyList<(int DepotId, string DepotName)>? contractedDepots = null)
     {
         var atYardItems = items.Where(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)).ToList();
 
@@ -572,8 +582,21 @@ public class ContainerInventoryService : IContainerInventoryService
                 g.Count(i => i.YardStatus == nameof(YardInventoryStatus.AtYard)
                     && i.ComplianceStatus == "Overstay")))
             .Where(d => d.AtYardCount > 0 || d.ReleasedCount > 0)
-            .OrderBy(d => d.DepotName)
             .ToList();
+
+        if (contractedDepots is not null)
+        {
+            var known = byDepot.Select(d => d.DepotId).ToHashSet();
+            foreach (var depot in contractedDepots)
+            {
+                if (known.Add(depot.DepotId))
+                {
+                    byDepot.Add(new ContainerInventoryDepotSummaryDto(depot.DepotId, depot.DepotName, 0, 0, 0));
+                }
+            }
+        }
+
+        byDepot = byDepot.OrderBy(d => d.DepotName).ToList();
 
         var size20Count = atYardItems.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "20");
         var size40Count = atYardItems.Count(i => CyCapacityGroups.GetGroupKey(i.ContainerSize) == "40");

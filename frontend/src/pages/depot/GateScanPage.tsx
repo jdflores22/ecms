@@ -239,7 +239,16 @@ export default function GateScanPage() {
                       <Chip label="Ready to accept" color="success" variant="outlined" size="small" sx={{ fontWeight: 700 }} />
                     )}
                     {!scan.canCheckIn && !scan.alreadyCheckedIn && (
-                      <Chip label="Invalid" color="error" size="small" sx={{ fontWeight: 700 }} />
+                      <Chip
+                        label={
+                          scan.issues.some((i) => i.code === 'TOO_EARLY' && i.severity === 'error')
+                            ? 'Not in window'
+                            : 'Cannot check in'
+                        }
+                        color="error"
+                        size="small"
+                        sx={{ fontWeight: 700 }}
+                      />
                     )}
                   </Stack>
 

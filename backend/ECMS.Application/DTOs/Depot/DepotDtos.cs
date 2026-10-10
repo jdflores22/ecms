@@ -8,7 +8,8 @@ public record DepotDto(
     int ContainersPerHour,
     int OperatingHourStart,
     int OperatingHourEnd,
-    bool IsActive);
+    bool IsActive,
+    bool IsLogicteck);
 
 public record CreateDepotRequest(
     string Name,
@@ -16,7 +17,8 @@ public record CreateDepotRequest(
     int Capacity,
     int ContainersPerHour,
     int OperatingHourStart,
-    int OperatingHourEnd);
+    int OperatingHourEnd,
+    bool IsLogicteck = false);
 
 public record UpdateDepotRequest(
     string Name,
@@ -25,4 +27,5 @@ public record UpdateDepotRequest(
     int ContainersPerHour,
     int OperatingHourStart,
     int OperatingHourEnd,
-    bool IsActive);
+    bool IsActive,
+    bool IsLogicteck = false);

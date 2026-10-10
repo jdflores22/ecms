@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  Paper,
   TextField,
   Typography,
 } from '@mui/material'
@@ -16,7 +15,14 @@ import { ChipRowSkeleton } from '../layout/SkeletonPrimitives'
 import { Link as RouterLink } from 'react-router-dom'
 import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
-import { DetailTabPanel, ICS_PRIMARY, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
+import { DetailTabPanel, InfoTile, infoGridSx } from '../layout/DetailPagePrimitives'
+import DepotScheduleContainerDetailsTabPanel from './DepotScheduleContainerDetailsTabPanel'
+import {
+  DepotDetailTile,
+  DepotScheduleInfoGrid,
+  DepotScheduleSection,
+} from './DepotScheduleFieldGrid'
+import { DEPOT_SCHEDULE_REMARK_PRESETS } from '../../utils/depotScheduleRemarks'
 import { QrImageSkeleton } from '../layout/SkeletonPrimitives'
 import AssetImage from '../layout/AssetImage'
 import { qrLookupStatusLabel } from '../../config/logicteckQr'
@@ -44,10 +50,7 @@ import {
   formatScheduleTime,
   type DepotScheduleDateBounds,
 } from '../../utils/datetime'
-import { formatContainerSummary } from '../../utils/containerSize'
-import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 
-const primaryDark = ICS_PRIMARY
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
 export type DepotScheduleTab = 'details' | 'photos' | 'schedule' | 'payment' | 'qr'
@@ -64,41 +67,6 @@ const paymentStatusLabel: Record<string, string> = {
   Paid: 'Verified',
   Rejected: 'Rejected',
   Pending: 'Pending upload',
-}
-
-function InfoTile({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 2,
-        height: '100%',
-        borderRadius: 2.5,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: hexToRgba(primaryDark, 0.02),
-      }}
-    >
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}
-      >
-        {label}
-      </Typography>
-      <Typography
-        sx={{
-          mt: 0.75,
-          fontWeight: 600,
-          fontSize: '0.95rem',
-          wordBreak: 'break-word',
-          ...(mono && { fontFamily: 'monospace' }),
-        }}
-      >
-        {value}
-      </Typography>
-    </Paper>
-  )
 }
 
 function isImageProof(path: string) {
@@ -192,50 +160,12 @@ export default function DepotScheduleTabPanels({
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="details" activeTab={activeTab}>
-        <Box sx={infoGridSx}>
-          <InfoTile label="Reference no." value={schedule.referenceNo} mono />
-          <InfoTile label="Requesting trucker" value={truckerName} />
-          <InfoTile label="Shipping line" value={preAdvice.shippingLineName} />
-          <InfoTile
-            label="Container"
-            value={formatContainerSummary(
-              preAdvice.containerNo,
-              preAdvice.containerSize,
-              preAdvice.containerType,
-            )}
-            mono
-          />
-          <InfoTile label="Depot (CY)" value={schedule.depotName} />
-          {preAdvice.demurrageValidUntil && (
-            <InfoTile
-              label="Demurrage validity"
-              value={`Until ${formatScheduleDate(preAdvice.demurrageValidUntil)}`}
-            />
-          )}
-          {schedule.date && schedule.status !== 'WaitingSchedule' && (
-            <>
-              <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
-              <InfoTile label="Return time" value={formatScheduleTimeHundreds(schedule.time)} />
-              <InfoTile label="Arrival window" value={formatArrivalWindow(schedule.date, schedule.time)} />
-            </>
-          )}
-          <InfoTile
-            label="Status"
-            value={scheduleStatusLabel(schedule.status)}
-          />
-          <InfoTile label="Submitted" value={formatDateTime(preAdvice.createdAt)} />
-          <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-            <InfoTile label="Trucker remarks" value={preAdvice.remarks || '—'} />
-          </Box>
-          {(schedule.depotRemarks || depotRemarks.trim()) && (
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <InfoTile
-                label="Depot remarks"
-                value={schedule.depotRemarks || depotRemarks.trim() || '—'}
-              />
-            </Box>
-          )}
-        </Box>
+        <DepotScheduleContainerDetailsTabPanel
+          schedule={schedule}
+          preAdvice={preAdvice}
+          truckerName={truckerName}
+          depotRemarksDraft={depotRemarks}
+        />
       </DetailTabPanel>
 
       <DetailTabPanel value="photos" activeTab={activeTab}>
@@ -273,25 +203,21 @@ export default function DepotScheduleTabPanels({
               )}
             </Box>
 
-            {showScheduledSummary && (
-              <Box sx={infoGridSx}>
-                <InfoTile label="Return date" value={formatScheduleDate(schedule.date)} />
-                <InfoTile label="Return time" value={formatScheduleTimeHundreds(schedule.time)} />
-                <InfoTile label="Arrival window" value={formatArrivalWindow(schedule.date, schedule.time)} />
-                <InfoTile label="Requesting trucker" value={truckerName} />
-                <InfoTile label="Status" value={scheduleStatusLabel(schedule.status)} />
-                {schedule.depotRemarks && (
-                  <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-                    <InfoTile label="Depot remarks" value={schedule.depotRemarks} />
-                  </Box>
-                )}
-                {preAdvice.demurrageValidUntil && (
-                  <InfoTile
-                    label="Demurrage validity"
-                    value={`Until ${formatScheduleDate(preAdvice.demurrageValidUntil)}`}
+            {showScheduledSummary && !showAssignForm && (
+              <DepotScheduleSection title="Current assignment">
+                <DepotScheduleInfoGrid>
+                  <DepotDetailTile label="Return date" value={formatScheduleDate(schedule.date)} />
+                  <DepotDetailTile label="Return time" value={formatScheduleTimeHundreds(schedule.time)} />
+                  <DepotDetailTile
+                    label="Arrival window"
+                    value={formatArrivalWindow(schedule.date, schedule.time)}
+                    span
                   />
-                )}
-              </Box>
+                  {schedule.depotRemarks && (
+                    <DepotDetailTile label="Depot remarks" value={schedule.depotRemarks} span />
+                  )}
+                </DepotScheduleInfoGrid>
+              </DepotScheduleSection>
             )}
 
             {showAssignForm && (
@@ -310,47 +236,52 @@ export default function DepotScheduleTabPanels({
                   </Alert>
                 )}
                 {actionError && (
-                  <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+                  <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
                     {actionError}
                   </Alert>
                 )}
 
-                <Box sx={{ ...infoGridSx, mt: showScheduledSummary ? 2 : 0 }}>
-                  <InfoTile
-                    label="Demurrage validity"
-                    value={
-                      scheduleDateBounds.demurrageValidUntil
-                        ? `Until ${formatScheduleDate(scheduleDateBounds.demurrageValidUntil)}`
-                        : 'Not set'
-                    }
-                  />
-                  <InfoTile
-                    label="Allowed return dates"
-                    value={formatDepotScheduleAllowedRange(scheduleDateBounds)}
-                  />
-                </Box>
-
-                <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
-                  The trucker is fixed from the pre-forecast request ({truckerName}). Choose a return
-                  date within demurrage validity
-                  {scheduleDateBounds.demurrageValidUntil && (
-                    <>
-                      {' '}
-                      (until <strong>{formatScheduleDate(scheduleDateBounds.demurrageValidUntil)}</strong>)
-                    </>
-                  )}
-                  {' '}and the allowed range above.
-                </Alert>
-
-                {!scheduleDateBounds.hasValidWindow && (
-                  <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
-                    {scheduleDateBounds.demurrageValidUntil
-                      ? 'Demurrage validity has expired or no dates remain in the allowed window. Contact the shipping line evaluator.'
-                      : 'Demurrage validity is not set. Contact the shipping line evaluator before assigning a return date.'}
+                {editing && schedule.date && (
+                  <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                    Current: {formatScheduleDate(schedule.date)} · {formatScheduleTimeHundreds(schedule.time)} —{' '}
+                    {truckerName}
                   </Alert>
                 )}
 
-                <Box sx={{ ...infoGridSx, mt: 2 }}>
+                <DepotScheduleSection title="Free time & allowed dates">
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+                    <Chip
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                      label={
+                        scheduleDateBounds.demurrageValidUntil
+                          ? `Free time until ${formatScheduleDate(scheduleDateBounds.demurrageValidUntil)}`
+                          : 'Free time not set'
+                      }
+                      sx={{ fontWeight: 700 }}
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`Allowed: ${formatDepotScheduleAllowedRange(scheduleDateBounds)}`}
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Trucker: <strong>{truckerName}</strong>. Pick a return date inside the allowed range (
+                    {formatDepotScheduleDateHelper(scheduleDateBounds)}).
+                  </Typography>
+                  {!scheduleDateBounds.hasValidWindow && (
+                    <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                      {scheduleDateBounds.demurrageValidUntil
+                        ? 'Free time expired or no dates left in the window. Ask ICS to extend free time on the pre-forecast.'
+                        : 'Free time is not set on this pre-forecast. Contact ICS before assigning a return date.'}
+                    </Alert>
+                  )}
+                </DepotScheduleSection>
+
+                <DepotScheduleSection title="Return date & time">
                   <TextField
                     fullWidth
                     label="Return date"
@@ -391,69 +322,86 @@ export default function DepotScheduleTabPanels({
                       },
                     }}
                   />
-                  <InfoTile label="Requesting trucker" value={truckerName} />
-                </Box>
 
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                    Return time · {formatScheduleDate(date)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
-                    Choose an hourly slot (
-                    {formatDepotOperatingRange(
-                      hourlySlots?.operatingHourStart ?? EMPTY_RETURN_OPERATING_HOUR_START,
-                      hourlySlots?.operatingHourEnd ?? EMPTY_RETURN_OPERATING_HOUR_END,
-                    )}
-                    ). Trucker may arrive ±2 hours from the booked time.
-                  </Typography>
-                  {hourlySlotsLoading ? (
-                    <ChipRowSkeleton chips={6} />
-                  ) : (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                      {(hourlySlots?.slots ?? []).map((slot) => {
-                        const slotTime = normalizeTime24Input(formatScheduleTime(slot.time))
-                        const selected = time === slotTime
-                        const disabled = !slot.isAvailable && !selected
-                        return (
-                          <Chip
-                            key={slot.time}
-                            label={`${slot.timeLabel} · ${slot.bookedCount}/${slot.maxContainers}`}
-                            clickable={!disabled}
-                            color={selected ? 'primary' : slot.isAvailable ? 'default' : 'default'}
-                            variant={selected ? 'filled' : 'outlined'}
-                            disabled={disabled}
-                            onClick={() => onTimeChange(slotTime)}
-                            sx={{
-                              fontWeight: selected ? 700 : 600,
-                              opacity: disabled ? 0.45 : 1,
-                            }}
-                          />
-                        )
-                      })}
-                    </Box>
-                  )}
-                  {hourlySlots && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                      Daily: {hourlySlots.dailyBookedCount}/{hourlySlots.dailyLimit} returns booked
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                      Hourly slot · {date ? formatScheduleDate(date) : 'select a date'}
                     </Typography>
-                  )}
-                </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
+                      {formatDepotOperatingRange(
+                        hourlySlots?.operatingHourStart ?? EMPTY_RETURN_OPERATING_HOUR_START,
+                        hourlySlots?.operatingHourEnd ?? EMPTY_RETURN_OPERATING_HOUR_END,
+                      )}{' '}
+                      · ±2 hours arrival window (PHT)
+                    </Typography>
+                    {hourlySlotsLoading ? (
+                      <ChipRowSkeleton chips={6} />
+                    ) : (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                        {(hourlySlots?.slots ?? []).map((slot) => {
+                          const slotTime = normalizeTime24Input(formatScheduleTime(slot.time))
+                          const selected = time === slotTime
+                          const disabled = !slot.isAvailable && !selected
+                          return (
+                            <Chip
+                              key={slot.time}
+                              label={`${slot.timeLabel} · ${slot.bookedCount}/${slot.maxContainers}`}
+                              clickable={!disabled}
+                              color={selected ? 'primary' : 'default'}
+                              variant={selected ? 'filled' : 'outlined'}
+                              disabled={disabled}
+                              onClick={() => onTimeChange(slotTime)}
+                              sx={{
+                                fontWeight: selected ? 700 : 600,
+                                opacity: disabled ? 0.45 : 1,
+                              }}
+                            />
+                          )
+                        })}
+                      </Box>
+                    )}
+                    {hourlySlots && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        Daily capacity: {hourlySlots.dailyBookedCount}/{hourlySlots.dailyLimit} returns
+                      </Typography>
+                    )}
+                  </Box>
+                </DepotScheduleSection>
 
-                <TextField
-                  fullWidth
-                  label="Depot remarks (optional)"
-                  value={depotRemarks}
-                  onChange={(e) => onDepotRemarksChange(e.target.value)}
-                  multiline
-                  minRows={2}
-                  maxRows={6}
-                  placeholder="Gate instructions, contact person, special handling, etc."
-                  sx={{ ...fieldSx, mt: 2 }}
-                  slotProps={{ htmlInput: { maxLength: 2000 } }}
-                  helperText="Shown to the trucker with the schedule notification."
-                />
+                <DepotScheduleSection title="Message to trucker">
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    Canned response
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+                    {DEPOT_SCHEDULE_REMARK_PRESETS.map((preset) => (
+                      <Chip
+                        key={preset.id}
+                        label={preset.label}
+                        size="small"
+                        clickable
+                        variant={depotRemarks === preset.text ? 'filled' : 'outlined'}
+                        color={depotRemarks === preset.text ? 'primary' : 'default'}
+                        onClick={() => onDepotRemarksChange(preset.text)}
+                        sx={{ fontWeight: 600 }}
+                      />
+                    ))}
+                  </Box>
+                  <TextField
+                    fullWidth
+                    label="Depot remarks (optional)"
+                    value={depotRemarks}
+                    onChange={(e) => onDepotRemarksChange(e.target.value)}
+                    multiline
+                    minRows={2}
+                    maxRows={6}
+                    placeholder="Gate instructions, contact person, special handling, etc."
+                    sx={fieldSx}
+                    slotProps={{ htmlInput: { maxLength: 2000 } }}
+                    helperText="Included in the schedule notification to the trucker."
+                  />
+                </DepotScheduleSection>
 
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
                   {schedule.status === 'Scheduled' && editing ? (
                     <Button onClick={onCancelEdit} disabled={submitting} sx={{ fontWeight: 600 }}>
                       Cancel

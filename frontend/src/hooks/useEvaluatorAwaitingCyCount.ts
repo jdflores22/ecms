@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { canAccessPage } from '../config/routeAccess'
+import { usePortalPageAccess } from './usePortalPageAccess'
 import { COUNT_POLL_MS, fetchCachedAwaitingCyCount } from '../utils/countApiCache'
 import { scheduleNonCritical } from '../utils/deferWork'
 
@@ -8,10 +8,9 @@ export function useEvaluatorAwaitingCyCount(
   allowedPages: string[] | null | undefined,
 ) {
   const [count, setCount] = useState(0)
+  const withdrawalsAllowed = usePortalPageAccess(role, 'evaluatorAtw', allowedPages)
 
-  const enabled = Boolean(
-    role && role === 'ShippingLineEvaluator' && canAccessPage(role, 'evaluatorAtw', allowedPages),
-  )
+  const enabled = Boolean(role && role === 'ShippingLineEvaluator' && withdrawalsAllowed)
 
   const load = useCallback(() => {
     if (!enabled) {

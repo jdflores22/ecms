@@ -69,6 +69,16 @@ public class DemurrageBillingController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    [HttpGet("by-pre-forecast/{preAdviceId:int}/staff")]
+    [Authorize(Roles = $"{RoleNames.Administrator},{RoleNames.ShippingLineEvaluator}")]
+    public async Task<ActionResult<DemurrageBillingDto>> GetByPreAdviceForStaff(
+        int preAdviceId,
+        CancellationToken cancellationToken)
+    {
+        var item = await _service.GetByPreAdviceForStaffAsync(preAdviceId, UserId, UserRole, cancellationToken);
+        return Ok(item);
+    }
+
     [HttpGet("eligible-pre-forecasts")]
     [HttpGet("eligible-pre-advices")]
     [Authorize(Roles = RoleNames.ShippingLineEvaluator)]

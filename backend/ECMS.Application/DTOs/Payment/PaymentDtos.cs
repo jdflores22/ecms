@@ -44,12 +44,27 @@ public record PaymentSettingsDto(
     bool PayMongoEnabled,
     bool AllowProofUpload,
     bool PayMongoConfigured,
+    bool PilotTestingActive,
+    bool PilotTestingEnabled,
+    int PilotTestingDurationDays,
+    int? PilotDaysRemaining,
+    DateTime? PilotTestingEndsAtUtc,
+    decimal EffectiveReturnFeeAmount,
     DateTime UpdatedAt);
 
 public record ReturnPaymentOptionsDto(
     bool PayMongoEnabled,
     bool AllowProofUpload,
-    bool PayMongoConfigured);
+    bool PayMongoConfigured,
+    bool PilotTestingActive,
+    decimal EffectiveReturnFeeAmount,
+    int? PilotDaysRemaining,
+    DateTime? PilotTestingEndsAtUtc);
+
+public record UpdatePilotTestingSettingsRequest(
+    bool PilotTestingEnabled,
+    int DurationDays,
+    string? DeveloperPassword);
 
 public record UpdatePaymentSettingsRequest(decimal ReturnFeeAmount, string? DeveloperPassword);
 

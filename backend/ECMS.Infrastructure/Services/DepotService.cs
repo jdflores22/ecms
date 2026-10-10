@@ -30,7 +30,8 @@ public class DepotService : IDepotService
                 d.ContainersPerHour,
                 d.OperatingHourStart,
                 d.OperatingHourEnd,
-                d.IsActive))
+                d.IsActive,
+                d.IsLogicteck))
             .ToListAsync(cancellationToken);
     }
 
@@ -46,7 +47,8 @@ public class DepotService : IDepotService
                 d.ContainersPerHour,
                 d.OperatingHourStart,
                 d.OperatingHourEnd,
-                d.IsActive))
+                d.IsActive,
+                d.IsLogicteck))
             .ToListAsync(cancellationToken);
     }
 
@@ -80,6 +82,7 @@ public class DepotService : IDepotService
             OperatingHourStart = request.OperatingHourStart,
             OperatingHourEnd = request.OperatingHourEnd,
             IsActive = true,
+            IsLogicteck = request.IsLogicteck,
         };
 
         _db.Add(depot);
@@ -116,6 +119,7 @@ public class DepotService : IDepotService
         depot.OperatingHourStart = request.OperatingHourStart;
         depot.OperatingHourEnd = request.OperatingHourEnd;
         depot.IsActive = request.IsActive;
+        depot.IsLogicteck = request.IsLogicteck;
         _db.Update(depot);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Update", "Depot", name, cancellationToken);
@@ -152,5 +156,6 @@ public class DepotService : IDepotService
             d.ContainersPerHour,
             d.OperatingHourStart,
             d.OperatingHourEnd,
-            d.IsActive);
+            d.IsActive,
+            d.IsLogicteck);
 }

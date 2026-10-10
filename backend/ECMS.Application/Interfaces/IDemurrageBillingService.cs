@@ -25,6 +25,12 @@ public interface IDemurrageBillingService
         int truckerId,
         CancellationToken cancellationToken = default);
 
+    Task<DemurrageBillingDto?> GetByPreAdviceForStaffAsync(
+        int preAdviceId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EligibleDemurragePreAdviceDto>> GetEligiblePreAdvicesAsync(
         int userId,
         string role,
@@ -83,7 +89,8 @@ public interface IDemurrageBillingService
     Task<DemurrageBillingDto> EnsureBillingForExpiredFreeTimeAsync(
         int preAdviceId,
         int actorUserId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool shippingLineReceiptOnly = false);
 
     /// <summary>
     /// Trucker-owned ensure: creates billing for an expired free-time draft so charges appear before submit.

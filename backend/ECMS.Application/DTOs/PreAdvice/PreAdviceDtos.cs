@@ -28,7 +28,10 @@ public record PreAdviceDto(
     string? LogicteckStatus,
     DateTime? EvaluatedAt,
     string? ScheduleStatus,
-    PreAdviceCroEdoContextDto? CroEdoContext = null);
+    PreAdviceCroEdoContextDto? CroEdoContext = null,
+    string? LogicteckLocation = null,
+    string? LogicteckUpdateMessage = null,
+    DateTime? LogicteckUpdatedAt = null);
 
 public record PreAdviceCroEdoContextDto(
     string LinkType,

@@ -26,7 +26,10 @@ public record QrBookingDto(
     bool IsUsed,
     DateTime? LogicteckBookedAt,
     string LogicteckStatus,
-    string? ConfirmationPdfPath = null);
+    string? ConfirmationPdfPath = null,
+    string? LogicteckLocation = null,
+    string? LogicteckUpdateMessage = null,
+    DateTime? LogicteckUpdatedAt = null);
 
 public record ValidateQrRequest(string QrCode);
 
@@ -69,7 +72,8 @@ public record LogicteckTransferLinkDto(
     int IcsQrBookingId,
     string LookupUrl,
     string DossierUrl,
-    string ValidateUrl);
+    string ValidateUrl,
+    string CallbackUrl);
 
 public record LogicteckDossierDocumentDto(
     string? Category,
@@ -134,6 +138,26 @@ public record LogicteckBookingDossierResponse(
     LogicteckDossierQrDto? QrBooking,
     IReadOnlyList<LogicteckDossierDocumentDto> Documents,
     LogicteckTransferLinkDto? TransferLink = null);
+
+public record LogicteckStatusCallbackRequest(
+    string? EventId,
+    string? QrCode,
+    string? ExternalRef,
+    string? ContainerNo,
+    string? Status,
+    string? Location,
+    string? Message,
+    DateTimeOffset? OccurredAt);
+
+public record LogicteckStatusCallbackResponse(
+    bool Accepted,
+    bool Duplicate,
+    string? Message,
+    string? BookingReference,
+    string? ContainerNo,
+    string? Status,
+    string? Location,
+    DateTime? UpdatedAt);
 
 public record BookLogicteckResponse(
     bool Success,

@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Badge,
   Chip,
   Dialog,
   DialogActions,
@@ -49,15 +50,21 @@ import {
   heroMutedChipSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
-import { listMobileActionsSx } from '../../components/layout/ListPagePrimitives'
+import {
+  listHeroOutlineActionSx,
+  listHeroPrimaryActionSx,
+  listMobileActionsSx,
+} from '../../components/layout/ListPagePrimitives'
 import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import {
   depotApi,
   cyAllocationApi,
+  demurrageBillingApi,
   evaluationApi,
   paymentApi,
   preAdviceApi,
+  type DemurrageBilling,
   qrApi,
   scheduleApi,
   shippingLineCyFillApi,
@@ -77,6 +84,21 @@ import { formatDate, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { formatCySizeOptionLabel } from '../../utils/cyAllocation'
 import PreAdviceCroEdoContextPanel from '../../components/preAdvice/PreAdviceCroEdoContextPanel'
+import {
+  croEdoTabNeedsAttention,
+  isEvaluationFreeTimeExpired,
+  initialApprovalFreeTimeDate,
+  resolveEvaluationFreeTimeDate,
+} from '../../utils/evaluationCroEdo'
+import { isCroFreeTimeExpired, parseCroFreeTimeToIso } from '../../utils/croFreeTime'
+import {
+  buildEvaluationRejectCannedRemarks,
+  defaultEvaluationRejectRemark,
+} from '../../utils/evaluationRejectRemarks'
+import {
+  demurrageAudienceForRole,
+  demurrageBillingDetailPath,
+} from '../../utils/demurrageRoutes'
 
 const primaryDark = ICS_PRIMARY
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
@@ -132,14 +154,6 @@ function sortAllocationsByRecommended(allocations: CyAllocation[], depotIdsInOrd
   )
 }
 
-function resolveDemurrageValidUntil(item: PreAdvice): string | null {
-  return item.croEdoContext?.demurrageValidUntil ?? item.demurrageValidUntil ?? null
-}
-
-function isLegacyManualPreAdvice(item: PreAdvice): boolean {
-  return item.croEdoContext?.linkType === 'LegacyUpload'
-}
-
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -191,6 +205,7 @@ export default function EvaluationDetailPage() {
 
   const [approveOpen, setApproveOpen] = useState(false)
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [complianceOpen, setComplianceOpen] = useState(false)
   const [depotId, setDepotId] = useState<number | ''>('')
@@ -210,10 +225,32 @@ export default function EvaluationDetailPage() {
   const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
   const [allocationsLoading, setAllocationsLoading] = useState(false)
   const [approvalDemurrageUntil, setApprovalDemurrageUntil] = useState('')
+  const [croFreeTimeDate, setCroFreeTimeDate] = useState('')
+  const [croFreeTimeSaving, setCroFreeTimeSaving] = useState(false)
+  const [croFreeTimeSaveError, setCroFreeTimeSaveError] = useState('')
+  const [detDemBilling, setDetDemBilling] = useState<DemurrageBilling | null>(null)
 
   const isAdmin = user?.role === 'Administrator'
+  const detDemAudience = demurrageAudienceForRole(user?.role)
   const isEvaluatorReadOnly = user?.role === 'ShippingLineEvaluator'
   const allowedRole = isAdmin || isEvaluatorReadOnly
+
+  const loadDetDemBilling = useCallback(() => {
+    if (!preAdviceId || !isAdmin) {
+      setDetDemBilling(null)
+      return
+    }
+    demurrageBillingApi
+      .getByPreAdviceForStaff(preAdviceId)
+      .then(({ data }) => setDetDemBilling(data ?? null))
+      .catch((err) => {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          setDetDemBilling(null)
+          return
+        }
+        setDetDemBilling(null)
+      })
+  }, [preAdviceId, isAdmin])
 
   const loadDocuments = useCallback(() => {
     if (!preAdviceId) return
@@ -319,7 +356,15 @@ export default function EvaluationDetailPage() {
   useEffect(() => {
     load()
     loadDocuments()
-  }, [load, loadDocuments])
+    loadDetDemBilling()
+  }, [load, loadDocuments, loadDetDemBilling])
+
+  useEffect(() => {
+    if (!item) return
+    const resolved = resolveEvaluationFreeTimeDate(item)
+    setCroFreeTimeDate(resolved ?? '')
+    setCroFreeTimeSaveError('')
+  }, [item?.id, item?.demurrageValidUntil, item?.croEdoContext?.demurrageValidUntil])
 
   useEffect(() => {
     if (item?.status === 'Approved') {
@@ -343,7 +388,7 @@ export default function EvaluationDetailPage() {
 
     const tab = searchParams.get('tab') as EvaluationDetailTab | null
     const showScheduleTabs = item.status === 'Approved'
-    const allowed: EvaluationDetailTab[] = ['overview', 'details', 'photos']
+    const allowed: EvaluationDetailTab[] = ['overview', 'croEdo', 'details', 'photos', 'activity']
     if (showScheduleTabs) allowed.push('schedule', 'qr')
 
     const contextChanged =
@@ -434,10 +479,98 @@ export default function EvaluationDetailPage() {
   }
 
   const canDecide = isAdmin && item && PENDING_STATUSES.includes(item.status)
-  const demurrageFromCro = item ? resolveDemurrageValidUntil(item) : null
-  const legacyManualPreAdvice = item ? isLegacyManualPreAdvice(item) : false
-  const demurrageForApproval =
-    demurrageFromCro ?? (approvalDemurrageUntil.trim() ? approvalDemurrageUntil.trim() : null)
+  const freeTimeIso = item ? resolveEvaluationFreeTimeDate(item) : null
+  const croFreeTimeExpired = Boolean(
+    item
+    && (isEvaluationFreeTimeExpired(item) || isCroFreeTimeExpired(croFreeTimeDate)),
+  )
+  const detDemPaid = detDemBilling?.status === 'Paid'
+  const approvalFreeTimeIso = approvalDemurrageUntil.trim() || null
+  const requireFreshFreeTimeOnApprove = Boolean(
+    detDemPaid || (freeTimeIso && isCroFreeTimeExpired(freeTimeIso)),
+  )
+
+  const openApproveDialog = () => {
+    setRemarks('')
+    setActionError('')
+    const draftIso = parseCroFreeTimeToIso(croFreeTimeDate.trim() || null)
+    const needFresh = Boolean(
+      detDemBilling?.status === 'Paid' || (freeTimeIso && isCroFreeTimeExpired(freeTimeIso)),
+    )
+    setApprovalDemurrageUntil(initialApprovalFreeTimeDate(freeTimeIso, draftIso, needFresh))
+    setApproveOpen(true)
+  }
+
+  const canEditCroFreeTime = Boolean(
+    isAdmin
+    && item
+    && ['Submitted', 'UnderEvaluation', 'ForCompliance'].includes(item.status),
+  )
+  const detDemBlocksApprove = Boolean(item && croFreeTimeExpired && !detDemPaid)
+  const showExpiredRejectAction = Boolean(
+    canDecide && croFreeTimeExpired && !detDemBilling,
+  )
+
+  const croEdoTabAttention = Boolean(
+    item && croEdoTabNeedsAttention(item, croFreeTimeDate, canEditCroFreeTime, detDemPaid),
+  )
+
+  const rejectEffectiveFreeTimeIso =
+    freeTimeIso ?? parseCroFreeTimeToIso(croFreeTimeDate.trim() || null)
+  const rejectFreeTimeExpired = Boolean(
+    rejectEffectiveFreeTimeIso && isCroFreeTimeExpired(rejectEffectiveFreeTimeIso),
+  )
+  const rejectCannedRemarks = item
+    ? buildEvaluationRejectCannedRemarks({
+        referenceNo: item.referenceNo,
+        containerNo: item.containerNo,
+        freeTimeIso: rejectEffectiveFreeTimeIso,
+        freeTimeExpired: rejectFreeTimeExpired,
+      })
+    : []
+
+  const beginRejectFlow = () => {
+    setRemarks('')
+    setActionError('')
+    setRejectConfirmOpen(true)
+  }
+
+  const closeRejectConfirm = () => {
+    if (submitting) return
+    setRejectConfirmOpen(false)
+  }
+
+  const proceedRejectAfterConfirm = () => {
+    setRejectConfirmOpen(false)
+    if (item) {
+      setRemarks(
+        defaultEvaluationRejectRemark({
+          referenceNo: item.referenceNo,
+          containerNo: item.containerNo,
+          freeTimeIso: rejectEffectiveFreeTimeIso,
+          freeTimeExpired: rejectFreeTimeExpired,
+        }),
+      )
+    } else {
+      setRemarks('')
+    }
+    setRejectOpen(true)
+  }
+
+  const handleSaveCroFreeTime = async () => {
+    if (!item || !croFreeTimeDate.trim()) return
+    setCroFreeTimeSaving(true)
+    setCroFreeTimeSaveError('')
+    try {
+      await evaluationApi.setCroFreeTime(item.id, croFreeTimeDate.trim())
+      const { data } = await preAdviceApi.get(item.id)
+      setItem(data)
+    } catch (err) {
+      setCroFreeTimeSaveError(apiErrorMessage(err, 'Failed to save free time date.'))
+    } finally {
+      setCroFreeTimeSaving(false)
+    }
+  }
 
   const downloadQr = async () => {
     if (!qrBooking) return
@@ -458,14 +591,22 @@ export default function EvaluationDetailPage() {
     if (!item || depotId === '') {
       return 'Please select a container yard (CY).'
     }
-    const effectiveDemurrage = demurrageFromCro ?? approvalDemurrageUntil.trim()
-    if (!effectiveDemurrage) {
-      return legacyManualPreAdvice
-        ? 'Enter demurrage free-time validity from the trucker’s uploaded legacy CRO/eDO.'
-        : 'Demurrage free-time validity must be set before approval.'
+    if (detDemBlocksApprove) {
+      return detDemBilling
+        ? 'Waiting for trucker DET-DEM receipt or ICS verification before approval.'
+        : 'CRO/eDO free time expired. Reject so the trucker can upload shipping line DET-DEM payment proof.'
     }
-    if (!demurrageFromCro && effectiveDemurrage < todayIsoDate()) {
-      return 'Demurrage validity date cannot be in the past.'
+    const approvalDate = approvalDemurrageUntil.trim()
+    if (!approvalDate) {
+      return requireFreshFreeTimeOnApprove
+        ? 'Enter a new free time date (today or later) after DET-DEM settlement.'
+        : 'Enter the free time date for empty return scheduling.'
+    }
+    if (approvalDate < todayIsoDate()) {
+      return 'Free time date must be today or later.'
+    }
+    if (freeTimeIso && isCroFreeTimeExpired(freeTimeIso) && approvalDate <= freeTimeIso) {
+      return 'Set a new free time date after the previous expired date.'
     }
     return null
   }
@@ -493,15 +634,15 @@ export default function EvaluationDetailPage() {
       setApproveConfirmOpen(false)
       return
     }
-    const effectiveDemurrage = demurrageFromCro ?? approvalDemurrageUntil.trim()
+    const approvalDate = approvalDemurrageUntil.trim()
     setSubmitting(true)
     setActionError('')
     try {
       await evaluationApi.approve({
         preAdviceId: item.id,
         depotId: Number(depotId),
+        demurrageValidUntil: approvalDate,
         remarks: remarks || undefined,
-        ...(!demurrageFromCro ? { demurrageValidUntil: effectiveDemurrage } : {}),
       })
       setApproveConfirmOpen(false)
       setApproveOpen(false)
@@ -522,9 +663,20 @@ export default function EvaluationDetailPage() {
     setSubmitting(true)
     setActionError('')
     try {
+      const savedIso = resolveEvaluationFreeTimeDate(item)
+      if (croFreeTimeDate.trim() && croFreeTimeDate.trim() !== savedIso) {
+        await evaluationApi.setCroFreeTime(item.id, croFreeTimeDate.trim())
+      }
       await evaluationApi.reject({ preAdviceId: item.id, remarks: remarks.trim() })
       setRejectOpen(false)
-      navigate('/evaluations')
+      loadDetDemBilling()
+      load()
+      if (croFreeTimeExpired) {
+        setActiveTab('croEdo')
+        setSearchParams({ tab: 'croEdo' }, { replace: true })
+      } else {
+        navigate('/evaluations')
+      }
     } catch (err) {
       setActionError(apiErrorMessage(err, 'Rejection failed.'))
     } finally {
@@ -588,18 +740,18 @@ export default function EvaluationDetailPage() {
                   sx={{ ...heroMutedChipSx, '& .MuiChip-icon': { color: 'inherit' } }}
                 />
                 <PhotoProgressChip uploaded={photoProgress.uploaded} total={photoProgress.total} />
-                {item.demurrageValidUntil && (
+                {freeTimeIso && (
                   <Chip
-                    label={`Demurrage valid until ${item.demurrageValidUntil}`}
+                    label={
+                      croFreeTimeExpired
+                        ? `Free time expired (${freeTimeIso})`
+                        : `Free time until ${freeTimeIso}`
+                    }
                     size="small"
                     sx={{
                       fontWeight: 700,
-                      bgcolor:
-                        item.demurrageValidUntil < new Date().toISOString().slice(0, 10)
-                          ? 'rgba(198, 40, 40, 0.92)'
-                          : 'rgba(255,255,255,0.95)',
-                      color:
-                        item.demurrageValidUntil < new Date().toISOString().slice(0, 10) ? '#fff' : primaryDark,
+                      bgcolor: croFreeTimeExpired ? 'rgba(198, 40, 40, 0.92)' : 'rgba(255,255,255,0.95)',
+                      color: croFreeTimeExpired ? '#fff' : primaryDark,
                     }}
                   />
                 )}
@@ -607,60 +759,54 @@ export default function EvaluationDetailPage() {
               </>
             }
             aside={
-              canDecide ? (
+              canDecide || (isAdmin && detDemBilling) ? (
                 <Box sx={{ ...listMobileActionsSx, mt: 0, flexShrink: 0 }}>
-                  <Button
-                    startIcon={<CancelIcon />}
-                    variant="outlined"
-                    onClick={() => {
-                      setRemarks('')
-                      setActionError('')
-                      setRejectOpen(true)
-                    }}
-                    sx={{
-                      color: '#fff',
-                      borderColor: 'rgba(255,255,255,0.45)',
-                      fontWeight: 600,
-                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
-                    }}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    startIcon={<AssignmentReturnIcon />}
-                    variant="outlined"
-                    onClick={() => {
-                      setRemarks('')
-                      setActionError('')
-                      setComplianceOpen(true)
-                    }}
-                    sx={{
-                      color: '#fff',
-                      borderColor: 'rgba(255,255,255,0.45)',
-                      fontWeight: 600,
-                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
-                    }}
-                  >
-                    Return for compliance
-                  </Button>
-                  <Button
-                    startIcon={<CheckCircleIcon />}
-                    variant="contained"
-                    onClick={() => {
-                      setRemarks('')
-                      setActionError('')
-                      setApprovalDemurrageUntil(item?.demurrageValidUntil ?? '')
-                      setApproveOpen(true)
-                    }}
-                    sx={{
-                      bgcolor: '#fff',
-                      color: primaryDark,
-                      fontWeight: 700,
-                      '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' },
-                    }}
-                  >
-                    Approve
-                  </Button>
+                  {canDecide && (
+                    <Button
+                      startIcon={<CancelIcon />}
+                      variant="outlined"
+                      color="error"
+                      onClick={beginRejectFlow}
+                      sx={listHeroOutlineActionSx}
+                    >
+                      Reject
+                    </Button>
+                  )}
+                  {isAdmin && detDemBilling && (
+                    <Button
+                      component={RouterLink}
+                      to={demurrageBillingDetailPath(detDemBilling.id, detDemAudience)}
+                      variant="outlined"
+                      sx={listHeroOutlineActionSx}
+                    >
+                      DET-DEM
+                    </Button>
+                  )}
+                  {canDecide && !croFreeTimeExpired && (
+                    <Button
+                      startIcon={<AssignmentReturnIcon />}
+                      variant="outlined"
+                      onClick={() => {
+                        setRemarks('')
+                        setActionError('')
+                        setComplianceOpen(true)
+                      }}
+                      sx={listHeroOutlineActionSx}
+                    >
+                      Return for compliance
+                    </Button>
+                  )}
+                  {canDecide && (
+                    <Button
+                      startIcon={<CheckCircleIcon />}
+                      variant="contained"
+                      disabled={detDemBlocksApprove}
+                      onClick={openApproveDialog}
+                      sx={listHeroPrimaryActionSx}
+                    >
+                      Approve
+                    </Button>
+                  )}
                 </Box>
               ) : schedule?.date ? (
                 <DetailHeroAside
@@ -674,6 +820,34 @@ export default function EvaluationDetailPage() {
 
           <EvaluationProgressStrip steps={progressSteps} />
 
+          {detDemBlocksApprove && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2, borderRadius: 2 }}
+              action={
+                showExpiredRejectAction ? (
+                  <Button color="inherit" size="small" sx={{ fontWeight: 700 }} onClick={beginRejectFlow}>
+                    Reject
+                  </Button>
+                ) : detDemBilling ? (
+                  <Button
+                    component={RouterLink}
+                    size="small"
+                    color="inherit"
+                    sx={{ fontWeight: 700 }}
+                    to={demurrageBillingDetailPath(detDemBilling.id, detDemAudience)}
+                  >
+                    Open DET-DEM
+                  </Button>
+                ) : undefined
+              }
+            >
+              {detDemBilling
+                ? `CRO/eDO free time expired. DET-DEM ${detDemBilling.referenceNo} is linked — trucker uploads shipping line receipt; approve after ICS verifies.`
+                : 'CRO/eDO free time expired. Reject to notify the trucker and link DET-DEM for shipping line payment proof.'}
+            </Alert>
+          )}
+
           <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
             <Tabs
               value={activeTab}
@@ -684,13 +858,52 @@ export default function EvaluationDetailPage() {
               sx={detailTabsSx}
             >
               <Tab label="Full overview" value="overview" />
+              <Tab
+                value="croEdo"
+                sx={{
+                  minWidth: { xs: 132, sm: 152 },
+                  ...(croEdoTabAttention && {
+                    pr: { xs: 2.75, sm: 3.25 },
+                    mr: { xs: 0.5, sm: 0.75 },
+                  }),
+                }}
+                label={
+                  <Badge
+                    color="error"
+                    badgeContent="!"
+                    invisible={!croEdoTabAttention}
+                    sx={{
+                      '& .MuiBadge-badge': {
+                        fontWeight: 800,
+                        fontSize: '0.65rem',
+                        minWidth: 18,
+                        height: 18,
+                        padding: '0 4px',
+                        right: 2,
+                        top: 4,
+                      },
+                    }}
+                  >
+                    <Box
+                      component="span"
+                      sx={{
+                        display: 'inline-block',
+                        pr: croEdoTabAttention ? 2.5 : 0,
+                      }}
+                    >
+                      CRO / eDO
+                    </Box>
+                  </Badge>
+                }
+              />
               {showScheduleTabs ? <Tab label="Return schedule" value="schedule" /> : null}
               {showScheduleTabs ? <Tab label={LOGICTECK_QR.tabLabel} value="qr" /> : null}
-              <Tab label="Request details" value="details" />
+              <Tab label="Container details" value="details" />
               <Tab
                 label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
                 value="photos"
               />
+              <Tab label="Activity log" value="activity" />
             </Tabs>
 
             <EvaluationDetailTabPanels
@@ -708,6 +921,18 @@ export default function EvaluationDetailPage() {
               onReloadDocuments={loadDocuments}
               onDownloadQr={downloadQr}
               onQrPreview={openQrPreview}
+              croFreeTimeDate={croFreeTimeDate}
+              onCroFreeTimeDateChange={setCroFreeTimeDate}
+              canEditCroFreeTime={canEditCroFreeTime}
+              croFreeTimeSaving={croFreeTimeSaving}
+              croFreeTimeSaveError={croFreeTimeSaveError}
+              onSaveCroFreeTime={() => void handleSaveCroFreeTime()}
+              detDemBilling={detDemBilling}
+              detDemDetailPath={
+                detDemBilling ? demurrageBillingDetailPath(detDemBilling.id, detDemAudience) : null
+              }
+              onOpenRejectExpired={beginRejectFlow}
+              showExpiredRejectAction={showExpiredRejectAction}
             />
           </Paper>
         </>
@@ -749,33 +974,38 @@ export default function EvaluationDetailPage() {
             )}
 
             <Stack spacing={1.5}>
-              {demurrageFromCro ? (
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Demurrage valid until"
-                  value={demurrageFromCro}
-                  disabled
-                  sx={fieldSx}
-                />
-              ) : (
-                <TextField
-                  fullWidth
-                  size="small"
-                  required
-                  label="Demurrage valid until"
-                  type="date"
-                  value={approvalDemurrageUntil}
-                  onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
-                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayIsoDate() } }}
-                  helperText={
-                    legacyManualPreAdvice
-                      ? 'Read this date from the uploaded legacy CRO/eDO above.'
-                      : 'Enter free-time end date from the CRO/eDO.'
-                  }
-                  sx={fieldSx}
-                />
+              {requireFreshFreeTimeOnApprove && (
+                <Alert severity="info" sx={{ borderRadius: 2 }}>
+                  {detDemPaid
+                    ? 'DET-DEM is settled. Enter a new CRO/eDO free time date (today or later) for empty return scheduling.'
+                    : 'Free time expired. After DET-DEM is verified, enter a new free time date here before approving.'}
+                </Alert>
               )}
+              {freeTimeIso && isCroFreeTimeExpired(freeTimeIso) && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  Previous free time expired: {formatDate(freeTimeIso)}
+                </Typography>
+              )}
+              {freeTimeIso && !isCroFreeTimeExpired(freeTimeIso) && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  Current saved free time: {formatDate(freeTimeIso)} — confirm or update below.
+                </Typography>
+              )}
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Free time valid until"
+                required
+                value={approvalDemurrageUntil}
+                onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { min: todayIsoDate() },
+                }}
+                sx={fieldSx}
+                helperText="Required on every approval so the trucker can book empty return within demurrage validity."
+              />
 
               <FormControl fullWidth size="small" required sx={fieldSx} disabled={allocationsLoading}>
                 <InputLabel>Container yard (CY)</InputLabel>
@@ -847,7 +1077,7 @@ export default function EvaluationDetailPage() {
             variant="contained"
             color="success"
             onClick={openApproveConfirm}
-            disabled={submitting || !demurrageForApproval || depotId === ''}
+            disabled={submitting || !approvalFreeTimeIso || depotId === ''}
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             Review & approve
@@ -864,7 +1094,7 @@ export default function EvaluationDetailPage() {
         <DialogTitle sx={{ fontWeight: 700 }}>Confirm approval</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Check demurrage date and CY assignment before submitting.
+            Confirm the new free time date and CY assignment before submitting.
           </Typography>
           {item && (
             <Stack spacing={1.25}>
@@ -881,10 +1111,10 @@ export default function EvaluationDetailPage() {
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Demurrage valid until
+                  Free time valid until
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {demurrageForApproval ? formatDate(demurrageForApproval) : '—'}
+                  {approvalFreeTimeIso ? formatDate(approvalFreeTimeIso) : '—'}
                 </Typography>
               </Box>
               <Box>
@@ -922,7 +1152,34 @@ export default function EvaluationDetailPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={rejectOpen} onClose={() => setRejectOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={rejectConfirmOpen} onClose={closeRejectConfirm} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Confirm rejection?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: croFreeTimeExpired ? 2 : 0 }}>
+            You are about to reject this pre-forecast. This cannot be undone from this screen — the trucker will be
+            notified.
+          </Typography>
+          {croFreeTimeExpired && (
+            <Alert severity="warning" sx={{ borderRadius: 2 }}>
+              CRO/eDO free time is expired. Rejecting links a DET-DEM record for the trucker to upload shipping line
+              payment proof.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeRejectConfirm}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={proceedRejectAfterConfirm}
+            sx={{ fontWeight: 700, borderRadius: 2 }}
+          >
+            Yes, continue
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={rejectOpen} onClose={() => !submitting && setRejectOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>Reject pre-forecast</DialogTitle>
         <DialogContent>
           {item && (
@@ -945,10 +1202,42 @@ export default function EvaluationDetailPage() {
               </Typography>
             </Paper>
           )}
+          {croFreeTimeExpired && (
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+              Free time expired — rejecting will create DET-DEM billing so the trucker can attach payment and settle
+              before filing again.
+            </Alert>
+          )}
           {actionError && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
               {actionError}
             </Alert>
+          )}
+          {rejectCannedRemarks.length > 0 && (
+            <Box sx={{ mt: 1, mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Canned response
+                {rejectEffectiveFreeTimeIso
+                  ? rejectFreeTimeExpired
+                    ? ` · free time expired ${formatDate(rejectEffectiveFreeTimeIso)}`
+                    : ` · valid until ${formatDate(rejectEffectiveFreeTimeIso)}`
+                  : ' · no free time date'}
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {rejectCannedRemarks.map((canned) => (
+                  <Chip
+                    key={canned.id}
+                    label={canned.label}
+                    size="small"
+                    clickable
+                    variant={remarks === canned.text ? 'filled' : 'outlined'}
+                    color={remarks === canned.text ? 'primary' : 'default'}
+                    onClick={() => setRemarks(canned.text)}
+                    sx={{ fontWeight: 600 }}
+                  />
+                ))}
+              </Box>
+            </Box>
           )}
           <TextField
             fullWidth
@@ -959,7 +1248,7 @@ export default function EvaluationDetailPage() {
             required
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            helperText="Explain why this request is rejected."
+            helperText="A canned message is pre-filled from free time status; edit or pick another chip above."
             sx={fieldSx}
           />
         </DialogContent>

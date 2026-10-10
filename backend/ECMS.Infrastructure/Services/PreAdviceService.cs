@@ -25,6 +25,7 @@ public class PreAdviceService : IPreAdviceService
     private readonly INotificationService _notifications;
     private readonly IDemurrageBillingService _demurrageBilling;
     private readonly IContainerReleaseOrderService _croEdo;
+    private readonly IPortalSettingsService _portalSettings;
     private readonly IMemoryCache _cache;
     private readonly IUploadUrlSigner _uploadUrlSigner;
     private readonly string _uploadRoot;
@@ -36,6 +37,7 @@ public class PreAdviceService : IPreAdviceService
         INotificationService notifications,
         IDemurrageBillingService demurrageBilling,
         IContainerReleaseOrderService croEdo,
+        IPortalSettingsService portalSettings,
         IMemoryCache cache,
         IUploadUrlSigner uploadUrlSigner,
         IConfiguration configuration,
@@ -46,6 +48,7 @@ public class PreAdviceService : IPreAdviceService
         _notifications = notifications;
         _demurrageBilling = demurrageBilling;
         _croEdo = croEdo;
+        _portalSettings = portalSettings;
         _cache = cache;
         _uploadUrlSigner = uploadUrlSigner;
         _uploadRoot = Path.Combine(
@@ -125,7 +128,13 @@ public class PreAdviceService : IPreAdviceService
         return ids.ToHashSet();
     }
 
-    private sealed record PreAdviceQrInfo(int QrBookingId, string QrCode, string LogicteckStatus);
+    private sealed record PreAdviceQrInfo(
+        int QrBookingId,
+        string QrCode,
+        string LogicteckStatus,
+        string? LogicteckLocation,
+        string? LogicteckUpdateMessage,
+        DateTime? LogicteckUpdatedAt);
 
     private async Task<Dictionary<int, PreAdviceQrInfo>> LoadQrInfoByPreAdviceIdsAsync(
         IReadOnlyList<int> preAdviceIds,
@@ -144,6 +153,10 @@ public class PreAdviceService : IPreAdviceService
                 q.Schedule.PreAdviceId,
                 q.IsUsed,
                 q.LogicteckBookedAt,
+                q.LogicteckUpdateStatus,
+                q.LogicteckUpdateLocation,
+                q.LogicteckUpdateMessage,
+                q.LogicteckUpdatedAt,
             })
             .ToListAsync(cancellationToken);
 
@@ -152,11 +165,15 @@ public class PreAdviceService : IPreAdviceService
             r => new PreAdviceQrInfo(
                 r.Id,
                 r.QRCode,
-                ResolveLogicteckStatus(r.IsUsed, r.LogicteckBookedAt)));
+                ResolveLogicteckStatus(r.IsUsed, r.LogicteckBookedAt, r.LogicteckUpdateStatus),
+                r.LogicteckUpdateLocation,
+                r.LogicteckUpdateMessage,
+                r.LogicteckUpdatedAt));
     }
 
-    private static string ResolveLogicteckStatus(bool isUsed, DateTime? logicteckBookedAt)
+    private static string ResolveLogicteckStatus(bool isUsed, DateTime? logicteckBookedAt, string? updateStatus)
     {
+        if (!string.IsNullOrWhiteSpace(updateStatus)) return updateStatus;
         if (isUsed) return "Retrieved";
         if (logicteckBookedAt.HasValue) return "Booked";
         return "Available";
@@ -173,6 +190,10 @@ public class PreAdviceService : IPreAdviceService
     {
         if (string.IsNullOrWhiteSpace(request.CroVerificationToken))
             return await CreateLegacyManualAsync(request, truckerId, cancellationToken);
+
+        if (!await _portalSettings.IsIcsCroEdoQrEnabledAsync(cancellationToken))
+            throw new InvalidOperationException(
+                "ICS CRO/eDO QR linking is not enabled. Enter container details manually and upload your CRO/eDO document.");
 
         var croLink = await _croEdo.ResolveIssuedLinkAsync(request.CroVerificationToken.Trim(), cancellationToken)
             ?? throw new InvalidOperationException("CRO/eDO could not be verified. Upload a valid issued document and try again.");
@@ -958,9 +979,13 @@ public class PreAdviceService : IPreAdviceService
             .FirstOrDefaultAsync(t => t.Id == containerTypeId && t.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("Invalid container type.");
 
-        var normalizedNo = PreAdviceDuplicateGuard.NormalizeContainerNo(containerNo);
+        var normalizedNo = Iso6346ContainerNumber.Normalize(containerNo);
         if (string.IsNullOrWhiteSpace(normalizedNo))
             throw new InvalidOperationException("Container number is required.");
+
+        var isoError = Iso6346ContainerNumber.GetValidationError(normalizedNo);
+        if (isoError is not null)
+            throw new InvalidOperationException(isoError);
 
         return new CatalogSelection(normalizedNo, size.Label, type.Code);
     }
@@ -1134,7 +1159,10 @@ public class PreAdviceService : IPreAdviceService
         qrInfo?.LogicteckStatus,
         p.Evaluation?.EvaluatedAt,
         p.Schedule?.Status.ToString(),
-        croEdoContext);
+        croEdoContext,
+        qrInfo?.LogicteckLocation,
+        qrInfo?.LogicteckUpdateMessage,
+        qrInfo?.LogicteckUpdatedAt);
 
     private string SignAssetPath(string path) => _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
 
