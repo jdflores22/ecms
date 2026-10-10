@@ -1,0 +1,1 @@
+import{c as t}from"./vendor-Dz-89OgX.js";import{u as a,bx as p}from"./index-DAgZ_C5Z.js";import{N as e}from"./react-vendor-DApJ1896.js";import"./mui-Bf3U7kQ5.js";function m(){const r=a(o=>o.auth.user);return r!=null&&r.role?t.jsx(e,{to:p(r.role),replace:!0}):t.jsx(e,{to:"/login",replace:!0})}export{m as default};
