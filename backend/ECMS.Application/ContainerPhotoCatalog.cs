@@ -29,8 +29,13 @@ public static class ContainerPhotoCatalog
         ContainerPhotoCategory.Damage => "Damage",
         ContainerPhotoCategory.Others => "Others (optional)",
         ContainerPhotoCategory.CroEdo => "CRO / eDO",
+        ContainerPhotoCategory.CscPlate => "CSC plate",
         _ => category.ToString(),
     };
+
+    /// <summary>Standard container views plus CSC plate — all required before submit.</summary>
+    public static readonly ContainerPhotoCategory[] RequiredIdentityPhotos =
+        StandardViews.Concat(new[] { ContainerPhotoCategory.CscPlate }).ToArray();
 
     public static bool TryParse(string? value, out ContainerPhotoCategory category)
     {
@@ -45,12 +50,14 @@ public static class ContainerPhotoCatalog
         => StandardViews.Contains(category);
 
     public static bool IsIdentityGridSlot(ContainerPhotoCategory category)
-        => IsStandardView(category) || category == ContainerPhotoCategory.Others;
+        => IsStandardView(category)
+           || category == ContainerPhotoCategory.CscPlate
+           || category == ContainerPhotoCategory.Others;
 
     public static bool AllowsMultiple(ContainerPhotoCategory category)
         => category == ContainerPhotoCategory.Damage;
 
-    /// <summary>Sort identity photos: 8 standard views, optional Others, then damage.</summary>
+    /// <summary>Sort identity photos: 8 standard views, CSC plate, optional Others, then damage.</summary>
     public static int GetDisplaySortOrder(ContainerPhotoCategory? category)
     {
         if (!category.HasValue) return 999;
@@ -58,6 +65,7 @@ public static class ContainerPhotoCatalog
         if (index >= 0) return index;
         return category.Value switch
         {
+            ContainerPhotoCategory.CscPlate => 95,
             ContainerPhotoCategory.Others => 100,
             ContainerPhotoCategory.CroEdo => 150,
             ContainerPhotoCategory.Damage => 200,

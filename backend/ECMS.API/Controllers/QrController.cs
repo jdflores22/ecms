@@ -1,11 +1,13 @@
 using System.Security.Claims;
 using ECMS.API.Filters;
+using ECMS.Application.Configuration;
 using ECMS.Application.DTOs.QR;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace ECMS.API.Controllers;
 
@@ -77,6 +79,18 @@ public class QrController : ControllerBase
         var result = await _service.BookLogicteckAsync(bookingId, UserId, Role, cancellationToken);
         return result.Success ? Ok(result) : BadRequest(result);
     }
+
+    /// <summary>Trucker UI — LOGICTECK new-return deep link base URL (confirm booking on LOGICTECK).</summary>
+    [HttpGet("logicteck-handoff")]
+    [Authorize]
+    public ActionResult<LogicteckHandoffUiDto> GetLogicteckHandoff([FromServices] IOptions<LogicteckOptions> logicteck)
+    {
+        var options = logicteck.Value;
+        return Ok(new LogicteckHandoffUiDto(
+            options.ResolveNewReturnUrl(),
+            string.IsNullOrWhiteSpace(options.IcsRefQueryParam) ? "icsRef" : options.IcsRefQueryParam.Trim(),
+            !string.IsNullOrWhiteSpace(options.BookUrl)));
+    }
 }
 
 [ApiController]
@@ -129,6 +143,29 @@ public class LogicteckController : ControllerBase
 
         var result = await _service.LookupDossierForLogicteckAsync(qrCode, cancellationToken);
         return result!.Found ? Ok(result) : NotFound(result);
+    }
+
+    /// <summary>
+    /// LOGICTECK calls after the trucker confirms the empty return on your new-return screen.
+    /// Sets <c>isBooked</c> on ICS without ICS pushing data via BookUrl.
+    /// </summary>
+    [HttpPost("ack-booking")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AckLogicteckBookingResponse>> AckBooking(
+        [FromBody] AckLogicteckBookingRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.QrCode))
+        {
+            return BadRequest(new AckLogicteckBookingResponse(
+                false, false, "qrCode is required.", null, null, false));
+        }
+
+        var result = await _service.AckLogicteckBookingAsync(request, cancellationToken);
+        if (!result.Accepted && result.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
+            return NotFound(result);
+
+        return result.Accepted ? Ok(result) : BadRequest(result);
     }
 
     /// <summary>LOGICTECK posts each container status change. Tagged yards only.</summary>

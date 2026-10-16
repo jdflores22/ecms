@@ -21,7 +21,7 @@ import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import axios from 'axios'
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import PaymentProgressStrip, { buildPaymentProgressSteps } from '../../components/trucker/PaymentProgressStrip'
 import {
@@ -31,15 +31,16 @@ import {
   DetailHeroAside,
   DetailLoadingState,
   ICS_PRIMARY,
-  InfoTile,
   TimezoneChip,
   hexToRgba,
-  infoGridSx,
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
 import { DialogBusySkeleton } from '../../components/layout/SkeletonPrimitives'
 import AssetImage from '../../components/layout/AssetImage'
+import PreAdviceBackToBackChip from '../../components/preAdvice/PreAdviceBackToBackChip'
+import { preAdviceUnitRoleLabel } from '../../components/preAdvice/preAdviceUnitSectionSx'
 import { paymentApi, preAdviceApi, qrApi, scheduleApi, type Payment, type PreAdvice, type QrBooking, type ReturnPaymentOptions, type Schedule } from '../../services/api'
+import { getPreAdviceContainerUnit } from '../../utils/preAdviceContainerUnit'
 import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 import { useAssetUrl } from '../../hooks/useAssetUrl'
@@ -48,15 +49,23 @@ import {
   formatTruckerScheduleSlot,
   isScheduleDetailsVisible,
   truckerScheduleStatusHint,
+  truckerScheduleStatusLabel,
 } from '../../utils/truckerSchedule'
 import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 import { extractPaymentProofMetadata } from '../../utils/paymentProofOcr'
+import {
+  confirmedPreForecastCopy,
+  confirmedPreForecastLines,
+  formatConfirmedPreForecastValue,
+} from '../../config/confirmedPreForecast'
+import { formatContainerSizeTypeLine } from '../../utils/preAdviceContainerUnit'
 import {
   needsPaymentUpload,
   paymentStatusColor,
   paymentStatusLabel,
   resolvePaymentStatus,
   showPaymentStatus,
+  paymentHeroSubtitle,
   truckerPaymentDisplayAmount,
 } from '../../utils/truckerPayment'
 
@@ -80,6 +89,50 @@ const mobileAlertSx = {
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
+}
+
+const paymentDetailsGridSx = {
+  display: 'grid',
+  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+  gap: { xs: 1.5, sm: 2 },
+  columnGap: { xs: 1.5, sm: 3 },
+  alignItems: 'start',
+} as const
+
+function PaymentSummaryField({
+  label,
+  value,
+  mono,
+  span = 1,
+}: {
+  label: string
+  value: ReactNode
+  mono?: boolean
+  span?: 1 | 2
+}) {
+  return (
+    <Box sx={{ gridColumn: span === 2 ? { xs: '1', sm: '1 / -1' } : undefined, minWidth: 0 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        component="div"
+        variant="body2"
+        sx={{
+          mt: 0.5,
+          fontWeight: 600,
+          wordBreak: 'break-word',
+          ...(mono && { fontFamily: 'monospace' }),
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  )
 }
 
 const uploadDropzoneSx = {
@@ -129,11 +182,12 @@ function statusAlert(
   paymentStatus: string,
   paymentUploadNeeded: boolean,
   scheduleStatus: string,
+  isBackToBack: boolean,
 ): { severity: 'warning' | 'info' | 'error' | 'success'; message: string } | null {
   if (paymentUploadNeeded && paymentStatus === 'Pending') {
     return {
       severity: 'warning',
-      message: 'Payment is required. Complete payment in the panel on the right.',
+      message: 'Upload or complete payment in the panel on the right to continue.',
     }
   }
   if (paymentStatus === 'ForVerification') {
@@ -145,8 +199,9 @@ function statusAlert(
   if (paymentStatus === 'Paid') {
     return {
       severity: 'success',
-      message:
-        'Payment verified. Your booking confirmation PDF is ready to download, and the booking QR is published for depot gate-in.',
+      message: isBackToBack
+        ? confirmedPreForecastCopy.paidAlertBackToBack
+        : confirmedPreForecastCopy.paidAlertSingle,
     }
   }
   return null
@@ -299,10 +354,39 @@ export default function TruckerPaymentUploadPage() {
     paymentStatus,
     Boolean(payment?.proofFile || file),
     paymentUploadNeeded,
+    { isBackToBack: Boolean(preAdvice?.isBackToBack) },
   )
 
   const contextualAlert =
-    schedule && showPaymentContent ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status) : null
+    schedule && showPaymentContent && preAdvice
+      ? statusAlert(paymentStatus, paymentUploadNeeded, schedule.status, Boolean(preAdvice.isBackToBack))
+      : null
+
+  const confirmedPreForecastSummaryLines =
+    preAdvice
+      ? confirmedPreForecastLines(
+          preAdvice,
+          preAdviceUnitRoleLabel('primary', 'containerAb'),
+          preAdviceUnitRoleLabel('companion', 'containerAb'),
+          formatContainerSizeTypeLine,
+        )
+      : []
+
+  const primaryContainerUnit = preAdvice ? getPreAdviceContainerUnit(preAdvice, 'Primary') : null
+  const companionContainerUnit =
+    preAdvice?.isBackToBack && preAdvice ? getPreAdviceContainerUnit(preAdvice, 'Companion') : null
+
+  const returnScheduleAside =
+    schedule && !isScheduleDetailsVisible(schedule)
+      ? (() => {
+          const primary = truckerScheduleStatusLabel(schedule)
+          const hint = truckerScheduleStatusHint(schedule)
+          return {
+            primary,
+            secondary: hint && hint !== primary ? hint : undefined,
+          }
+        })()
+      : null
 
   const pilotActive = Boolean(paymentOptions?.pilotTestingActive)
   const displayAmount = truckerPaymentDisplayAmount(payment, {
@@ -358,7 +442,7 @@ export default function TruckerPaymentUploadPage() {
     try {
       await downloadBookingConfirmationPdf(qrBooking.id, qrBooking.qrCode)
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to download booking confirmation PDF.')
+      setActionError(err instanceof Error ? err.message : confirmedPreForecastCopy.downloadFailed)
     } finally {
       setPdfLoading(false)
     }
@@ -430,12 +514,13 @@ export default function TruckerPaymentUploadPage() {
             title={`Payment — ${schedule.referenceNo}`}
             subtitle={
               <>
-                {preAdvice.containerNo}
+                {paymentHeroSubtitle(preAdvice)}
                 {isScheduleDetailsVisible(schedule) ? ` · ${schedule.depotName}` : ''}
               </>
             }
             chips={
               <>
+                <PreAdviceBackToBackChip item={preAdvice} />
                 {paymentVisible && (
                   <Chip
                     label={paymentStatusLabel[paymentStatus] ?? paymentStatus}
@@ -453,8 +538,12 @@ export default function TruckerPaymentUploadPage() {
                   primary={formatScheduleSlot(schedule.date, schedule.time)}
                   secondary={schedule.slotNo > 0 ? `Slot ${schedule.slotNo}` : undefined}
                 />
-              ) : !isScheduleDetailsVisible(schedule) ? (
-                <DetailHeroAside label="Return schedule" primary={truckerScheduleStatusHint(schedule)} />
+              ) : returnScheduleAside ? (
+                <DetailHeroAside
+                  label="Return schedule"
+                  primary={returnScheduleAside.primary}
+                  secondary={returnScheduleAside.secondary}
+                />
               ) : undefined
             }
           />
@@ -501,11 +590,22 @@ export default function TruckerPaymentUploadPage() {
                 >
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                      Booking confirmation PDF
+                      {confirmedPreForecastCopy.pdfTitle}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                      Generated after payment approval · {qrBooking.qrCode}
+                      {confirmedPreForecastCopy.pdfSubtitle} · {qrBooking.qrCode}
                     </Typography>
+                    {confirmedPreForecastSummaryLines.map((line) => (
+                      <Typography
+                        key={line.roleLabel}
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 0.75, fontWeight: 600 }}
+                      >
+                        {confirmedPreForecastCopy.label} ({line.roleLabel}):{' '}
+                        {formatConfirmedPreForecastValue(line)}
+                      </Typography>
+                    ))}
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                     <Button
@@ -612,31 +712,71 @@ export default function TruckerPaymentUploadPage() {
                     />
                   </Paper>
 
-                  <Box sx={infoGridSx}>
-                    <InfoTile label="Reference" value={schedule.referenceNo} mono />
-                    <InfoTile label="Container" value={preAdvice.containerNo} mono />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.25 }}>
+                    Payment details
+                  </Typography>
+                  <Box sx={paymentDetailsGridSx}>
+                    <PaymentSummaryField label="Reference" value={schedule.referenceNo} mono />
+                    {paymentStatus === 'Paid' ? (
+                      confirmedPreForecastSummaryLines.map((line) => (
+                        <PaymentSummaryField
+                          key={line.roleLabel}
+                          label={`${confirmedPreForecastCopy.label} (${line.roleLabel})`}
+                          value={formatConfirmedPreForecastValue(line)}
+                          mono
+                          span={preAdvice.isBackToBack ? 2 : 1}
+                        />
+                      ))
+                    ) : preAdvice.isBackToBack && primaryContainerUnit && companionContainerUnit ? (
+                      <>
+                        <PaymentSummaryField
+                          label="Pre-forecast type"
+                          value="Back-to-back (2 containers)"
+                        />
+                        <PaymentSummaryField
+                          label={preAdviceUnitRoleLabel('primary', 'containerAb')}
+                          value={primaryContainerUnit.containerNo}
+                          mono
+                        />
+                        <PaymentSummaryField
+                          label={preAdviceUnitRoleLabel('companion', 'containerAb')}
+                          value={companionContainerUnit.containerNo}
+                          mono
+                        />
+                      </>
+                    ) : (
+                      <PaymentSummaryField label="Container" value={preAdvice.containerNo} mono />
+                    )}
                     {isScheduleDetailsVisible(schedule) ? (
                       <>
-                        <InfoTile label="Depot (CY)" value={schedule.depotName} />
+                        <PaymentSummaryField label="Depot (CY)" value={schedule.depotName} />
                         {schedule.date && (
-                          <InfoTile label="Return slot" value={formatScheduleSlot(schedule.date, schedule.time)} />
+                          <PaymentSummaryField
+                            label="Return slot"
+                            value={formatScheduleSlot(schedule.date, schedule.time)}
+                          />
                         )}
                         {schedule.depotRemarks && (
-                          <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-                            <InfoTile label="Depot remarks" value={schedule.depotRemarks} />
-                          </Box>
+                          <PaymentSummaryField
+                            label="Depot remarks"
+                            value={schedule.depotRemarks}
+                            span={2}
+                          />
                         )}
                       </>
                     ) : (
-                      <InfoTile
+                      <PaymentSummaryField
                         label="Return schedule"
                         value={formatTruckerScheduleSlot(schedule, formatScheduleSlot)}
+                        span={2}
                       />
                     )}
                     {payment?.paidAt && (
-                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-                        <InfoTile label="Last uploaded" value={formatDateTime(payment.paidAt)} />
-                      </Box>
+                      <PaymentSummaryField
+                        label="Last uploaded"
+                        value={formatDateTime(payment.paidAt)}
+                        span={2}
+                      />
                     )}
                   </Box>
                 </Paper>
@@ -737,8 +877,8 @@ export default function TruckerPaymentUploadPage() {
                         color="text.secondary"
                         sx={{ mb: 2, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                       >
-                        Confirm your pre-forecast fee of {formatPeso(displayAmount)}. Your booking confirmation PDF and
-                        QR will be issued right away.
+                        Confirm your pre-forecast fee of {formatPeso(displayAmount)}.{' '}
+                        {confirmedPreForecastCopy.pilotFeeConfirm}
                       </Typography>
                       <Button
                         fullWidth
@@ -998,14 +1138,25 @@ export default function TruckerPaymentUploadPage() {
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {schedule?.referenceNo}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {preAdvice?.containerNo} · {schedule?.depotName}
+                <Typography variant="caption" color="text.secondary" component="div">
+                  {preAdvice?.isBackToBack && primaryContainerUnit && companionContainerUnit
+                    ? `${primaryContainerUnit.containerNo} + ${companionContainerUnit.containerNo}`
+                    : preAdvice?.containerNo}
+                  {schedule?.depotName ? ` · ${schedule.depotName}` : ''}
                 </Typography>
+                {preAdvice?.isBackToBack ? (
+                  <Chip
+                    label="Back-to-back"
+                    size="small"
+                    sx={{ mt: 1, fontWeight: 700, height: 22, fontSize: '0.7rem' }}
+                  />
+                ) : null}
               </Paper>
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
-                Please confirm the pre-forecasted fee and proof file below. The depot will review your upload before
-                confirming your return.
+                {preAdvice?.isBackToBack
+                  ? 'Please confirm the pre-forecasted fee for this back-to-back return (two containers) and your proof file below. The depot will review your upload before confirming your return.'
+                  : 'Please confirm the pre-forecasted fee and proof file below. The depot will review your upload before confirming your return.'}
               </Typography>
 
               <Paper

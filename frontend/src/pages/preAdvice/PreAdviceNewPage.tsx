@@ -41,18 +41,22 @@ const emptyForm: PreAdviceFormValues = {
   containerSizeId: '',
   containerTypeId: '',
   remarks: '',
+  isBackToBack: false,
+  backToBackCompanionContainerNo: '',
+  backToBackCompanionContainerSizeId: '',
+  backToBackCompanionContainerTypeId: '',
 }
 
 const icsWorkflowSteps = [
-  'Attach the issued CRO/eDO so the system can read the QR and fill container details.',
-  'Confirm the auto-filled shipping line, container, size, and type.',
-  'Save as draft — then add identity photos and submit from the detail page.',
+  'In the primary section, attach the ICS CRO/eDO (QR) — details auto-fill for the first container.',
+  'If back-to-back, enter the companion container and attach its CRO/eDO in the second section.',
+  'Save as draft, add identity photos on the detail page, then submit.',
 ]
 
 const manualWorkflowSteps = [
-  'Upload a copy of your CRO/eDO and enter container details manually.',
+  'Enter container details and attach CRO/eDO in each container section (two sections when back-to-back).',
   'Save as draft, then add identity photos on the detail page.',
-  'Submit when complete. The evaluator will review your uploaded CRO/eDO.',
+  'Submit when complete. The evaluator will review your CRO/eDO copies.',
 ]
 
 function norm(value: string) {
@@ -114,6 +118,10 @@ function mapCroLineToForm(
       containerSizeId: size.id,
       containerTypeId: type.id,
       remarks: '',
+      isBackToBack: false,
+      backToBackCompanionContainerNo: '',
+      backToBackCompanionContainerSizeId: '',
+      backToBackCompanionContainerTypeId: '',
     },
   }
 }
@@ -130,7 +138,8 @@ export default function PreAdviceNewPage() {
   const [entryMode, setEntryMode] = useState<PreForecastEntryMode>('ics')
   const [formInitial, setFormInitial] = useState<PreAdviceFormValues>(emptyForm)
   const [croLink, setCroLink] = useState<CroEdoAttachSuccess | null>(null)
-  const [legacyFile, setLegacyFile] = useState<File | null>(null)
+  const [legacyPrimaryFile, setLegacyPrimaryFile] = useState<File | null>(null)
+  const [legacyCompanionFile, setLegacyCompanionFile] = useState<File | null>(null)
 
   const effectiveEntryMode: PreForecastEntryMode =
     icsCroEdoQrEnabled ? entryMode : 'legacy'
@@ -176,8 +185,8 @@ export default function PreAdviceNewPage() {
     effectiveEntryMode === 'ics' ? icsWorkflowSteps : manualWorkflowSteps
 
   const heroSubtitle = effectiveEntryMode === 'ics'
-    ? 'Attach your ICS CRO/eDO first. Free demurrage time and container details come from the verified document.'
-    : 'Enter container details manually and upload a clear photo or PDF of your issued CRO/eDO.'
+    ? 'Attach CRO/eDO per container in the form below. ICS QR fills the primary unit; back-to-back needs a separate CRO/eDO for the companion.'
+    : 'Enter each container and attach its CRO/eDO in the matching section so uploads are not swapped.'
 
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
@@ -192,7 +201,8 @@ export default function PreAdviceNewPage() {
     setEntryMode(mode)
     setError('')
     setCroLink(null)
-    setLegacyFile(null)
+    setLegacyPrimaryFile(null)
+    setLegacyCompanionFile(null)
     resetFormFields()
   }
 
@@ -225,8 +235,16 @@ export default function PreAdviceNewPage() {
       setError('Attach and verify a CRO/eDO before creating the pre-forecast.')
       return
     }
-    if (effectiveEntryMode === 'legacy' && !legacyFile) {
-      setError('Upload a copy of your CRO/eDO document before creating the pre-forecast.')
+    if (effectiveEntryMode === 'legacy' && !legacyPrimaryFile) {
+      setError('Upload CRO/eDO for the primary container before creating the pre-forecast.')
+      return
+    }
+    if (
+      values.isBackToBack &&
+      ((effectiveEntryMode === 'legacy' && !legacyCompanionFile) ||
+        (effectiveEntryMode === 'ics' && !legacyCompanionFile))
+    ) {
+      setError('Upload CRO/eDO for the companion container in the second section.')
       return
     }
 
@@ -243,12 +261,27 @@ export default function PreAdviceNewPage() {
           : {}),
       })
 
-      const attachment = effectiveEntryMode === 'ics' ? croLink?.file : legacyFile
-      if (attachment) {
+      const primaryAttachment =
+        effectiveEntryMode === 'ics' ? croLink?.file : legacyPrimaryFile
+      if (primaryAttachment) {
         try {
-          await preAdviceApi.uploadDocument(data.id, attachment, 'CroEdo')
+          await preAdviceApi.uploadDocument(data.id, primaryAttachment, 'CroEdo', undefined, undefined, 'Primary')
         } catch {
           // Draft is created; attachment can be re-uploaded later if needed.
+        }
+      }
+      if (values.isBackToBack && legacyCompanionFile) {
+        try {
+          await preAdviceApi.uploadDocument(
+            data.id,
+            legacyCompanionFile,
+            'CroEdo',
+            undefined,
+            undefined,
+            'Companion',
+          )
+        } catch {
+          // Companion CRO can be re-uploaded on the detail page.
         }
       }
       navigate(`/preforecast/${data.id}`)
@@ -352,25 +385,11 @@ export default function PreAdviceNewPage() {
                 </Box>
               )}
 
-              {effectiveEntryMode === 'ics' ? (
-                <CroEdoAttachPanel
-                  disabled={submitting}
-                  onLinked={onCroLinked}
-                  onCleared={onCroCleared}
-                />
-              ) : (
-                <>
-                  {icsCroEdoQrEnabled && (
-                    <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                      Enter container details manually and upload a photo or PDF of your issued CRO/eDO.
-                    </Alert>
-                  )}
-                  <CroEdoLegacyUploadPanel
-                    fileName={legacyFile?.name ?? ''}
-                    onFileChange={setLegacyFile}
-                    disabled={submitting}
-                  />
-                </>
+              {effectiveEntryMode === 'legacy' && icsCroEdoQrEnabled && (
+                <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                  Attach one CRO/eDO per container in the matching section below. Do not swap primary and companion
+                  uploads.
+                </Alert>
               )}
 
               <PreAdviceForm
@@ -383,10 +402,40 @@ export default function PreAdviceNewPage() {
                 lockCatalogFields={effectiveEntryMode === 'ics' && croLinked}
                 requireCroLink={effectiveEntryMode === 'ics'}
                 requireLegacyDocument={effectiveEntryMode === 'legacy'}
-                legacyDocumentReady={!!legacyFile}
+                legacyDocumentReady={!!legacyPrimaryFile}
+                companionLegacyDocumentReady={!!legacyCompanionFile}
                 croLinked={croLinked}
                 freeTimeExpired={freeTimeExpired}
                 freeTimeUntil={croLink?.line.demurrageValidUntil}
+                primaryCroSlot={
+                  effectiveEntryMode === 'ics' ? (
+                    <CroEdoAttachPanel
+                      embedded
+                      unitLabel="Primary container"
+                      disabled={submitting}
+                      onLinked={onCroLinked}
+                      onCleared={onCroCleared}
+                    />
+                  ) : (
+                    <CroEdoLegacyUploadPanel
+                      embedded
+                      unitLabel="Primary container"
+                      fileName={legacyPrimaryFile?.name ?? ''}
+                      onFileChange={setLegacyPrimaryFile}
+                      disabled={submitting}
+                    />
+                  )
+                }
+                companionCroSlot={
+                  <CroEdoLegacyUploadPanel
+                    embedded
+                    unitLabel="Companion container"
+                    fileName={legacyCompanionFile?.name ?? ''}
+                    onFileChange={setLegacyCompanionFile}
+                    disabled={submitting}
+                    showRequiredHint
+                  />
+                }
               />
             </>
           ) : (

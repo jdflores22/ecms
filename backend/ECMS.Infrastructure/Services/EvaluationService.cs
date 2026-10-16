@@ -37,6 +37,7 @@ public class EvaluationService : IEvaluationService
             .Include(e => e.PreAdvice)
             .Include(e => e.Evaluator)
             .Include(e => e.Depot)
+            .Include(e => e.BackToBackCompanionDepot)
             .AsQueryable();
 
         if (role == RoleNames.ShippingLineEvaluator)
@@ -86,7 +87,27 @@ public class EvaluationService : IEvaluationService
                 && user.ShippingLineId.Value == preAdvice.ShippingLineId;
         }
 
+        if (role == RoleNames.DepotPersonnel)
+            return await DepotCanAccessPreAdviceAsync(preAdviceId, userId, cancellationToken);
+
         return role == RoleNames.Administrator;
+    }
+
+    private async Task<bool> DepotCanAccessPreAdviceAsync(
+        int preAdviceId,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        var depotId = await _db.Users.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => u.DepotId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!depotId.HasValue)
+            return false;
+
+        return await _db.Schedules.AsNoTracking().AnyAsync(
+            s => s.PreAdviceId == preAdviceId && s.DepotId == depotId.Value,
+            cancellationToken);
     }
 
     public async Task<EvaluationDto?> GetByPreAdviceIdAsync(
@@ -99,6 +120,7 @@ public class EvaluationService : IEvaluationService
             .Include(e => e.PreAdvice)
             .Include(e => e.Evaluator)
             .Include(e => e.Depot)
+            .Include(e => e.BackToBackCompanionDepot)
             .FirstOrDefaultAsync(e => e.PreAdviceId == preAdviceId, cancellationToken);
 
         if (evaluation is null)
@@ -112,6 +134,11 @@ public class EvaluationService : IEvaluationService
             {
                 return null;
             }
+        }
+        else if (role == RoleNames.DepotPersonnel)
+        {
+            if (!await DepotCanAccessPreAdviceAsync(preAdviceId, userId, cancellationToken))
+                return null;
         }
         else if (role != RoleNames.Administrator)
         {
@@ -135,6 +162,8 @@ public class EvaluationService : IEvaluationService
 
         var preAdvice = await _db.PreAdvices
             .Include(p => p.Evaluation)
+            .Include(p => p.BackToBackCompanionContainerSize)
+            .Include(p => p.Container)
             .FirstOrDefaultAsync(p => p.Id == request.PreAdviceId, cancellationToken)
             ?? throw new InvalidOperationException("Pre-forecast not found.");
 
@@ -145,6 +174,12 @@ public class EvaluationService : IEvaluationService
         {
             throw new InvalidOperationException(
                 "Enter the CRO/eDO free time date when approving so the trucker can schedule empty return.");
+        }
+
+        if (preAdvice.IsBackToBack && !preAdvice.BackToBackCompanionDemurrageValidUntil.HasValue)
+        {
+            throw new InvalidOperationException(
+                "Set the free time date for both containers on the CRO/eDO tab before approving.");
         }
 
         var demurrageUntil = request.DemurrageValidUntil.Value;
@@ -180,13 +215,34 @@ public class EvaluationService : IEvaluationService
             request.DepotId,
             evaluatorId,
             role,
-            cancellationToken);
+            cancellationToken: cancellationToken);
+
+        int? companionDepotId = null;
+        if (preAdvice.IsBackToBack)
+        {
+            if (!request.CompanionDepotId.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "Select a container yard for the companion container before approving.");
+            }
+
+            companionDepotId = request.CompanionDepotId.Value;
+            var companionSize = preAdvice.BackToBackCompanionContainerSize?.Label ?? preAdvice.Container.Size;
+            await _cyAllocations.EnsureCapacityForApprovalAsync(
+                request.PreAdviceId,
+                companionDepotId.Value,
+                evaluatorId,
+                role,
+                companionSize,
+                cancellationToken);
+        }
 
         preAdvice.Status = PreAdviceStatus.Approved;
         preAdvice.DemurrageValidUntil = demurrageUntil;
         var evaluation = preAdvice.Evaluation ?? new Evaluation { PreAdviceId = preAdvice.Id };
         evaluation.EvaluatorId = evaluatorId;
         evaluation.DepotId = request.DepotId;
+        evaluation.BackToBackCompanionDepotId = companionDepotId;
         evaluation.Remarks = request.Remarks;
         evaluation.Status = PreAdviceStatus.Approved;
         evaluation.EvaluatedAt = PhilippinesTime.UtcNow;
@@ -218,7 +274,16 @@ public class EvaluationService : IEvaluationService
         await _db.SaveChangesAsync(cancellationToken);
 
         var depot = await _db.Depots.FirstAsync(d => d.Id == request.DepotId, cancellationToken);
-        var depotIds = await NotificationService.DepotPersonnelIdsAsync(_db, request.DepotId, cancellationToken);
+        var depotNotifyIds = await NotificationService.DepotPersonnelIdsAsync(_db, request.DepotId, cancellationToken);
+        if (companionDepotId.HasValue && companionDepotId.Value != request.DepotId)
+        {
+            var companionDepotNotifyIds = await NotificationService.DepotPersonnelIdsAsync(
+                _db,
+                companionDepotId.Value,
+                cancellationToken);
+            depotNotifyIds = depotNotifyIds.Concat(companionDepotNotifyIds).Distinct().ToList();
+        }
+
         var adminIds = await NotificationService.AdministratorIdsAsync(_db, cancellationToken);
 
         await _notifications.NotifyUsersAsync(
@@ -232,7 +297,7 @@ public class EvaluationService : IEvaluationService
             cancellationToken);
 
         await _notifications.NotifyUsersAsync(
-            depotIds.Concat(adminIds),
+            depotNotifyIds.Concat(adminIds),
             "Approved return awaiting schedule",
             $"{preAdvice.ReferenceNo} approved — assign return date and time.",
             "Evaluation",
@@ -244,6 +309,12 @@ public class EvaluationService : IEvaluationService
         evaluation.PreAdvice = preAdvice;
         evaluation.Evaluator = await _db.Users.FirstAsync(u => u.Id == evaluatorId, cancellationToken);
         evaluation.Depot = depot;
+        if (companionDepotId.HasValue)
+        {
+            evaluation.BackToBackCompanionDepot = await _db.Depots.FirstAsync(
+                d => d.Id == companionDepotId.Value,
+                cancellationToken);
+        }
 
         return MapToDto(evaluation);
     }
@@ -251,6 +322,7 @@ public class EvaluationService : IEvaluationService
     public async Task SetCroFreeTimeAsync(
         int preAdviceId,
         DateOnly freeTimeDate,
+        string? identityUnit,
         int adminId,
         string role,
         CancellationToken cancellationToken = default)
@@ -272,13 +344,32 @@ public class EvaluationService : IEvaluationService
             throw new InvalidOperationException("Free time can only be set while the pre-forecast is under ICS review.");
         }
 
-        preAdvice.DemurrageValidUntil = freeTimeDate;
+        var unit = PreAdviceIdentityUnit.Primary;
+        if (!string.IsNullOrWhiteSpace(identityUnit)
+            && Enum.TryParse(identityUnit, true, out PreAdviceIdentityUnit parsed))
+        {
+            unit = parsed;
+        }
+
+        if (unit == PreAdviceIdentityUnit.Companion)
+        {
+            if (!preAdvice.IsBackToBack)
+                throw new InvalidOperationException("Companion free time requires a back-to-back pre-forecast.");
+
+            preAdvice.BackToBackCompanionDemurrageValidUntil = freeTimeDate;
+        }
+        else
+        {
+            preAdvice.DemurrageValidUntil = freeTimeDate;
+        }
+
         _db.Update(preAdvice);
+        var unitLabel = unit == PreAdviceIdentityUnit.Companion ? "Companion" : "Primary";
         _auditService.QueueLog(
             adminId,
             "SetCroFreeTime",
             "PreAdvice",
-            $"{preAdvice.ReferenceNo} free time {freeTimeDate:yyyy-MM-dd}");
+            $"{preAdvice.ReferenceNo} {unitLabel} free time {freeTimeDate:yyyy-MM-dd}");
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -428,5 +519,6 @@ public class EvaluationService : IEvaluationService
     private static EvaluationDto MapToDto(Evaluation e) => new(
         e.Id, e.PreAdviceId, e.PreAdvice.ReferenceNo, e.EvaluatorId,
         e.Evaluator.FullName ?? e.Evaluator.Username, e.DepotId, e.Depot?.Name,
+        e.BackToBackCompanionDepotId, e.BackToBackCompanionDepot?.Name,
         e.Remarks, e.Status.ToString(), e.EvaluatedAt);
 }

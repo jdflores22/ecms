@@ -36,6 +36,7 @@ import {
 import { portalColors, portalStatusColors } from '../theme/colors'
 import { evaluationApi, preAdviceApi, type Evaluation, type PreAdvice } from '../services/api'
 import DamageReportChip, { DamageReportChipMuted } from '../components/evaluations/DamageReportChip'
+import PreAdviceBackToBackChip from '../components/preAdvice/PreAdviceBackToBackChip'
 import { formatDateTime } from '../utils/datetime'
 import { formatContainerSizeLabel } from '../utils/containerSize'
 
@@ -111,6 +112,10 @@ interface EvaluationQueueItem {
   evaluatorRemarks?: string | null
   evaluatedAt?: string | null
   demurrageValidUntil?: string | null
+  isBackToBack: boolean
+  backToBackCompanionContainerNo?: string | null
+  backToBackCompanionContainerSize?: string | null
+  backToBackCompanionContainerType?: string | null
 }
 
 function demurrageChip(validUntil?: string | null) {
@@ -152,6 +157,10 @@ function mergeQueue(preAdvices: PreAdvice[], evaluations: Evaluation[]): Evaluat
         evaluatorRemarks: ev?.remarks ?? p.complianceRemarks,
         evaluatedAt: ev?.evaluatedAt,
         demurrageValidUntil: p.demurrageValidUntil,
+        isBackToBack: Boolean(p.isBackToBack),
+        backToBackCompanionContainerNo: p.backToBackCompanionContainerNo,
+        backToBackCompanionContainerSize: p.backToBackCompanionContainerSize,
+        backToBackCompanionContainerType: p.backToBackCompanionContainerType,
       }
     })
 }
@@ -274,7 +283,10 @@ export default function EvaluationsPage() {
       key={item.preAdviceId}
       onClick={isPendingTab ? () => navigate(`/evaluations/${item.preAdviceId}`) : undefined}
     >
-      <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+        <ListMobileTitle>{item.referenceNo}</ListMobileTitle>
+        {item.isBackToBack && <PreAdviceBackToBackChip item={item} />}
+      </Box>
       {item.hasDamageReport && (
         <Box sx={{ mt: 0.5, mb: 0.5 }}>
           <DamageReportChip />
@@ -287,6 +299,9 @@ export default function EvaluationsPage() {
         sx={{ mt: 0.5, fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all' }}
       >
         {item.containerNo}
+        {item.isBackToBack && item.backToBackCompanionContainerNo
+          ? ` + ${item.backToBackCompanionContainerNo}`
+          : ''}
       </Typography>
       <ListMobileMeta>
         Size: {formatContainerSizeLabel(item.containerSize)}
@@ -345,9 +360,29 @@ export default function EvaluationsPage() {
       }}
       onClick={isPendingTab ? () => navigate(`/evaluations/${item.preAdviceId}`) : undefined}
     >
-      <TableCell sx={{ fontWeight: 700, color: primaryDark }}>{item.referenceNo}</TableCell>
+      <TableCell>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+          <Typography component="span" sx={{ fontWeight: 700, color: primaryDark }}>
+            {item.referenceNo}
+          </Typography>
+          {item.isBackToBack && <PreAdviceBackToBackChip item={item} />}
+        </Box>
+      </TableCell>
       <TableCell>{item.hasDamageReport ? <DamageReportChip /> : <DamageReportChipMuted />}</TableCell>
-      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.containerNo}</TableCell>
+      <TableCell>
+        <Typography component="span" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {item.containerNo}
+        </Typography>
+        {item.isBackToBack && item.backToBackCompanionContainerNo && (
+          <Typography
+            component="div"
+            variant="caption"
+            sx={{ fontFamily: 'monospace', fontWeight: 600, color: 'text.secondary', mt: 0.25 }}
+          >
+            + {item.backToBackCompanionContainerNo}
+          </Typography>
+        )}
+      </TableCell>
       <TableCell>{formatContainerSizeLabel(item.containerSize)}</TableCell>
       <TableCell>{item.containerType}</TableCell>
       <TableCell sx={{ maxWidth: REMARKS_COLUMN_MAX_WIDTH, verticalAlign: 'top' }}>

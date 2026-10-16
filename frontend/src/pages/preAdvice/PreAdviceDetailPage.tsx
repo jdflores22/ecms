@@ -30,11 +30,16 @@ import { Navigate, Link as RouterLink, useNavigate, useParams, useSearchParams }
 import PreAdviceDetailTabPanels, {
   type PreAdviceDetailTab,
 } from '../../components/preAdvice/PreAdviceDetailTabPanels'
-import type { ContainerIdentityPhotosHandle } from '../../components/preAdvice/ContainerIdentityPhotos'
+import PreAdvicePhotoTabLabel from '../../components/preAdvice/PreAdvicePhotoTabLabel'
+import type { PreAdvicePhotoReadiness } from '../../components/preAdvice/PreAdvicePhotoReadinessAlert'
+import { getPreAdviceContainerUnit } from '../../utils/preAdviceContainerUnit'
+import type { PreAdvicePhotosWorkspaceHandle } from '../../components/preAdvice/PreAdvicePhotosWorkspace'
 import EvaluationProgressStrip, {
   buildPreAdviceProgressSteps,
 } from '../../components/evaluations/EvaluationProgressStrip'
 import BookingQrPreviewDialog from '../../components/qr/BookingQrPreviewDialog'
+import { confirmedPreForecastCopy } from '../../config/confirmedPreForecast'
+import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 import {
   DetailBackButton,
   DetailErrorState,
@@ -50,7 +55,14 @@ import {
   sectionPaperSx,
 } from '../../components/layout/DetailPagePrimitives'
 import { listMobileActionsSx } from '../../components/layout/ListPagePrimitives'
-import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
+import { REQUIRED_CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
+import {
+  countIdentityPhotoProgress,
+  hasCroEdoForUnit,
+  missingIdentityPhotoLabels,
+  unitIdentityPhotoProgress,
+  unitIdentityPhotosComplete,
+} from '../../utils/preAdviceIdentityUnit'
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel, qrLogicteckStatusFromPreAdvice } from '../../config/logicteckQr'
 import { isPreAdviceManager } from '../../config/roleConfig'
 import { fetchPreAdviceLookups } from '../../utils/preAdviceLookupsCache'
@@ -76,7 +88,7 @@ import {
   truckerScheduleStatusHint,
 } from '../../utils/truckerSchedule'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
-import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
+import { canOpenLogicteckConfirm, openLogicteckNewReturn } from '../../utils/logicteckBooking'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { prefetchSignedAssetUrls } from '../../utils/assetUrl'
 import { getPreAdviceListStatus, isScheduleForPayment } from '../../utils/scheduleStatus'
@@ -148,7 +160,7 @@ function statusGuidance(
         severity: 'success',
         message:
           schedule?.status === 'Confirmed' || schedule?.status === 'Completed'
-            ? 'Return schedule is confirmed. Pre-forecast stays Approved in ICS — send data to LOGICTECK to create the return booking there (LOGICTECK status: Ready to send → Booked on LOGICTECK → Retrieved).'
+            ? 'Return schedule is confirmed. Pre-forecast stays Approved in ICS — use Book with LOGICTECK when the yard is integrated (status: Book with LOGICTECK → Booked on LOGICTECK → Retrieved).'
             : schedule?.status === 'Scheduled'
               ? 'Return date assigned. Upload payment proof to confirm your return slot.'
               : 'Approved. The depot will assign a return schedule and notify the assigned trucker.',
@@ -183,11 +195,36 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
-function initialDetailTab(): PreAdviceDetailTab {
-  const tab = new URLSearchParams(window.location.search).get('tab')
-  if (tab === 'overview' || tab === 'details' || tab === 'photos' || tab === 'schedule' || tab === 'qr') {
-    return tab
+const PHOTO_DETAIL_TABS: PreAdviceDetailTab[] = ['photos', 'photos-primary', 'photos-companion']
+
+function allowedDetailTabs(item: PreAdvice): PreAdviceDetailTab[] {
+  const tabs: PreAdviceDetailTab[] = ['overview', 'details', 'activity']
+  if (item.isBackToBack) tabs.push('photos-primary', 'photos-companion')
+  else tabs.push('photos')
+  if (item.status === 'Approved') tabs.push('schedule', 'qr')
+  return tabs
+}
+
+function normalizeDetailTabParam(tab: string | null, item: PreAdvice | null): PreAdviceDetailTab | null {
+  if (!tab) return null
+  if (tab === 'photos' && item?.isBackToBack) return 'photos-primary'
+  if (
+    tab === 'overview' ||
+    tab === 'details' ||
+    tab === 'activity' ||
+    tab === 'schedule' ||
+    tab === 'qr' ||
+    PHOTO_DETAIL_TABS.includes(tab as PreAdviceDetailTab)
+  ) {
+    return tab as PreAdviceDetailTab
   }
+  return null
+}
+
+function initialDetailTab(): PreAdviceDetailTab {
+  const tab = normalizeDetailTabParam(new URLSearchParams(window.location.search).get('tab'), null)
+  if (tab && tab !== 'photos-primary' && tab !== 'photos-companion') return tab
+  if (tab === 'photos-primary' || tab === 'photos-companion') return tab
   return 'details'
 }
 
@@ -212,8 +249,15 @@ export default function PreAdviceDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [documents, setDocuments] = useState<PreAdviceDocument[]>([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
-  const [pendingPhotoCategories, setPendingPhotoCategories] = useState<string[]>([])
-  const photosRef = useRef<ContainerIdentityPhotosHandle>(null)
+  const [primaryPendingPhotoCategories, setPrimaryPendingPhotoCategories] = useState<string[]>([])
+  const [companionPendingPhotoCategories, setCompanionPendingPhotoCategories] = useState<string[]>([])
+  const pendingPhotoCategories = useMemo(
+    () => [...primaryPendingPhotoCategories, ...companionPendingPhotoCategories],
+    [primaryPendingPhotoCategories, companionPendingPhotoCategories],
+  )
+  const photosRef = useRef<PreAdvicePhotosWorkspaceHandle>(null)
+  const primaryPhotosRef = useRef<PreAdvicePhotosWorkspaceHandle>(null)
+  const companionPhotosRef = useRef<PreAdvicePhotosWorkspaceHandle>(null)
   const [photoError, setPhotoError] = useState('')
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [scheduleLoading, setScheduleLoading] = useState(false)
@@ -235,6 +279,11 @@ export default function PreAdviceDetailPage() {
 
   const handleDocumentsChange = useCallback((next: PreAdviceDocument[]) => {
     setDocuments(next)
+  }, [])
+
+  const handleLegacyPendingPhotoCategoriesChange = useCallback((cats: string[]) => {
+    setPrimaryPendingPhotoCategories(cats)
+    setCompanionPendingPhotoCategories([])
   }, [])
 
   const loadDocuments = useCallback(() => {
@@ -279,7 +328,11 @@ export default function PreAdviceDetailPage() {
           return
         }
         setSchedule(data)
-        const needsQr = data.status === 'Confirmed' || data.status === 'Completed'
+        const needsQr =
+          data.status === 'Confirmed' ||
+          data.status === 'Completed' ||
+          data.status === 'NoShow' ||
+          Boolean(data.hasQrBooking)
         const parallel: Promise<void>[] = []
         if (data.truckerId) {
           parallel.push(
@@ -380,10 +433,8 @@ export default function PreAdviceDetailPage() {
   useEffect(() => {
     if (!item) return
 
-    const tab = searchParams.get('tab') as PreAdviceDetailTab | null
-    const showScheduleTabs = item.status === 'Approved'
-    const allowed: PreAdviceDetailTab[] = ['overview', 'details', 'photos', 'activity']
-    if (showScheduleTabs) allowed.push('schedule', 'qr')
+    const tab = normalizeDetailTabParam(searchParams.get('tab'), item)
+    const allowed = allowedDetailTabs(item)
 
     const contextChanged =
       tabContextRef.current?.id !== item.id || tabContextRef.current?.status !== item.status
@@ -393,7 +444,7 @@ export default function PreAdviceDetailPage() {
       if (tab && allowed.includes(tab)) {
         setActiveTab(tab)
       } else if (item.status === 'Draft' || item.status === 'ForCompliance') {
-        setActiveTab('photos')
+        setActiveTab(item.isBackToBack ? 'photos-primary' : 'photos')
       } else {
         setActiveTab('overview')
       }
@@ -403,9 +454,12 @@ export default function PreAdviceDetailPage() {
     if (tab && allowed.includes(tab)) {
       setActiveTab(tab)
     }
-  }, [item?.id, item?.status, searchParams])
+  }, [item?.id, item?.status, item?.isBackToBack, searchParams])
 
   const showScheduleTabs = item?.status === 'Approved'
+  const primaryContainerUnit = item ? getPreAdviceContainerUnit(item, 'Primary') : null
+  const companionContainerUnit =
+    item?.isBackToBack && item ? getPreAdviceContainerUnit(item, 'Companion') : null
 
   const handleTabChange = (_: React.SyntheticEvent, value: PreAdviceDetailTab) => {
     if (submitInProgress) return
@@ -423,22 +477,86 @@ export default function PreAdviceDetailPage() {
   }, [setSearchParams])
 
   const photoProgress = useMemo(() => {
-    const uploaded = CONTAINER_PHOTO_CATEGORIES.filter(
-      (c) => documents.some((d) => d.category === c.value) || pendingPhotoCategories.includes(c.value),
-    ).length
-    return { uploaded, total: CONTAINER_PHOTO_CATEGORIES.length }
-  }, [documents, pendingPhotoCategories])
+    if (!item) return { uploaded: 0, total: 0 }
+    const perUnit = REQUIRED_CONTAINER_PHOTO_CATEGORIES.length
+    const total = item.isBackToBack ? perUnit * 2 : perUnit
+    let uploaded = countIdentityPhotoProgress(documents, pendingPhotoCategories, 'Primary')
+    if (item.isBackToBack) {
+      uploaded += countIdentityPhotoProgress(documents, pendingPhotoCategories, 'Companion')
+    }
+    return { uploaded, total }
+  }, [documents, pendingPhotoCategories, item])
 
-  const missingPhotoLabels = useMemo(
-    () =>
-      CONTAINER_PHOTO_CATEGORIES.filter(
-        (c) =>
-          !documents.some((d) => d.category === c.value) && !pendingPhotoCategories.includes(c.value),
-      ).map((c) => c.label),
+  const missingPhotoLabels = useMemo(() => {
+    if (!item) return []
+    const primary = missingIdentityPhotoLabels(documents, pendingPhotoCategories, 'Primary').map(
+      (l) => `Primary — ${l}`,
+    )
+    if (!item.isBackToBack) return primary
+    const companion = missingIdentityPhotoLabels(documents, pendingPhotoCategories, 'Companion').map(
+      (l) => `Companion — ${l}`,
+    )
+    return [...primary, ...companion]
+  }, [documents, pendingPhotoCategories, item])
+
+  const croComplete = useMemo(() => {
+    if (!item) return true
+    const primaryVerified = Boolean(item.croEdoReferenceNo || item.croEdoContext)
+    const primaryOk = hasCroEdoForUnit(documents, 'Primary', primaryVerified)
+    const companionOk = !item.isBackToBack || hasCroEdoForUnit(documents, 'Companion', false)
+    return primaryOk && companionOk
+  }, [documents, item])
+
+  const photosComplete = missingPhotoLabels.length === 0 && croComplete
+
+  const showPhotoActionBadges =
+    item != null &&
+    (item.status === 'Draft' || item.status === 'ForCompliance') &&
+    !submitInProgress
+
+  const primaryPhotoTabProgress = useMemo(
+    () => unitIdentityPhotoProgress(documents, pendingPhotoCategories, 'Primary'),
     [documents, pendingPhotoCategories],
   )
+  const companionPhotoTabProgress = useMemo(
+    () => unitIdentityPhotoProgress(documents, pendingPhotoCategories, 'Companion'),
+    [documents, pendingPhotoCategories],
+  )
+  const primaryPhotosNeedAction =
+    showPhotoActionBadges && !unitIdentityPhotosComplete(documents, pendingPhotoCategories, 'Primary')
+  const companionPhotosNeedAction =
+    showPhotoActionBadges &&
+    Boolean(item?.isBackToBack) &&
+    !unitIdentityPhotosComplete(documents, pendingPhotoCategories, 'Companion')
 
-  const photosComplete = missingPhotoLabels.length === 0
+  const uploadAllPendingPhotos = useCallback(async () => {
+    const uploadUnit = async (
+      ref: React.RefObject<PreAdvicePhotosWorkspaceHandle | null>,
+      hasPending: boolean,
+    ) => {
+      if (!hasPending) return true
+      if (!ref.current) return false
+      return (await ref.current.uploadAllPending()) ?? false
+    }
+
+    if (item?.isBackToBack) {
+      const primaryOk = await uploadUnit(
+        primaryPhotosRef,
+        primaryPendingPhotoCategories.length > 0,
+      )
+      const companionOk = await uploadUnit(
+        companionPhotosRef,
+        companionPendingPhotoCategories.length > 0,
+      )
+      return primaryOk && companionOk
+    }
+    return await uploadUnit(photosRef, pendingPhotoCategories.length > 0)
+  }, [
+    item?.isBackToBack,
+    primaryPendingPhotoCategories.length,
+    companionPendingPhotoCategories.length,
+    pendingPhotoCategories.length,
+  ])
 
   const openQrPreview = useCallback(() => {
     setActiveTab('qr')
@@ -446,10 +564,22 @@ export default function PreAdviceDetailPage() {
     setQrPreviewOpen(true)
   }, [setSearchParams])
 
+  const openPhotoTab = useCallback(
+    (tab: PreAdviceDetailTab) => {
+      if (submitInProgress) return
+      setActiveTab(tab)
+      if (tab === 'overview') {
+        setSearchParams({}, { replace: true })
+      } else {
+        setSearchParams({ tab }, { replace: true })
+      }
+    },
+    [setSearchParams, submitInProgress],
+  )
+
   const openPhotosTab = useCallback(() => {
-    setActiveTab('photos')
-    setSearchParams({ tab: 'photos' }, { replace: true })
-  }, [setSearchParams])
+    openPhotoTab(item?.isBackToBack ? 'photos-primary' : 'photos')
+  }, [openPhotoTab, item?.isBackToBack])
 
   const progressSteps = useMemo(() => {
     if (!item) return []
@@ -565,29 +695,53 @@ export default function PreAdviceDetailPage() {
         message: 'Demurrage and detention are settled. You can submit this pre-forecast now.',
       }
     }
-    if (item.status === 'Draft' && !photosComplete) {
-      return {
-        severity: 'warning' as const,
-        message: `Upload all ${photoProgress.total} container identity photos before submitting (${photoProgress.uploaded}/${photoProgress.total} complete). Missing: ${missingPhotoLabels.join(', ')}.`,
-      }
-    }
-    if (item.status === 'ForCompliance' && !photosComplete) {
-      return {
-        severity: 'warning' as const,
-        message: `Upload all ${photoProgress.total} container identity photos before resubmitting (${photoProgress.uploaded}/${photoProgress.total} complete). Missing: ${missingPhotoLabels.join(', ')}.`,
-      }
-    }
     return statusGuidance(item.status, schedule, item.complianceRemarks)
   }, [
     item,
     schedule,
-    photosComplete,
-    photoProgress,
-    missingPhotoLabels,
     freeTimeExpired,
     demurrageSettled,
     linkedDemurrage,
   ])
+
+  const photoReadiness = useMemo((): PreAdvicePhotoReadiness | null => {
+    if (!item || photosComplete) return null
+    if (item.status !== 'Draft' && item.status !== 'ForCompliance') return null
+    const perUnitTotal = REQUIRED_CONTAINER_PHOTO_CATEGORIES.length
+    const primaryMissing = missingIdentityPhotoLabels(
+      documents,
+      pendingPhotoCategories,
+      'Primary',
+    ).length
+    const companionMissing = item.isBackToBack
+      ? missingIdentityPhotoLabels(documents, pendingPhotoCategories, 'Companion').length
+      : 0
+    return {
+      resubmit: item.status === 'ForCompliance',
+      uploaded: photoProgress.uploaded,
+      total: photoProgress.total,
+      perUnitTotal,
+      primaryUploaded: primaryPhotoTabProgress.uploaded,
+      primaryMissing,
+      companionUploaded: companionPhotoTabProgress.uploaded,
+      companionMissing,
+      croComplete,
+    }
+  }, [
+    item,
+    photosComplete,
+    documents,
+    pendingPhotoCategories,
+    photoProgress,
+    primaryPhotoTabProgress,
+    companionPhotoTabProgress,
+    croComplete,
+  ])
+
+  const openRequestDetailsForEdit = useCallback(() => {
+    setEditing(true)
+    openPhotoTab('details')
+  }, [openPhotoTab])
 
   if (!isPreAdviceManager(user?.role)) {
     return <Navigate to="/" replace />
@@ -637,19 +791,23 @@ export default function PreAdviceDetailPage() {
     URL.revokeObjectURL(url)
   }
 
-  const handleBookLogicteck = async () => {
-    if (!qrBooking || !canBookLogicteck(qrBooking)) return
+  const downloadConfirmationPdf = async () => {
+    if (!qrBooking) return
+    try {
+      await downloadBookingConfirmationPdf(qrBooking.id, qrBooking.qrCode)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : confirmedPreForecastCopy.downloadFailed)
+    }
+  }
+
+  const handleOpenLogicteckConfirm = async () => {
+    if (!qrBooking || !canOpenLogicteckConfirm(qrBooking, schedule)) return
     setBookLogicteckLoading(true)
     setActionError('')
     try {
-      const result = await bookLogicteckBooking(qrBooking.id)
-      if (result.success) {
-        setQrBooking(applyBookLogicteckResult(qrBooking, result))
-      } else {
-        setActionError(result.message)
-      }
+      await openLogicteckNewReturn(qrBooking.qrCode)
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Could not send pre-forecast data to LOGICTECK.'))
+      setActionError(apiErrorMessage(err, 'Could not open LOGICTECK.'))
     } finally {
       setBookLogicteckLoading(false)
     }
@@ -688,9 +846,33 @@ export default function PreAdviceDetailPage() {
     setSubmitting(true)
     setActionError('')
     try {
-      if (deferPhotoUpload && photosRef.current) {
-        const uploaded = await photosRef.current.uploadAllPending()
-        if (!uploaded) return
+      if (deferPhotoUpload) {
+        const uploaded = await uploadAllPendingPhotos()
+        if (!uploaded) {
+          setActionError(
+            'Some container photos could not be uploaded. Open each container’s Photos tab, then try submit again.',
+          )
+          return
+        }
+        const { data: freshDocs } = await preAdviceApi.documents(item.id)
+        setDocuments(freshDocs)
+        const primaryMissing = missingIdentityPhotoLabels(freshDocs, [], 'Primary')
+        const companionMissing = item.isBackToBack
+          ? missingIdentityPhotoLabels(freshDocs, [], 'Companion')
+          : []
+        if (primaryMissing.length > 0 || companionMissing.length > 0) {
+          const parts: string[] = []
+          if (primaryMissing.length > 0) {
+            parts.push(`Primary: ${primaryMissing.join(', ')}`)
+          }
+          if (companionMissing.length > 0) {
+            parts.push(`Companion (${item.backToBackCompanionContainerNo ?? '2nd container'}): ${companionMissing.join(', ')}`)
+          }
+          setActionError(
+            `Container photos are not complete on the server. Missing — ${parts.join('; ')}. Open each container’s Photos tab and upload again.`,
+          )
+          return
+        }
       }
       setSubmitPhase('submitting')
       const { data } = await preAdviceApi.submit(item.id)
@@ -818,6 +1000,14 @@ export default function PreAdviceDetailPage() {
                   size="small"
                   sx={{ ...heroMutedChipSx, '& .MuiChip-icon': { color: 'inherit' } }}
                 />
+                {item.isBackToBack && (
+                  <Chip
+                    label="Back-to-Back"
+                    size="small"
+                    color="secondary"
+                    sx={{ fontWeight: 700, bgcolor: 'rgba(255,255,255,0.95)' }}
+                  />
+                )}
                 <PhotoProgressChip uploaded={photoProgress.uploaded} total={photoProgress.total} />
                 {freeTimeExpired && (
                   <Chip
@@ -1050,10 +1240,50 @@ export default function PreAdviceDetailPage() {
               {showScheduleTabs ? <Tab label="Return schedule" value="schedule" /> : null}
               {showScheduleTabs ? <Tab label={LOGICTECK_QR.tabLabel} value="qr" /> : null}
               <Tab label="Request details" value="details" />
-              <Tab
-                label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
-                value="photos"
-              />
+              {item.isBackToBack
+                ? [
+                    <Tab
+                      key="photos-primary"
+                      value="photos-primary"
+                      label={
+                        <PreAdvicePhotoTabLabel
+                          containerNo={primaryContainerUnit!.containerNo}
+                          sizeTypeLine={primaryContainerUnit!.sizeTypeLine}
+                          uploaded={primaryPhotoTabProgress.uploaded}
+                          total={primaryPhotoTabProgress.total}
+                          needsAction={primaryPhotosNeedAction}
+                        />
+                      }
+                    />,
+                    <Tab
+                      key="photos-companion"
+                      value="photos-companion"
+                      label={
+                        <PreAdvicePhotoTabLabel
+                          containerNo={companionContainerUnit!.containerNo}
+                          sizeTypeLine={companionContainerUnit!.sizeTypeLine}
+                          uploaded={companionPhotoTabProgress.uploaded}
+                          total={companionPhotoTabProgress.total}
+                          needsAction={companionPhotosNeedAction}
+                        />
+                      }
+                    />,
+                  ]
+                : (
+                  <Tab
+                    key="photos"
+                    value="photos"
+                    label={
+                      <PreAdvicePhotoTabLabel
+                        containerNo={primaryContainerUnit!.containerNo}
+                        sizeTypeLine={primaryContainerUnit!.sizeTypeLine}
+                        uploaded={primaryPhotoTabProgress.uploaded}
+                        total={primaryPhotoTabProgress.total}
+                        needsAction={primaryPhotosNeedAction}
+                      />
+                    }
+                  />
+                )}
               <Tab label="Activity log" value="activity" />
             </Tabs>
 
@@ -1066,13 +1296,20 @@ export default function PreAdviceDetailPage() {
               canManageDocuments={canManageDocuments}
               deferPhotoUpload={deferPhotoUpload}
               photosRef={photosRef}
-              onPendingPhotoCategoriesChange={setPendingPhotoCategories}
+              primaryPhotosRef={primaryPhotosRef}
+              companionPhotosRef={companionPhotosRef}
+              onPendingPhotoCategoriesChange={handleLegacyPendingPhotoCategoriesChange}
+              onPrimaryPendingChange={setPrimaryPendingPhotoCategories}
+              onCompanionPendingChange={setCompanionPendingPhotoCategories}
+              onOpenPhotoTab={openPhotoTab}
               photoError={photoError}
               onPhotoError={setPhotoError}
               editing={editing}
               lookups={lookups}
               submitting={submitting}
               statusGuidance={guidance}
+              photoReadiness={photoReadiness}
+              onOpenRequestDetails={openRequestDetailsForEdit}
               actionError={actionError}
               onDismissActionError={() => setActionError('')}
               schedule={schedule}
@@ -1086,7 +1323,9 @@ export default function PreAdviceDetailPage() {
               onCancelEdit={() => setEditing(false)}
               onDownloadQr={downloadQr}
               onQrPreview={openQrPreview}
-              onBookLogicteck={qrBooking && canBookLogicteck(qrBooking) ? handleBookLogicteck : undefined}
+              onBookLogicteck={
+                qrBooking && canOpenLogicteckConfirm(qrBooking, schedule) ? handleOpenLogicteckConfirm : undefined
+              }
               bookLogicteckLoading={bookLogicteckLoading}
             />
           </Paper>
@@ -1099,9 +1338,13 @@ export default function PreAdviceDetailPage() {
         schedule={schedule}
         qrBooking={qrBooking}
         qrImageUrl={qrImageUrl}
+        preAdvice={item}
         payment={payment}
         onDownload={downloadQr}
-        onBookLogicteck={qrBooking && canBookLogicteck(qrBooking) ? handleBookLogicteck : undefined}
+        onDownloadConfirmationPdf={() => void downloadConfirmationPdf()}
+        onBookLogicteck={
+          qrBooking && canOpenLogicteckConfirm(qrBooking, schedule) ? handleOpenLogicteckConfirm : undefined
+        }
         bookLogicteckLoading={bookLogicteckLoading}
       />
 

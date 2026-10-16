@@ -95,6 +95,7 @@ interface EcmsApiService {
         @Part file: MultipartBody.Part,
         @Part("category") category: RequestBody,
         @Part("comment") comment: RequestBody?,
+        @Part("identityUnit") identityUnit: RequestBody? = null,
     ): PreAdviceDocumentDto
 
     @DELETE("preforecast/{preAdviceId}/documents/{docId}")
@@ -121,6 +122,18 @@ interface EcmsApiService {
 
     @GET("payments/settings")
     suspend fun getPaymentSettings(): PaymentSettingsDto
+
+    @GET("payments/options")
+    suspend fun getPaymentOptions(): ReturnPaymentOptionsDto
+
+    @POST("payments/schedule/{scheduleId}/paymongo/checkout")
+    suspend fun createPayMongoCheckout(@Path("scheduleId") scheduleId: Int): PayMongoCheckoutDto
+
+    @POST("payments/schedule/{scheduleId}/paymongo/sync")
+    suspend fun syncPayMongoReturn(@Path("scheduleId") scheduleId: Int): PayMongoSyncResponseDto
+
+    @POST("payments/schedule/{scheduleId}/pilot-complete")
+    suspend fun completePilotReturn(@Path("scheduleId") scheduleId: Int): PaymentDto
 
     @GET("payments/by-schedule/{scheduleId}")
     suspend fun getPaymentBySchedule(@Path("scheduleId") scheduleId: Int): PaymentDto?

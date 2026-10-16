@@ -34,7 +34,7 @@ public class EvaluationsController : ControllerBase
 
     [HttpGet("by-preforecast/{preAdviceId:int}")]
     [HttpGet("by-preadvice/{preAdviceId:int}")]
-    [Authorize(Roles = $"{RoleNames.Administrator},{RoleNames.ShippingLineEvaluator}")]
+    [Authorize(Roles = $"{RoleNames.Administrator},{RoleNames.ShippingLineEvaluator},{RoleNames.DepotPersonnel}")]
     public async Task<ActionResult<EvaluationDto>> GetByPreAdvice(int preAdviceId, CancellationToken cancellationToken)
     {
         if (!await _service.CanAccessPreAdviceAsync(preAdviceId, UserId, Role, cancellationToken))
@@ -92,7 +92,13 @@ public class EvaluationsController : ControllerBase
     {
         try
         {
-            await _service.SetCroFreeTimeAsync(preAdviceId, request.FreeTimeDate, UserId, Role, cancellationToken);
+            await _service.SetCroFreeTimeAsync(
+                preAdviceId,
+                request.FreeTimeDate,
+                request.IdentityUnit,
+                UserId,
+                Role,
+                cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)

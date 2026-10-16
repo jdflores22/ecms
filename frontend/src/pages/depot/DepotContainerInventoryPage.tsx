@@ -46,6 +46,9 @@ import {
   sumInventorySummaryRows,
 } from '../../utils/inventorySummary'
 import { inventoryRowKey } from '../../utils/atwInventoryLines'
+import InventorySourceChip from '../../components/inventory/InventorySourceChip'
+import TruncatedTooltip from '../../components/inventory/TruncatedTooltip'
+import { inventoryDetailUrl } from '../../utils/inventoryDetailRoute'
 
 const primaryDark = ICS_PRIMARY
 
@@ -107,18 +110,6 @@ function YardStatusChip({ status }: { status: ContainerInventoryItem['yardStatus
   return <Chip label="At yard" size="small" color="success" variant="outlined" sx={{ fontWeight: 600 }} />
 }
 
-function SourceChip({ source }: { source: ContainerInventoryItem['source'] }) {
-  return (
-    <Chip
-      size="small"
-      label={INVENTORY_SOURCE_LABELS[source]}
-      variant={source === 'Manual' ? 'outlined' : 'filled'}
-      color={source === 'Workflow' ? 'primary' : 'default'}
-      sx={{ fontWeight: 600 }}
-    />
-  )
-}
-
 function dwellLabel(days: number): string {
   return days === 1 ? '1 day' : `${days} days`
 }
@@ -130,10 +121,15 @@ function na(value: string | null | undefined): string {
 function InventoryTableRow({
   row,
   onDeleteManual,
+  shippingLineId,
 }: {
   row: ContainerInventoryItem
   onDeleteManual: (id: number) => void
+  shippingLineId?: number | null
 }) {
+  const detailTo = inventoryDetailUrl('depot', row, {
+    shippingLineId: shippingLineId ?? row.shippingLineId,
+  })
   return (
     <TableRow hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
       <TableCell sx={{ width: 44, px: 1 }}>
@@ -150,8 +146,16 @@ function InventoryTableRow({
           </Tooltip>
         ) : null}
       </TableCell>
-      <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace', color: primaryDark, whiteSpace: 'nowrap' }}>
-        {row.containerNo}
+      <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+        <Tooltip title="View container in CY">
+          <Typography
+            component={RouterLink}
+            to={detailTo}
+            sx={{ fontWeight: 700, fontFamily: 'monospace', color: primaryDark }}
+          >
+            {row.containerNo}
+          </Typography>
+        </Tooltip>
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
         <Tooltip title={getShippingLineFullName(row.shippingLineCode, row.shippingLineName)}>
@@ -164,7 +168,7 @@ function InventoryTableRow({
         <YardStatusChip status={row.yardStatus} />
       </TableCell>
       <TableCell>
-        <SourceChip source={row.source} />
+        <InventorySourceChip source={row.source} />
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>
         {row.source === 'Workflow' ? (
@@ -198,15 +202,17 @@ function InventoryTableRow({
           '—'
         )}
       </TableCell>
-      <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.depotName}</TableCell>
-      <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {na(row.truckerName)}
+      <TableCell>
+        <TruncatedTooltip text={row.depotName} maxWidth={120} />
+      </TableCell>
+      <TableCell>
+        <TruncatedTooltip text={na(row.truckerName)} maxWidth={140} />
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDisplayDate(row.yardInDate)}</TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatSlotTime(row.gateInTime)}</TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{dwellLabel(row.dwellDays)}</TableCell>
-      <TableCell sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {na(row.remarks)}
+      <TableCell>
+        <TruncatedTooltip text={na(row.remarks)} maxWidth={160} />
       </TableCell>
       <TableCell align="right" sx={{ width: 48 }}>
         {row.source === 'Manual' && row.manualEntryId && row.yardStatus === 'AtYard' ? (
@@ -229,18 +235,27 @@ function InventoryTableRow({
 function InventoryMobileCard({
   row,
   onDeleteManual,
+  shippingLineId,
 }: {
   row: ContainerInventoryItem
   onDeleteManual: (id: number) => void
+  shippingLineId?: number | null
 }) {
+  const detailTo = inventoryDetailUrl('depot', row, {
+    shippingLineId: shippingLineId ?? row.shippingLineId,
+  })
   return (
     <ListMobileCard>
-      <ListMobileTitle>{row.containerNo}</ListMobileTitle>
+      <ListMobileTitle>
+        <Typography component={RouterLink} to={detailTo} sx={{ fontWeight: 800, color: primaryDark }}>
+          {row.containerNo}
+        </Typography>
+      </ListMobileTitle>
       <ListMobileMeta>
         {row.depotName} · {formatInventorySizeLabel(row.containerSize)} {row.containerType}
       </ListMobileMeta>
       <ListMobileMeta>
-        <YardStatusChip status={row.yardStatus} /> · <SourceChip source={row.source} />
+        <YardStatusChip status={row.yardStatus} /> · <InventorySourceChip source={row.source} />
       </ListMobileMeta>
       <Typography variant="body2" sx={{ mt: 1 }}>
         Yard-in: <strong>{formatDisplayDate(row.yardInDate)}</strong> · Dwell time:{' '}
@@ -785,7 +800,12 @@ export default function DepotContainerInventoryPage() {
           <>
             <ListMobileOnly>
               {paginatedItems.map((row) => (
-                <InventoryMobileCard key={inventoryRowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
+                <InventoryMobileCard
+                  key={inventoryRowKey(row)}
+                  row={row}
+                  onDeleteManual={handleDeleteManual}
+                  shippingLineId={lineFilter === '' ? null : lineFilter}
+                />
               ))}
             </ListMobileOnly>
             <ListDesktopOnly>
@@ -807,7 +827,12 @@ export default function DepotContainerInventoryPage() {
                   </TableHead>
                   <TableBody>
                     {paginatedItems.map((row) => (
-                      <InventoryTableRow key={inventoryRowKey(row)} row={row} onDeleteManual={handleDeleteManual} />
+                      <InventoryTableRow
+                        key={inventoryRowKey(row)}
+                        row={row}
+                        onDeleteManual={handleDeleteManual}
+                        shippingLineId={lineFilter === '' ? null : lineFilter}
+                      />
                     ))}
                   </TableBody>
                 </Table>

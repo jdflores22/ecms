@@ -26,7 +26,10 @@ import com.ecms.trucker.ui.util.rememberScreenLoadState
 import com.ecms.trucker.util.QrCodeGenerator
 import com.ecms.trucker.util.containerHeadline
 import com.ecms.trucker.util.containerListSubtitle
+import com.ecms.trucker.util.STANDARD_CONTAINER_VIEW_CATEGORIES
+import com.ecms.trucker.util.countAllUploadedRequiredPhotos
 import com.ecms.trucker.util.preAdviceContainerById
+import com.ecms.trucker.util.requiredPhotoTotal
 import kotlinx.coroutines.launch
 
 private data class ReturnsListCacheEntry(
@@ -164,13 +167,12 @@ fun ReturnDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val requiredPhotoCategories = remember {
-        listOf("Flooring", "RightSideIn", "LeftSideIn", "Back", "Backdoor", "Front", "LeftSideOut", "RightSideOut")
+    val photosTotal = preAdvice?.let { requiredPhotoTotal(it) } ?: 10
+    val uploadedRequired = preAdvice?.let { item ->
+        countAllUploadedRequiredPhotos(item, documents, emptyMap())
+    } ?: documents.count { doc ->
+        STANDARD_CONTAINER_VIEW_CATEGORIES.any { it.equals(doc.category, true) }
     }
-    val uploadedRequired = documents.count { doc ->
-        requiredPhotoCategories.any { it.equals(doc.category, true) }
-    }
-    val photosTotal = requiredPhotoCategories.size
 
     fun loadQr() {
         scope.launch {

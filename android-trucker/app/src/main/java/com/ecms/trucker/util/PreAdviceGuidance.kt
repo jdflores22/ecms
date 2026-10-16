@@ -66,7 +66,7 @@ fun preAdviceStatusGuidance(
         item.status.equals("Approved", true) -> {
             val message = when {
                 schedule?.status?.let { isScheduleConfirmed(it) } == true ->
-                    "Return schedule is confirmed. Pre-forecast stays Approved in ICS — send data to LOGICTECK to create the return booking there."
+                    "Return schedule is confirmed. Pre-forecast stays Approved in ICS — use Book with LOGICTECK when the yard is integrated."
                 schedule?.status?.let { isScheduleForPayment(it) } == true ->
                     "Return date assigned. Upload payment proof to confirm your return slot."
                 else -> "Approved. The depot will assign a return schedule and notify the assigned trucker."

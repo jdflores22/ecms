@@ -129,11 +129,18 @@ class TruckerRepository(
     suspend fun getPreAdviceDocuments(id: Int) = api.getPreAdviceDocuments(id)
     suspend fun getPreAdviceActivity(id: Int) = api.getPreAdviceActivity(id)
 
-    suspend fun uploadPreAdviceDocument(id: Int, uri: Uri, category: String, comment: String?) {
+    suspend fun uploadPreAdviceDocument(
+        id: Int,
+        uri: Uri,
+        category: String,
+        comment: String?,
+        identityUnit: String? = null,
+    ) {
         val part = uriToMultipart(uri, "file")
         val categoryBody = category.toRequestBody("text/plain".toMediaTypeOrNull())
         val commentBody = comment?.toRequestBody("text/plain".toMediaTypeOrNull())
-        api.uploadPreAdviceDocument(id, part, categoryBody, commentBody)
+        val unitBody = identityUnit?.toRequestBody("text/plain".toMediaTypeOrNull())
+        api.uploadPreAdviceDocument(id, part, categoryBody, commentBody, unitBody)
     }
 
     suspend fun deletePreAdviceDocument(preAdviceId: Int, docId: Int) =
@@ -148,6 +155,14 @@ class TruckerRepository(
     suspend fun getMyPayments() = api.getMyPayments()
 
     suspend fun getPaymentSettings() = api.getPaymentSettings()
+
+    suspend fun getPaymentOptions() = api.getPaymentOptions()
+
+    suspend fun createPayMongoCheckout(scheduleId: Int) = api.createPayMongoCheckout(scheduleId)
+
+    suspend fun syncPayMongoReturn(scheduleId: Int) = api.syncPayMongoReturn(scheduleId)
+
+    suspend fun completePilotReturn(scheduleId: Int) = api.completePilotReturn(scheduleId)
     suspend fun getPaymentBySchedule(scheduleId: Int): PaymentDto? = runCatching {
         api.getPaymentBySchedule(scheduleId)
     }.getOrNull()

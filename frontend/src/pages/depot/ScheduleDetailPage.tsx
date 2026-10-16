@@ -18,6 +18,7 @@ import {
   DialogContent,
   DialogTitle,
   Paper,
+  Stack,
   Tab,
   Tabs,
   Typography,
@@ -27,17 +28,25 @@ import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import axios from 'axios'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-router-dom'
 import DepotScheduleTabPanels, { type DepotScheduleTab } from '../../components/depot/DepotScheduleTabPanels'
 import { detailTabsSx, sectionPaperSx } from '../../components/layout/DetailPagePrimitives'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
-import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
+import { REQUIRED_CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
+import PreAdviceBackToBackChip, { evaluationHeroSubtitle } from '../../components/preAdvice/PreAdviceBackToBackChip'
+import PreAdvicePhotoTabLabel from '../../components/preAdvice/PreAdvicePhotoTabLabel'
 import {
+  backToBackUnitFieldLabel,
+  preAdviceUnitRoleLabel,
+} from '../../components/preAdvice/preAdviceUnitSectionSx'
+import {
+  evaluationApi,
   paymentApi,
   preAdviceApi,
   qrApi,
   scheduleApi,
+  type Evaluation,
   type HourlySlotAvailability,
   type Payment,
   type PreAdvice,
@@ -62,9 +71,42 @@ import {
   normalizeTime24Input,
   validateDepotScheduleDate,
 } from '../../utils/datetime'
-import { formatContainerSummary } from '../../utils/containerSize'
+import { getPreAdviceContainerUnit } from '../../utils/preAdviceContainerUnit'
+import {
+  countIdentityPhotoProgress,
+  unitIdentityPhotoProgress,
+} from '../../utils/preAdviceIdentityUnit'
 import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 import { useAppSelector } from '../../store/hooks'
+
+function normalizeDepotScheduleTab(tab: DepotScheduleTab, preAdvice: PreAdvice | null): DepotScheduleTab {
+  if (tab === 'photos' && preAdvice?.isBackToBack) return 'photos-primary'
+  return tab
+}
+
+function openDepotPhotosTab(preAdvice: PreAdvice | null): DepotScheduleTab {
+  return preAdvice?.isBackToBack ? 'photos-primary' : 'photos'
+}
+
+const confirmUnitFieldGridSx = {
+  display: 'grid',
+  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+  gap: 1.25,
+  columnGap: 2,
+} as const
+
+function ConfirmScheduleField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        {value}
+      </Typography>
+    </Box>
+  )
+}
 
 
 function isImageProof(path: string) {
@@ -121,6 +163,7 @@ export default function ScheduleDetailPage() {
 
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [preAdvice, setPreAdvice] = useState<PreAdvice | null>(null)
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
   const [documents, setDocuments] = useState<PreAdviceDocument[]>([])
   const [payment, setPayment] = useState<Payment | null>(null)
   const [qrBooking, setQrBooking] = useState<QrBooking | null>(null)
@@ -190,7 +233,14 @@ export default function ScheduleDetailPage() {
           preAdviceApi.get(item.preAdviceId),
         ])
         setPayment(paymentResult?.data ?? null)
-        setPreAdvice(preAdviceRes.data)
+        const pa = preAdviceRes.data
+        setPreAdvice(pa)
+        if (pa.isBackToBack) {
+          const evalRes = await evaluationApi.getByPreAdvice(pa.id).catch(() => ({ data: null }))
+          setEvaluation(evalRes.data)
+        } else {
+          setEvaluation(null)
+        }
         const bounds = getDepotScheduleDateBounds(
           preAdviceRes.data.demurrageValidUntil,
           preAdviceRes.data.evaluatedAt,
@@ -272,11 +322,27 @@ export default function ScheduleDetailPage() {
   }, [isDepotView, activeTab])
 
   const photoProgress = useMemo(() => {
-    const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
-      documents.some((d) => d.category === c.value),
-    ).length
-    return { uploaded, total: CONTAINER_PHOTO_CATEGORIES.length }
-  }, [documents])
+    if (!preAdvice) return { uploaded: 0, total: 0 }
+    const perUnit = REQUIRED_CONTAINER_PHOTO_CATEGORIES.length
+    const total = preAdvice.isBackToBack ? perUnit * 2 : perUnit
+    let uploaded = countIdentityPhotoProgress(documents, [], 'Primary')
+    if (preAdvice.isBackToBack) {
+      uploaded += countIdentityPhotoProgress(documents, [], 'Companion')
+    }
+    return { uploaded, total }
+  }, [documents, preAdvice])
+
+  const primaryContainerUnit = preAdvice ? getPreAdviceContainerUnit(preAdvice, 'Primary') : null
+  const companionContainerUnit =
+    preAdvice?.isBackToBack && preAdvice ? getPreAdviceContainerUnit(preAdvice, 'Companion') : null
+  const primaryPhotoTabProgress = useMemo(
+    () => unitIdentityPhotoProgress(documents, [], 'Primary'),
+    [documents],
+  )
+  const companionPhotoTabProgress = useMemo(
+    () => unitIdentityPhotoProgress(documents, [], 'Companion'),
+    [documents],
+  )
 
   const canAssign =
     schedule &&
@@ -414,16 +480,7 @@ export default function ScheduleDetailPage() {
           <DetailHero
             icon={<EventNoteOutlinedIcon />}
             title={schedule.referenceNo}
-            subtitle={
-              <>
-                {schedule.depotName} ·{' '}
-                {formatContainerSummary(
-                  preAdvice.containerNo,
-                  preAdvice.containerSize,
-                  preAdvice.containerType,
-                )}
-              </>
-            }
+            subtitle={evaluationHeroSubtitle(preAdvice)}
             chips={
               <>
                 <Chip
@@ -431,6 +488,7 @@ export default function ScheduleDetailPage() {
                   size="small"
                   sx={{ fontWeight: 700, ...heroStatusChipStyle(schedule.status) }}
                 />
+                <PreAdviceBackToBackChip item={preAdvice} />
                 {requestingTrucker && (
                   <Chip
                     icon={
@@ -444,12 +502,23 @@ export default function ScheduleDetailPage() {
                 <Chip
                   label={`${photoProgress.uploaded}/${photoProgress.total} photos`}
                   size="small"
-                  onClick={() => setActiveTab('photos')}
+                  onClick={() => setActiveTab(openDepotPhotosTab(preAdvice))}
                   sx={{ ...heroMutedChipSx, fontWeight: 600, cursor: 'pointer' }}
                 />
                 {preAdvice.demurrageValidUntil && (
                   <Chip
-                    label={`Free time until ${formatScheduleDate(preAdvice.demurrageValidUntil)}`}
+                    label={
+                      preAdvice.isBackToBack
+                        ? `${preAdviceUnitRoleLabel('primary', 'containerAb')} free until ${formatScheduleDate(preAdvice.demurrageValidUntil)}`
+                        : `Free time until ${formatScheduleDate(preAdvice.demurrageValidUntil)}`
+                    }
+                    size="small"
+                    sx={{ ...heroMutedChipSx, fontWeight: 700 }}
+                  />
+                )}
+                {preAdvice.isBackToBack && preAdvice.backToBackCompanionDemurrageValidUntil && (
+                  <Chip
+                    label={`${preAdviceUnitRoleLabel('companion', 'containerAb')} free until ${formatScheduleDate(preAdvice.backToBackCompanionDemurrageValidUntil)}`}
                     size="small"
                     sx={{ ...heroMutedChipSx, fontWeight: 700 }}
                   />
@@ -504,18 +573,51 @@ export default function ScheduleDetailPage() {
 
           <Paper elevation={0} sx={{ ...sectionPaperSx, mb: 0 }}>
             <Tabs
-              value={activeTab}
-              onChange={(_, value: DepotScheduleTab) => setActiveTab(value)}
+              value={normalizeDepotScheduleTab(activeTab, preAdvice)}
+              onChange={(_, value: DepotScheduleTab) =>
+                setActiveTab(normalizeDepotScheduleTab(value, preAdvice))
+              }
               variant="scrollable"
               scrollButtons="auto"
               allowScrollButtonsMobile
               sx={detailTabsSx}
             >
               <Tab label="Container details" value="details" />
-              <Tab
-                label={`Container photos (${photoProgress.uploaded}/${photoProgress.total})`}
-                value="photos"
-              />
+              {preAdvice.isBackToBack && primaryContainerUnit && companionContainerUnit
+                ? [
+                    <Tab
+                      key="photos-primary"
+                      value="photos-primary"
+                      label={
+                        <PreAdvicePhotoTabLabel
+                          containerNo={primaryContainerUnit.containerNo}
+                          sizeTypeLine={primaryContainerUnit.sizeTypeLine}
+                          uploaded={primaryPhotoTabProgress.uploaded}
+                          total={primaryPhotoTabProgress.total}
+                          needsAction={false}
+                        />
+                      }
+                    />,
+                    <Tab
+                      key="photos-companion"
+                      value="photos-companion"
+                      label={
+                        <PreAdvicePhotoTabLabel
+                          containerNo={companionContainerUnit.containerNo}
+                          sizeTypeLine={companionContainerUnit.sizeTypeLine}
+                          uploaded={companionPhotoTabProgress.uploaded}
+                          total={companionPhotoTabProgress.total}
+                          needsAction={false}
+                        />
+                      }
+                    />,
+                  ]
+                : (
+                  <Tab
+                    label={`Container photos (${photoProgress.uploaded}/${photoProgress.total})`}
+                    value="photos"
+                  />
+                )}
               <Tab label="Schedule assignment" value="schedule" />
               {!isDepotView && <Tab label="Payment" value="payment" />}
               {!isDepotView && <Tab label={LOGICTECK_QR.tabLabel} value="qr" />}
@@ -526,6 +628,7 @@ export default function ScheduleDetailPage() {
               depotView={isDepotView}
               schedule={schedule}
               preAdvice={preAdvice}
+              evaluation={evaluation}
               documents={documents}
               documentsLoading={documentsLoading}
               payment={payment}
@@ -555,7 +658,7 @@ export default function ScheduleDetailPage() {
               onDepotRemarksChange={setDepotRemarks}
               onCancelEdit={cancelEdit}
               onOpenConfirm={openConfirm}
-              onOpenPhotosTab={() => setActiveTab('photos')}
+              onOpenPhotosTab={() => setActiveTab(openDepotPhotosTab(preAdvice))}
             />
           </Paper>
         </>
@@ -584,27 +687,6 @@ export default function ScheduleDetailPage() {
             </Alert>
           ) : (
             <>
-              {schedule && preAdvice && (
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    mb: 2,
-                    borderRadius: 2,
-                    bgcolor: hexToRgba(ICS_PRIMARY, 0.04),
-                    border: '1px solid',
-                    borderColor: hexToRgba(ICS_PRIMARY, 0.1),
-                  }}
-                >
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {schedule.referenceNo}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {preAdvice.containerNo} · {schedule.depotName}
-                  </Typography>
-                </Paper>
-              )}
-
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 The assigned trucker will be notified. Please confirm the return details below.
               </Typography>
@@ -615,30 +697,148 @@ export default function ScheduleDetailPage() {
                 </Alert>
               )}
 
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: 'auto 1fr',
-                  gap: 1,
-                  rowGap: 1.25,
-                  typography: 'body2',
-                }}
-              >
-                <Typography color="text.secondary">Return date</Typography>
-                <Typography sx={{ fontWeight: 600 }}>{formatScheduleDate(date)}</Typography>
-                <Typography color="text.secondary">Return time</Typography>
-                <Typography sx={{ fontWeight: 600 }}>{formatScheduleTimeHundreds(hourlyOptionToApiTime(time))}</Typography>
-                <Typography color="text.secondary">Arrival window</Typography>
-                <Typography sx={{ fontWeight: 600 }}>{formatArrivalWindow(date, hourlyOptionToApiTime(time))}</Typography>
-                <Typography color="text.secondary">Requesting trucker</Typography>
-                <Typography sx={{ fontWeight: 600 }}>{requestingTrucker ?? '—'}</Typography>
-                {depotRemarks.trim() && (
-                  <>
-                    <Typography color="text.secondary">Depot remarks</Typography>
-                    <Typography sx={{ fontWeight: 600, whiteSpace: 'pre-wrap' }}>{depotRemarks.trim()}</Typography>
-                  </>
-                )}
-              </Box>
+              {schedule && preAdvice && (
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Pre-forecast
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {schedule.referenceNo}
+                      {' · '}
+                      {preAdvice.isBackToBack && primaryContainerUnit && companionContainerUnit
+                        ? `${primaryContainerUnit.containerNo} + ${companionContainerUnit.containerNo}`
+                        : preAdvice.containerNo}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {preAdvice.shippingLineName}
+                    </Typography>
+                  </Box>
+
+                  {preAdvice.isBackToBack && primaryContainerUnit && companionContainerUnit ? (
+                    <Stack spacing={1.5}>
+                      {(
+                        [
+                          {
+                            variant: 'primary' as const,
+                            cyName: schedule.depotName,
+                            freeUntil: preAdvice.demurrageValidUntil,
+                          },
+                          {
+                            variant: 'companion' as const,
+                            cyName:
+                              evaluation?.companionDepotName?.trim() || schedule.depotName,
+                            freeUntil: preAdvice.backToBackCompanionDemurrageValidUntil,
+                          },
+                        ] as const
+                      ).map(({ variant, cyName, freeUntil }, index) => {
+                        const unit = getPreAdviceContainerUnit(
+                          preAdvice,
+                          variant === 'primary' ? 'Primary' : 'Companion',
+                        )
+                        const apiTime = hourlyOptionToApiTime(time)
+                        return (
+                          <Box
+                            key={variant}
+                            sx={
+                              index > 0
+                                ? {
+                                    pt: 1.5,
+                                    mt: 0.5,
+                                    borderTop: '1px solid',
+                                    borderColor: hexToRgba(ICS_PRIMARY, 0.12),
+                                  }
+                                : undefined
+                            }
+                          >
+                            <Typography
+                              variant="overline"
+                              color="text.secondary"
+                              sx={{ fontWeight: 700, letterSpacing: 0.6, display: 'block', mb: 1 }}
+                            >
+                              {backToBackUnitFieldLabel(variant, unit.containerNo)}
+                            </Typography>
+                            <Box sx={confirmUnitFieldGridSx}>
+                              <ConfirmScheduleField label="Container yard (CY)" value={cyName} />
+                              <ConfirmScheduleField
+                                label="Free time valid until"
+                                value={freeUntil ? formatScheduleDate(freeUntil) : '—'}
+                              />
+                              <ConfirmScheduleField
+                                label="Return date"
+                                value={formatScheduleDate(date)}
+                              />
+                              <ConfirmScheduleField
+                                label="Return time"
+                                value={formatScheduleTimeHundreds(apiTime)}
+                              />
+                              <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                                <ConfirmScheduleField
+                                  label="Arrival window"
+                                  value={formatArrivalWindow(date, apiTime)}
+                                />
+                              </Box>
+                            </Box>
+                          </Box>
+                        )
+                      })}
+                    </Stack>
+                  ) : (
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr',
+                        gap: 1,
+                        rowGap: 1.25,
+                        typography: 'body2',
+                      }}
+                    >
+                      <Typography color="text.secondary">Depot (CY)</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>{schedule.depotName}</Typography>
+                      {preAdvice.demurrageValidUntil && (
+                        <>
+                          <Typography color="text.secondary">Free time until</Typography>
+                          <Typography sx={{ fontWeight: 600 }}>
+                            {formatScheduleDate(preAdvice.demurrageValidUntil)}
+                          </Typography>
+                        </>
+                      )}
+                      <Typography color="text.secondary">Return date</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>{formatScheduleDate(date)}</Typography>
+                      <Typography color="text.secondary">Return time</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>
+                        {formatScheduleTimeHundreds(hourlyOptionToApiTime(time))}
+                      </Typography>
+                      <Typography color="text.secondary">Arrival window</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>
+                        {formatArrivalWindow(date, hourlyOptionToApiTime(time))}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'auto 1fr',
+                      gap: 1,
+                      rowGap: 1.25,
+                      typography: 'body2',
+                      pt: preAdvice.isBackToBack ? 0.5 : 0,
+                    }}
+                  >
+                    <Typography color="text.secondary">Requesting trucker</Typography>
+                    <Typography sx={{ fontWeight: 600 }}>{requestingTrucker ?? '—'}</Typography>
+                    {depotRemarks.trim() && (
+                      <>
+                        <Typography color="text.secondary">Depot remarks</Typography>
+                        <Typography sx={{ fontWeight: 600, whiteSpace: 'pre-wrap' }}>
+                          {depotRemarks.trim()}
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+                </Stack>
+              )}
             </>
           )}
         </DialogContent>

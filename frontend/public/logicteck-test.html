@@ -309,27 +309,34 @@
     <header>
       <h1>ICS → LOGICTECK API test</h1>
       <p>
-        Standalone page — <strong>no ICS login</strong>. Pull the ICS dossier by reference, then post every container
-        status change back through the callback. Same flow LOGICTECK uses in production.
+        Standalone page — <strong>no ICS login</strong>. Same public APIs your LOGICTECK backend uses: dossier →
+        <strong>ack-booking</strong> after the trucker confirms on new-return → gate validate → optional status callbacks.
+        Documented in <code>docs/LOGICTECK-INTEGRATION.md</code>.
       </p>
       <span class="badge">OUTSIDE ICS APP · PUBLIC API ONLY</span>
     </header>
 
     <div class="note">
       <strong>Permanent connection:</strong> store <code>transferLink</code> from the dossier. It has the reference,
-      trucker, and the lookup, dossier, validate, and callback URLs. No shared user accounts or JWT — only
-      <code>X-Logicteck-Api-Key</code> and the ICS reference. Callbacks apply only when the yard is tagged LOGICTECK.
+      trucker, lookup, dossier, validate, <strong>ack-booking</strong>, and callback URLs. No shared user accounts or JWT —
+      only <code>X-Logicteck-Api-Key</code> and the ICS reference. ICS truckers open
+      <a id="newReturnLink" href="#" target="_blank" rel="noopener">LOGICTECK new-return</a> with <code>?icsRef=</code>;
+      your server confirms the booking, then calls <code>ack-booking</code>.
     </div>
 
     <div class="card">
       <h2>How LOGICTECK integrates</h2>
       <ol class="steps">
+        <li><strong>New-return (LOGICTECK UI).</strong> Trucker opens <code>…/dashboard/bookings/new-return?icsRef=ICS-…</code> from ICS. Your app loads data via dossier — user confirms the booking on LOGICTECK (ICS does not auto-book).</li>
         <li><strong>Dossier.</strong> <code>GET /api/logicteck/booking/{reference}/dossier</code> — full pre-forecast, photos, QR, and <code>transferLink</code>. Does not change status.</li>
+        <li><strong>Ack booking.</strong> <code>POST /api/logicteck/ack-booking</code> with <code>{"qrCode":"…","reference":"YOUR-LT-ID"}</code> after save on LOGICTECK — sets <code>isBooked</code> on ICS.</li>
         <li><strong>Lookup.</strong> <code>GET /api/logicteck/booking/{reference}</code> — summary only, when photos are not needed.</li>
-        <li><strong>Validate.</strong> <code>POST /api/logicteck/validate-qr</code> with <code>{"qrCode":"..."}</code> — marks the QR retrieved. Once only.</li>
+        <li><strong>Validate.</strong> <code>POST /api/logicteck/validate-qr</code> with <code>{"qrCode":"..."}</code> — marks the QR retrieved. Once only (B2B: add <code>containerNo</code> per unit).</li>
         <li><strong>Callback.</strong> <code>POST /api/logicteck/callback</code> on every container update. Use <code>transferLink.callbackUrl</code>. Same <code>eventId</code> is ignored.</li>
-        <li><strong>ICS send.</strong> When ICS clicks Send to LOGICTECK, ICS POSTs the booking to LOGICTECK <code>BookUrl</code>. Save the returned <code>reference</code> and send it back as <code>externalRef</code>.</li>
+        <li><strong>Optional ICS push.</strong> Legacy <code>BookUrl</code> POST when ICS pushes transfer data — not required if you use dossier + ack-booking.</li>
+        <li><strong>ICS feeds (logged-in).</strong> ICS pulls LOGICTECK yard data with <code>X-ICS-Api-Key</code>: <code>GET /api/cy-allocations/logicteck</code>, <code>.../logicteck/bookings</code>, <code>.../logicteck/inventory</code>.</li>
       </ol>
+      <p class="hint" style="margin:8px 0 0;">LOGICTECK playground sources: <code>/api/ics/allocations</code>, <code>/api/ics/bookings</code>, <code>/api/ics/inventory</code> on the same host.</p>
       <table class="statuses">
         <thead>
           <tr><th>status</th><th>Shown in ICS</th></tr>
@@ -370,11 +377,27 @@
       </div>
       </form>
       <div class="actions">
-        <button type="button" class="btn-primary" id="btnLookup">Load transfer dossier (book on LOGICTECK)</button>
+        <button type="button" class="btn-primary" id="btnLookup">Load transfer dossier</button>
         <button type="button" class="btn-outline" id="btnValidate">Simulate depot gate QR check</button>
         <button type="button" class="btn-ghost" id="btnCopyDossier">Copy dossier curl</button>
         <button type="button" class="btn-ghost" id="btnCopyValidate">Copy validate curl</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Ack booking (after LOGICTECK confirm)</h2>
+      <p class="hint" style="margin-top:0;">Simulates what your Java/Firebase backend calls after the trucker saves on new-return. Sets <code>isBooked</code> on ICS without ICS pushing to <code>BookUrl</code>.</p>
+      <label for="ltReference">LOGICTECK booking reference</label>
+      <input id="ltReference" class="mono" type="text" placeholder="LT-PLAYGROUND-9001" />
+      <div class="actions">
+        <button type="button" class="btn-primary" id="btnAck">POST ack-booking</button>
+        <button type="button" class="btn-ghost" id="btnCopyAck">Copy ack curl</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="ackCard">
+      <h2>Ack result <span id="ackStatus" class="status"></span></h2>
+      <pre id="ackJson"></pre>
     </div>
 
     <div class="card">
@@ -447,6 +470,9 @@
     const DOSSIER_PATH = '/api/logicteck/booking'
     const VALIDATE_PATH = '/api/logicteck/validate-qr'
     const CALLBACK_PATH = '/api/logicteck/callback'
+    const ACK_PATH = '/api/logicteck/ack-booking'
+    const NEW_RETURN_PLAYGROUND =
+      'https://logicteck-cy--logicteck-cy-playground.asia-southeast1.hosted.app/dashboard/bookings/new-return'
     const KEY_HEADER = 'X-Logicteck-Api-Key'
 
     const $ = (id) => document.getElementById(id)
@@ -492,7 +518,25 @@
     }
     apiKey.value = sessionStorage.getItem(STORAGE_KEY) || (onLocal ? LOCAL_DEV_API_KEY : '')
     if (onLocal) $('apiKeyHint').classList.remove('hidden')
-    qrCode.value = params.get('qr') || params.get('ref') || ''
+    qrCode.value = params.get('qr') || params.get('ref') || params.get('icsRef') || ''
+
+    function updateNewReturnLink() {
+      const code = qrCode.value.trim()
+      const link = $('newReturnLink')
+      if (!code) {
+        link.href = NEW_RETURN_PLAYGROUND
+        return
+      }
+      try {
+        const u = new URL(NEW_RETURN_PLAYGROUND)
+        u.searchParams.set('icsRef', code)
+        link.href = u.toString()
+      } catch (_) {
+        link.href = NEW_RETURN_PLAYGROUND + '?icsRef=' + encodeURIComponent(code)
+      }
+    }
+    updateNewReturnLink()
+    qrCode.addEventListener('input', updateNewReturnLink)
 
     function saveSettings() {
       sessionStorage.setItem(STORAGE_BASE, apiBase.value.trim())
@@ -623,7 +667,7 @@
       if (fromCallback && fromCallback !== 'Available') return fromCallback
       if (data.isRetrieved) return 'Retrieved'
       if (data.isBooked) return 'Booked on LOGICTECK'
-      return 'Ready to send'
+      return 'Confirm on LOGICTECK'
     }
 
     function tile(label, value) {
@@ -669,6 +713,7 @@
         html += tile('Lookup URL', link.lookupUrl)
         html += tile('Dossier URL', link.dossierUrl)
         html += tile('Validate URL', link.validateUrl)
+        html += tile('Ack booking URL', link.ackBookingUrl)
         html += tile('Callback URL', link.callbackUrl)
         html += '</div>'
       }
@@ -728,7 +773,7 @@
         if (buckets.damage) photoTitle += ', ' + buckets.damage + ' damage'
       }
       html += '<p class="section-title" style="margin-top:20px;">' + escapeHtml(photoTitle) + '</p>'
-      html += '<p class="hint" style="margin-top:-6px;">Includes all ICS uploads: 8 standard views, optional <strong>Others</strong> (if trucker added extra photos), and damage photos.</p>'
+      html += '<p class="hint" style="margin-top:-6px;">Includes all ICS uploads: 8 standard views, <strong>CSC plate</strong>, optional <strong>Others</strong>, and damage photos.</p>'
       if (docs.length === 0) {
         html += '<p style="color:var(--muted);margin:0;font-size:0.875rem;">No photos on file.</p>'
       } else {
@@ -791,6 +836,62 @@
           hint = ' On localhost, use ' + LOCAL_BASE + ' (not Railway) unless production is redeployed with Logicteck CORS.'
         showError('Dossier request failed. Check API URL, CORS, and that the API is running.' + hint)
       }
+    }
+
+    function renderAck(httpStatus, body) {
+      $('ackCard').classList.remove('hidden')
+      $('ackJson').textContent = JSON.stringify({ httpStatus, body }, null, 2)
+      const badge = $('ackStatus')
+      if (body && body.accepted) {
+        badge.textContent = body.duplicate ? 'Duplicate (ok)' : 'Accepted'
+        badge.className = 'status ok'
+      } else {
+        badge.textContent = body && body.message ? body.message : 'Rejected'
+        badge.className = 'status err'
+      }
+    }
+
+    async function runAck() {
+      clearError()
+      saveSettings()
+      if (!requireApiKey()) return
+      const code = ref()
+      if (!code) return showError('Enter an ICS transfer reference first.')
+      const reference = $('ltReference').value.trim()
+      if (!reference) return showError('Enter a LOGICTECK booking reference (e.g. LT-PLAYGROUND-9001).')
+      const url = buildApiUrl(ACK_PATH)
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { ...headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qrCode: code, reference: reference }),
+        })
+        const text = await res.text()
+        let body = text
+        try { body = JSON.parse(text) } catch (_) {}
+        if (res.status === 401) {
+          return showError((body && body.message ? body.message : 'Unauthorized.') + apiKeyErrorHint(401))
+        }
+        renderAck(res.status, body)
+        if (body && body.accepted) await runLookup()
+      } catch (e) {
+        showError('Ack booking failed. Check API URL and that the API is running (restart API after deploy).')
+      }
+    }
+
+    function curlAck() {
+      const code = ref()
+      const reference = $('ltReference').value.trim()
+      if (!code || !reference) return ''
+      const url = buildApiUrl(ACK_PATH)
+      const key = apiKey.value.trim()
+      const keyLine = key ? '  -H "' + KEY_HEADER + ': ' + key + '" \\\n' : ''
+      return (
+        'curl -s -X POST "' + url + '" \\\n' +
+        '  -H "Content-Type: application/json" \\\n' +
+        keyLine +
+        '  -d \'{"qrCode":"' + code + '","reference":"' + reference + '"}\''
+      )
     }
 
     async function runValidate() {
@@ -904,6 +1005,12 @@
     }
 
     $('btnLookup').addEventListener('click', runLookup)
+    $('btnAck').addEventListener('click', runAck)
+    $('btnCopyAck').addEventListener('click', () => {
+      const c = curlAck()
+      if (!c) return showError('Enter ICS reference and LOGICTECK reference first.')
+      navigator.clipboard.writeText(c).then(() => toast('Ack curl copied'))
+    })
     $('btnValidate').addEventListener('click', runValidate)
     $('btnCopyDossier').addEventListener('click', () => {
       const c = curlDossier()

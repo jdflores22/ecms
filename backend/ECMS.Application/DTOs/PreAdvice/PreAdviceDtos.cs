@@ -16,7 +16,14 @@ public record PreAdviceDto(
     string ContainerType,
     PreAdviceStatus Status,
     string? DemurrageValidUntil,
+    string? BackToBackCompanionDemurrageValidUntil,
     string? Remarks,
+    bool IsBackToBack,
+    string? BackToBackCompanionContainerNo,
+    int? BackToBackCompanionContainerSizeId,
+    int? BackToBackCompanionContainerTypeId,
+    string? BackToBackCompanionContainerSize,
+    string? BackToBackCompanionContainerType,
     string? CroEdoReferenceNo,
     DateTime CreatedAt,
     string? ComplianceRemarks,
@@ -51,6 +58,10 @@ public record CreatePreAdviceRequest(
     int ContainerSizeId,
     int ContainerTypeId,
     string? Remarks,
+    bool IsBackToBack = false,
+    string? BackToBackCompanionContainerNo = null,
+    int? BackToBackCompanionContainerSizeId = null,
+    int? BackToBackCompanionContainerTypeId = null,
     string? CroVerificationToken = null,
     int? CroLineNo = null);
 
@@ -59,7 +70,11 @@ public record UpdatePreAdviceRequest(
     string ContainerNo,
     int ContainerSizeId,
     int ContainerTypeId,
-    string? Remarks);
+    string? Remarks,
+    bool IsBackToBack = false,
+    string? BackToBackCompanionContainerNo = null,
+    int? BackToBackCompanionContainerSizeId = null,
+    int? BackToBackCompanionContainerTypeId = null);
 
 public record CancelPreAdviceRequest(string? Reason);
 
@@ -100,6 +115,7 @@ public record PreAdviceLookupsDto(
 public record PreAdviceDocumentDto(
     int Id,
     int PreAdviceId,
+    string IdentityUnit,
     string? Category,
     string? CategoryLabel,
     string? Comment,

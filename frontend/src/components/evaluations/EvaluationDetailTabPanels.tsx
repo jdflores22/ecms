@@ -8,7 +8,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
-import ContainerIdentityPhotos from '../preAdvice/ContainerIdentityPhotos'
+import PreAdvicePhotosWorkspace from '../preAdvice/PreAdvicePhotosWorkspace'
 import EvaluationOverviewTabPanel from './EvaluationOverviewTabPanel'
 import EvaluationContainerDetailsTabPanel from './EvaluationContainerDetailsTabPanel'
 import {
@@ -35,7 +35,16 @@ import PreAdviceActivityLog from '../preAdvice/PreAdviceActivityLog'
 
 const primaryDark = ICS_PRIMARY
 
-export type EvaluationDetailTab = 'overview' | 'croEdo' | 'details' | 'photos' | 'schedule' | 'qr' | 'activity'
+export type EvaluationDetailTab =
+  | 'overview'
+  | 'croEdo'
+  | 'details'
+  | 'photos'
+  | 'photos-primary'
+  | 'photos-companion'
+  | 'schedule'
+  | 'qr'
+  | 'activity'
 
 const scheduleStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   WaitingSchedule: 'warning',
@@ -78,11 +87,13 @@ type EvaluationDetailTabPanelsProps = {
   onDownloadQr: () => void
   onQrPreview?: () => void
   croFreeTimeDate: string
+  companionCroFreeTimeDate: string
   onCroFreeTimeDateChange: (value: string) => void
+  onCompanionCroFreeTimeDateChange: (value: string) => void
   canEditCroFreeTime: boolean
   croFreeTimeSaving: boolean
   croFreeTimeSaveError: string
-  onSaveCroFreeTime: () => void
+  onSaveCroFreeTime: (unit: 'Primary' | 'Companion') => void
   detDemBilling: DemurrageBilling | null
   detDemDetailPath: string | null
   showExpiredRejectAction: boolean
@@ -105,7 +116,9 @@ export default function EvaluationDetailTabPanels({
   onDownloadQr,
   onQrPreview,
   croFreeTimeDate,
+  companionCroFreeTimeDate,
   onCroFreeTimeDateChange,
+  onCompanionCroFreeTimeDateChange,
   canEditCroFreeTime,
   croFreeTimeSaving,
   croFreeTimeSaveError,
@@ -144,11 +157,13 @@ export default function EvaluationDetailTabPanels({
           item={item}
           documents={documents}
           freeTimeDate={croFreeTimeDate}
+          companionFreeTimeDate={companionCroFreeTimeDate}
           onFreeTimeDateChange={onCroFreeTimeDateChange}
+          onCompanionFreeTimeDateChange={onCompanionCroFreeTimeDateChange}
           canEdit={canEditCroFreeTime}
           saving={croFreeTimeSaving}
           saveError={croFreeTimeSaveError}
-          onSave={onSaveCroFreeTime}
+          onSaveFreeTime={onSaveCroFreeTime}
           detDemBilling={detDemBilling}
           detDemDetailPath={detDemDetailPath}
           showExpiredRejectAction={showExpiredRejectAction}
@@ -170,15 +185,46 @@ export default function EvaluationDetailTabPanels({
         <EvaluationContainerDetailsTabPanel item={item} decision={decision} />
       </DetailTabPanel>
 
-      <DetailTabPanel value="photos" activeTab={activeTab}>
-        <ContainerIdentityPhotos
-          preAdviceId={preAdviceId}
-          documents={documents}
-          loading={documentsLoading}
-          canManage={false}
-          onChange={onReloadDocuments}
-        />
-      </DetailTabPanel>
+      {!item.isBackToBack ? (
+        <DetailTabPanel value="photos" activeTab={activeTab}>
+          <PreAdvicePhotosWorkspace
+            item={item}
+            preAdviceId={preAdviceId}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={false}
+            onChange={onReloadDocuments}
+          />
+        </DetailTabPanel>
+      ) : null}
+
+      {item.isBackToBack ? (
+        <DetailTabPanel value="photos-primary" activeTab={activeTab}>
+          <PreAdvicePhotosWorkspace
+            unit="Primary"
+            item={item}
+            preAdviceId={preAdviceId}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={false}
+            onChange={onReloadDocuments}
+          />
+        </DetailTabPanel>
+      ) : null}
+
+      {item.isBackToBack ? (
+        <DetailTabPanel value="photos-companion" activeTab={activeTab}>
+          <PreAdvicePhotosWorkspace
+            unit="Companion"
+            item={item}
+            preAdviceId={preAdviceId}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={false}
+            onChange={onReloadDocuments}
+          />
+        </DetailTabPanel>
+      ) : null}
 
       <DetailTabPanel value="schedule" activeTab={activeTab}>
         {!isApproved ? (

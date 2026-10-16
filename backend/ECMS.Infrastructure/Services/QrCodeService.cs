@@ -18,6 +18,8 @@ namespace ECMS.Infrastructure.Services;
 
 public class QrCodeService : IQrService
 {
+    private const string QrUnitValidatedStatus = "QR_UNIT_VALIDATED";
+
     private readonly IEcmsDbContext _db;
     private readonly LogicteckOutboundClient _logicteckClient;
     private readonly LogicteckOptions _logicteckOptions;
@@ -206,6 +208,43 @@ public class QrCodeService : IQrService
                 ? evaluator!.Username
                 : "ICS Ops";
 
+        var isBackToBack = preAdvice.IsBackToBack
+            && !string.IsNullOrWhiteSpace(preAdvice.BackToBackCompanionContainerNo);
+        var companionTypeSize = "—";
+        if (isBackToBack)
+        {
+            var compSize = preAdvice.BackToBackCompanionContainerSize?.Label;
+            var compType = preAdvice.BackToBackCompanionContainerType?.Code;
+            companionTypeSize = string.IsNullOrWhiteSpace(compSize)
+                ? compType ?? "—"
+                : $"{compSize}{compType}".Trim();
+        }
+
+        var confirmedLines = new List<ConfirmedPreForecastPdfLine>
+        {
+            new()
+            {
+                RoleLabel = "CONTAINER A",
+                ReferenceNo = preAdvice.ReferenceNo.ToUpperInvariant(),
+                ContainerNo = preAdvice.Container.ContainerNo.ToUpperInvariant(),
+                TypeSize = typeSize.ToUpperInvariant(),
+            },
+        };
+        if (isBackToBack)
+        {
+            confirmedLines.Add(new ConfirmedPreForecastPdfLine
+            {
+                RoleLabel = "CONTAINER B",
+                ReferenceNo = preAdvice.ReferenceNo.ToUpperInvariant(),
+                ContainerNo = preAdvice.BackToBackCompanionContainerNo!.ToUpperInvariant(),
+                TypeSize = companionTypeSize.ToUpperInvariant(),
+            });
+        }
+
+        var containerNoDisplay = isBackToBack
+            ? $"{preAdvice.Container.ContainerNo.ToUpperInvariant()} + {preAdvice.BackToBackCompanionContainerNo!.ToUpperInvariant()}"
+            : preAdvice.Container.ContainerNo.ToUpperInvariant();
+
         return new BookingConfirmationPdfData
         {
             BookingReference = booking.QRCode,
@@ -217,8 +256,10 @@ public class QrCodeService : IQrService
             ContactNo = "—",
             Email = string.IsNullOrWhiteSpace(trucker.Email) ? "—" : trucker.Email,
             Company = customerName.ToUpperInvariant(),
-            BookingType = "EMPTY RETURN",
-            ContainerNo = preAdvice.Container.ContainerNo.ToUpperInvariant(),
+            BookingType = "CONFIRMED PRE-FORECAST",
+            IsBackToBack = isBackToBack,
+            ConfirmedPreForecastLines = confirmedLines,
+            ContainerNo = containerNoDisplay,
             ContainerTypeSize = typeSize.ToUpperInvariant(),
             CargoType = "EMPTY CONTAINER",
             ShippingLine = preAdvice.ShippingLine.Name.ToUpperInvariant(),
@@ -381,30 +422,46 @@ public class QrCodeService : IQrService
 
         if (booking.IsUsed)
         {
-            return new ValidateQrResponse(
-                false,
-                "QR already retrieved by LOGICTECK.",
-                booking.QRCode,
-                booking.Schedule.PreAdvice.Container.ContainerNo,
-                booking.Schedule.PreAdvice.ShippingLine.Code,
-                booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
-                booking.Schedule.PreAdvice.ReferenceNo,
-                booking.Schedule.Date.ToString("yyyy-MM-dd"),
-                booking.Schedule.Time.ToString("HH:mm"),
-                booking.Schedule.Depot.Name);
+            return BuildValidateResponse(
+                booking,
+                valid: false,
+                message: "QR already retrieved by LOGICTECK.",
+                validatedContainerNo: null,
+                fullyRetrieved: true);
+        }
+
+        if (!IsScheduleOpenForLogicteck(booking.Schedule))
+        {
+            return BuildValidateResponse(
+                booking,
+                valid: false,
+                message: LogicteckScheduleBlockMessage(booking.Schedule.Status),
+                validatedContainerNo: null,
+                fullyRetrieved: false);
+        }
+
+        var preAdvice = booking.Schedule.PreAdvice;
+        if (IsBackToBackActive(preAdvice))
+        {
+            return await ValidateBackToBackUnitAsync(booking, request.ContainerNo, cancellationToken);
         }
 
         booking.IsUsed = true;
         await _db.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(
-            booking.Schedule.PreAdvice.TruckerId,
+            preAdvice.TruckerId,
             "LOGICTECK_VALIDATE_QR",
             "QR",
-            $"QR {booking.QRCode} validated for container {booking.Schedule.PreAdvice.Container.ContainerNo}.",
+            $"QR {booking.QRCode} validated for container {preAdvice.Container.ContainerNo}.",
             cancellationToken);
 
-        return BuildValidateResponse(booking, valid: true, message: "Valid booking.");
+        return BuildValidateResponse(
+            booking,
+            valid: true,
+            message: "Valid booking.",
+            validatedContainerNo: preAdvice.Container.ContainerNo,
+            fullyRetrieved: true);
     }
 
     public async Task<LogicteckBookingLookupResponse?> LookupForLogicteckAsync(string qrCode, CancellationToken cancellationToken = default)
@@ -421,12 +478,13 @@ public class QrCodeService : IQrService
                 false, false);
         }
 
+        var preAdvice = booking.Schedule.PreAdvice;
         return new LogicteckBookingLookupResponse(
             true,
             null,
             booking.QRCode,
-            booking.Schedule.PreAdvice.Container.ContainerNo,
-            booking.Schedule.PreAdvice.ShippingLine.Code,
+            FormatQrContainerLine(preAdvice),
+            preAdvice.ShippingLine.Code,
             booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
             booking.Schedule.PreAdvice.ReferenceNo,
             booking.Schedule.Date.ToString("yyyy-MM-dd"),
@@ -467,6 +525,7 @@ public class QrCodeService : IQrService
             .OrderBy(d => ContainerPhotoCatalog.GetDisplaySortOrder(d.Category))
             .ThenBy(d => d.CreatedAt)
             .Select(d => new LogicteckDossierDocumentDto(
+                PreAdviceIdentityUnits.GetLabel(d.IdentityUnit),
                 d.Category?.ToString(),
                 d.Category.HasValue ? ContainerPhotoCatalog.GetLabel(d.Category.Value) : null,
                 d.Comment,
@@ -480,7 +539,7 @@ public class QrCodeService : IQrService
             true,
             null,
             booking.QRCode,
-            preAdvice.Container.ContainerNo,
+            FormatQrContainerLine(preAdvice),
             preAdvice.ShippingLine.Code,
             booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
             preAdvice.ReferenceNo,
@@ -503,7 +562,13 @@ public class QrCodeService : IQrService
                 preAdvice.Remarks,
                 preAdvice.Status == PreAdviceStatus.ForCompliance ? preAdvice.Evaluation?.Remarks : null,
                 preAdvice.CreatedAt,
-                hasDamage),
+                hasDamage,
+                preAdvice.IsBackToBack,
+                preAdvice.BackToBackCompanionContainerNo,
+                preAdvice.BackToBackCompanionContainerSize?.Label,
+                preAdvice.BackToBackCompanionContainerType is null
+                    ? null
+                    : $"{preAdvice.BackToBackCompanionContainerType.Code} — {preAdvice.BackToBackCompanionContainerType.Label}"),
             new LogicteckDossierScheduleDto(
                 booking.Schedule.Id,
                 preAdvice.ReferenceNo,
@@ -582,6 +647,17 @@ public class QrCodeService : IQrService
         if (booking.LogicteckBookedAt.HasValue || booking.IsUsed)
             return (true, booking.LogicteckExternalRef, null);
 
+        if (string.IsNullOrWhiteSpace(_logicteckOptions.BookUrl))
+        {
+            return (
+                false,
+                null,
+                "LOGICTECK BookUrl is not configured. Confirm the return on LOGICTECK and call ack-booking instead.");
+        }
+
+        if (!IsScheduleOpenForLogicteck(booking.Schedule))
+            return (false, null, LogicteckScheduleBlockMessage(booking.Schedule.Status));
+
         var outboundPayload = BuildOutboundPayload(booking);
         var (success, externalRef, error) = await _logicteckClient.SubmitBookingAsync(outboundPayload, cancellationToken);
         if (!success)
@@ -607,7 +683,7 @@ public class QrCodeService : IQrService
         var preAdvice = booking.Schedule.PreAdvice;
         return new LogicteckOutboundPayload(
             booking.QRCode,
-            preAdvice.Container.ContainerNo,
+            FormatQrContainerLine(preAdvice),
             preAdvice.ShippingLine.Code,
             booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username ?? preAdvice.Trucker.FullName ?? preAdvice.Trucker.Username,
             preAdvice.Trucker.Username,
@@ -628,9 +704,10 @@ public class QrCodeService : IQrService
     {
         var preAdvice = schedule.PreAdvice;
         var truckerName = schedule.Trucker?.FullName ?? schedule.Trucker?.Username ?? "N/A";
+        var b2b = IsBackToBackActive(preAdvice);
         return new QrPayloadDto(
             qrCode,
-            preAdvice.Container.ContainerNo,
+            FormatQrContainerLine(preAdvice),
             preAdvice.ShippingLine.Code,
             schedule.Depot.Name,
             schedule.Date.ToString("yyyy-MM-dd"),
@@ -643,7 +720,10 @@ public class QrCodeService : IQrService
             preAdvice.TruckerId,
             preAdvice.Trucker.Username,
             preAdvice.Id,
-            schedule.Id);
+            schedule.Id,
+            b2b,
+            preAdvice.Container.ContainerNo,
+            b2b ? preAdvice.BackToBackCompanionContainerNo : null);
     }
 
     private LogicteckTransferLinkDto BuildTransferLink(Domain.Entities.QRBooking booking)
@@ -665,7 +745,95 @@ public class QrCodeService : IQrService
             BuildLookupUrl(booking.QRCode),
             BuildDossierUrl(booking.QRCode),
             BuildValidateUrl(),
+            BuildAckBookingUrl(),
             BuildCallbackUrl());
+    }
+
+    public async Task<AckLogicteckBookingResponse> AckLogicteckBookingAsync(
+        AckLogicteckBookingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var qrRef = BookingQrReference.Normalize(request.QrCode);
+        if (qrRef is null)
+        {
+            return new AckLogicteckBookingResponse(
+                false, false, "Enter a valid ICS transfer reference.", null, null, false);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reference))
+        {
+            return new AckLogicteckBookingResponse(
+                false, false, "reference is required (LOGICTECK booking id).", qrRef, null, false);
+        }
+
+        var externalRef = request.Reference.Trim();
+        if (externalRef.Length > 128)
+        {
+            return new AckLogicteckBookingResponse(
+                false, false, "reference is too long.", qrRef, null, false);
+        }
+
+        var booking = await LoadBookingQuery()
+            .FirstOrDefaultAsync(x => x.QRCode == qrRef, cancellationToken);
+
+        if (booking is null)
+        {
+            return new AckLogicteckBookingResponse(
+                false, false, "Booking reference not found.", qrRef, null, false);
+        }
+
+        if (booking.IsUsed)
+        {
+            return new AckLogicteckBookingResponse(
+                false, false, "QR already retrieved by LOGICTECK.", qrRef, booking.LogicteckExternalRef, true);
+        }
+
+        if (booking.LogicteckBookedAt.HasValue)
+        {
+            var sameRef = string.Equals(
+                booking.LogicteckExternalRef,
+                externalRef,
+                StringComparison.OrdinalIgnoreCase);
+            return new AckLogicteckBookingResponse(
+                true,
+                true,
+                sameRef
+                    ? "Booking already acknowledged on ICS."
+                    : "ICS already has a LOGICTECK reference for this transfer.",
+                qrRef,
+                booking.LogicteckExternalRef,
+                true);
+        }
+
+        if (!IsScheduleOpenForLogicteck(booking.Schedule))
+        {
+            return new AckLogicteckBookingResponse(
+                false,
+                false,
+                LogicteckScheduleBlockMessage(booking.Schedule.Status),
+                qrRef,
+                null,
+                false);
+        }
+
+        booking.LogicteckBookedAt = PhilippinesTime.UtcNow;
+        booking.LogicteckExternalRef = externalRef;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            booking.Schedule.PreAdvice.TruckerId,
+            "LOGICTECK_ACK_BOOKING",
+            "QR",
+            $"QR {booking.QRCode} — LOGICTECK confirmed booking {externalRef}.",
+            cancellationToken);
+
+        return new AckLogicteckBookingResponse(
+            true,
+            false,
+            "Booking acknowledged on ICS.",
+            qrRef,
+            externalRef,
+            true);
     }
 
     private string BuildLookupUrl(string qrCode)
@@ -685,6 +853,8 @@ public class QrCodeService : IQrService
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Container)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ShippingLine)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Trucker)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.BackToBackCompanionContainerSize)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.BackToBackCompanionContainerType)
             .Include(x => x.Schedule).ThenInclude(s => s.Depot)
             .Include(x => x.Schedule).ThenInclude(s => s.Trucker);
 
@@ -695,6 +865,8 @@ public class QrCodeService : IQrService
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Trucker)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ContainerSize)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.ContainerType)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.BackToBackCompanionContainerSize)
+            .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.BackToBackCompanionContainerType)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Evaluation).ThenInclude(e => e!.Evaluator)
             .Include(x => x.Schedule).ThenInclude(s => s.PreAdvice).ThenInclude(p => p.Documents)
             .Include(x => x.Schedule).ThenInclude(s => s.Depot)
@@ -719,6 +891,12 @@ public class QrCodeService : IQrService
     {
         var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
         return $"{baseUrl}/api/logicteck/validate-qr";
+    }
+
+    private string BuildAckBookingUrl()
+    {
+        var baseUrl = _logicteckOptions.PublicApiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/logicteck/ack-booking";
     }
 
     private string BuildCallbackUrl()
@@ -762,23 +940,158 @@ public class QrCodeService : IQrService
         return false;
     }
 
-    private static ValidateQrResponse BuildValidateResponse(Domain.Entities.QRBooking booking, bool valid, string message)
-        => new(
+    private async Task<ValidateQrResponse> ValidateBackToBackUnitAsync(
+        Domain.Entities.QRBooking booking,
+        string? containerNo,
+        CancellationToken cancellationToken)
+    {
+        if (!IsScheduleOpenForLogicteck(booking.Schedule))
+        {
+            return BuildValidateResponse(
+                booking,
+                valid: false,
+                message: LogicteckScheduleBlockMessage(booking.Schedule.Status),
+                validatedContainerNo: null,
+                fullyRetrieved: false);
+        }
+
+        var preAdvice = booking.Schedule.PreAdvice;
+        var primary = PreAdviceDuplicateGuard.NormalizeContainerNo(preAdvice.Container.ContainerNo);
+        var companion = PreAdviceDuplicateGuard.NormalizeContainerNo(preAdvice.BackToBackCompanionContainerNo!);
+        var scanned = string.IsNullOrWhiteSpace(containerNo)
+            ? null
+            : PreAdviceDuplicateGuard.NormalizeContainerNo(containerNo);
+
+        if (scanned is null)
+        {
+            return BuildValidateResponse(
+                booking,
+                valid: false,
+                message: "containerNo is required for back-to-back pre-forecasts.",
+                validatedContainerNo: null,
+                fullyRetrieved: false);
+        }
+
+        if (scanned != primary && scanned != companion)
+        {
+            return BuildValidateResponse(
+                booking,
+                valid: false,
+                message: "Container does not match this back-to-back pre-forecast.",
+                validatedContainerNo: null,
+                fullyRetrieved: false);
+        }
+
+        var validatedUnits = await _db.LogicteckStatusUpdates.AsNoTracking()
+            .Where(u => u.QRBookingId == booking.Id && u.Status == QrUnitValidatedStatus)
+            .Select(u => u.Message)
+            .ToListAsync(cancellationToken);
+
+        if (validatedUnits.Any(u => string.Equals(u, scanned, StringComparison.OrdinalIgnoreCase)))
+        {
+            return BuildValidateResponse(
+                booking,
+                valid: false,
+                message: "Container already validated for this QR.",
+                validatedContainerNo: scanned,
+                fullyRetrieved: booking.IsUsed);
+        }
+
+        var occurredAt = PhilippinesTime.UtcNow;
+        _db.Add(new LogicteckStatusUpdate
+        {
+            QRBookingId = booking.Id,
+            Status = QrUnitValidatedStatus,
+            Message = scanned,
+            OccurredAt = occurredAt,
+        });
+
+        validatedUnits.Add(scanned);
+        var fullyRetrieved = validatedUnits.Any(u => string.Equals(u, primary, StringComparison.OrdinalIgnoreCase))
+            && validatedUnits.Any(u => string.Equals(u, companion, StringComparison.OrdinalIgnoreCase));
+        if (fullyRetrieved)
+            booking.IsUsed = true;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(
+            preAdvice.TruckerId,
+            "LOGICTECK_VALIDATE_QR",
+            "QR",
+            fullyRetrieved
+                ? $"QR {booking.QRCode} fully retrieved (back-to-back: {primary} + {companion})."
+                : $"QR {booking.QRCode} unit validated: {scanned} (back-to-back; awaiting second container).",
+            cancellationToken);
+
+        return BuildValidateResponse(
+            booking,
+            valid: true,
+            message: fullyRetrieved
+                ? "Valid booking — both containers validated."
+                : $"Valid for {scanned}. Scan again with the second container to complete back-to-back retrieval.",
+            validatedContainerNo: scanned,
+            fullyRetrieved: fullyRetrieved);
+    }
+
+    private static bool IsBackToBackActive(PreAdvice preAdvice) =>
+        preAdvice.IsBackToBack && !string.IsNullOrWhiteSpace(preAdvice.BackToBackCompanionContainerNo);
+
+    private static string FormatQrContainerLine(PreAdvice preAdvice)
+    {
+        if (!IsBackToBackActive(preAdvice))
+            return preAdvice.Container.ContainerNo;
+
+        return $"{preAdvice.Container.ContainerNo} + {preAdvice.BackToBackCompanionContainerNo!.Trim()}";
+    }
+
+    private static QrPayloadDto EnrichQrPayload(PreAdvice preAdvice, string qrCode, QrPayloadDto payload)
+    {
+        var b2b = IsBackToBackActive(preAdvice);
+        return payload with
+        {
+            BookingId = string.IsNullOrWhiteSpace(payload.BookingId) ? qrCode : payload.BookingId,
+            ContainerNo = FormatQrContainerLine(preAdvice),
+            PreAdviceReference = string.IsNullOrWhiteSpace(payload.PreAdviceReference)
+                ? preAdvice.ReferenceNo
+                : payload.PreAdviceReference,
+            IsBackToBack = b2b,
+            PrimaryContainerNo = preAdvice.Container.ContainerNo,
+            CompanionContainerNo = b2b ? preAdvice.BackToBackCompanionContainerNo : null,
+        };
+    }
+
+    private static ValidateQrResponse BuildValidateResponse(
+        Domain.Entities.QRBooking booking,
+        bool valid,
+        string message,
+        string? validatedContainerNo,
+        bool fullyRetrieved)
+    {
+        var preAdvice = booking.Schedule.PreAdvice;
+        var b2b = IsBackToBackActive(preAdvice);
+        return new(
             valid,
             message,
             booking.QRCode,
-            booking.Schedule.PreAdvice.Container.ContainerNo,
-            booking.Schedule.PreAdvice.ShippingLine.Code,
+            validatedContainerNo ?? FormatQrContainerLine(preAdvice),
+            preAdvice.ShippingLine.Code,
             booking.Schedule.Trucker?.FullName ?? booking.Schedule.Trucker?.Username,
-            booking.Schedule.PreAdvice.ReferenceNo,
+            preAdvice.ReferenceNo,
             booking.Schedule.Date.ToString("yyyy-MM-dd"),
             booking.Schedule.Time.ToString("HH:mm"),
-            booking.Schedule.Depot.Name);
+            booking.Schedule.Depot.Name,
+            b2b,
+            b2b ? preAdvice.BackToBackCompanionContainerNo : null,
+            validatedContainerNo,
+            fullyRetrieved);
+    }
 
-    private static QrBookingDto MapToDto(Domain.Entities.QRBooking booking)
+    private QrBookingDto MapToDto(Domain.Entities.QRBooking booking)
     {
         var payload = JsonSerializer.Deserialize<QrPayloadDto>(booking.PayloadJson)
             ?? new QrPayloadDto(booking.QRCode, "", "", "", "", "", "");
+        if (booking.Schedule?.PreAdvice is not null)
+            payload = EnrichQrPayload(booking.Schedule.PreAdvice, booking.QRCode, payload);
 
         return new QrBookingDto(
             booking.Id,
@@ -794,6 +1107,21 @@ public class QrCodeService : IQrService
             booking.LogicteckUpdateMessage,
             booking.LogicteckUpdatedAt);
     }
+
+    private static bool IsScheduleOpenForLogicteck(Schedule schedule) =>
+        schedule.Status is ScheduleStatus.Confirmed or ScheduleStatus.Completed;
+
+    private static string LogicteckScheduleBlockMessage(ScheduleStatus status) =>
+        status switch
+        {
+            ScheduleStatus.NoShow =>
+                "Return schedule is marked no show. Contact the depot for a new return slot before gate validation or LOGICTECK booking.",
+            ScheduleStatus.WaitingSchedule =>
+                "Return schedule is not confirmed yet. Wait for the depot to assign a return slot.",
+            ScheduleStatus.Scheduled =>
+                "Payment is not verified yet. Complete payment in ICS before LOGICTECK gate or booking acknowledgement.",
+            _ => $"Return schedule status ({status}) does not allow LOGICTECK gate or booking acknowledgement.",
+        };
 
     private static string ResolveLogicteckStatus(Domain.Entities.QRBooking booking)
     {

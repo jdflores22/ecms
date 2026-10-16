@@ -31,7 +31,11 @@ public class DepotService : IDepotService
                 d.OperatingHourStart,
                 d.OperatingHourEnd,
                 d.IsActive,
-                d.IsLogicteck))
+                d.IsLogicteck,
+                d.LogicteckIcsBaseUrl,
+                d.LogicteckAllocationsUrl,
+                d.LogicteckBookingsUrl,
+                d.LogicteckInventoryUrl))
             .ToListAsync(cancellationToken);
     }
 
@@ -48,7 +52,11 @@ public class DepotService : IDepotService
                 d.OperatingHourStart,
                 d.OperatingHourEnd,
                 d.IsActive,
-                d.IsLogicteck))
+                d.IsLogicteck,
+                d.LogicteckIcsBaseUrl,
+                d.LogicteckAllocationsUrl,
+                d.LogicteckBookingsUrl,
+                d.LogicteckInventoryUrl))
             .ToListAsync(cancellationToken);
     }
 
@@ -84,6 +92,7 @@ public class DepotService : IDepotService
             IsActive = true,
             IsLogicteck = request.IsLogicteck,
         };
+        ApplyLogicteckFeedUrls(depot, request.IsLogicteck, request);
 
         _db.Add(depot);
         await _db.SaveChangesAsync(cancellationToken);
@@ -120,6 +129,7 @@ public class DepotService : IDepotService
         depot.OperatingHourEnd = request.OperatingHourEnd;
         depot.IsActive = request.IsActive;
         depot.IsLogicteck = request.IsLogicteck;
+        ApplyLogicteckFeedUrls(depot, request.IsLogicteck, request);
         _db.Update(depot);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Update", "Depot", name, cancellationToken);
@@ -147,6 +157,43 @@ public class DepotService : IDepotService
             throw new InvalidOperationException("Containers per hour must be at least 1.");
     }
 
+    private static void ApplyLogicteckFeedUrls(Depot depot, bool isLogicteck, CreateDepotRequest request)
+    {
+        if (!isLogicteck)
+        {
+            depot.LogicteckIcsBaseUrl = null;
+            depot.LogicteckAllocationsUrl = null;
+            depot.LogicteckBookingsUrl = null;
+            depot.LogicteckInventoryUrl = null;
+            return;
+        }
+
+        depot.LogicteckIcsBaseUrl = TrimOrNull(request.LogicteckIcsBaseUrl);
+        depot.LogicteckAllocationsUrl = TrimOrNull(request.LogicteckAllocationsUrl);
+        depot.LogicteckBookingsUrl = TrimOrNull(request.LogicteckBookingsUrl);
+        depot.LogicteckInventoryUrl = TrimOrNull(request.LogicteckInventoryUrl);
+    }
+
+    private static void ApplyLogicteckFeedUrls(Depot depot, bool isLogicteck, UpdateDepotRequest request)
+    {
+        if (!isLogicteck)
+        {
+            depot.LogicteckIcsBaseUrl = null;
+            depot.LogicteckAllocationsUrl = null;
+            depot.LogicteckBookingsUrl = null;
+            depot.LogicteckInventoryUrl = null;
+            return;
+        }
+
+        depot.LogicteckIcsBaseUrl = TrimOrNull(request.LogicteckIcsBaseUrl);
+        depot.LogicteckAllocationsUrl = TrimOrNull(request.LogicteckAllocationsUrl);
+        depot.LogicteckBookingsUrl = TrimOrNull(request.LogicteckBookingsUrl);
+        depot.LogicteckInventoryUrl = TrimOrNull(request.LogicteckInventoryUrl);
+    }
+
+    private static string? TrimOrNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static DepotDto MapToDto(Depot d) =>
         new(
             d.Id,
@@ -157,5 +204,9 @@ public class DepotService : IDepotService
             d.OperatingHourStart,
             d.OperatingHourEnd,
             d.IsActive,
-            d.IsLogicteck);
+            d.IsLogicteck,
+            d.LogicteckIcsBaseUrl,
+            d.LogicteckAllocationsUrl,
+            d.LogicteckBookingsUrl,
+            d.LogicteckInventoryUrl);
 }

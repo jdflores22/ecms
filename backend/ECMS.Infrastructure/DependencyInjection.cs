@@ -22,7 +22,8 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
         services.AddHttpClient<LogicteckOutboundClient>();
-        services.AddHttpClient<LogicteckAllocationClient>();
+        services.AddHttpClient<LogicteckIcsFeedClient>();
+        services.AddSingleton<LogicteckFeedResolver>();
         services.AddScoped<IQrService, QrCodeService>();
         services.AddScoped<IDepotGateService, DepotGateService>();
 

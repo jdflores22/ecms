@@ -9,7 +9,11 @@ public record DepotDto(
     int OperatingHourStart,
     int OperatingHourEnd,
     bool IsActive,
-    bool IsLogicteck);
+    bool IsLogicteck,
+    string? LogicteckIcsBaseUrl,
+    string? LogicteckAllocationsUrl,
+    string? LogicteckBookingsUrl,
+    string? LogicteckInventoryUrl);
 
 public record CreateDepotRequest(
     string Name,
@@ -18,7 +22,11 @@ public record CreateDepotRequest(
     int ContainersPerHour,
     int OperatingHourStart,
     int OperatingHourEnd,
-    bool IsLogicteck = false);
+    bool IsLogicteck = false,
+    string? LogicteckIcsBaseUrl = null,
+    string? LogicteckAllocationsUrl = null,
+    string? LogicteckBookingsUrl = null,
+    string? LogicteckInventoryUrl = null);
 
 public record UpdateDepotRequest(
     string Name,
@@ -28,4 +36,8 @@ public record UpdateDepotRequest(
     int OperatingHourStart,
     int OperatingHourEnd,
     bool IsActive,
-    bool IsLogicteck = false);
+    bool IsLogicteck = false,
+    string? LogicteckIcsBaseUrl = null,
+    string? LogicteckAllocationsUrl = null,
+    string? LogicteckBookingsUrl = null,
+    string? LogicteckInventoryUrl = null);

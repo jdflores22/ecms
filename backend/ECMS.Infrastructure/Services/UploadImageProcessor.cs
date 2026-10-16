@@ -1,6 +1,4 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace ECMS.Infrastructure.Services;
 
@@ -100,30 +98,77 @@ public static class UploadImageProcessor
             if (!string.IsNullOrEmpty(thumbDir))
                 Directory.CreateDirectory(thumbDir);
 
-            using var image = Image.Load(absoluteSourcePath);
-            if (image.Width <= ThumbMaxWidth)
-            {
-                image.Mutate(x => x.AutoOrient());
-                image.Save(absoluteThumbPath, new WebpEncoder { Quality = ThumbQuality });
-                return true;
-            }
+            using var input = File.OpenRead(absoluteSourcePath);
+            using var codec = SKCodec.Create(input);
+            if (codec is null)
+                return false;
 
-            image.Mutate(x =>
-            {
-                x.AutoOrient();
-                x.Resize(new ResizeOptions
-                {
-                    Mode = ResizeMode.Max,
-                    Size = new Size(ThumbMaxWidth, 0),
-                });
-            });
-            image.Save(absoluteThumbPath, new WebpEncoder { Quality = ThumbQuality });
+            using var bitmap = SKBitmap.Decode(codec);
+            if (bitmap is null)
+                return false;
+
+            using var oriented = ApplyEncodedOrigin(bitmap, codec.EncodedOrigin);
+            using var toEncode = ResizeIfNeeded(oriented, ThumbMaxWidth);
+            using var image = SKImage.FromBitmap(toEncode);
+            using var data = image.Encode(SKEncodedImageFormat.Webp, ThumbQuality);
+            if (data is null)
+                return false;
+
+            using var output = File.OpenWrite(absoluteThumbPath);
+            data.SaveTo(output);
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static SKBitmap ResizeIfNeeded(SKBitmap bitmap, int maxWidth)
+    {
+        if (bitmap.Width <= maxWidth)
+            return bitmap.Copy();
+
+        var scale = (float)maxWidth / bitmap.Width;
+        var height = Math.Max(1, (int)Math.Round(bitmap.Height * scale));
+        var info = new SKImageInfo(maxWidth, height, bitmap.ColorType, bitmap.AlphaType);
+        var resized = bitmap.Resize(info, SKFilterQuality.Medium);
+        return resized ?? bitmap.Copy();
+    }
+
+    private static SKBitmap ApplyEncodedOrigin(SKBitmap bitmap, SKEncodedOrigin origin)
+    {
+        if (origin is SKEncodedOrigin.TopLeft or SKEncodedOrigin.Default)
+            return bitmap.Copy();
+
+        var (swapDimensions, degrees, flipX, flipY) = origin switch
+        {
+            SKEncodedOrigin.TopRight => (false, 0, true, false),
+            SKEncodedOrigin.BottomRight => (false, 180, false, false),
+            SKEncodedOrigin.BottomLeft => (false, 0, false, true),
+            SKEncodedOrigin.LeftTop => (true, 90, true, false),
+            SKEncodedOrigin.RightTop => (true, 90, false, false),
+            SKEncodedOrigin.RightBottom => (true, 270, true, false),
+            SKEncodedOrigin.LeftBottom => (true, 270, false, false),
+            _ => (false, 0, false, false),
+        };
+
+        var width = swapDimensions ? bitmap.Height : bitmap.Width;
+        var height = swapDimensions ? bitmap.Width : bitmap.Height;
+        var result = new SKBitmap(width, height, bitmap.ColorType, bitmap.AlphaType);
+
+        using (var canvas = new SKCanvas(result))
+        {
+            canvas.Translate(width / 2f, height / 2f);
+            if (degrees != 0)
+                canvas.RotateDegrees(degrees);
+            if (flipX || flipY)
+                canvas.Scale(flipX ? -1 : 1, flipY ? -1 : 1);
+            canvas.Translate(-bitmap.Width / 2f, -bitmap.Height / 2f);
+            canvas.DrawBitmap(bitmap, 0, 0);
+        }
+
+        return result;
     }
 
     private static string GuessContentType(string path)

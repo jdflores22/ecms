@@ -7,6 +7,7 @@ export const PreAdviceDetailPage = lazy(() => import('../pages/preAdvice/PreAdvi
 export const EvaluationsPage = lazy(() => import('../pages/EvaluationsPage'))
 export const EvaluationDetailPage = lazy(() => import('../pages/evaluations/EvaluationDetailPage'))
 export const ContainerInventoryPage = lazy(() => import('../pages/evaluations/ContainerInventoryPage'))
+export const ContainerInventoryDetailPage = lazy(() => import('../pages/inventory/ContainerInventoryDetailPage'))
 export const EvaluatorDemurrageBillingPage = lazy(() => import('../pages/evaluations/DemurrageBillingPage'))
 export const EvaluatorDemurrageRatesPage = lazy(() => import('../pages/demurrage/EvaluatorDemurrageRatesPage'))
 export const EvaluatorStatementOfAccountsPage = lazy(() => import('../pages/evaluations/StatementOfAccountsPage'))

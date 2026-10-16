@@ -17,6 +17,13 @@ public class Depot : BaseEntity
     /// <summary>When true, confirmed bookings and yard status come from LOGICTECK. Untagged yards stay on the ICS gate scan.</summary>
     public bool IsLogicteck { get; set; }
 
+    /// <summary>Optional per-yard LOGICTECK ICS API base (…/api/ics). Falls back to server env when empty.</summary>
+    public string? LogicteckIcsBaseUrl { get; set; }
+
+    public string? LogicteckAllocationsUrl { get; set; }
+    public string? LogicteckBookingsUrl { get; set; }
+    public string? LogicteckInventoryUrl { get; set; }
+
     public ICollection<Evaluation> Evaluations { get; set; } = new List<Evaluation>();
     public ICollection<Schedule> Schedules { get; set; } = new List<Schedule>();
     public ICollection<User> Users { get; set; } = new List<User>();

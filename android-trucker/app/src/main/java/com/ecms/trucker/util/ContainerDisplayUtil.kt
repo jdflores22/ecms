@@ -14,8 +14,14 @@ fun referenceWithMeta(referenceNo: String, meta: String? = null): String =
 suspend fun TruckerRepository.preAdviceContainerById(): Map<Int, String> =
     runCatching { listPreAdvices().associate { it.id to it.containerNo } }.getOrDefault(emptyMap())
 
+suspend fun TruckerRepository.preAdviceById(): Map<Int, PreAdviceDto> =
+    runCatching { listPreAdvices().associateBy { it.id } }.getOrDefault(emptyMap())
+
 fun ScheduleDto.containerHeadline(containerByPreAdviceId: Map<Int, String>): String =
     primaryContainerLabel(containerByPreAdviceId[preAdviceId], referenceNo)
+
+fun ScheduleDto.containerHeadline(preAdvice: PreAdviceDto?): String =
+    preAdvice?.containerHeadline() ?: referenceNo
 
 fun ScheduleDto.containerListSubtitle(
     containerByPreAdviceId: Map<Int, String>,
@@ -29,9 +35,10 @@ fun ScheduleDto.containerListSubtitle(
     }
 }
 
-fun PreAdviceDto.listTitle(): String = containerNo
+fun PreAdviceDto.listTitle(): String = containerHeadline()
 
-fun PreAdviceDto.listSubtitle(): String = referenceWithMeta(referenceNo, shippingLineName)
+fun PreAdviceDto.listSubtitle(): String =
+    referenceWithMeta(referenceNo, if (isBackToBackActive()) "$shippingLineName · Back-to-back" else shippingLineName)
 
 fun withdrawalListHeadline(w: WithdrawalDto): String =
     w.lines.firstOrNull()?.containerNo?.takeIf { it.isNotBlank() }

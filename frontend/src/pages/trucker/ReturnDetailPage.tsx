@@ -44,6 +44,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-router-dom'
 
+import BookingQrPreviewDialog from '../../components/qr/BookingQrPreviewDialog'
 import ReturnDetailTabPanels, { type ReturnDetailTab } from '../../components/trucker/ReturnDetailTabPanels'
 import AssetImage from '../../components/layout/AssetImage'
 import { QrImageSkeleton } from '../../components/layout/SkeletonPrimitives'
@@ -80,7 +81,7 @@ import {
 
 } from '../../components/layout/DetailPagePrimitives'
 
-import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
+import { REQUIRED_CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 
 import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
 
@@ -118,7 +119,7 @@ import {
   truckerScheduleStatusHint,
   truckerScheduleStatusLabel,
 } from '../../utils/truckerSchedule'
-import { applyBookLogicteckResult, bookLogicteckBooking, canBookLogicteck } from '../../utils/logicteckBooking'
+import { canOpenLogicteckConfirm, openLogicteckNewReturn } from '../../utils/logicteckBooking'
 import { downloadBookingConfirmationPdf } from '../../utils/downloadBookingConfirmationPdf'
 
 import {
@@ -420,13 +421,13 @@ export default function TruckerReturnDetailPage() {
 
   const photoProgress = useMemo(() => {
 
-    const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
+    const uploaded = REQUIRED_CONTAINER_PHOTO_CATEGORIES.filter((c) =>
 
       documents.some((d) => d.category === c.value),
 
     ).length
 
-    return { uploaded, total: CONTAINER_PHOTO_CATEGORIES.length }
+    return { uploaded, total: REQUIRED_CONTAINER_PHOTO_CATEGORIES.length }
 
   }, [documents])
 
@@ -527,18 +528,13 @@ export default function TruckerReturnDetailPage() {
 
 
 
-  const handleBookLogicteck = async () => {
-    if (!qrBooking || !canBookLogicteck(qrBooking)) return
+  const handleOpenLogicteckConfirm = async () => {
+    if (!qrBooking || !canOpenLogicteckConfirm(qrBooking, schedule)) return
     setBookLogicteckLoading(true)
     try {
-      const result = await bookLogicteckBooking(qrBooking.id)
-      if (result.success) {
-        setQrBooking(applyBookLogicteckResult(qrBooking, result))
-      } else {
-        setError(result.message)
-      }
+      await openLogicteckNewReturn(qrBooking.qrCode)
     } catch {
-      setError('Could not send pre-forecast data to LOGICTECK.')
+      setError('Could not open LOGICTECK.')
     } finally {
       setBookLogicteckLoading(false)
     }
@@ -927,232 +923,27 @@ export default function TruckerReturnDetailPage() {
 
 
 
-      <Dialog open={qrPreviewOpen} onClose={() => setQrPreviewOpen(false)} maxWidth="sm" fullWidth>
-
-        <DialogTitle sx={{ fontWeight: 700 }}>{LOGICTECK_QR.sectionTitle}</DialogTitle>
-
-        <DialogContent>
-
-          {qrBooking && schedule && (
-
-            <>
-
-              <Paper
-
-                elevation={0}
-
-                sx={{
-
-                  p: 1.5,
-
-                  mb: 2,
-
-                  borderRadius: 2,
-
-                  bgcolor: hexToRgba(primaryDark, 0.04),
-
-                  border: '1px solid',
-
-                  borderColor: hexToRgba(primaryDark, 0.1),
-
-                }}
-
-              >
-
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-
-                  {schedule.referenceNo}
-
-                </Typography>
-
-                <Typography variant="caption" color="text.secondary">
-
-                  {qrBooking.payload.containerNo} · {qrBooking.payload.depot}
-
-                </Typography>
-
-              </Paper>
-
-
-
-              {qrImageUrl ? (
-
-                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-
-                  <Box
-
-                    component="img"
-
-                    src={qrImageUrl}
-
-                    alt={`QR code ${qrBooking.qrCode}`}
-
-                    sx={{
-
-                      width: '100%',
-
-                      maxWidth: 280,
-
-                      height: 'auto',
-
-                      borderRadius: 2,
-
-                      border: '1px solid',
-
-                      borderColor: 'divider',
-
-                      bgcolor: '#fff',
-
-                      p: 1.5,
-
-                    }}
-
-                  />
-
-                </Box>
-
-              ) : (
-
-                <QrImageSkeleton />
-
-              )}
-
-
-
-              <Box sx={infoGridSx}>
-
-                <InfoTile label={LOGICTECK_QR.bookingIdLabel} value={qrBooking.qrCode} mono />
-
-                <InfoTile label="Generated" value={formatDateTime(qrBooking.generatedAt)} />
-
-                <InfoTile label="Container" value={qrBooking.payload.containerNo} mono />
-
-                {isScheduleDetailsVisible(schedule) && (
-                  <InfoTile
-                    label="Return slot"
-                    value={formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
-                  />
-                )}
-
-                {isScheduleDetailsVisible(schedule) && (
-                  <InfoTile label="Depot" value={qrBooking.payload.depot} />
-                )}
-
-                <InfoTile
-
-                  label={LOGICTECK_QR.validationStatusLabel}
-
-                  value={
-
-                    <Chip
-
-                      label={qrLookupStatusLabel(qrBooking)}
-
-                      size="small"
-
-                      color={qrLookupStatusColor(qrLookupStatusLabel(qrBooking))}
-
-                      sx={{ fontWeight: 600 }}
-
-                    />
-
-                  }
-
-                />
-
-              </Box>
-
-            </>
-
-          )}
-
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, pb: 2, flexWrap: 'wrap', gap: 1 }}>
-
-          <Button onClick={() => setQrPreviewOpen(false)}>Close</Button>
-
-          {qrBooking && (
-
-            <>
-
-              <Button
-
-                variant="outlined"
-
-                startIcon={<DownloadIcon />}
-
-                onClick={downloadQr}
-
-                sx={{ fontWeight: 600, borderRadius: 2 }}
-
-              >
-
-                Download QR
-
-              </Button>
-
-              <Button
-
-                variant="outlined"
-
-                startIcon={<PictureAsPdfOutlinedIcon />}
-
-                onClick={() => void downloadConfirmationPdf()}
-
-                sx={{ fontWeight: 600, borderRadius: 2 }}
-
-              >
-
-                Confirmation PDF
-
-              </Button>
-
-              <Button
-
-                variant="outlined"
-
-                onClick={handleBookLogicteck}
-
-                disabled={!qrBooking || !canBookLogicteck(qrBooking) || bookLogicteckLoading}
-
-                sx={{ fontWeight: 700, borderRadius: 2 }}
-
-              >
-
-                {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
-
-              </Button>
-
-              <Button
-
-                variant="contained"
-
-                startIcon={<PrintIcon />}
-
-                onClick={() => {
-
-                  setQrPreviewOpen(false)
-
-                  navigate(`/trucker/qr/print/${qrBooking.id}?auto=1`)
-
-                }}
-
-                sx={{ fontWeight: 700, borderRadius: 2 }}
-
-              >
-
-                Print pass
-
-              </Button>
-
-            </>
-
-          )}
-
-        </DialogActions>
-
-      </Dialog>
+      <BookingQrPreviewDialog
+        open={qrPreviewOpen}
+        onClose={() => setQrPreviewOpen(false)}
+        schedule={schedule}
+        qrBooking={qrBooking}
+        qrImageUrl={qrImageUrl}
+        preAdvice={preAdvice}
+        payment={payment}
+        onDownload={downloadQr}
+        onDownloadConfirmationPdf={() => void downloadConfirmationPdf()}
+        onBookLogicteck={
+          qrBooking && canOpenLogicteckConfirm(qrBooking, schedule) ? handleOpenLogicteckConfirm : undefined
+        }
+        bookLogicteckLoading={bookLogicteckLoading}
+        showPrint
+        onPrint={() => {
+          if (!qrBooking) return
+          setQrPreviewOpen(false)
+          navigate(`/trucker/qr/print/${qrBooking.id}?auto=1`)
+        }}
+      />
 
     </Box>
 

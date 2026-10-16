@@ -29,7 +29,9 @@ Then set `ConnectionStrings__Redis=127.0.0.1:6379` in `.env.integrations` and pu
 |----------|-----------|---------|
 | `LOGICTECK_API_KEY` or `Logicteck__ApiKey` | Shared secret | LOGICTECK calls ICS with `X-Logicteck-Api-Key`; ICS sends same header outbound |
 | `Logicteck__PublicApiBaseUrl` | ICS → QR payloads | Base URL **without** `/api`, e.g. `http://201.18.216.37` |
-| `Logicteck__BookUrl` | ICS → LOGICTECK | Receives pre-forecast when trucker taps **Send to LOGICTECK** |
+| `Logicteck__IcsApiBaseUrl` | ICS ← LOGICTECK | Playground base, e.g. `https://logicteck-cy--logicteck-cy-playground.asia-southeast1.hosted.app/api/ics` — derives `/allocations`, `/bookings`, `/inventory` |
+| `ICS_INBOUND_API_KEY` | ICS ← LOGICTECK | Header `X-ICS-Api-Key` on all three feeds |
+| `Logicteck__BookUrl` | ICS → LOGICTECK | Optional outbound pre-forecast URL (playground `/api/ics/bookings` is **GET-only**) |
 | `Logicteck__PortalUrl` | ICS UI | Opens after successful send (optional) |
 | `Logicteck__EmptyReturnUrl` | ICS → LOGICTECK | Full empty-return form + photos (optional) |
 

@@ -109,6 +109,8 @@ public class ScheduleService : IScheduleService
             .Include(s => s.PreAdvice)
             .Include(s => s.Depot)
             .Include(s => s.Trucker)
+            .Include(s => s.QRBooking)
+            .Include(s => s.Payment)
             .Where(s => s.PreAdviceId == preAdviceId);
 
         if (RoleNames.IsPreAdviceManager(role))

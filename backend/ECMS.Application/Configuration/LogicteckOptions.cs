@@ -16,14 +16,67 @@ public class LogicteckOptions
     /// <summary>Optional LOGICTECK portal URL opened after a successful book action.</summary>
     public string PortalUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// LOGICTECK empty-return UI where truckers confirm the booking (e.g. …/dashboard/bookings/new-return).
+    /// ICS opens this with <see cref="IcsRefQueryParam"/> — confirmation happens on LOGICTECK, not in ICS.
+    /// </summary>
+    public string NewReturnUrl { get; set; } = string.Empty;
+
+    /// <summary>Query parameter on <see cref="NewReturnUrl"/> carrying the ICS transfer reference (QR code).</summary>
+    public string IcsRefQueryParam { get; set; } = "icsRef";
+
     /// <summary>LOGICTECK empty return booking URL — ICS POSTs full return form payload.</summary>
     public string EmptyReturnUrl { get; set; } = string.Empty;
 
-    /// <summary>LOGICTECK CY allocation feed. ICS calls this with <see cref="IcsInboundApiKey"/>.</summary>
+    /// <summary>Trucker handoff page — NewReturnUrl, then PortalUrl if unset.</summary>
+    public string ResolveNewReturnUrl()
+    {
+        if (!string.IsNullOrWhiteSpace(NewReturnUrl))
+            return NewReturnUrl.Trim();
+
+        if (!string.IsNullOrWhiteSpace(PortalUrl))
+            return PortalUrl.Trim();
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// LOGICTECK ICS API base (no trailing slash), e.g. https://host.example/app/api/ics.
+    /// When set, missing per-feed URLs default to {base}/allocations, /bookings, and /inventory.
+    /// </summary>
+    public string IcsApiBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>LOGICTECK CY allocation feed. ICS calls with <see cref="IcsInboundApiKey"/>.</summary>
     public string AllocationsUrl { get; set; } = string.Empty;
 
-    /// <summary>Sent as X-ICS-Api-Key when reading <see cref="AllocationsUrl"/>. Prefer ICS_INBOUND_API_KEY.</summary>
+    /// <summary>LOGICTECK return bookings feed (GET, paginated).</summary>
+    public string BookingsUrl { get; set; } = string.Empty;
+
+    /// <summary>LOGICTECK yard inventory feed (GET, paginated).</summary>
+    public string InventoryUrl { get; set; } = string.Empty;
+
+    /// <summary>Sent as X-ICS-Api-Key on ICS inbound feeds. Prefer ICS_INBOUND_API_KEY.</summary>
     public string IcsInboundApiKey { get; set; } = string.Empty;
+
+    public string ResolveAllocationsUrl() =>
+        ResolveFeedUrl(AllocationsUrl, "allocations");
+
+    public string ResolveBookingsUrl() =>
+        ResolveFeedUrl(BookingsUrl, "bookings");
+
+    public string ResolveInventoryUrl() =>
+        ResolveFeedUrl(InventoryUrl, "inventory");
+
+    private string ResolveFeedUrl(string explicitUrl, string segment)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitUrl))
+            return explicitUrl.Trim();
+
+        if (string.IsNullOrWhiteSpace(IcsApiBaseUrl))
+            return string.Empty;
+
+        return $"{IcsApiBaseUrl.Trim().TrimEnd('/')}/{segment}";
+    }
 
     /// <summary>
     /// When true, ICS POSTs transfer data to BookUrl as soon as the transfer QR is published.

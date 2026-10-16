@@ -36,6 +36,20 @@ import EvaluationProgressStrip, {
   buildEvaluationProgressSteps,
 } from '../../components/evaluations/EvaluationProgressStrip'
 import DamageReportChip from '../../components/evaluations/DamageReportChip'
+import PreAdviceBackToBackChip, { evaluationHeroSubtitle } from '../../components/preAdvice/PreAdviceBackToBackChip'
+import PreAdvicePhotoTabLabel from '../../components/preAdvice/PreAdvicePhotoTabLabel'
+import { getPreAdviceContainerUnit } from '../../utils/preAdviceContainerUnit'
+import { docIdentityUnit } from '../../utils/preAdviceIdentityUnit'
+import {
+  backToBackCyFieldLabel,
+  backToBackUnitFieldLabel,
+  preAdviceUnitRoleLabel,
+  preAdviceUnitSectionSx,
+} from '../../components/preAdvice/preAdviceUnitSectionSx'
+import {
+  countIdentityPhotoProgress,
+  unitIdentityPhotoProgress,
+} from '../../utils/preAdviceIdentityUnit'
 import BookingQrPreviewDialog from '../../components/qr/BookingQrPreviewDialog'
 import {
   DetailBackButton,
@@ -55,7 +69,7 @@ import {
   listHeroPrimaryActionSx,
   listMobileActionsSx,
 } from '../../components/layout/ListPagePrimitives'
-import { CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
+import { REQUIRED_CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import {
   depotApi,
@@ -82,12 +96,14 @@ import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatDate, formatScheduleSlot } from '../../utils/datetime'
 import { formatContainerSizeLabel } from '../../utils/containerSize'
-import { formatCySizeOptionLabel } from '../../utils/cyAllocation'
+import { formatCySizeOptionLabel, getSizeMetrics } from '../../utils/cyAllocation'
 import PreAdviceCroEdoContextPanel from '../../components/preAdvice/PreAdviceCroEdoContextPanel'
 import {
   croEdoTabNeedsAttention,
-  isEvaluationFreeTimeExpired,
+  croFreeTimeLockedFromIcs,
   initialApprovalFreeTimeDate,
+  resolveCompanionEvaluationFreeTimeDate,
+  isEvaluationFreeTimeExpired,
   resolveEvaluationFreeTimeDate,
 } from '../../utils/evaluationCroEdo'
 import { isCroFreeTimeExpired, parseCroFreeTimeToIso } from '../../utils/croFreeTime'
@@ -102,6 +118,39 @@ import {
 
 const primaryDark = ICS_PRIMARY
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
+
+const EVAL_PHOTO_TABS: EvaluationDetailTab[] = ['photos', 'photos-primary', 'photos-companion']
+
+function allowedEvaluationTabs(item: PreAdvice, showScheduleTabs: boolean): EvaluationDetailTab[] {
+  const tabs: EvaluationDetailTab[] = ['overview', 'croEdo', 'details', 'activity']
+  if (item.isBackToBack) {
+    tabs.push('photos-primary', 'photos-companion')
+  } else {
+    tabs.push('photos')
+  }
+  if (showScheduleTabs) tabs.push('schedule', 'qr')
+  return tabs
+}
+
+function normalizeEvaluationTabParam(
+  tab: string | null,
+  item: PreAdvice | null,
+): EvaluationDetailTab | null {
+  if (!tab) return null
+  if (tab === 'photos' && item?.isBackToBack) return 'photos-primary'
+  if (
+    tab === 'overview' ||
+    tab === 'croEdo' ||
+    tab === 'details' ||
+    tab === 'activity' ||
+    tab === 'schedule' ||
+    tab === 'qr' ||
+    EVAL_PHOTO_TABS.includes(tab as EvaluationDetailTab)
+  ) {
+    return tab as EvaluationDetailTab
+  }
+  return null
+}
 
 const statusLabel: Record<string, string> = {
   UnderEvaluation: 'Under evaluation',
@@ -158,6 +207,27 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function depotHasSizeCapacity(allocation: CyAllocation, containerSize: string): boolean {
+  return getSizeMetrics(allocation, containerSize).availableSlots > 0
+}
+
+function pickDefaultDepotForSize(
+  sorted: CyAllocation[],
+  containerSize: string,
+  recommendedIds: number[],
+  croDepotId?: number | null,
+): number | '' {
+  const recommendedFirst = recommendedIds
+    .map((id) => sorted.find((a) => a.depotId === id && depotHasSizeCapacity(a, containerSize)))
+    .find(Boolean)
+  const croDepotMatch =
+    croDepotId != null
+      ? sorted.find((a) => a.depotId === croDepotId && depotHasSizeCapacity(a, containerSize))
+      : undefined
+  const firstFit = recommendedFirst ?? croDepotMatch ?? sorted.find((a) => depotHasSizeCapacity(a, containerSize))
+  return firstFit?.depotId ?? sorted[0]?.depotId ?? ''
+}
+
 function resolveSelectedDepotName(
   depotId: number | '',
   approvalAllocations: CyAllocationForApproval | null,
@@ -209,6 +279,7 @@ export default function EvaluationDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [complianceOpen, setComplianceOpen] = useState(false)
   const [depotId, setDepotId] = useState<number | ''>('')
+  const [companionDepotId, setCompanionDepotId] = useState<number | ''>('')
   const [remarks, setRemarks] = useState('')
   const [recommendedDepotIds, setRecommendedDepotIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -225,7 +296,9 @@ export default function EvaluationDetailPage() {
   const [approvalAllocations, setApprovalAllocations] = useState<CyAllocationForApproval | null>(null)
   const [allocationsLoading, setAllocationsLoading] = useState(false)
   const [approvalDemurrageUntil, setApprovalDemurrageUntil] = useState('')
+  const [approvalCompanionDemurrageUntil, setApprovalCompanionDemurrageUntil] = useState('')
   const [croFreeTimeDate, setCroFreeTimeDate] = useState('')
+  const [companionCroFreeTimeDate, setCompanionCroFreeTimeDate] = useState('')
   const [croFreeTimeSaving, setCroFreeTimeSaving] = useState(false)
   const [croFreeTimeSaveError, setCroFreeTimeSaveError] = useState('')
   const [detDemBilling, setDetDemBilling] = useState<DemurrageBilling | null>(null)
@@ -296,15 +369,16 @@ export default function EvaluationDetailPage() {
         setApprovalAllocations(data)
 
         const croDepotId = item.croEdoContext?.returnEmptyToDepotId
-        const recommendedFirst = order
-          .map((id) => sorted.find((a) => a.depotId === id && a.hasCapacity))
-          .find(Boolean)
-        const croDepotMatch =
-          croDepotId != null
-            ? sorted.find((a) => a.depotId === croDepotId && a.hasCapacity)
-            : undefined
-        const firstFit = recommendedFirst ?? croDepotMatch ?? sorted.find((a) => a.hasCapacity)
-        setDepotId(firstFit?.depotId ?? sorted[0]?.depotId ?? '')
+        setDepotId(pickDefaultDepotForSize(sorted, data.containerSize, order, croDepotId))
+        const companionSize =
+          data.companionContainerSize
+          ?? item.backToBackCompanionContainerSize
+          ?? data.containerSize
+        if (item.isBackToBack) {
+          setCompanionDepotId(pickDefaultDepotForSize(sorted, companionSize, order, null))
+        } else {
+          setCompanionDepotId('')
+        }
       })
       .catch(() => {
         setApprovalAllocations(null)
@@ -363,8 +437,14 @@ export default function EvaluationDetailPage() {
     if (!item) return
     const resolved = resolveEvaluationFreeTimeDate(item)
     setCroFreeTimeDate(resolved ?? '')
+    setCompanionCroFreeTimeDate(resolveCompanionEvaluationFreeTimeDate(item) ?? '')
     setCroFreeTimeSaveError('')
-  }, [item?.id, item?.demurrageValidUntil, item?.croEdoContext?.demurrageValidUntil])
+  }, [
+    item?.id,
+    item?.demurrageValidUntil,
+    item?.croEdoContext?.demurrageValidUntil,
+    item?.backToBackCompanionDemurrageValidUntil,
+  ])
 
   useEffect(() => {
     if (item?.status === 'Approved') {
@@ -386,10 +466,9 @@ export default function EvaluationDetailPage() {
   useEffect(() => {
     if (!item) return
 
-    const tab = searchParams.get('tab') as EvaluationDetailTab | null
+    const tab = normalizeEvaluationTabParam(searchParams.get('tab'), item)
     const showScheduleTabs = item.status === 'Approved'
-    const allowed: EvaluationDetailTab[] = ['overview', 'croEdo', 'details', 'photos', 'activity']
-    if (showScheduleTabs) allowed.push('schedule', 'qr')
+    const allowed = allowedEvaluationTabs(item, showScheduleTabs)
 
     const contextChanged =
       tabContextRef.current?.id !== item.id || tabContextRef.current?.status !== item.status
@@ -399,7 +478,7 @@ export default function EvaluationDetailPage() {
       if (tab && allowed.includes(tab)) {
         setActiveTab(tab)
       } else if (PENDING_STATUSES.includes(item.status)) {
-        setActiveTab('photos')
+        setActiveTab(item.isBackToBack ? 'photos-primary' : 'photos')
       } else {
         setActiveTab('overview')
       }
@@ -409,7 +488,7 @@ export default function EvaluationDetailPage() {
     if (tab && allowed.includes(tab)) {
       setActiveTab(tab)
     }
-  }, [item?.id, item?.status, searchParams])
+  }, [item?.id, item?.status, item?.isBackToBack, searchParams])
 
   const showScheduleTabs = item?.status === 'Approved'
 
@@ -428,16 +507,33 @@ export default function EvaluationDetailPage() {
   }, [setSearchParams])
 
   const openPhotosTab = useCallback(() => {
-    setActiveTab('photos')
-    setSearchParams({ tab: 'photos' }, { replace: true })
-  }, [setSearchParams])
+    const tab = item?.isBackToBack ? 'photos-primary' : 'photos'
+    setActiveTab(tab)
+    setSearchParams({ tab }, { replace: true })
+  }, [setSearchParams, item?.isBackToBack])
 
   const photoProgress = useMemo(() => {
-    const uploaded = CONTAINER_PHOTO_CATEGORIES.filter((c) =>
-      documents.some((d) => d.category === c.value),
-    ).length
-    return { uploaded, total: CONTAINER_PHOTO_CATEGORIES.length }
-  }, [documents])
+    if (!item) return { uploaded: 0, total: 0 }
+    const perUnit = REQUIRED_CONTAINER_PHOTO_CATEGORIES.length
+    const total = item.isBackToBack ? perUnit * 2 : perUnit
+    let uploaded = countIdentityPhotoProgress(documents, [], 'Primary')
+    if (item.isBackToBack) {
+      uploaded += countIdentityPhotoProgress(documents, [], 'Companion')
+    }
+    return { uploaded, total }
+  }, [documents, item])
+
+  const primaryContainerUnit = item ? getPreAdviceContainerUnit(item, 'Primary') : null
+  const companionContainerUnit =
+    item?.isBackToBack && item ? getPreAdviceContainerUnit(item, 'Companion') : null
+  const primaryPhotoTabProgress = useMemo(
+    () => unitIdentityPhotoProgress(documents, [], 'Primary'),
+    [documents],
+  )
+  const companionPhotoTabProgress = useMemo(
+    () => unitIdentityPhotoProgress(documents, [], 'Companion'),
+    [documents],
+  )
 
   const openQrPreview = useCallback(() => {
     setActiveTab('qr')
@@ -480,24 +576,57 @@ export default function EvaluationDetailPage() {
 
   const canDecide = isAdmin && item && PENDING_STATUSES.includes(item.status)
   const freeTimeIso = item ? resolveEvaluationFreeTimeDate(item) : null
+  const companionFreeTimeIso = item?.isBackToBack
+    ? resolveCompanionEvaluationFreeTimeDate(item)
+    : null
   const croFreeTimeExpired = Boolean(
     item
-    && (isEvaluationFreeTimeExpired(item) || isCroFreeTimeExpired(croFreeTimeDate)),
+    && (
+      isEvaluationFreeTimeExpired(item)
+      || isCroFreeTimeExpired(croFreeTimeDate)
+      || (item.isBackToBack
+        && (
+          (companionFreeTimeIso && isCroFreeTimeExpired(companionFreeTimeIso))
+          || isCroFreeTimeExpired(companionCroFreeTimeDate)
+        ))
+    ),
   )
   const detDemPaid = detDemBilling?.status === 'Paid'
   const approvalFreeTimeIso = approvalDemurrageUntil.trim() || null
+  const approvalCompanionFreeTimeIso = approvalCompanionDemurrageUntil.trim() || null
   const requireFreshFreeTimeOnApprove = Boolean(
     detDemPaid || (freeTimeIso && isCroFreeTimeExpired(freeTimeIso)),
   )
+  const requireFreshCompanionFreeTimeOnApprove = Boolean(
+    detDemPaid || (companionFreeTimeIso && isCroFreeTimeExpired(companionFreeTimeIso)),
+  )
+
+  const goToCroEdoTabFromApprove = () => {
+    setApproveConfirmOpen(false)
+    setApproveOpen(false)
+    setActionError('')
+    setActiveTab('croEdo')
+    setSearchParams({ tab: 'croEdo' }, { replace: true })
+  }
 
   const openApproveDialog = () => {
     setRemarks('')
     setActionError('')
     const draftIso = parseCroFreeTimeToIso(croFreeTimeDate.trim() || null)
-    const needFresh = Boolean(
+    const companionDraftIso = parseCroFreeTimeToIso(companionCroFreeTimeDate.trim() || null)
+    const needFreshPrimary = Boolean(
       detDemBilling?.status === 'Paid' || (freeTimeIso && isCroFreeTimeExpired(freeTimeIso)),
     )
-    setApprovalDemurrageUntil(initialApprovalFreeTimeDate(freeTimeIso, draftIso, needFresh))
+    const needFreshCompanion = Boolean(
+      detDemBilling?.status === 'Paid'
+      || (companionFreeTimeIso && isCroFreeTimeExpired(companionFreeTimeIso)),
+    )
+    setApprovalDemurrageUntil(initialApprovalFreeTimeDate(freeTimeIso, draftIso, needFreshPrimary))
+    setApprovalCompanionDemurrageUntil(
+      item?.isBackToBack
+        ? initialApprovalFreeTimeDate(companionFreeTimeIso, companionDraftIso, needFreshCompanion)
+        : '',
+    )
     setApproveOpen(true)
   }
 
@@ -512,7 +641,14 @@ export default function EvaluationDetailPage() {
   )
 
   const croEdoTabAttention = Boolean(
-    item && croEdoTabNeedsAttention(item, croFreeTimeDate, canEditCroFreeTime, detDemPaid),
+    item
+    && croEdoTabNeedsAttention(
+      item,
+      croFreeTimeDate,
+      companionCroFreeTimeDate,
+      canEditCroFreeTime,
+      detDemPaid,
+    ),
   )
 
   const rejectEffectiveFreeTimeIso =
@@ -557,12 +693,14 @@ export default function EvaluationDetailPage() {
     setRejectOpen(true)
   }
 
-  const handleSaveCroFreeTime = async () => {
-    if (!item || !croFreeTimeDate.trim()) return
+  const handleSaveCroFreeTime = async (unit: 'Primary' | 'Companion') => {
+    if (!item) return
+    const date = unit === 'Companion' ? companionCroFreeTimeDate.trim() : croFreeTimeDate.trim()
+    if (!date) return
     setCroFreeTimeSaving(true)
     setCroFreeTimeSaveError('')
     try {
-      await evaluationApi.setCroFreeTime(item.id, croFreeTimeDate.trim())
+      await evaluationApi.setCroFreeTime(item.id, date, unit === 'Companion' ? 'Companion' : undefined)
       const { data } = await preAdviceApi.get(item.id)
       setItem(data)
     } catch (err) {
@@ -588,8 +726,14 @@ export default function EvaluationDetailPage() {
   }
 
   const validateApproveForm = (): string | null => {
-    if (!item || depotId === '') {
-      return 'Please select a container yard (CY).'
+    if (!item) return 'Pre-forecast not loaded.'
+    if (depotId === '') {
+      return item.isBackToBack
+        ? 'Please select a container yard (CY) for Container A.'
+        : 'Please select a container yard (CY).'
+    }
+    if (item.isBackToBack && companionDepotId === '') {
+      return 'Please select a container yard (CY) for Container B.'
     }
     if (detDemBlocksApprove) {
       return detDemBilling
@@ -597,16 +741,39 @@ export default function EvaluationDetailPage() {
         : 'CRO/eDO free time expired. Reject so the trucker can upload shipping line DET-DEM payment proof.'
     }
     const approvalDate = approvalDemurrageUntil.trim()
+    const approvalCompanionDate = item.isBackToBack ? approvalCompanionDemurrageUntil.trim() : approvalDate
     if (!approvalDate) {
       return requireFreshFreeTimeOnApprove
-        ? 'Enter a new free time date (today or later) after DET-DEM settlement.'
-        : 'Enter the free time date for empty return scheduling.'
+        ? 'Enter a new Container A free time date (today or later) after DET-DEM settlement.'
+        : item.isBackToBack
+          ? 'Enter Container A free time valid until for empty return scheduling.'
+          : 'Enter the free time date for empty return scheduling.'
+    }
+    if (item.isBackToBack && !approvalCompanionDate) {
+      return requireFreshCompanionFreeTimeOnApprove
+        ? 'Enter a new Container B free time date (today or later) after DET-DEM settlement.'
+        : 'Enter Container B free time valid until for empty return scheduling.'
     }
     if (approvalDate < todayIsoDate()) {
-      return 'Free time date must be today or later.'
+      return item.isBackToBack
+        ? 'Container A free time date must be today or later.'
+        : 'Free time date must be today or later.'
+    }
+    if (item.isBackToBack && approvalCompanionDate < todayIsoDate()) {
+      return 'Container B free time date must be today or later.'
     }
     if (freeTimeIso && isCroFreeTimeExpired(freeTimeIso) && approvalDate <= freeTimeIso) {
-      return 'Set a new free time date after the previous expired date.'
+      return item.isBackToBack
+        ? 'Set a new Container A free time date after the previous expired date.'
+        : 'Set a new free time date after the previous expired date.'
+    }
+    if (
+      item.isBackToBack
+      && companionFreeTimeIso
+      && isCroFreeTimeExpired(companionFreeTimeIso)
+      && approvalCompanionDate <= companionFreeTimeIso
+    ) {
+      return 'Set a new Container B free time date after the previous expired date.'
     }
     return null
   }
@@ -635,13 +802,21 @@ export default function EvaluationDetailPage() {
       return
     }
     const approvalDate = approvalDemurrageUntil.trim()
+    const approvalCompanionDate = item.isBackToBack ? approvalCompanionDemurrageUntil.trim() : ''
     setSubmitting(true)
     setActionError('')
     try {
+      if (item.isBackToBack && approvalCompanionDate) {
+        const savedCompanionIso = resolveCompanionEvaluationFreeTimeDate(item)
+        if (approvalCompanionDate !== savedCompanionIso) {
+          await evaluationApi.setCroFreeTime(item.id, approvalCompanionDate, 'Companion')
+        }
+      }
       await evaluationApi.approve({
         preAdviceId: item.id,
         depotId: Number(depotId),
         demurrageValidUntil: approvalDate,
+        companionDepotId: item.isBackToBack ? Number(companionDepotId) : undefined,
         remarks: remarks || undefined,
       })
       setApproveConfirmOpen(false)
@@ -666,6 +841,16 @@ export default function EvaluationDetailPage() {
       const savedIso = resolveEvaluationFreeTimeDate(item)
       if (croFreeTimeDate.trim() && croFreeTimeDate.trim() !== savedIso) {
         await evaluationApi.setCroFreeTime(item.id, croFreeTimeDate.trim())
+      }
+      const savedCompanionIso = item.isBackToBack
+        ? resolveCompanionEvaluationFreeTimeDate(item)
+        : null
+      if (
+        item.isBackToBack
+        && companionCroFreeTimeDate.trim()
+        && companionCroFreeTimeDate.trim() !== savedCompanionIso
+      ) {
+        await evaluationApi.setCroFreeTime(item.id, companionCroFreeTimeDate.trim(), 'Companion')
       }
       await evaluationApi.reject({ preAdviceId: item.id, remarks: remarks.trim() })
       setRejectOpen(false)
@@ -715,9 +900,10 @@ export default function EvaluationDetailPage() {
           <DetailHero
             icon={<DescriptionOutlinedIcon />}
             title={item.referenceNo}
-            subtitle={`${item.shippingLineName} · ${item.containerNo} · ${formatContainerSizeLabel(item.containerSize)} · ${item.containerType}`}
+            subtitle={evaluationHeroSubtitle(item)}
             chips={
               <>
+                {item.isBackToBack && <PreAdviceBackToBackChip item={item} />}
                 {item.hasDamageReport && <DamageReportChip />}
                 <Chip
                   label={statusLabel[item.status] ?? item.status}
@@ -899,10 +1085,42 @@ export default function EvaluationDetailPage() {
               {showScheduleTabs ? <Tab label="Return schedule" value="schedule" /> : null}
               {showScheduleTabs ? <Tab label={LOGICTECK_QR.tabLabel} value="qr" /> : null}
               <Tab label="Container details" value="details" />
-              <Tab
-                label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
-                value="photos"
-              />
+              {item.isBackToBack
+                ? [
+                    <Tab
+                      key="photos-primary"
+                      value="photos-primary"
+                      label={
+                        <PreAdvicePhotoTabLabel
+                          containerNo={primaryContainerUnit!.containerNo}
+                          sizeTypeLine={primaryContainerUnit!.sizeTypeLine}
+                          uploaded={primaryPhotoTabProgress.uploaded}
+                          total={primaryPhotoTabProgress.total}
+                          needsAction={false}
+                        />
+                      }
+                    />,
+                    <Tab
+                      key="photos-companion"
+                      value="photos-companion"
+                      label={
+                        <PreAdvicePhotoTabLabel
+                          containerNo={companionContainerUnit!.containerNo}
+                          sizeTypeLine={companionContainerUnit!.sizeTypeLine}
+                          uploaded={companionPhotoTabProgress.uploaded}
+                          total={companionPhotoTabProgress.total}
+                          needsAction={false}
+                        />
+                      }
+                    />,
+                  ]
+                : (
+                  <Tab
+                    key="photos"
+                    value="photos"
+                    label={`Container identity photos (${photoProgress.uploaded}/${photoProgress.total})`}
+                  />
+                )}
               <Tab label="Activity log" value="activity" />
             </Tabs>
 
@@ -922,11 +1140,13 @@ export default function EvaluationDetailPage() {
               onDownloadQr={downloadQr}
               onQrPreview={openQrPreview}
               croFreeTimeDate={croFreeTimeDate}
+              companionCroFreeTimeDate={companionCroFreeTimeDate}
               onCroFreeTimeDateChange={setCroFreeTimeDate}
+              onCompanionCroFreeTimeDateChange={setCompanionCroFreeTimeDate}
               canEditCroFreeTime={canEditCroFreeTime}
               croFreeTimeSaving={croFreeTimeSaving}
               croFreeTimeSaveError={croFreeTimeSaveError}
-              onSaveCroFreeTime={() => void handleSaveCroFreeTime()}
+              onSaveCroFreeTime={(unit) => void handleSaveCroFreeTime(unit)}
               detDemBilling={detDemBilling}
               detDemDetailPath={
                 detDemBilling ? demurrageBillingDetailPath(detDemBilling.id, detDemAudience) : null
@@ -948,7 +1168,7 @@ export default function EvaluationDetailPage() {
         onDownload={downloadQr}
       />
 
-      <Dialog open={approveOpen} onClose={closeApproveFlow} maxWidth="sm" fullWidth>
+      <Dialog open={approveOpen && Boolean(item)} onClose={closeApproveFlow} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Approve pre-forecast</DialogTitle>
         <DialogContent dividers sx={{ px: 2.5, py: 2 }}>
           <Stack spacing={2}>
@@ -958,12 +1178,19 @@ export default function EvaluationDetailPage() {
                   {item.referenceNo}
                   <Typography component="span" variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
                     {' '}
-                    · {item.containerNo} · {item.shippingLineName}
+                    ·{' '}
+                    {item.isBackToBack
+                      ? `${getPreAdviceContainerUnit(item, 'Primary').containerNo} + ${getPreAdviceContainerUnit(item, 'Companion').containerNo}`
+                      : item.containerNo}
+                    {' '}
+                    · {item.shippingLineName}
                   </Typography>
                 </Typography>
-                <Box sx={{ mt: 1 }}>
-                  <PreAdviceCroEdoContextPanel item={item} documents={documents} dialog />
-                </Box>
+                {!item.isBackToBack && (
+                  <Box sx={{ mt: 1 }}>
+                    <PreAdviceCroEdoContextPanel item={item} documents={documents} dialog />
+                  </Box>
+                )}
               </Box>
             )}
 
@@ -974,87 +1201,239 @@ export default function EvaluationDetailPage() {
             )}
 
             <Stack spacing={1.5}>
-              {requireFreshFreeTimeOnApprove && (
+              {(requireFreshFreeTimeOnApprove || requireFreshCompanionFreeTimeOnApprove) && (
                 <Alert severity="info" sx={{ borderRadius: 2 }}>
                   {detDemPaid
-                    ? 'DET-DEM is settled. Enter a new CRO/eDO free time date (today or later) for empty return scheduling.'
-                    : 'Free time expired. After DET-DEM is verified, enter a new free time date here before approving.'}
+                    ? 'DET-DEM is settled. Enter a new free time date (today or later) below so the trucker can reschedule empty return.'
+                    : 'CRO/eDO free time expired on at least one container. Enter a new date below after DET-DEM is verified, or reject the pre-forecast.'}
                 </Alert>
               )}
-              {freeTimeIso && isCroFreeTimeExpired(freeTimeIso) && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  Previous free time expired: {formatDate(freeTimeIso)}
-                </Typography>
+              {item && croEdoTabAttention && !requireFreshFreeTimeOnApprove && !requireFreshCompanionFreeTimeOnApprove && (
+                <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                  Finish the{' '}
+                  <Link component="button" type="button" underline="hover" onClick={goToCroEdoTabFromApprove}>
+                    CRO / eDO
+                  </Link>
+                  {' '}
+                  tab (save free time from the trucker CRO/eDO) or set dates below before approving.
+                </Alert>
               )}
-              {freeTimeIso && !isCroFreeTimeExpired(freeTimeIso) && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  Current saved free time: {formatDate(freeTimeIso)} — confirm or update below.
-                </Typography>
-              )}
-              <TextField
-                fullWidth
-                size="small"
-                type="date"
-                label="Free time valid until"
-                required
-                value={approvalDemurrageUntil}
-                onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
-                slotProps={{
-                  inputLabel: { shrink: true },
-                  htmlInput: { min: todayIsoDate() },
-                }}
-                sx={fieldSx}
-                helperText="Required on every approval so the trucker can book empty return within demurrage validity."
-              />
+              {item && item.isBackToBack ? (
+                <Stack spacing={2}>
+                  {(['primary', 'companion'] as const).map((variant) => {
+                    const unitKey = variant === 'primary' ? 'Primary' : 'Companion'
+                    const unit = getPreAdviceContainerUnit(item, unitKey)
+                    const unitDocs =
+                      unitKey === 'Primary'
+                        ? documents.filter(
+                          (d) => d.category !== 'CroEdo' || docIdentityUnit(d) === 'Primary',
+                        )
+                        : documents.filter(
+                          (d) => d.category === 'CroEdo' && docIdentityUnit(d) === 'Companion',
+                        )
+                    const unitItem: PreAdvice =
+                      unitKey === 'Companion'
+                        ? { ...item, croEdoContext: undefined, croEdoReferenceNo: undefined }
+                        : item
+                    const containerSize =
+                      variant === 'primary'
+                        ? (approvalAllocations?.containerSize ?? item.containerSize)
+                        : (approvalAllocations?.companionContainerSize
+                          ?? item.backToBackCompanionContainerSize
+                          ?? approvalAllocations?.containerSize
+                          ?? item.containerSize)
+                    const savedIso = variant === 'primary' ? freeTimeIso : companionFreeTimeIso
+                    const freeTimeValue =
+                      variant === 'primary' ? approvalDemurrageUntil : approvalCompanionDemurrageUntil
+                    const onFreeTimeChange =
+                      variant === 'primary' ? setApprovalDemurrageUntil : setApprovalCompanionDemurrageUntil
+                    const needFresh =
+                      variant === 'primary'
+                        ? requireFreshFreeTimeOnApprove
+                        : requireFreshCompanionFreeTimeOnApprove
+                    const freeTimeLocked =
+                      variant === 'primary' && croFreeTimeLockedFromIcs(item)
+                    const cyValue = variant === 'primary' ? depotId : companionDepotId
+                    const onCyChange =
+                      variant === 'primary' ? setDepotId : setCompanionDepotId
+                    const containerAb = preAdviceUnitRoleLabel(variant, 'containerAb')
 
-              <FormControl fullWidth size="small" required sx={fieldSx} disabled={allocationsLoading}>
-                <InputLabel>Container yard (CY)</InputLabel>
-                <Select
-                  label="Container yard (CY)"
-                  value={depotId}
-                  onChange={(e) => setDepotId(e.target.value as number)}
-                >
-                  {approvalAllocations?.allocations.length
-                    ? approvalAllocations.allocations.map((row) => {
-                        const isRecommended =
-                          recommendedDepotIds.length > 0 && row.depotId === recommendedDepotIds[0]
-                        const label = formatCySizeOptionLabel(
-                          row.depotName,
-                          row,
-                          approvalAllocations.containerSize,
-                          row.hasCapacity,
-                        )
-                        return (
-                          <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
-                            {isRecommended ? `${label} · Recommended` : label}
+                    return (
+                      <Box key={variant} sx={preAdviceUnitSectionSx(variant)}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                          {backToBackUnitFieldLabel(variant, unit.containerNo)}
+                        </Typography>
+                        <PreAdviceCroEdoContextPanel item={unitItem} documents={unitDocs} dialog />
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="date"
+                          label="Free time valid until"
+                          required
+                          disabled={freeTimeLocked}
+                          value={freeTimeValue}
+                          onChange={(e) => onFreeTimeChange(e.target.value)}
+                          slotProps={{
+                            inputLabel: { shrink: true },
+                            htmlInput: { min: todayIsoDate() },
+                          }}
+                          sx={{ ...fieldSx, mt: 2 }}
+                          helperText={
+                            freeTimeLocked
+                              ? 'From verified ICS QR (read-only).'
+                              : needFresh
+                                ? `Previous CRO/eDO date expired${savedIso ? ` (${formatDate(savedIso)})` : ''}. Enter a new date for trucker scheduling.`
+                                : savedIso
+                                  ? `CRO/eDO reference: ${formatDate(savedIso)}. Confirm or enter an updated free time for empty return.`
+                                  : `Match ${containerAb} CRO/eDO, or set on the CRO / eDO tab first.`
+                          }
+                        />
+                        <FormControl
+                          fullWidth
+                          size="small"
+                          required
+                          sx={{ ...fieldSx, mt: 1.5 }}
+                          disabled={allocationsLoading}
+                        >
+                          <InputLabel>{backToBackCyFieldLabel(variant, unit.containerNo)}</InputLabel>
+                          <Select
+                            label={backToBackCyFieldLabel(variant, unit.containerNo)}
+                            value={cyValue}
+                            onChange={(e) => onCyChange(e.target.value as number)}
+                          >
+                            {approvalAllocations?.allocations.length
+                              ? approvalAllocations.allocations.map((row) => {
+                                  const hasCapacity = depotHasSizeCapacity(row, containerSize)
+                                  const isRecommended =
+                                    recommendedDepotIds.length > 0 && row.depotId === recommendedDepotIds[0]
+                                  const label = formatCySizeOptionLabel(
+                                    row.depotName,
+                                    row,
+                                    containerSize,
+                                    hasCapacity,
+                                  )
+                                  return (
+                                    <MenuItem
+                                      key={`${variant}-${row.depotId}`}
+                                      value={row.depotId}
+                                      disabled={!hasCapacity}
+                                    >
+                                      {isRecommended ? `${label} · Recommended` : label}
+                                    </MenuItem>
+                                  )
+                                })
+                              : depots.map((d) => (
+                                  <MenuItem key={`${variant}-${d.id}`} value={d.id}>
+                                    {d.name} — {d.address}
+                                  </MenuItem>
+                                ))}
+                          </Select>
+                        </FormControl>
+                      </Box>
+                    )
+                  })}
+                  <FormHelperText sx={{ mx: 0 }}>
+                    {approvalAllocations ? (
+                      <>
+                        Yards ordered by shipping line fill priority.{' '}
+                        <Link
+                          component={RouterLink}
+                          to={`/evaluations/cy-allocation?preAdviceId=${item.id}`}
+                          underline="hover"
+                        >
+                          View allocation
+                        </Link>
+                      </>
+                    ) : null}
+                  </FormHelperText>
+                </Stack>
+              ) : item ? (
+                <>
+                  {freeTimeIso && isCroFreeTimeExpired(freeTimeIso) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Previous CRO/eDO free time expired: {formatDate(freeTimeIso)}
+                    </Typography>
+                  )}
+                  {freeTimeIso && !isCroFreeTimeExpired(freeTimeIso) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      CRO/eDO reference: {formatDate(freeTimeIso)} — confirm or update below.
+                    </Typography>
+                  )}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="date"
+                    label="Free time valid until"
+                    required
+                    disabled={croFreeTimeLockedFromIcs(item)}
+                    value={approvalDemurrageUntil}
+                    onChange={(e) => setApprovalDemurrageUntil(e.target.value)}
+                    slotProps={{
+                      inputLabel: { shrink: true },
+                      htmlInput: { min: todayIsoDate() },
+                    }}
+                    sx={fieldSx}
+                    helperText={
+                      croFreeTimeLockedFromIcs(item)
+                        ? 'From verified ICS QR (read-only).'
+                        : requireFreshFreeTimeOnApprove
+                          ? 'Enter a new free time date (today or later) for trucker empty return scheduling.'
+                          : 'Required on every approval so the trucker can book empty return within demurrage validity.'
+                    }
+                  />
+                </>
+              ) : null}
+
+              {!item?.isBackToBack && (
+                <FormControl fullWidth size="small" required sx={fieldSx} disabled={allocationsLoading}>
+                  <InputLabel>Container yard (CY)</InputLabel>
+                  <Select
+                    label="Container yard (CY)"
+                    value={depotId}
+                    onChange={(e) => setDepotId(e.target.value as number)}
+                  >
+                    {approvalAllocations?.allocations.length
+                      ? approvalAllocations.allocations.map((row) => {
+                          const isRecommended =
+                            recommendedDepotIds.length > 0 && row.depotId === recommendedDepotIds[0]
+                          const label = formatCySizeOptionLabel(
+                            row.depotName,
+                            row,
+                            approvalAllocations.containerSize,
+                            row.hasCapacity,
+                          )
+                          return (
+                            <MenuItem key={row.depotId} value={row.depotId} disabled={!row.hasCapacity}>
+                              {isRecommended ? `${label} · Recommended` : label}
+                            </MenuItem>
+                          )
+                        })
+                      : depots.map((d) => (
+                          <MenuItem key={d.id} value={d.id}>
+                            {d.name} — {d.address}
                           </MenuItem>
-                        )
-                      })
-                    : depots.map((d) => (
-                        <MenuItem key={d.id} value={d.id}>
-                          {d.name} — {d.address}
-                        </MenuItem>
-                      ))}
-                </Select>
-                <FormHelperText>
-                  {approvalAllocations && item ? (
-                    <>
-                      Yards ordered by shipping line fill priority.{' '}
-                      <Link
-                        component={RouterLink}
-                        to={`/evaluations/cy-allocation?preAdviceId=${item.id}`}
-                        underline="hover"
-                      >
-                        View allocation
-                      </Link>
-                      {item.croEdoContext?.returnEmptyToName ? '. ' : ''}
-                    </>
-                  ) : null}
-                  {item?.croEdoContext?.returnEmptyToName
-                    ? `Prefer CY matching CRO return: ${item.croEdoContext.returnEmptyToName}.`
-                    : null}
-                </FormHelperText>
-              </FormControl>
+                        ))}
+                  </Select>
+                  <FormHelperText>
+                    {approvalAllocations && item ? (
+                      <>
+                        Yards ordered by shipping line fill priority.{' '}
+                        <Link
+                          component={RouterLink}
+                          to={`/evaluations/cy-allocation?preAdviceId=${item.id}`}
+                          underline="hover"
+                        >
+                          View allocation
+                        </Link>
+                        {item.croEdoContext?.returnEmptyToName ? '. ' : ''}
+                      </>
+                    ) : null}
+                    {item?.croEdoContext?.returnEmptyToName
+                      ? `Prefer CY matching CRO return: ${item.croEdoContext.returnEmptyToName}.`
+                      : null}
+                  </FormHelperText>
+                </FormControl>
+              )}
 
               <TextField
                 fullWidth
@@ -1077,7 +1456,13 @@ export default function EvaluationDetailPage() {
             variant="contained"
             color="success"
             onClick={openApproveConfirm}
-            disabled={submitting || !approvalFreeTimeIso || depotId === ''}
+            disabled={
+              submitting
+              || !approvalFreeTimeIso
+              || (Boolean(item?.isBackToBack) && !approvalCompanionFreeTimeIso)
+              || depotId === ''
+              || (Boolean(item?.isBackToBack) && companionDepotId === '')
+            }
             sx={{ fontWeight: 700, borderRadius: 2 }}
           >
             Review & approve
@@ -1094,7 +1479,7 @@ export default function EvaluationDetailPage() {
         <DialogTitle sx={{ fontWeight: 700 }}>Confirm approval</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Confirm the new free time date and CY assignment before submitting.
+            Confirm the free time date{item?.isBackToBack ? 's' : ''} and CY assignment before submitting.
           </Typography>
           {item && (
             <Stack spacing={1.25}>
@@ -1103,28 +1488,78 @@ export default function EvaluationDetailPage() {
                   Pre-forecast
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {item.referenceNo} · {item.containerNo}
+                  {item.referenceNo}
+                  {' · '}
+                  {item.isBackToBack
+                    ? `${getPreAdviceContainerUnit(item, 'Primary').containerNo} + ${getPreAdviceContainerUnit(item, 'Companion').containerNo}`
+                    : item.containerNo}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {item.shippingLineName}
                 </Typography>
               </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Free time valid until
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {approvalFreeTimeIso ? formatDate(approvalFreeTimeIso) : '—'}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Container yard (CY)
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {resolveSelectedDepotName(depotId, approvalAllocations, depots)}
-                </Typography>
-              </Box>
+              {item.isBackToBack ? (
+                <Stack spacing={1.5}>
+                  {(
+                    [
+                      {
+                        variant: 'primary' as const,
+                        freeTimeIso: approvalFreeTimeIso,
+                        depot: depotId,
+                      },
+                      {
+                        variant: 'companion' as const,
+                        freeTimeIso: approvalCompanionFreeTimeIso,
+                        depot: companionDepotId,
+                      },
+                    ] as const
+                  ).map(({ variant, freeTimeIso: unitFreeTimeIso, depot }) => {
+                    const unit = getPreAdviceContainerUnit(item, variant === 'primary' ? 'Primary' : 'Companion')
+                    return (
+                      <Box key={variant} sx={preAdviceUnitSectionSx(variant)}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                          {backToBackUnitFieldLabel(variant, unit.containerNo)}
+                        </Typography>
+                        <Box sx={{ mb: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                            Free time valid until
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {unitFreeTimeIso ? formatDate(unitFreeTimeIso) : '—'}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                            Container yard (CY)
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {resolveSelectedDepotName(depot, approvalAllocations, depots)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )
+                  })}
+                </Stack>
+              ) : (
+                <>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Free time valid until
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {approvalFreeTimeIso ? formatDate(approvalFreeTimeIso) : '—'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Container yard (CY)
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {resolveSelectedDepotName(depotId, approvalAllocations, depots)}
+                    </Typography>
+                  </Box>
+                </>
+              )}
               {remarks.trim() && (
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>

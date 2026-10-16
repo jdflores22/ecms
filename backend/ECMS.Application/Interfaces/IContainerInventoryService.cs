@@ -40,6 +40,17 @@ public interface IContainerInventoryService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<ContainerInventoryDetailDto?> GetInventoryDetailAsync(
+        string source,
+        int? scheduleId,
+        int? manualEntryId,
+        string? containerNo,
+        int? depotId,
+        int? shippingLineId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
     Task ApplyYardReleaseAsync(
         int shippingLineId,
         int depotId,

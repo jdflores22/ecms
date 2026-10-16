@@ -7,7 +7,43 @@ How ICS (ECMS) connects to **LOGICTECK** for empty container return bookings.
 | **ICS** | Pre-forecast workflow, transfer QR, **data transfer only** |
 | **LOGICTECK** | Empty return **booking** (created and held on their side) |
 
-ICS pre-forecast status stays **Approved** after transfer. It does **not** become “Booked” in ICS — `isBooked` on the public API means **data was sent to LOGICTECK**, not an ICS workflow state.
+ICS pre-forecast status stays **Approved** after transfer. It does **not** become “Booked” in ICS — `isBooked` on the public API means **LOGICTECK confirmed the empty return** (`ack-booking` or legacy ICS push), not an ICS workflow state.
+
+---
+
+## LOGICTECK API test harness (`logicteck-test.html`)
+
+Standalone page for the **LOGICTECK team** — exercise the same public ICS APIs your Java/Firebase backend will call. **No ICS trucker login**; only `X-Logicteck-Api-Key` and an ICS transfer reference.
+
+| Environment | URL |
+|-------------|-----|
+| **Local (Vite)** | [http://localhost:5173/logicteck-test.html](http://localhost:5173/logicteck-test.html) |
+| **Local with reference** | `http://localhost:5173/logicteck-test.html?qr=ICS-202600018` or `?icsRef=ICS-202600018` |
+| **Production (static host)** | `https://deepskyblue-marten-415020.hostingersite.com/logicteck-test.html` |
+
+**File in repo:** `frontend/public/logicteck-test.html` (served as static asset by the ICS frontend).
+
+### Prerequisites (local)
+
+1. **API:** `dotnet run` in `backend/ECMS.API` → `http://localhost:5275`
+2. **Frontend:** `npm run dev` in `frontend` → port **5173**
+3. On the test page, set **ICS API base URL** to `http://localhost:5275`
+4. **API key:** same as `Logicteck:ApiKey` in `appsettings.Development.json` (local default: `dev-logicteck-local-key`)
+
+### Recommended test sequence (aligned with production)
+
+| Step | Action on test page | Maps to LOGICTECK product |
+|------|---------------------|---------------------------|
+| 1 | **Load transfer dossier** | Your **new-return** screen calls `GET …/dossier` server-side after reading `?icsRef=` |
+| 2 | **Ack booking** (enter a fake `LT-…` reference) | After user clicks **Confirm** on [new-return](https://logicteck-cy--logicteck-cy-playground.asia-southeast1.hosted.app/dashboard/bookings/new-return), your backend calls `POST …/ack-booking` |
+| 3 | Reload dossier — `isBooked: true` | ICS trucker UI shows “Booked on LOGICTECK” |
+| 4 | **Simulate depot gate QR check** | `POST …/validate-qr` — once per transfer (B2B: include `containerNo`) |
+| 5 | (Optional) **Status callback** | `POST …/callback` for yard lifecycle (`with_trucker`, `at_yard`, …) |
+
+**Open LOGICTECK playground (manual):** the test page includes a link to  
+`https://logicteck-cy--logicteck-cy-playground.asia-southeast1.hosted.app/dashboard/bookings/new-return?icsRef={reference}` — same deep link ICS truckers get from **Open LOGICTECK to confirm return**.
+
+**Copy curl** buttons on the page match the examples in [LOGICTECK-API-HANDOFF.md](./LOGICTECK-API-HANDOFF.md).
 
 ---
 
@@ -22,10 +58,12 @@ sequenceDiagram
     Note over ICS: Pre-forecast approved, depot confirms return
     ICS->>ICS: Publish transfer QR (e.g. ICS-202600018)
 
-    Trucker->>ICS: Send to LOGICTECK
-    ICS->>LT: POST BookUrl (pre-forecast payload)
-    LT-->>ICS: { "reference": "..." }
-    ICS->>ICS: LogicteckBookedAt set
+    Trucker->>ICS: Open LOGICTECK (new-return?icsRef=…)
+    Trucker->>LT: Confirm empty return on LOGICTECK UI
+    LT->>ICS: GET /api/logicteck/booking/{qrCode}/dossier
+    ICS-->>LT: pre-forecast + photos
+    LT->>ICS: POST /api/logicteck/ack-booking { reference }
+    ICS->>ICS: LogicteckBookedAt set (isBooked)
 
     LT->>ICS: GET /api/logicteck/booking/{qrCode}
     ICS-->>LT: isBooked: true, isRetrieved: false
@@ -48,9 +86,12 @@ Section: `Logicteck` in `backend/ECMS.API/appsettings.json` or `appsettings.Prod
 |-----|----------|-------------|
 | `ApiKey` | Recommended in production | Shared secret. When set, LOGICTECK must send header `X-Logicteck-Api-Key` on public ICS endpoints. ICS also sends this header on outbound POSTs to LOGICTECK. |
 | `PublicApiBaseUrl` | Yes | Public ICS API base URL embedded in new QR payloads (e.g. `https://api.your-domain.com`). Used for validate URL in QR. |
-| `BookUrl` | For live transfer | LOGICTECK endpoint that **receives** pre-forecast data when trucker clicks **Send to LOGICTECK**. If empty, ICS records transfer locally without HTTP call (dev mode). |
-| `PortalUrl` | Optional | URL opened in ICS UI after successful send (LOGICTECK portal). |
+| `NewReturnUrl` | **Recommended** | LOGICTECK page where truckers **confirm** the return (e.g. `…/dashboard/bookings/new-return`). ICS opens `{NewReturnUrl}?{IcsRefQueryParam}=ICS-…`. |
+| `IcsRefQueryParam` | Optional | Query key for the ICS reference (default `icsRef`). |
+| `BookUrl` | Optional (legacy push) | LOGICTECK endpoint that **receives** a POST when ICS push transfer is used. Not required for pull + ack flow. |
+| `PortalUrl` | Optional | Fallback if `NewReturnUrl` is empty. |
 | `EmptyReturnUrl` | Optional | LOGICTECK endpoint for full empty-return form + photos. Falls back to `BookUrl` if empty. |
+| `AutoTransferOnQrPublish` | Optional | Default **`false`** — do not POST to `BookUrl` when QR is published. |
 
 **Local development defaults** (`appsettings.json`):
 
@@ -86,6 +127,9 @@ ASP.NET Core binds nested config with `__`:
 | `Logicteck__PublicApiBaseUrl` | `Logicteck:PublicApiBaseUrl` |
 | `Logicteck__BookUrl` | `Logicteck:BookUrl` |
 | `Logicteck__PortalUrl` | `Logicteck:PortalUrl` |
+| `Logicteck__NewReturnUrl` | `Logicteck:NewReturnUrl` |
+| `Logicteck__IcsRefQueryParam` | `Logicteck:IcsRefQueryParam` |
+| `Logicteck__AutoTransferOnQrPublish` | `Logicteck:AutoTransferOnQrPublish` |
 | `Logicteck__EmptyReturnUrl` | `Logicteck:EmptyReturnUrl` |
 
 Set these in Railway, Hostinger VPS, or `backend/ECMS.API/.env.production` (see `.env.production.example` for other keys).
@@ -96,11 +140,12 @@ Set these in Railway, Hostinger VPS, or `backend/ECMS.API/.env.production` (see 
 |-------|---------|
 | `/trucker/qr` | Transfer QR after payment verification (also from My returns) |
 | `/trucker/qr/print/{id}` | Printable QR pass |
+| `/preforecast/{id}?tab=qr` | Pre-forecast QR + **Open LOGICTECK to confirm return** |
 | `/preforecast/{id}?tab=overview` | Full pre-forecast dossier with container photos |
 
-**Send to LOGICTECK** runs inline from return / pre-forecast QR actions (calls `POST /api/qr/{id}/book-logicteck`).
+**Open LOGICTECK to confirm return** opens `NewReturnUrl` with the ICS reference (`GET /api/qr/logicteck-handoff` supplies the base URL). After LOGICTECK saves the booking, call `POST /api/logicteck/ack-booking`. Legacy push: `POST /api/qr/{id}/book-logicteck` when `BookUrl` is set.
 
-**Public API testing (outside ICS app):** `/logicteck-test.html?qr=ICS-...` — see [LOGICTECK-API-HANDOFF.md](./LOGICTECK-API-HANDOFF.md).
+**LOGICTECK integration testing:** use [logicteck-test.html](http://localhost:5173/logicteck-test.html) (see section above). API contract details: [LOGICTECK-API-HANDOFF.md](./LOGICTECK-API-HANDOFF.md).
 
 ---
 
@@ -160,7 +205,24 @@ GET /api/logicteck/booking/{qrCode}
 | `isBooked` | ICS has sent pre-forecast data to LOGICTECK (`LogicteckBookedAt` set) |
 | `isRetrieved` | LOGICTECK gate validated the QR (`IsUsed` — one-time) |
 
-### 2. Validate QR (gate scan)
+### 2. Ack booking (LOGICTECK → ICS)
+
+After the trucker confirms on LOGICTECK:
+
+```http
+POST /api/logicteck/ack-booking
+Content-Type: application/json
+X-Logicteck-Api-Key: {shared-secret}
+
+{
+  "qrCode": "ICS-202600018",
+  "reference": "YOUR-LOGICTECK-BOOKING-ID"
+}
+```
+
+Sets `isBooked` / `LogicteckBookedAt` on ICS without ICS pushing data.
+
+### 3. Validate QR (gate scan)
 
 Marks QR as **Retrieved** on first successful call.
 
@@ -277,7 +339,7 @@ LOGICTECK can scan the QR or use the reference string with the lookup/validate A
 
 | ICS UI label | Backend `logicteckStatus` | Public API |
 |--------------|---------------------------|------------|
-| Ready to send | `Available` | `isBooked: false`, `isRetrieved: false` |
+| Confirm on LOGICTECK (legacy: Book with LOGICTECK / Ready to send) | `Available` | `isBooked: false`, `isRetrieved: false` |
 | Booked on LOGICTECK | `Booked` | `isBooked: true`, `isRetrieved: false` |
 | Retrieved | `Retrieved` | `isRetrieved: true` |
 
@@ -290,8 +352,8 @@ Pre-forecast workflow status in ICS remains **Approved** — it does not change 
 1. **Start API:** `cd backend/ECMS.API && dotnet run --urls "http://localhost:5275"`
 2. **Start frontend:** `cd frontend && npm run dev` → `http://localhost:5173`
 3. Complete flow in ICS: pre-forecast → approval → depot schedule → return confirmed → transfer QR published
-4. **Send to LOGICTECK:** from trucker return / pre-forecast QR tab (inline action)
-5. **Verify externally:** `http://localhost:5173/logicteck-test.html?qr=ICS-...` or curl:
+4. **Trucker:** `/preforecast/{id}?tab=qr` → **Open LOGICTECK to confirm return** (deep link with `icsRef`)
+5. **LOGICTECK devs:** [http://localhost:5173/logicteck-test.html?icsRef=ICS-…](http://localhost:5173/logicteck-test.html) — dossier → **Ack booking** → validate; or curl:
 
 ```bash
 curl -s "http://localhost:5275/api/logicteck/booking/ICS-202600018"
@@ -320,16 +382,16 @@ curl -s "https://your-api.example.com/api/logicteck/booking/ICS-202600018" \
 - [ ] Generate and share `Logicteck__ApiKey` with LOGICTECK
 - [ ] Confirm CORS includes production frontend origin
 - [ ] Run database migrations (includes `LogicteckBookedAt`, `LogicteckExternalRef` on `QRBookings`)
-- [ ] Test lookup + validate from outside ICS (Postman or `/logicteck-test.html`)
+- [ ] Test full flow on [logicteck-test.html](http://localhost:5173/logicteck-test.html) (dossier → ack → validate)
 
 ### LOGICTECK team
 
-- [ ] Provide **inbound URL** (`BookUrl`) that accepts the pre-forecast JSON payload
-- [ ] Return `{ "reference": "..." }` on success
-- [ ] Implement lookup: `GET {PublicApiBaseUrl}/api/logicteck/booking/{qrCode}`
-- [ ] Implement gate scan: `POST {PublicApiBaseUrl}/api/logicteck/validate-qr`
-- [ ] Send `X-Logicteck-Api-Key` if ICS has `ApiKey` configured
-- [ ] (Optional) Provide `EmptyReturnUrl` if using full form + photos path
+- [ ] **new-return** reads `icsRef` query param; server-side `GET …/dossier` with `X-Logicteck-Api-Key`
+- [ ] On booking confirm, `POST …/ack-booking` with `{ "qrCode", "reference" }` (use `transferLink.ackBookingUrl`)
+- [ ] Gate: `POST …/validate-qr` (+ `containerNo` for back-to-back)
+- [ ] Smoke-test with ICS [logicteck-test.html](http://localhost:5173/logicteck-test.html) before wiring your Firebase/Cloud Function
+- [ ] (Optional legacy) inbound `BookUrl` push from ICS — not required for pull + ack flow
+- [ ] (Optional) `EmptyReturnUrl` for multipart photo POST from ICS
 
 ---
 
@@ -344,6 +406,18 @@ curl -s "https://your-api.example.com/api/logicteck/booking/ICS-202600018" \
 | Full pre-forecast dossier | **No** | **No** | Partial |
 
 Photos visible in ICS (`/preforecast/{id}?tab=overview`) are for internal verification unless sent via the empty-return integration.
+
+---
+
+## Security notes (review checklist)
+
+| Risk | Mitigation in ICS |
+|------|-------------------|
+| Public LOGICTECK APIs without key | **Production:** `Logicteck:ApiKey` required — missing key returns **503** on `/api/logicteck/*`. |
+| Dev/staging with empty `ApiKey` | Endpoints are open on localhost — do not expose dev API to the public internet without a key. |
+| Fake `isBooked` without LOGICTECK | **Fixed:** legacy `book-logicteck` no longer sets `LogicteckBookedAt` when `BookUrl` is empty; use **ack-booking** after LOGICTECK confirm. |
+| Gate validate on **no show** / unpaid schedule | **Fixed:** `validate-qr` and `ack-booking` only accept **Confirmed** or **Completed** schedules. |
+| Ack with arbitrary reference | Allowed only with valid `X-Logicteck-Api-Key` — store key server-side on LOGICTECK, never in Firebase client. |
 
 ---
 

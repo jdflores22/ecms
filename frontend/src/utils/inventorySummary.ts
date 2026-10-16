@@ -133,6 +133,7 @@ export function buildInventorySummaryRows(items: ContainerInventoryItem[]): Inve
     if (typeCode) row.typeCounts[typeCode] += 1
 
     if (item.source === 'Workflow') row.preAdvisedCount += 1
+    else if (item.source === 'Logicteck') row.bookingCount += 1
     else row.manualCount += 1
 
     if (item.complianceStatus === 'Overstay') row.overstayCount += 1
@@ -204,4 +205,5 @@ export function formatInventorySizeLabel(size: string): string {
 export const INVENTORY_SOURCE_LABELS = {
   Workflow: 'Pre-forecast',
   Manual: 'Manual',
+  Logicteck: 'LOGICTECK',
 } as const

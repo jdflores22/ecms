@@ -1,10 +1,11 @@
-import { Chip } from '@mui/material'
+import { Box, Chip } from '@mui/material'
+import PreAdviceBackToBackChip from '../preAdvice/PreAdviceBackToBackChip'
+import PreAdviceContainerUnitsReadOnly from '../preAdvice/PreAdviceContainerUnitsReadOnly'
 import { PreAdviceStatusChip } from '../preAdvice/PreAdviceStatusChip'
 import { InlineLoadingSkeleton } from '../layout/SkeletonPrimitives'
 import { LOGICTECK_QR, qrLogicteckStatusFromPreAdvice, qrLookupStatusColor } from '../../config/logicteckQr'
 import type { Evaluation, PreAdvice, QrBooking, Schedule } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { formatContainerSizeLabel } from '../../utils/containerSize'
 import {
   EvaluationField,
   EvaluationFieldColumn,
@@ -40,6 +41,7 @@ export default function EvaluationOverviewTabPanel({
       headerExtra={
         <>
           <PreAdviceStatusChip status={item.status} scheduleStatus={schedule?.status ?? item.scheduleStatus} />
+          {item.isBackToBack && <PreAdviceBackToBackChip item={item} />}
           {item.hasQrBooking && qrStatus && (
             <Chip label={qrStatus} size="small" color={qrLookupStatusColor(qrStatus)} sx={{ fontWeight: 700 }} />
           )}
@@ -56,14 +58,12 @@ export default function EvaluationOverviewTabPanel({
             {item.qrCode && <EvaluationField label="ICS QR reference" value={item.qrCode} mono />}
           </EvaluationFieldColumn>
         }
-        right={
-          <EvaluationFieldColumn title="Container">
-            <EvaluationField label="Container number" value={item.containerNo} mono />
-            <EvaluationField label="Size" value={formatContainerSizeLabel(item.containerSize)} />
-            <EvaluationField label="Type" value={item.containerType} />
-          </EvaluationFieldColumn>
-        }
+        right={null}
       />
+
+      <Box sx={{ mt: 2 }}>
+        <PreAdviceContainerUnitsReadOnly item={item} />
+      </Box>
 
       {hasFooterRemarks && (
         <EvaluationTabFooter>
@@ -89,7 +89,15 @@ export default function EvaluationOverviewTabPanel({
                 />
               }
             />
-            {decision.depotName && <EvaluationField label="Assigned CY" value={decision.depotName} />}
+            {decision.depotName && (
+              <EvaluationField
+                label={item.isBackToBack ? 'Container A assigned CY' : 'Assigned CY'}
+                value={decision.depotName}
+              />
+            )}
+            {item.isBackToBack && decision.companionDepotName && (
+              <EvaluationField label="Container B assigned CY" value={decision.companionDepotName} />
+            )}
             <EvaluationField label="Evaluator" value={decision.evaluatorName} />
             <EvaluationField label="Evaluated" value={formatDateTime(decision.evaluatedAt)} />
           </EvaluationFieldColumn>

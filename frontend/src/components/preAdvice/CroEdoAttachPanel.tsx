@@ -32,9 +32,17 @@ type CroEdoAttachPanelProps = {
   onLinked: (payload: CroEdoAttachSuccess) => void
   onCleared: () => void
   disabled?: boolean
+  unitLabel?: string
+  embedded?: boolean
 }
 
-export default function CroEdoAttachPanel({ onLinked, onCleared, disabled }: CroEdoAttachPanelProps) {
+export default function CroEdoAttachPanel({
+  onLinked,
+  onCleared,
+  disabled,
+  unitLabel,
+  embedded = false,
+}: CroEdoAttachPanelProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [fileName, setFileName] = useState('')
@@ -129,25 +137,16 @@ export default function CroEdoAttachPanel({ onLinked, onCleared, disabled }: Cro
   }
 
   return (
-    <Box
-      sx={{
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 2,
-        p: { xs: 2, sm: 2.5 },
-        mb: 2.5,
-        bgcolor: 'rgba(11, 61, 145, 0.03)',
-      }}
-    >
+    <Box sx={embedded ? { mt: 2 } : undefined}>
       <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
-        <QrCodeScannerIcon color="primary" />
-        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-          Attach CRO / eDO
+        <QrCodeScannerIcon color="primary" fontSize="small" />
+        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+          CRO / eDO (ICS QR){unitLabel ? ` — ${unitLabel}` : ''}
         </Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Upload the issued CRO/eDO (PDF or photo of the QR). The system reads the QR and fills container
-        details automatically.
+        Upload the issued CRO/eDO (PDF or photo of the QR). The system reads the QR and fills{' '}
+        {unitLabel ? `${unitLabel.toLowerCase()} ` : ''}container details automatically.
       </Typography>
 
       <Stack spacing={1.5}>

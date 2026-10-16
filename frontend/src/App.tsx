@@ -26,6 +26,7 @@ import {
   AtwDetailPage,
   AtwNewPage,
   AtwPage,
+  ContainerInventoryDetailPage,
   ContainerInventoryPage,
   CroEdoDetailPage,
   CroEdoNewPage,
@@ -218,6 +219,14 @@ export default function App() {
           }
         />
         <Route
+          path="evaluations/container-inventory/detail"
+          element={
+            <RoleRouteGuard>
+              <ContainerInventoryDetailPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
           path="evaluations/reports"
           element={
             <RoleRouteGuard>
@@ -398,6 +407,14 @@ export default function App() {
           element={
             <RoleRouteGuard>
               <DepotContainerInventoryPage />
+            </RoleRouteGuard>
+          }
+        />
+        <Route
+          path="depot/container-inventory/detail"
+          element={
+            <RoleRouteGuard>
+              <ContainerInventoryDetailPage />
             </RoleRouteGuard>
           }
         />

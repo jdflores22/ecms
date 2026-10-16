@@ -20,7 +20,7 @@ public class ShippingLineService : IShippingLineService
     {
         return await _db.ShippingLines
             .OrderBy(s => s.Name)
-            .Select(s => new ShippingLineDto(s.Id, s.Name, s.Code, s.IsActive))
+            .Select(s => new ShippingLineDto(s.Id, s.Name, s.Code, s.IsActive, s.LogicteckFeedCode))
             .ToListAsync(cancellationToken);
     }
 
@@ -46,7 +46,13 @@ public class ShippingLineService : IShippingLineService
         if (await _db.ShippingLines.AnyAsync(s => s.Code == code, cancellationToken))
             throw new InvalidOperationException($"Shipping line code '{code}' already exists.");
 
-        var line = new ShippingLine { Name = name, Code = code, IsActive = true };
+        var line = new ShippingLine
+        {
+            Name = name,
+            Code = code,
+            IsActive = true,
+            LogicteckFeedCode = TrimOrNull(request.LogicteckFeedCode),
+        };
         _db.Add(line);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Create", "ShippingLine", code, cancellationToken);
@@ -78,6 +84,7 @@ public class ShippingLineService : IShippingLineService
         line.Name = name;
         line.Code = code;
         line.IsActive = request.IsActive;
+        line.LogicteckFeedCode = TrimOrNull(request.LogicteckFeedCode);
         _db.Update(line);
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Update", "ShippingLine", code, cancellationToken);
@@ -101,5 +108,9 @@ public class ShippingLineService : IShippingLineService
 
     private static string NormalizeCode(string code) => code.Trim().ToUpperInvariant();
 
-    private static ShippingLineDto MapToDto(ShippingLine s) => new(s.Id, s.Name, s.Code, s.IsActive);
+    private static string? TrimOrNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static ShippingLineDto MapToDto(ShippingLine s) =>
+        new(s.Id, s.Name, s.Code, s.IsActive, s.LogicteckFeedCode);
 }

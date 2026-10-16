@@ -70,28 +70,52 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
     }
 
     [Fact]
-    public async Task Trucker_can_book_logicteck_before_gate_validation()
+    public async Task Ack_booking_marks_isBooked_without_ics_push()
     {
-        var (bookingId, truckerToken) = await CreatePublishedQrWithTruckerTokenAsync();
-
-        var bookResponse = await _client.PostAsync($"/api/qr/{bookingId}/book-logicteck", null);
-        Assert.Equal(HttpStatusCode.OK, bookResponse.StatusCode);
-
-        var book = await bookResponse.Content.ReadFromJsonAsync<BookResponse>();
-        Assert.NotNull(book);
-        Assert.True(book.Success);
-        Assert.Equal("Booked", book.Booking?.LogicteckStatus);
-
+        var qrCode = await CreatePublishedQrAsync();
         ApiTestHelper.ClearAuth(_client);
-        var lookupResponse = await _client.GetAsync($"/api/logicteck/booking/{Uri.EscapeDataString(book!.Booking!.QrCode)}");
+
+        var ackResponse = await _client.PostAsJsonAsync(
+            "/api/logicteck/ack-booking",
+            new { qrCode, reference = "LT-PLAYGROUND-9001" });
+        Assert.Equal(HttpStatusCode.OK, ackResponse.StatusCode);
+
+        var ack = await ackResponse.Content.ReadFromJsonAsync<AckBookingResponse>();
+        Assert.NotNull(ack);
+        Assert.True(ack.Accepted);
+        Assert.Equal(qrCode, ack.BookingReference);
+        Assert.Equal("LT-PLAYGROUND-9001", ack.ExternalReference);
+        Assert.True(ack.IsBooked);
+
+        var lookupResponse = await _client.GetAsync($"/api/logicteck/booking/{Uri.EscapeDataString(qrCode)}");
         var lookup = await lookupResponse.Content.ReadFromJsonAsync<LookupResponse>();
         Assert.NotNull(lookup);
         Assert.True(lookup.IsBooked);
         Assert.False(lookup.IsRetrieved);
+        Assert.NotNull(lookup.TransferLink);
+        Assert.Contains("ack-booking", lookup.TransferLink!.AckBookingUrl, StringComparison.OrdinalIgnoreCase);
 
+        var duplicate = await _client.PostAsJsonAsync(
+            "/api/logicteck/ack-booking",
+            new { qrCode, reference = "LT-PLAYGROUND-9001" });
+        var dupBody = await duplicate.Content.ReadFromJsonAsync<AckBookingResponse>();
+        Assert.NotNull(dupBody);
+        Assert.True(dupBody.Accepted);
+        Assert.True(dupBody.Duplicate);
+    }
+
+    [Fact]
+    public async Task Trucker_push_book_logicteck_fails_when_book_url_not_configured()
+    {
+        var (bookingId, truckerToken) = await CreatePublishedQrWithTruckerTokenAsync();
         ApiTestHelper.UseBearer(_client, truckerToken);
-        var repeatBook = await _client.PostAsync($"/api/qr/{bookingId}/book-logicteck", null);
-        Assert.Equal(HttpStatusCode.OK, repeatBook.StatusCode);
+
+        var bookResponse = await _client.PostAsync($"/api/qr/{bookingId}/book-logicteck", null);
+        Assert.Equal(HttpStatusCode.BadRequest, bookResponse.StatusCode);
+
+        var book = await bookResponse.Content.ReadFromJsonAsync<BookResponse>();
+        Assert.NotNull(book);
+        Assert.False(book.Success);
     }
 
     private async Task<string> CreatePublishedQrAsync()
@@ -121,62 +145,26 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
         await ApiTestHelper.UploadAllStandardPhotosAsync(_client, preAdvice.Id);
         await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
 
-        var adminToken = await ApiTestHelper.LoginAsync(_client, "admin", "Admin@123");
-        ApiTestHelper.UseBearer(_client, adminToken);
-
-        var depots = await _client.GetFromJsonAsync<List<ApiTestHelper.DepotResponse>>("/api/depots");
-        Assert.NotNull(depots);
-        Assert.NotEmpty(depots);
-        var depotId = depots[0].Id;
-
-        var demurrageValidUntil = ECMS.Domain.Common.PhilippinesTime
-            .AddDays(ECMS.Domain.Common.PhilippinesTime.Today, 7)
-            .ToString("yyyy-MM-dd");
-
-        await _client.PostAsJsonAsync("/api/evaluations/approve", new
-        {
-            preAdviceId = preAdvice.Id,
-            depotId,
-            demurrageValidUntil,
-            remarks = "Approved for LOGICTECK test",
-        });
-
-        ApiTestHelper.UseBearer(_client, submitterToken);
-        var truckerSchedules = await _client.GetFromJsonAsync<List<ApiTestHelper.ScheduleResponse>>("/api/schedules");
-        Assert.NotNull(truckerSchedules);
-        var schedule = truckerSchedules.First(s => s.ReferenceNo == preAdvice.ReferenceNo);
+        await ApiTestHelper.ApprovePreAdviceForTestAsync(
+            _client,
+            preAdvice.Id,
+            "Approved for LOGICTECK test");
 
         var depotToken = await ApiTestHelper.LoginAsync(_client, "depot1", "Depot@123");
         ApiTestHelper.UseBearer(_client, depotToken);
 
-        var tomorrow = ECMS.Domain.Common.PhilippinesTime.AddDays(ECMS.Domain.Common.PhilippinesTime.Today, 1);
+        var schedules = await _client.GetFromJsonAsync<List<ApiTestHelper.ScheduleResponse>>("/api/schedules");
+        Assert.NotNull(schedules);
+        var schedule = schedules.First(s => s.ReferenceNo == preAdvice.ReferenceNo);
 
-        await _client.PutAsJsonAsync($"/api/schedules/{schedule.Id}", new
-        {
-            date = tomorrow.ToString("yyyy-MM-dd"),
-            time = "08:00:00",
-            slotNo = 0,
-            status = "Scheduled",
-        });
+        await ApiTestHelper.AssignDepotScheduleForTestAsync(
+            _client,
+            schedule.Id,
+            schedule.DepotId,
+            depotToken);
 
-        ApiTestHelper.UseBearer(_client, submitterToken);
-
-        using var form = new MultipartFormDataContent
-        {
-            { new StringContent(schedule.Id.ToString()), "scheduleId" },
-            { new StringContent("1500.00"), "amount" },
-        };
-        var pngBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
-        var fileContent = new ByteArrayContent(pngBytes);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
-        form.Add(fileContent, "proof", "proof.png");
-
-        var payment = await (await _client.PostAsync("/api/payments/upload", form))
-            .Content.ReadFromJsonAsync<ApiTestHelper.PaymentResponse>();
-
-        ApiTestHelper.UseBearer(_client, depotToken);
-        await _client.PostAsync($"/api/payments/{payment!.Id}/verify?approved=true", null);
+        var paymentId = await ApiTestHelper.UploadPaymentProofForTestAsync(_client, submitterToken, schedule.Id);
+        await ApiTestHelper.VerifyPaymentForTestAsync(_client, paymentId);
 
         ApiTestHelper.UseBearer(_client, submitterToken);
         var qrResponse = await _client.GetAsync($"/api/qr/schedule/{schedule.Id}");
@@ -214,7 +202,17 @@ public class LogicteckIntegrationTests : IClassFixture<EcmsWebApplicationFactory
         string IcsTruckerName,
         string LookupUrl,
         string DossierUrl,
-        string ValidateUrl);
+        string ValidateUrl,
+        string AckBookingUrl,
+        string CallbackUrl);
+
+    private record AckBookingResponse(
+        bool Accepted,
+        bool Duplicate,
+        string? Message,
+        string? BookingReference,
+        string? ExternalReference,
+        bool IsBooked);
 
     private record DossierResponse(bool Found, TransferLinkResponse? TransferLink);
 

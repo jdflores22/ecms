@@ -1,7 +1,9 @@
 import { qrApi } from '../services/api'
 import { store } from '../store'
 
-/** Download the ICS booking confirmation PDF generated after payment approval. */
+import { confirmedPreForecastCopy } from '../config/confirmedPreForecast'
+
+/** Download the ICS confirmed pre-forecast PDF generated after payment approval. */
 export async function downloadBookingConfirmationPdf(
   bookingId: number,
   bookingCode?: string,
@@ -13,15 +15,15 @@ export async function downloadBookingConfirmationPdf(
   if (!res.ok) {
     throw new Error(
       res.status === 404
-        ? 'Booking confirmation PDF is available after payment is approved.'
-        : 'Failed to download booking confirmation PDF.',
+        ? confirmedPreForecastCopy.downloadUnavailable
+        : confirmedPreForecastCopy.downloadFailed,
     )
   }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `ICS-Booking-Confirmation-${bookingCode || bookingId}.pdf`
+  a.download = `ICS-Confirmed-PreForecast-${bookingCode || bookingId}.pdf`
   a.click()
   URL.revokeObjectURL(url)
 }

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -110,6 +111,61 @@ public static class ProductionSchemaRepair
         await EnsureDepotOperatingHoursAsync(db, logger, cancellationToken);
 
         await EnsureShippingLineCyFillControlAsync(db, logger, cancellationToken);
+
+        await EnsureDepotLogicteckFeedUrlsAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task EnsureDepotLogicteckFeedUrlsAsync(
+        EcmsDbContext db,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const string migrationId = "20261013120000_AddDepotLogicteckFeedUrls";
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "LogicteckIcsBaseUrl",
+            definition: "varchar(512) CHARACTER SET utf8mb4 NULL",
+            migrationId,
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "LogicteckAllocationsUrl",
+            definition: "varchar(512) CHARACTER SET utf8mb4 NULL",
+            migrationId,
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "LogicteckBookingsUrl",
+            definition: "varchar(512) CHARACTER SET utf8mb4 NULL",
+            migrationId,
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "DepotsSet",
+            column: "LogicteckInventoryUrl",
+            definition: "varchar(512) CHARACTER SET utf8mb4 NULL",
+            migrationId,
+            cancellationToken);
+
+        await EnsureColumnAsync(
+            db,
+            logger,
+            table: "ShippingLinesSet",
+            column: "LogicteckFeedCode",
+            definition: "varchar(40) CHARACTER SET utf8mb4 NULL",
+            migrationId,
+            cancellationToken);
     }
 
     private static async Task EnsureDepotContainersPerHourAsync(
@@ -315,6 +371,14 @@ public static class ProductionSchemaRepair
         ILogger logger,
         CancellationToken cancellationToken)
     {
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdviceDocumentsSet",
+            "IdentityUnit",
+            "int NOT NULL DEFAULT 0",
+            "20261013160000_AddPreAdviceDocumentIdentityUnit",
+            cancellationToken);
         await EnsureIndexAsync(db, logger, "PreAdviceDocumentsSet", "IX_PreAdviceDocumentsSet_FilePath", "FilePath", cancellationToken);
         await EnsureIndexAsync(db, logger, "PaymentsSet", "IX_PaymentsSet_ProofFile", "ProofFile", cancellationToken);
         await EnsureIndexAsync(db, logger, "UsersSet", "IX_UsersSet_ProfilePhoto", "ProfilePhoto", cancellationToken);
@@ -333,10 +397,7 @@ public static class ProductionSchemaRepair
         try
         {
             await db.Database.ExecuteSqlRawAsync(
-                $"""
-                 CREATE INDEX `{indexName}`
-                 ON `{table}` (`{column}`)
-                 """,
+                BuildCreateIndexSql(indexName, table, column),
                 cancellationToken);
             logger.LogInformation("Created index {Index} on {Table}.{Column}", indexName, table, column);
         }
@@ -377,6 +438,54 @@ public static class ProductionSchemaRepair
             "ContainerReleaseOrderId",
             "int NULL",
             "20260804150000_AddPreAdviceCroLink",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "IsBackToBack",
+            "tinyint(1) NOT NULL DEFAULT 0",
+            "20261013140000_AddPreAdviceBackToBack",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "BackToBackCompanionContainerNo",
+            "varchar(11) CHARACTER SET utf8mb4 NULL",
+            "20261013140000_AddPreAdviceBackToBack",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "BackToBackCompanionContainerSizeId",
+            "int NULL",
+            "20261013150000_AddPreAdviceBackToBackCompanionCatalog",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "BackToBackCompanionContainerTypeId",
+            "int NULL",
+            "20261013150000_AddPreAdviceBackToBackCompanionCatalog",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "PreAdvicesSet",
+            "BackToBackCompanionDemurrageValidUntil",
+            "date NULL",
+            "20261013170000_AddPreAdviceCompanionDemurrageValidUntil",
+            cancellationToken);
+        await EnsureColumnAsync(
+            db,
+            logger,
+            "EvaluationsSet",
+            "BackToBackCompanionDepotId",
+            "int NULL",
+            "20261013180000_AddEvaluationCompanionDepot",
             cancellationToken);
 
         try
@@ -1361,7 +1470,7 @@ public static class ProductionSchemaRepair
         {
             logger.LogWarning("Adding missing column {Table}.{Column}", table, column);
             await db.Database.ExecuteSqlRawAsync(
-                $"ALTER TABLE `{table}` ADD `{column}` {definition}",
+                BuildAddColumnSql(table, column, definition),
                 cancellationToken);
         }
 
@@ -1413,5 +1522,30 @@ public static class ProductionSchemaRepair
             if (shouldClose)
                 await connection.CloseAsync();
         }
+    }
+
+    private static readonly Regex SqlIdentifierRegex = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.CultureInvariant);
+
+    private static string QuoteSqlIdentifier(string identifier)
+    {
+        if (!SqlIdentifierRegex.IsMatch(identifier))
+            throw new InvalidOperationException($"Invalid SQL identifier: {identifier}");
+
+        return "`" + identifier + "`";
+    }
+
+    private static string BuildCreateIndexSql(string indexName, string table, string column) =>
+        "CREATE INDEX " + QuoteSqlIdentifier(indexName)
+        + " ON " + QuoteSqlIdentifier(table)
+        + " (" + QuoteSqlIdentifier(column) + ")";
+
+    private static string BuildAddColumnSql(string table, string column, string definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition))
+            throw new InvalidOperationException("Column definition is required.");
+
+        return "ALTER TABLE " + QuoteSqlIdentifier(table)
+            + " ADD " + QuoteSqlIdentifier(column)
+            + " " + definition;
     }
 }

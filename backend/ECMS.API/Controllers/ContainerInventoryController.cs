@@ -74,6 +74,41 @@ public class ContainerInventoryController : ControllerBase
         }
     }
 
+    [HttpGet("detail")]
+    [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
+    public async Task<ActionResult<ContainerInventoryDetailDto>> GetDetail(
+        [FromQuery] string source,
+        [FromQuery] int? scheduleId,
+        [FromQuery] int? manualEntryId,
+        [FromQuery] string? containerNo,
+        [FromQuery] int? depotId,
+        [FromQuery] int? shippingLineId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var detail = await _service.GetInventoryDetailAsync(
+                source,
+                scheduleId,
+                manualEntryId,
+                containerNo,
+                depotId,
+                shippingLineId,
+                UserId,
+                Role,
+                cancellationToken);
+            return detail is null ? NotFound() : Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
     [HttpPost("manual")]
     [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
     public async Task<ActionResult<ManualYardInventoryEntryDto>> CreateManual(

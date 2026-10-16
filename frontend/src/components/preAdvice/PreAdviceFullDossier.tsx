@@ -7,7 +7,9 @@ import {
 } from '@mui/material'
 import PaymentOutlinedIcon from '@mui/icons-material/PaymentOutlined'
 import { Link as RouterLink } from 'react-router-dom'
-import ContainerIdentityPhotos from './ContainerIdentityPhotos'
+import PreAdviceContainerUnitsReadOnly from './PreAdviceContainerUnitsReadOnly'
+import PreAdvicePhotosOverviewCards from './PreAdvicePhotosOverviewCards'
+import type { PreAdviceDetailTab } from './PreAdviceDetailTabPanels'
 import { PreAdviceStatusChip } from './PreAdviceStatusChip'
 import { ICS_PRIMARY, InfoTile, hexToRgba, infoGridSx } from '../layout/DetailPagePrimitives'
 import { InlineLoadingSkeleton, QrImageSkeleton } from '../layout/SkeletonPrimitives'
@@ -21,7 +23,6 @@ import type {
   Schedule,
 } from '../../services/api'
 import { formatDate, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { formatContainerSizeLabel } from '../../utils/containerSize'
 import {
   formatTruckerScheduleSlot,
   isScheduleDetailsVisible,
@@ -47,6 +48,8 @@ type PreAdviceFullDossierProps = {
   qrLoading?: boolean
   decision?: Evaluation | null
   compact?: boolean
+  showPhotoUploadHints?: boolean
+  onOpenPhotoTab?: (tab: PreAdviceDetailTab) => void
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -60,7 +63,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function PreAdviceFullDossier({
   item,
   documents,
-  documentsLoading = false,
+  documentsLoading: _documentsLoading = false,
   lookups,
   schedule,
   scheduleLoading = false,
@@ -70,14 +73,9 @@ export default function PreAdviceFullDossier({
   decision,
   compact = false,
   showCroEdoPanel = true,
+  showPhotoUploadHints = false,
+  onOpenPhotoTab,
 }: PreAdviceFullDossierProps) {
-  const containerTypeDisplay = (() => {
-    const match = lookups?.containerTypes.find(
-      (t) => t.code === item.containerType || t.label === item.containerType,
-    )
-    return match ? `${match.code} — ${match.label}` : item.containerType
-  })()
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: compact ? 2.5 : 3 }}>
       <Paper
@@ -106,18 +104,7 @@ export default function PreAdviceFullDossier({
           <InfoTile label="Reference" value={item.referenceNo} mono />
           <InfoTile label="Trucker" value={item.truckerName} />
           <InfoTile label="Shipping line" value={item.shippingLineName} />
-          <Box
-            sx={{
-              gridColumn: { xs: '1', sm: '1 / -1' },
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
-              gap: { xs: 1.5, sm: 2 },
-            }}
-          >
-            <InfoTile label="Container number" value={item.containerNo} mono />
-            <InfoTile label="Container size" value={formatContainerSizeLabel(item.containerSize)} />
-            <InfoTile label="Container type" value={containerTypeDisplay} />
-          </Box>
+          <PreAdviceContainerUnitsReadOnly item={item} lookups={lookups} />
           <InfoTile label="Submitted" value={formatDateTime(item.createdAt)} />
           {item.demurrageValidUntil && (
             <InfoTile
@@ -186,7 +173,7 @@ export default function PreAdviceFullDossier({
         </Paper>
       )}
 
-      {(schedule || scheduleLoading) && item.status === 'Approved' && (
+      {item.status === 'Approved' && (
         <Paper
           elevation={0}
           sx={{
@@ -201,6 +188,12 @@ export default function PreAdviceFullDossier({
             <InlineLoadingSkeleton rows={2} />
           ) : schedule ? (
             <>
+              {schedule.status === 'NoShow' && (
+                <Typography variant="body2" color="error.main" sx={{ mb: 2 }}>
+                  Marked <strong>no show</strong> — original return slot is shown below. Contact the depot to
+                  request a new date if you still need to return this container.
+                </Typography>
+              )}
               {isScheduleForPayment(schedule.status) && (
                 <Box sx={{ mb: 2 }}>
                   <Button
@@ -332,15 +325,23 @@ export default function PreAdviceFullDossier({
         <SectionTitle>Container identity photos</SectionTitle>
         {!compact && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Seven required container views plus optional Others — shared with evaluators, depot, and LOGICTECK dossier.
+            {item.isBackToBack
+              ? 'Each container has its own photos tab. Open the matching container to upload — do not mix primary and companion files.'
+              : 'Upload required container views, CSC plate, and optional Others on the photos tab.'}
           </Typography>
         )}
-        <ContainerIdentityPhotos
-          preAdviceId={item.id}
-          documents={documents}
-          loading={documentsLoading}
-          canManage={false}
-        />
+        {onOpenPhotoTab ? (
+          <PreAdvicePhotosOverviewCards
+            item={item}
+            documents={documents}
+            showActionHints={showPhotoUploadHints}
+            onOpenPhotoTab={onOpenPhotoTab}
+          />
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            Open the container photos tab to manage uploads.
+          </Typography>
+        )}
       </Paper>
     </Box>
   )

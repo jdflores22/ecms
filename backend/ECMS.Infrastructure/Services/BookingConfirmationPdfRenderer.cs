@@ -87,8 +87,8 @@ public static class BookingConfirmationPdfRenderer
 
                 row.ConstantItem(210).AlignMiddle().AlignRight().Column(right =>
                 {
-                    right.Item().AlignRight().Text("BOOKING CONFIRMATION")
-                        .FontSize(12).Bold().FontColor(Navy);
+                    right.Item().AlignRight().Text("CONFIRMED PRE-FORECAST")
+                        .FontSize(11).Bold().FontColor(Navy);
                     right.Item().PaddingTop(4).AlignRight().Element(badge =>
                     {
                         badge.Background(Green)
@@ -146,6 +146,13 @@ public static class BookingConfirmationPdfRenderer
             row.RelativeItem(0.56f).Column(left =>
             {
                 left.Spacing(7);
+                if (data.ConfirmedPreForecastLines.Count > 0)
+                {
+                    left.Item().Element(c => InfoSection(c, "CONFIRMED PRE-FORECAST", data.ConfirmedPreForecastLines
+                        .Select(line => (line.RoleLabel, $"{line.ReferenceNo} · {line.ContainerNo} · {line.TypeSize}"))
+                        .ToArray()));
+                }
+
                 left.Item().Element(c => InfoSection(c, "CUSTOMER INFORMATION", new[]
                 {
                     ("Customer Name", data.CustomerName),
@@ -207,7 +214,17 @@ public static class BookingConfirmationPdfRenderer
                     section.Item().Padding(10).Column(sum =>
                     {
                         SummaryRow(sum, "Booking Ref. No.", data.BookingReference, null);
-                        SummaryRow(sum, "Container No.", data.ContainerNo, null);
+                        if (data.ConfirmedPreForecastLines.Count > 0)
+                        {
+                            foreach (var line in data.ConfirmedPreForecastLines)
+                            {
+                                SummaryRow(sum, line.RoleLabel, $"{line.ContainerNo} ({line.ReferenceNo})", null);
+                            }
+                        }
+                        else
+                        {
+                            SummaryRow(sum, "Container No.", data.ContainerNo, null);
+                        }
                         SummaryRow(sum, "Scheduled Date", data.ScheduledDateTime, null);
                         SummaryRow(sum, "Status", data.Status.ToUpperInvariant(), Green, isLast: true);
                     });
@@ -273,9 +290,11 @@ public static class BookingConfirmationPdfRenderer
                 left.Item().Text("TERMS & CONDITIONS").FontSize(8).Bold().FontColor(Navy);
                 left.Item().PaddingTop(3).Column(list =>
                 {
-                    Term(list, "1. Present this booking confirmation upon arrival at the depot or terminal.");
-                    Term(list, "2. The QR code is valid only for the scheduled booking.");
-                    Term(list, "3. Any changes to the booking require prior approval from ICS.");
+                    Term(list, "1. Present this confirmed pre-forecast upon arrival at the depot or terminal.");
+                    Term(list, data.IsBackToBack
+                        ? "2. This document confirms two pre-forecasted containers (Container A and Container B) under one return schedule."
+                        : "2. The QR code is valid only for the scheduled return.");
+                    Term(list, "3. Any changes to the pre-forecast require prior approval from ICS.");
                     Term(list, "4. This confirmation is subject to terminal/depot operating policies.");
                 });
             });
@@ -346,7 +365,9 @@ public sealed class BookingConfirmationPdfData
     public string ContactNo { get; init; } = "—";
     public string Email { get; init; } = "";
     public string Company { get; init; } = "";
-    public string BookingType { get; init; } = "EMPTY RETURN";
+    public string BookingType { get; init; } = "CONFIRMED PRE-FORECAST";
+    public bool IsBackToBack { get; init; }
+    public IList<ConfirmedPreForecastPdfLine> ConfirmedPreForecastLines { get; init; } = Array.Empty<ConfirmedPreForecastPdfLine>();
     public string ContainerNo { get; init; } = "";
     public string ContainerTypeSize { get; init; } = "";
     public string CargoType { get; init; } = "EMPTY CONTAINER";
@@ -365,4 +386,12 @@ public sealed class BookingConfirmationPdfData
     public string AuthorizedByOrg { get; init; } = "Intelligent Container Solution (ICS)";
     public byte[] QrPng { get; init; } = Array.Empty<byte>();
     public string? LogoPath { get; init; }
+}
+
+public sealed class ConfirmedPreForecastPdfLine
+{
+    public string RoleLabel { get; init; } = "";
+    public string ReferenceNo { get; init; } = "";
+    public string ContainerNo { get; init; } = "";
+    public string TypeSize { get; init; } = "";
 }

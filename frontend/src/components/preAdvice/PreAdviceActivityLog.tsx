@@ -9,7 +9,8 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { ICS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
 import { InlineLoadingSkeleton } from '../layout/SkeletonPrimitives'
-import { preAdviceApi, type AuditLog } from '../../services/api'
+import { preAdviceApi, type AuditLog, type PreAdvice } from '../../services/api'
+import { formatContainerSummary } from '../../utils/containerSize'
 import { formatDateTime } from '../../utils/datetime'
 
 const primaryDark = ICS_PRIMARY
@@ -40,10 +41,11 @@ const moduleColor: Record<string, 'default' | 'primary' | 'secondary' | 'info' |
 
 type PreAdviceActivityLogProps = {
   preAdviceId: number
+  item?: PreAdvice | null
   active: boolean
 }
 
-export default function PreAdviceActivityLog({ preAdviceId, active }: PreAdviceActivityLogProps) {
+export default function PreAdviceActivityLog({ preAdviceId, item, active }: PreAdviceActivityLogProps) {
   const [items, setItems] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -105,8 +107,28 @@ export default function PreAdviceActivityLog({ preAdviceId, active }: PreAdviceA
     )
   }
 
+  const backToBackSummary =
+    item?.isBackToBack && item.backToBackCompanionContainerNo
+      ? formatContainerSummary(
+          item.backToBackCompanionContainerNo,
+          item.backToBackCompanionContainerSize ?? '20',
+          item.backToBackCompanionContainerType ?? '',
+        )
+      : null
+
   return (
     <Box>
+      {backToBackSummary && (
+        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+            <Chip label="Back-to-Back" size="small" color="secondary" sx={{ fontWeight: 700 }} />
+            <Typography variant="body2">
+              This pre-forecast covers two containers: <strong>{item?.containerNo}</strong> and{' '}
+              <strong>{backToBackSummary}</strong>. CRO/eDO and photo events are tagged Primary or Companion below.
+            </Typography>
+          </Box>
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 2, gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           Activity trail

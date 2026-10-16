@@ -13,4 +13,5 @@ public enum ContainerPhotoCategory
     Others,
     CroEdo,
     Backdoor,
+    CscPlate,
 }

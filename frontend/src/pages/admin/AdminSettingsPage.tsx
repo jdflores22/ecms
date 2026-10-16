@@ -296,7 +296,12 @@ export default function AdminSettingsPage() {
   const [selectedSize, setSelectedSize] = useState<ContainerSizeMaster | null>(null)
   const [selectedType, setSelectedType] = useState<ContainerTypeMaster | null>(null)
 
-  const [lineForm, setLineForm] = useState({ name: '', code: '', isActive: true })
+  const [lineForm, setLineForm] = useState({
+    name: '',
+    code: '',
+    isActive: true,
+    logicteckFeedCode: '',
+  })
   const [depotForm, setDepotForm] = useState({
     name: '',
     address: '',
@@ -306,6 +311,10 @@ export default function AdminSettingsPage() {
     operatingHourEnd: 17,
     isActive: true,
     isLogicteck: false,
+    logicteckIcsBaseUrl: '',
+    logicteckAllocationsUrl: '',
+    logicteckBookingsUrl: '',
+    logicteckInventoryUrl: '',
   })
   const [sizeForm, setSizeForm] = useState({ label: '', teu: 2, sortOrder: 1, isActive: true })
   const [typeForm, setTypeForm] = useState({ code: '', label: '', sortOrder: 1, isActive: true })
@@ -525,14 +534,21 @@ export default function AdminSettingsPage() {
     '& .MuiTableCell-head': { fontWeight: 700, color: 'text.secondary', py: 1.75 },
   }
 
+  const hasLogicteckYard = useMemo(() => depots.some((d) => d.isLogicteck), [depots])
+
   const openCreateLine = () => {
-    setLineForm({ name: '', code: '', isActive: true })
+    setLineForm({ name: '', code: '', isActive: true, logicteckFeedCode: '' })
     setLineDialog('create')
   }
 
   const openEditLine = async (line: ShippingLine) => {
     setSelectedLine(line)
-    setLineForm({ name: line.name, code: line.code, isActive: line.isActive })
+    setLineForm({
+      name: line.name,
+      code: line.code,
+      isActive: line.isActive,
+      logicteckFeedCode: line.logicteckFeedCode ?? '',
+    })
     setLinePayMongoSecretKey('')
     setLineDialog('edit')
     try {
@@ -553,10 +569,20 @@ export default function AdminSettingsPage() {
     setSubmitting(true)
     setError('')
     try {
+      const linePayload = {
+        name: lineForm.name,
+        code: lineForm.code,
+        isActive: lineForm.isActive,
+        logicteckFeedCode: lineForm.logicteckFeedCode.trim() || null,
+      }
       if (lineDialog === 'create') {
-        await shippingLineApi.create({ name: lineForm.name, code: lineForm.code })
+        await shippingLineApi.create({
+          name: linePayload.name,
+          code: linePayload.code,
+          logicteckFeedCode: linePayload.logicteckFeedCode,
+        })
       } else if (selectedLine) {
-        await shippingLineApi.update(selectedLine.id, lineForm)
+        await shippingLineApi.update(selectedLine.id, linePayload)
         await shippingLinePaymentConfigApi.update(selectedLine.id, {
           payMongoEnabled: linePayMongoEnabled,
           allowProofUpload: lineAllowProofUpload,
@@ -593,6 +619,10 @@ export default function AdminSettingsPage() {
       operatingHourEnd: 17,
       isActive: true,
       isLogicteck: false,
+      logicteckIcsBaseUrl: '',
+      logicteckAllocationsUrl: '',
+      logicteckBookingsUrl: '',
+      logicteckInventoryUrl: '',
     })
     setDepotDialog('create')
   }
@@ -608,6 +638,10 @@ export default function AdminSettingsPage() {
       operatingHourEnd: depot.operatingHourEnd ?? 17,
       isActive: depot.isActive,
       isLogicteck: depot.isLogicteck,
+      logicteckIcsBaseUrl: depot.logicteckIcsBaseUrl ?? '',
+      logicteckAllocationsUrl: depot.logicteckAllocationsUrl ?? '',
+      logicteckBookingsUrl: depot.logicteckBookingsUrl ?? '',
+      logicteckInventoryUrl: depot.logicteckInventoryUrl ?? '',
     })
     setDepotDialog('edit')
   }
@@ -619,6 +653,12 @@ export default function AdminSettingsPage() {
     }
     setSubmitting(true)
     setError('')
+    const logicteckUrls = {
+      logicteckIcsBaseUrl: depotForm.logicteckIcsBaseUrl.trim() || null,
+      logicteckAllocationsUrl: depotForm.logicteckAllocationsUrl.trim() || null,
+      logicteckBookingsUrl: depotForm.logicteckBookingsUrl.trim() || null,
+      logicteckInventoryUrl: depotForm.logicteckInventoryUrl.trim() || null,
+    }
     try {
       if (depotDialog === 'create') {
         await depotApi.create({
@@ -629,9 +669,10 @@ export default function AdminSettingsPage() {
           operatingHourStart: depotForm.operatingHourStart,
           operatingHourEnd: depotForm.operatingHourEnd,
           isLogicteck: depotForm.isLogicteck,
+          ...logicteckUrls,
         })
       } else if (selectedDepot) {
-        await depotApi.update(selectedDepot.id, depotForm)
+        await depotApi.update(selectedDepot.id, { ...depotForm, ...logicteckUrls })
       }
       setDepotDialog(null)
       load()
@@ -1756,6 +1797,19 @@ export default function AdminSettingsPage() {
             onChange={(e) => setLineForm({ ...lineForm, code: e.target.value })}
             sx={fieldSx}
           />
+          {hasLogicteckYard && (
+            <>
+              <TextField
+                fullWidth
+                margin="normal"
+                label="LOGICTECK feed code (optional)"
+                value={lineForm.logicteckFeedCode}
+                onChange={(e) => setLineForm({ ...lineForm, logicteckFeedCode: e.target.value })}
+                helperText="Use when LOGICTECK allocations/inventory/bookings use a carrier code different from ICS code or name."
+                sx={fieldSx}
+              />
+            </>
+          )}
           {lineDialog === 'edit' && (
             <>
               <FormControlLabel
@@ -1935,6 +1989,51 @@ export default function AdminSettingsPage() {
               </Box>
             }
           />
+          {depotForm.isLogicteck && (
+            <Box sx={{ mt: 1, pl: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                LOGICTECK ICS API (this yard)
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Leave blank to use the server default (env: Logicteck:IcsApiBaseUrl and per-feed URLs). API key stays on
+                the server (ICS_INBOUND_API_KEY).
+              </Typography>
+              <TextField
+                fullWidth
+                margin="dense"
+                label="ICS API base URL"
+                placeholder="https://…/api/ics"
+                value={depotForm.logicteckIcsBaseUrl}
+                onChange={(e) => setDepotForm({ ...depotForm, logicteckIcsBaseUrl: e.target.value })}
+                helperText="Optional. Appends /allocations, /bookings, /inventory when per-feed URLs are empty."
+                sx={fieldSx}
+              />
+              <TextField
+                fullWidth
+                margin="dense"
+                label="Allocations URL"
+                value={depotForm.logicteckAllocationsUrl}
+                onChange={(e) => setDepotForm({ ...depotForm, logicteckAllocationsUrl: e.target.value })}
+                sx={fieldSx}
+              />
+              <TextField
+                fullWidth
+                margin="dense"
+                label="Bookings URL"
+                value={depotForm.logicteckBookingsUrl}
+                onChange={(e) => setDepotForm({ ...depotForm, logicteckBookingsUrl: e.target.value })}
+                sx={fieldSx}
+              />
+              <TextField
+                fullWidth
+                margin="dense"
+                label="Inventory URL"
+                value={depotForm.logicteckInventoryUrl}
+                onChange={(e) => setDepotForm({ ...depotForm, logicteckInventoryUrl: e.target.value })}
+                sx={fieldSx}
+              />
+            </Box>
+          )}
           {depotDialog === 'edit' && (
             <FormControlLabel
               control={

@@ -4,7 +4,7 @@
  */
 export const LOGICTECK_QR = {
   integrationModel:
-    'ICS supplies approved pre-forecast data to LOGICTECK. The empty return booking lives in LOGICTECK — not in ICS.',
+    'ICS supplies approved pre-forecast data to LOGICTECK. You confirm the empty return booking on LOGICTECK — ICS does not auto-book.',
   menuLabel: 'Pre-forecast QR',
   pageTitle: 'Pre-forecast QR',
   sectionTitle: 'Pre-forecast QR',
@@ -12,33 +12,42 @@ export const LOGICTECK_QR = {
   printTitle: 'PRE-FORECAST QR',
   printSubtitle: 'Approved container details from ICS',
   heroDescription:
-    'After payment is verified in ICS, a QR with approved pre-forecast details is published. Send to LOGICTECK when ready to create the return booking on their system.',
+    'After payment is verified in ICS, a QR and ICS reference are published. Open LOGICTECK to confirm the return booking on their system.',
   scheduleSectionHint:
-    'This QR encodes approved pre-forecast container details. The return booking is created on the LOGICTECK side after you send the data.',
+    'This QR encodes approved pre-forecast container details. Confirm the return on LOGICTECK — ICS only transfers data.',
   integrationNote:
-    'ICS supplies pre-forecast data only. Use Send to LOGICTECK to create the booking on the LOGICTECK side.',
+    'ICS is integrated with LOGICTECK. Open LOGICTECK to load this ICS reference and confirm the empty return booking.',
   readyAlert:
-    'Return confirmed. Pre-forecast QR is published — send to LOGICTECK to create the return booking there.',
+    'Return confirmed in ICS. Open LOGICTECK to confirm the empty return booking (ICS reference is pre-filled).',
   viewQr: 'View QR',
-  bookLogicteck: 'Send to LOGICTECK',
-  bookSuccess: 'Pre-forecast data sent to LOGICTECK. Return booking is on the LOGICTECK side.',
-  bookAlreadySubmitted: 'Already sent to LOGICTECK.',
+  openLogicteckConfirm: 'Open LOGICTECK to confirm return',
+  openLogicteckLoading: 'Opening…',
+  /** @deprecated Use openLogicteckConfirm */
+  bookLogicteck: 'Open LOGICTECK to confirm return',
+  bookLogicteckLoading: 'Opening…',
+  bookSuccess: 'LOGICTECK acknowledged this return on ICS.',
+  bookAlreadySubmitted: 'Already confirmed on LOGICTECK (ICS is in sync).',
   bookRetrieved: 'QR already retrieved by LOGICTECK at gate.',
+  afterOpenHint:
+    'After you save the booking on LOGICTECK, refresh this page to see “Booked on LOGICTECK”.',
   printFooter:
     'Pre-forecast QR from ICS — for LOGICTECK integration. Not for gate-in at ICS.',
   approveConfirmHint:
     'Confirming will mark the return as paid, confirm the schedule, and publish the pre-forecast QR.',
   approveSuccess:
     'Payment approved. Return confirmed and pre-forecast QR published.',
-  validationStatusLabel: 'LOGICTECK status',
-  statusActive: 'Ready to send',
+  validationStatusLabel: 'ICS ↔ LOGICTECK',
+  statusActive: 'Confirm on LOGICTECK',
+  statusActiveLegacy: 'Ready to confirm',
   statusBooked: 'Booked on LOGICTECK',
   statusUsed: 'Retrieved',
   bookingIdLabel: 'ICS QR reference',
   emptyState:
     'Pre-forecast QR not yet published. It will be available after payment is verified in ICS.',
   integrationComingSoon:
-    'Pre-forecast QR is ready — send to LOGICTECK to create the return booking there.',
+    'Pre-forecast QR is ready — open LOGICTECK to confirm the return booking.',
+  statusActiveHint:
+    'Payment confirmed in ICS. Open LOGICTECK, review the pre-filled data, and confirm the return booking there.',
 } as const
 
 export type LogicteckQrStatus =
@@ -46,9 +55,19 @@ export type LogicteckQrStatus =
   | typeof LOGICTECK_QR.statusBooked
   | typeof LOGICTECK_QR.statusUsed
 
+function isLogicteckActiveStatus(value: string): boolean {
+  return (
+    value === 'Available' ||
+    value === LOGICTECK_QR.statusActive ||
+    value === LOGICTECK_QR.statusActiveLegacy ||
+    value === 'Book with LOGICTECK' ||
+    value === 'Ready to send'
+  )
+}
+
 function displayLogicteckStatus(status: string | null | undefined, fallback: LogicteckQrStatus): string {
   const value = status?.trim()
-  if (!value || value === 'Available' || value === LOGICTECK_QR.statusActive) return fallback
+  if (!value || isLogicteckActiveStatus(value)) return fallback
   if (value === 'Retrieved' || value === LOGICTECK_QR.statusUsed) return LOGICTECK_QR.statusUsed
   if (value === 'Booked' || value === LOGICTECK_QR.statusBooked) return LOGICTECK_QR.statusBooked
   return value
@@ -59,7 +78,7 @@ export function qrLookupStatusLabel(booking: {
   logicteckBookedAt?: string | null
   logicteckStatus?: string
 }): string {
-  if (booking.logicteckStatus && booking.logicteckStatus !== 'Available' && booking.logicteckStatus !== LOGICTECK_QR.statusActive) {
+  if (booking.logicteckStatus && !isLogicteckActiveStatus(booking.logicteckStatus.trim())) {
     return displayLogicteckStatus(booking.logicteckStatus, LOGICTECK_QR.statusActive)
   }
   if (booking.isUsed) return LOGICTECK_QR.statusUsed

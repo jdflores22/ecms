@@ -69,6 +69,82 @@ public class CyAllocationsController : ControllerBase
         }
     }
 
+    [HttpGet("logicteck/bookings")]
+    [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
+    public async Task<ActionResult<LogicteckPagedFeedDto<LogicteckBookingRowDto>>> GetLogicteckBookings(
+        [FromQuery] int? shippingLineId,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await _service.GetLogicteckBookingsFeedAsync(
+                shippingLineId, offset, limit, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("logicteck/inventory")]
+    [Authorize(Roles = $"{RoleNames.ShippingLineEvaluator},{RoleNames.Administrator}")]
+    public async Task<ActionResult<LogicteckPagedFeedDto<LogicteckInventoryRowDto>>> GetLogicteckInventory(
+        [FromQuery] int? shippingLineId,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await _service.GetLogicteckInventoryFeedAsync(
+                shippingLineId, offset, limit, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("by-depot/logicteck/bookings")]
+    [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
+    public async Task<ActionResult<LogicteckPagedFeedDto<LogicteckBookingRowDto>>> GetLogicteckBookingsByDepot(
+        [FromQuery] int? depotId,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await _service.GetLogicteckBookingsFeedForDepotAsync(
+                depotId, offset, limit, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("by-depot/logicteck/inventory")]
+    [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
+    public async Task<ActionResult<LogicteckPagedFeedDto<LogicteckInventoryRowDto>>> GetLogicteckInventoryByDepot(
+        [FromQuery] int? depotId,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await _service.GetLogicteckInventoryFeedForDepotAsync(
+                depotId, offset, limit, UserId, Role, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("by-depot")]
     [Authorize(Roles = $"{RoleNames.DepotPersonnel},{RoleNames.Administrator}")]
     public async Task<ActionResult<IReadOnlyList<CyAllocationDto>>> GetByDepot(

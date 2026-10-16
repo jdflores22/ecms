@@ -7,6 +7,8 @@ public class ShippingLine : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
+    /// <summary>Optional code used to match this line in LOGICTECK feeds when it differs from <see cref="Code"/>.</summary>
+    public string? LogicteckFeedCode { get; set; }
     public CyFillStrategy CyFillStrategy { get; set; } = CyFillStrategy.PriorityList;
     public bool IsActive { get; set; } = true;
 

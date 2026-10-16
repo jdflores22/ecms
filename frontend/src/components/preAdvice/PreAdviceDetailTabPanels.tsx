@@ -12,10 +12,16 @@ import {
   Typography,
 } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
-import ContainerIdentityPhotos, { type ContainerIdentityPhotosHandle } from './ContainerIdentityPhotos'
+import PreAdviceContainerUnitsReadOnly from './PreAdviceContainerUnitsReadOnly'
+import PreAdvicePhotosWorkspace, { type PreAdvicePhotosWorkspaceHandle } from './PreAdvicePhotosWorkspace'
 import PreAdviceActivityLog from './PreAdviceActivityLog'
 import PreAdviceFullDossier from './PreAdviceFullDossier'
 import PreAdviceForm, { type PreAdviceFormSubmitValues } from './PreAdviceForm'
+import { buildPreAdviceFormCroEdoSlots } from './PreAdviceFormCroEdoSlots'
+import PreAdvicePhotoReadinessAlert, {
+  type PreAdvicePhotoReadiness,
+} from './PreAdvicePhotoReadinessAlert'
+import { docIdentityUnit } from '../../utils/preAdviceIdentityUnit'
 import {
   DetailTabPanel,
   ICS_PRIMARY,
@@ -33,8 +39,7 @@ import type {
   Schedule,
 } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
-import { canBookLogicteck } from '../../utils/logicteckBooking'
-import { formatContainerSizeLabel } from '../../utils/containerSize'
+import { canOpenLogicteckConfirm, logicteckScheduleBlockReason } from '../../utils/logicteckBooking'
 import { getPreAdviceListStatus, isScheduleForPayment, lightStatusChipSx } from '../../utils/scheduleStatus'
 import { truckerPaymentPath } from '../../utils/truckerPayment'
 import {
@@ -45,7 +50,15 @@ import {
 
 const primaryDark = ICS_PRIMARY
 
-export type PreAdviceDetailTab = 'overview' | 'details' | 'photos' | 'schedule' | 'qr' | 'activity'
+export type PreAdviceDetailTab =
+  | 'overview'
+  | 'details'
+  | 'photos'
+  | 'photos-primary'
+  | 'photos-companion'
+  | 'schedule'
+  | 'qr'
+  | 'activity'
 
 type StatusGuidance = {
   severity: 'info' | 'success' | 'warning' | 'error'
@@ -60,14 +73,21 @@ type PreAdviceDetailTabPanelsProps = {
   documentsLoading: boolean
   canManageDocuments: boolean
   deferPhotoUpload?: boolean
-  photosRef?: React.RefObject<ContainerIdentityPhotosHandle | null>
+  photosRef?: React.RefObject<PreAdvicePhotosWorkspaceHandle | null>
+  primaryPhotosRef?: React.RefObject<PreAdvicePhotosWorkspaceHandle | null>
+  companionPhotosRef?: React.RefObject<PreAdvicePhotosWorkspaceHandle | null>
   onPendingPhotoCategoriesChange?: (categories: string[]) => void
+  onPrimaryPendingChange?: (categories: string[]) => void
+  onCompanionPendingChange?: (categories: string[]) => void
+  onOpenPhotoTab?: (tab: PreAdviceDetailTab) => void
   photoError: string
   onPhotoError: (message: string) => void
   editing: boolean
   lookups: PreAdviceLookups | null
   submitting: boolean
   statusGuidance: StatusGuidance | null
+  photoReadiness?: PreAdvicePhotoReadiness | null
+  onOpenRequestDetails?: () => void
   actionError: string
   onDismissActionError: () => void
   schedule: Schedule | null
@@ -94,13 +114,20 @@ export default function PreAdviceDetailTabPanels({
   canManageDocuments,
   deferPhotoUpload = false,
   photosRef,
+  primaryPhotosRef,
+  companionPhotosRef,
   onPendingPhotoCategoriesChange,
+  onPrimaryPendingChange,
+  onCompanionPendingChange,
+  onOpenPhotoTab,
   photoError,
   onPhotoError,
   editing,
   lookups,
   submitting,
   statusGuidance,
+  photoReadiness,
+  onOpenRequestDetails,
   actionError,
   onDismissActionError,
   schedule,
@@ -119,21 +146,28 @@ export default function PreAdviceDetailTabPanels({
 }: PreAdviceDetailTabPanelsProps) {
   const isApproved = item.status === 'Approved'
 
-  const containerTypeDisplay = (() => {
-    const match = lookups?.containerTypes.find(
-      (t) => t.code === item.containerType || t.label === item.containerType,
-    )
-    return match ? `${match.code} — ${match.label}` : item.containerType
-  })()
+  const topGuidance = (
+    <>
+      {photoReadiness && onOpenPhotoTab && onOpenRequestDetails && (
+        <PreAdvicePhotoReadinessAlert
+          item={item}
+          readiness={photoReadiness}
+          onOpenPhotoTab={onOpenPhotoTab}
+          onOpenRequestDetails={onOpenRequestDetails}
+        />
+      )}
+      {statusGuidance && !photoReadiness && (
+        <Alert severity={statusGuidance.severity} sx={{ mb: 2, borderRadius: 2 }}>
+          {statusGuidance.message}
+        </Alert>
+      )}
+    </>
+  )
 
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
       <DetailTabPanel value="overview" activeTab={activeTab}>
-        {statusGuidance && (
-          <Alert severity={statusGuidance.severity} sx={{ mb: 2, borderRadius: 2 }}>
-            {statusGuidance.message}
-          </Alert>
-        )}
+        {topGuidance}
         <PreAdviceFullDossier
           item={item}
           documents={documents}
@@ -144,21 +178,34 @@ export default function PreAdviceDetailTabPanels({
           qrBooking={qrBooking}
           qrImageUrl={qrImageUrl}
           qrLoading={qrLoading}
+          showPhotoUploadHints={canManageDocuments && (item.status === 'Draft' || item.status === 'ForCompliance')}
+          onOpenPhotoTab={onOpenPhotoTab}
         />
       </DetailTabPanel>
 
       <DetailTabPanel value="details" activeTab={activeTab}>
-        {statusGuidance && (
-          <Alert severity={statusGuidance.severity} sx={{ mb: 2, borderRadius: 2 }}>
-            {statusGuidance.message}
-          </Alert>
-        )}
+        {topGuidance}
         {actionError && (
           <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={onDismissActionError}>
             {actionError}
           </Alert>
         )}
         {editing && lookups ? (
+          (() => {
+            const croSlots = buildPreAdviceFormCroEdoSlots({
+              item,
+              preAdviceId,
+              documents,
+              canManage: canManageDocuments,
+              onDocumentsChange: (next) => onDocumentsChange?.(next),
+            })
+            const primaryCroOk =
+              documents.some((d) => d.category === 'CroEdo' && docIdentityUnit(d) === 'Primary') ||
+              Boolean(item.croEdoReferenceNo)
+            const companionCroOk =
+              !item.isBackToBack ||
+              documents.some((d) => d.category === 'CroEdo' && docIdentityUnit(d) === 'Companion')
+            return (
           <PreAdviceForm
             lookups={lookups}
             initial={{
@@ -171,28 +218,39 @@ export default function PreAdviceDetailTabPanels({
                   (t) => t.code === item.containerType || t.label === item.containerType,
                 )?.id ?? '',
               remarks: item.remarks ?? '',
+              isBackToBack: item.isBackToBack ?? false,
+              backToBackCompanionContainerNo: item.backToBackCompanionContainerNo ?? '',
+              backToBackCompanionContainerSizeId:
+                item.backToBackCompanionContainerSizeId ??
+                lookups.containerSizes.find((s) => s.label === item.backToBackCompanionContainerSize)
+                  ?.id ??
+                '',
+              backToBackCompanionContainerTypeId:
+                item.backToBackCompanionContainerTypeId ??
+                lookups.containerTypes.find(
+                  (t) =>
+                    t.code === item.backToBackCompanionContainerType ||
+                    t.label === item.backToBackCompanionContainerType,
+                )?.id ??
+                '',
             }}
             onSubmit={onUpdate}
             onCancel={onCancelEdit}
             submitting={submitting}
             excludePreAdviceId={item.id}
+            requireLegacyDocument={item.status === 'Draft'}
+            legacyDocumentReady={primaryCroOk}
+            companionLegacyDocumentReady={companionCroOk}
+            primaryCroSlot={croSlots.primaryCroSlot}
+            companionCroSlot={croSlots.companionCroSlot}
           />
+            )
+          })()
         ) : (
           <Box sx={infoGridSx}>
             <InfoTile label="Trucker" value={item.truckerName} />
             <InfoTile label="Shipping line" value={item.shippingLineName} />
-            <Box
-              sx={{
-                gridColumn: { xs: '1', sm: '1 / -1' },
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
-                gap: { xs: 1.5, sm: 2 },
-              }}
-            >
-              <InfoTile label="Container number" value={item.containerNo} mono />
-              <InfoTile label="Container size" value={formatContainerSizeLabel(item.containerSize)} />
-              <InfoTile label="Container type" value={containerTypeDisplay} />
-            </Box>
+            <PreAdviceContainerUnitsReadOnly item={item} lookups={lookups} />
             <InfoTile label="Submitted" value={formatDateTime(item.createdAt)} />
             <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
               <InfoTile label="Remarks" value={item.remarks || '—'} />
@@ -201,9 +259,31 @@ export default function PreAdviceDetailTabPanels({
         )}
       </DetailTabPanel>
 
-      <DetailTabPanel value="photos" activeTab={activeTab}>
-        <ContainerIdentityPhotos
-          ref={photosRef}
+      {!item.isBackToBack ? (
+        <DetailTabPanel value="photos" activeTab={activeTab} keepMounted>
+          <PreAdvicePhotosWorkspace
+            ref={photosRef}
+            item={item}
+            preAdviceId={preAdviceId}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={canManageDocuments}
+            deferUpload={deferPhotoUpload}
+            onChange={onReloadDocuments}
+            onDocumentsChange={onDocumentsChange}
+            onPendingCategoriesChange={onPendingPhotoCategoriesChange}
+            error={photoError}
+            onError={onPhotoError}
+          />
+        </DetailTabPanel>
+      ) : null}
+
+      {item.isBackToBack ? (
+      <DetailTabPanel value="photos-primary" activeTab={activeTab} keepMounted>
+        <PreAdvicePhotosWorkspace
+          ref={primaryPhotosRef ?? photosRef}
+          unit="Primary"
+          item={item}
           preAdviceId={preAdviceId}
           documents={documents}
           loading={documentsLoading}
@@ -211,11 +291,32 @@ export default function PreAdviceDetailTabPanels({
           deferUpload={deferPhotoUpload}
           onChange={onReloadDocuments}
           onDocumentsChange={onDocumentsChange}
-          onPendingCategoriesChange={onPendingPhotoCategoriesChange}
+          onPendingCategoriesChange={onPrimaryPendingChange ?? onPendingPhotoCategoriesChange}
           error={photoError}
           onError={onPhotoError}
         />
       </DetailTabPanel>
+      ) : null}
+
+      {item.isBackToBack ? (
+      <DetailTabPanel value="photos-companion" activeTab={activeTab} keepMounted>
+        <PreAdvicePhotosWorkspace
+          ref={companionPhotosRef}
+          unit="Companion"
+          item={item}
+          preAdviceId={preAdviceId}
+          documents={documents}
+          loading={documentsLoading}
+          canManage={canManageDocuments}
+          deferUpload={deferPhotoUpload}
+          onChange={onReloadDocuments}
+          onDocumentsChange={onDocumentsChange}
+          onPendingCategoriesChange={onCompanionPendingChange ?? onPendingPhotoCategoriesChange}
+          error={photoError}
+          onError={onPhotoError}
+        />
+      </DetailTabPanel>
+      ) : null}
 
       <DetailTabPanel value="schedule" activeTab={activeTab}>
         {!isApproved ? (
@@ -232,6 +333,13 @@ export default function PreAdviceDetailTabPanels({
               </Alert>
             ) : (
               <>
+                {schedule.status === 'NoShow' && (
+                  <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                    This return slot was marked <strong>no show</strong> because the container was not checked in
+                    at the depot within the allowed arrival window. The date below is your original assignment —
+                    contact the depot if you need a new return schedule.
+                  </Alert>
+                )}
                 {schedule.status === 'WaitingSchedule' && (
                   <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
                     The depot is assigning a return date, time slot, and trucker. You will be notified when
@@ -395,15 +503,20 @@ export default function PreAdviceDetailTabPanels({
                   {formatScheduleSlot(qrBooking.payload.scheduleDate, qrBooking.payload.scheduleTime)}
                 </Typography>
 
-                {canBookLogicteck(qrBooking) && (
+                {logicteckScheduleBlockReason(schedule) && (
+                  <Alert severity="warning" sx={{ mb: 2, borderRadius: 2, py: 0.5 }}>
+                    {logicteckScheduleBlockReason(schedule)}
+                  </Alert>
+                )}
+                {canOpenLogicteckConfirm(qrBooking, schedule) && !qrBooking.logicteckBookedAt && (
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.5 }}>
-                    {LOGICTECK_QR.integrationNote}
+                    {LOGICTECK_QR.statusActiveHint}
                   </Typography>
                 )}
 
                 {qrBooking.logicteckBookedAt && (
                   <Alert severity="info" sx={{ mb: 2, borderRadius: 2, py: 0.5 }}>
-                    {LOGICTECK_QR.bookAlreadySubmitted}
+                    {LOGICTECK_QR.bookAlreadySubmitted} {LOGICTECK_QR.afterOpenHint}
                   </Alert>
                 )}
                 {qrBooking.isUsed && (
@@ -413,7 +526,7 @@ export default function PreAdviceDetailTabPanels({
                 )}
 
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {onBookLogicteck && canBookLogicteck(qrBooking) && (
+                  {onBookLogicteck && canOpenLogicteckConfirm(qrBooking, schedule) && (
                     <Button
                       variant="contained"
                       startIcon={<SendIcon />}
@@ -421,14 +534,16 @@ export default function PreAdviceDetailTabPanels({
                       disabled={bookLogicteckLoading}
                       sx={{ fontWeight: 700, borderRadius: 2 }}
                     >
-                      {bookLogicteckLoading ? 'Sending…' : LOGICTECK_QR.bookLogicteck}
+                      {bookLogicteckLoading
+                        ? LOGICTECK_QR.openLogicteckLoading
+                        : LOGICTECK_QR.openLogicteckConfirm}
                     </Button>
                   )}
                   {onQrPreview && (
                     <Button
-                      variant={canBookLogicteck(qrBooking) ? 'outlined' : 'contained'}
+                      variant={canOpenLogicteckConfirm(qrBooking, schedule) ? 'outlined' : 'contained'}
                       startIcon={
-                        canBookLogicteck(qrBooking) ? (
+                        canOpenLogicteckConfirm(qrBooking, schedule) ? (
                           <VisibilityOutlinedIcon />
                         ) : (
                           <QrCode2OutlinedIcon />
@@ -483,7 +598,7 @@ export default function PreAdviceDetailTabPanels({
       </DetailTabPanel>
 
       <DetailTabPanel value="activity" activeTab={activeTab}>
-        <PreAdviceActivityLog preAdviceId={preAdviceId} active={activeTab === 'activity'} />
+        <PreAdviceActivityLog preAdviceId={preAdviceId} item={item} active={activeTab === 'activity'} />
       </DetailTabPanel>
     </Box>
   )

@@ -25,6 +25,7 @@ public class EcmsWebApplicationFactory : WebApplicationFactory<Program>
             {
                 ["ConnectionStrings:DefaultConnection"] = TestConnectionString,
                 ["Logicteck:ApiKey"] = "",
+                ["PaymentSettings:DeveloperPassword"] = "",
             });
         });
     }

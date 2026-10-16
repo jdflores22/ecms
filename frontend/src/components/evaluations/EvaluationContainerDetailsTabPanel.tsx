@@ -1,7 +1,7 @@
-import { Chip } from '@mui/material'
+import { Box, Chip } from '@mui/material'
 import type { Evaluation, PreAdvice } from '../../services/api'
+import PreAdviceContainerUnitsReadOnly from '../preAdvice/PreAdviceContainerUnitsReadOnly'
 import { formatDateTime } from '../../utils/datetime'
-import { formatContainerSizeLabel } from '../../utils/containerSize'
 import {
   EvaluationField,
   EvaluationFieldColumn,
@@ -26,20 +26,25 @@ export default function EvaluationContainerDetailsTabPanel({
 
   return (
     <EvaluationTabShell title="Container details">
+      <Box sx={{ mb: 2 }}>
+        <PreAdviceContainerUnitsReadOnly item={item} />
+      </Box>
+
       <EvaluationTwoColumnBody
         left={
-          <EvaluationFieldColumn title="Container">
-            <EvaluationField label="Container number" value={item.containerNo} mono />
-            <EvaluationField label="Size" value={formatContainerSizeLabel(item.containerSize)} />
-            <EvaluationField label="Type" value={item.containerType} />
-          </EvaluationFieldColumn>
-        }
-        right={
           <EvaluationFieldColumn title="Parties & submission">
             <EvaluationField label="Trucker" value={item.truckerName} />
             <EvaluationField label="Shipping line" value={item.shippingLineName} />
             <EvaluationField label="Submitted" value={formatDateTime(item.createdAt)} />
-            {decision?.depotName && <EvaluationField label="Assigned CY" value={decision.depotName} />}
+            {decision?.depotName && (
+              <EvaluationField
+                label={item.isBackToBack ? 'Container A assigned CY' : 'Assigned CY'}
+                value={decision.depotName}
+              />
+            )}
+            {item.isBackToBack && decision?.companionDepotName && (
+              <EvaluationField label="Container B assigned CY" value={decision.companionDepotName} />
+            )}
             {decision && (
               <EvaluationField
                 label="Evaluation"

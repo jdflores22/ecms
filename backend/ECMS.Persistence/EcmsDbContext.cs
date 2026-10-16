@@ -123,6 +123,15 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
         modelBuilder.Entity<ShippingLine>(e =>
         {
             e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.LogicteckFeedCode).HasMaxLength(40);
+        });
+
+        modelBuilder.Entity<Depot>(e =>
+        {
+            e.Property(x => x.LogicteckIcsBaseUrl).HasMaxLength(512);
+            e.Property(x => x.LogicteckAllocationsUrl).HasMaxLength(512);
+            e.Property(x => x.LogicteckBookingsUrl).HasMaxLength(512);
+            e.Property(x => x.LogicteckInventoryUrl).HasMaxLength(512);
         });
 
         modelBuilder.Entity<Container>(e =>
@@ -189,6 +198,9 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasOne(x => x.ContainerType).WithMany().HasForeignKey(x => x.ContainerTypeId);
             e.Property(x => x.CroEdoReferenceNo).HasMaxLength(32);
             e.Property(x => x.CroEdoVerificationTokenHash).HasMaxLength(64);
+            e.Property(x => x.BackToBackCompanionContainerNo).HasMaxLength(11);
+            e.HasOne(x => x.BackToBackCompanionContainerSize).WithMany().HasForeignKey(x => x.BackToBackCompanionContainerSizeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.BackToBackCompanionContainerType).WithMany().HasForeignKey(x => x.BackToBackCompanionContainerTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.CroEdoVerificationTokenHash);
             e.HasOne(x => x.ContainerReleaseOrder).WithMany().HasForeignKey(x => x.ContainerReleaseOrderId).OnDelete(DeleteBehavior.SetNull);
         });
@@ -206,6 +218,7 @@ public class EcmsDbContext : DbContext, IEcmsDbContext
             e.HasOne(x => x.PreAdvice).WithOne(x => x.Evaluation).HasForeignKey<Evaluation>(x => x.PreAdviceId);
             e.HasOne(x => x.Evaluator).WithMany(x => x.Evaluations).HasForeignKey(x => x.EvaluatorId);
             e.HasOne(x => x.Depot).WithMany(x => x.Evaluations).HasForeignKey(x => x.DepotId);
+            e.HasOne(x => x.BackToBackCompanionDepot).WithMany().HasForeignKey(x => x.BackToBackCompanionDepotId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Schedule>(e =>

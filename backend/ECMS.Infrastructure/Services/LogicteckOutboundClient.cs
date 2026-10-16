@@ -22,7 +22,7 @@ public class LogicteckOutboundClient
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.BookUrl))
-            return (true, null, null);
+            return (false, null, "LOGICTECK BookUrl is not configured.");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, _options.BookUrl)
         {

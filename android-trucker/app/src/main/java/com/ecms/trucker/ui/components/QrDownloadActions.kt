@@ -49,7 +49,13 @@ fun QrDownloadActions(
                 enabled = !logicteckBooking,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(stringResource(R.string.action_book_logicteck))
+                Text(
+                    if (logicteckBooking) {
+                        stringResource(R.string.action_book_logicteck_loading)
+                    } else {
+                        stringResource(R.string.action_book_logicteck)
+                    },
+                )
             }
         }
     }

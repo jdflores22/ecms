@@ -25,8 +25,9 @@ import {
 import { DEPOT_SCHEDULE_REMARK_PRESETS } from '../../utils/depotScheduleRemarks'
 import { QrImageSkeleton } from '../layout/SkeletonPrimitives'
 import AssetImage from '../layout/AssetImage'
-import { qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR, qrLookupStatusLabel } from '../../config/logicteckQr'
 import type {
+  Evaluation,
   HourlySlotAvailability,
   Payment,
   PreAdvice,
@@ -53,7 +54,14 @@ import {
 
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2 } }
 
-export type DepotScheduleTab = 'details' | 'photos' | 'schedule' | 'payment' | 'qr'
+export type DepotScheduleTab =
+  | 'details'
+  | 'photos'
+  | 'photos-primary'
+  | 'photos-companion'
+  | 'schedule'
+  | 'payment'
+  | 'qr'
 
 const paymentStatusColor: Record<string, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
   Pending: 'warning',
@@ -86,6 +94,7 @@ type DepotScheduleTabPanelsProps = {
   depotView?: boolean
   schedule: Schedule
   preAdvice: PreAdvice
+  evaluation: Evaluation | null
   documents: PreAdviceDocument[]
   documentsLoading: boolean
   payment: Payment | null
@@ -153,9 +162,13 @@ export default function DepotScheduleTabPanels({
   time,
   hourlySlots,
   hourlySlotsLoading,
+  evaluation,
 }: DepotScheduleTabPanelsProps) {
   const truckerName = requestingTruckerName(schedule, preAdvice)
   const proofFileUrl = useAssetUrl(payment?.proofFile)
+  const photoReviewHint = preAdvice.isBackToBack
+    ? 'Review container identity photos for Container A and Container B before assigning the return date.'
+    : 'Review the container identity photos uploaded by the trucker before assigning the return date.'
 
   return (
     <Box sx={{ pt: { xs: 2, sm: 2.5 } }}>
@@ -163,25 +176,59 @@ export default function DepotScheduleTabPanels({
         <DepotScheduleContainerDetailsTabPanel
           schedule={schedule}
           preAdvice={preAdvice}
+          evaluation={evaluation}
           truckerName={truckerName}
           depotRemarksDraft={depotRemarks}
         />
       </DetailTabPanel>
 
-      <DetailTabPanel value="photos" activeTab={activeTab}>
-        {depotView && (
-          <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-            Review the container identity photos uploaded by the trucker before assigning the return date.
-          </Alert>
-        )}
-        <ContainerIdentityPhotos
-          preAdviceId={preAdvice.id}
-          documents={documents}
-          loading={documentsLoading}
-          canManage={false}
-          onChange={onReloadDocuments}
-        />
-      </DetailTabPanel>
+      {!preAdvice.isBackToBack ? (
+        <DetailTabPanel value="photos" activeTab={activeTab}>
+          {depotView && (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              {photoReviewHint}
+            </Alert>
+          )}
+          <ContainerIdentityPhotos
+            preAdviceId={preAdvice.id}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={false}
+            onChange={onReloadDocuments}
+          />
+        </DetailTabPanel>
+      ) : null}
+
+      {preAdvice.isBackToBack ? (
+        <DetailTabPanel value="photos-primary" activeTab={activeTab}>
+          {depotView && (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              {photoReviewHint}
+            </Alert>
+          )}
+          <ContainerIdentityPhotos
+            preAdviceId={preAdvice.id}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={false}
+            onChange={onReloadDocuments}
+            identityUnit="Primary"
+          />
+        </DetailTabPanel>
+      ) : null}
+
+      {preAdvice.isBackToBack ? (
+        <DetailTabPanel value="photos-companion" activeTab={activeTab}>
+          <ContainerIdentityPhotos
+            preAdviceId={preAdvice.id}
+            documents={documents}
+            loading={documentsLoading}
+            canManage={false}
+            onChange={onReloadDocuments}
+            identityUnit="Companion"
+          />
+        </DetailTabPanel>
+      ) : null}
 
       <DetailTabPanel value="schedule" activeTab={activeTab}>
         {!showAssignForm && !showScheduledSummary ? (
@@ -533,7 +580,7 @@ export default function DepotScheduleTabPanels({
                 value={formatScheduleDate(qrBooking.payload.scheduleDate)}
               />
               <InfoTile
-                label="LOGICTECK status"
+                label={LOGICTECK_QR.validationStatusLabel}
                 value={qrLookupStatusLabel(qrBooking)}
               />
             </Box>

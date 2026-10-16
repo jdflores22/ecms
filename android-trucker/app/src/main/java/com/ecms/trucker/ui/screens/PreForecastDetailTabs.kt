@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,6 +55,10 @@ import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.util.GuidanceSeverity
 import com.ecms.trucker.util.StatusGuidance
 import com.ecms.trucker.util.canBookLogicteck
+import com.ecms.trucker.util.companionContainerNoOrNull
+import com.ecms.trucker.util.containerUnitRoleLabel
+import com.ecms.trucker.util.isBackToBackActive
+import com.ecms.trucker.util.isTwentyFootContainerSize
 import com.ecms.trucker.util.isScheduleConfirmed
 import com.ecms.trucker.util.isScheduleForPayment
 import com.ecms.trucker.util.formatTruckerScheduleSlot
@@ -69,6 +74,8 @@ enum class PreForecastDetailTab {
     Overview,
     Details,
     Photos,
+    PhotosPrimary,
+    PhotosCompanion,
     Schedule,
     Qr,
     Activity,
@@ -79,6 +86,8 @@ enum class PreForecastDetailTab {
             "overview" -> Overview
             "details" -> Details
             "photos" -> Photos
+            "photos-primary" -> PhotosPrimary
+            "photos-companion" -> PhotosCompanion
             "schedule" -> Schedule
             "qr" -> Qr
             "activity" -> Activity
@@ -92,12 +101,22 @@ internal fun preForecastDetailTabLabel(
     tab: PreForecastDetailTab,
     photoUploaded: Int? = null,
     photoTotal: Int? = null,
+    photoUnitLabel: String? = null,
 ): String = when (tab) {
     PreForecastDetailTab.Overview -> stringResource(R.string.preforecast_tab_overview)
     PreForecastDetailTab.Details -> stringResource(R.string.preforecast_tab_details)
     PreForecastDetailTab.Photos -> {
         if (photoUploaded != null && photoTotal != null) {
             stringResource(R.string.preforecast_tab_photos_count, photoUploaded, photoTotal)
+        } else {
+            stringResource(R.string.preforecast_tab_photos)
+        }
+    }
+    PreForecastDetailTab.PhotosPrimary,
+    PreForecastDetailTab.PhotosCompanion,
+    -> {
+        if (photoUploaded != null && photoTotal != null && !photoUnitLabel.isNullOrBlank()) {
+            stringResource(R.string.preforecast_tab_photos_unit, photoUploaded, photoTotal, photoUnitLabel)
         } else {
             stringResource(R.string.preforecast_tab_photos)
         }
@@ -203,7 +222,15 @@ internal fun PreForecastOverviewTab(
     ) {
         IcsSectionCard(title = stringResource(R.string.preforecast_tab_overview)) {
             val detailTiles = buildList {
-                add(stringResource(R.string.field_container) to item.containerNo)
+                if (item.isBackToBackActive()) {
+                    add(stringResource(R.string.field_container_a) to item.containerNo)
+                    item.companionContainerNoOrNull()?.let {
+                        add(stringResource(R.string.field_container_b) to it)
+                    }
+                    add(stringResource(R.string.back_to_back_type_label) to stringResource(R.string.back_to_back_chip))
+                } else {
+                    add(stringResource(R.string.field_container) to item.containerNo)
+                }
                 add(stringResource(R.string.field_size_type) to "${item.containerSize} / ${item.containerType}")
                 add(stringResource(R.string.field_shipping_line) to item.shippingLineName)
                 item.croEdoReferenceNo?.takeIf { it.isNotBlank() }?.let {
@@ -536,7 +563,17 @@ internal fun PreForecastEditDialog(
     item: PreAdviceDto,
     saving: Boolean,
     onDismiss: () -> Unit,
-    onSave: (shippingLineId: Int, containerNo: String, sizeId: Int, typeId: Int, remarks: String?) -> Unit,
+    onSave: (
+        shippingLineId: Int,
+        containerNo: String,
+        sizeId: Int,
+        typeId: Int,
+        remarks: String?,
+        isBackToBack: Boolean,
+        companionContainerNo: String?,
+        companionSizeId: Int?,
+        companionTypeId: Int?,
+    ) -> Unit,
 ) {
     val context = LocalContext.current
     var containerNo by remember(item.id) { mutableStateOf(item.containerNo) }
@@ -550,7 +587,41 @@ internal fun PreForecastEditDialog(
         )
     }
     var remarks by remember(item.id) { mutableStateOf(item.remarks.orEmpty()) }
+    var isBackToBack by remember(item.id) { mutableStateOf(item.isBackToBack) }
+    var companionContainerNo by remember(item.id) {
+        mutableStateOf(item.backToBackCompanionContainerNo.orEmpty())
+    }
+    var companionSizeId by remember(item.id) {
+        mutableIntStateOf(
+            item.backToBackCompanionContainerSizeId
+                ?: lookups.containerSizes.find { it.label == item.backToBackCompanionContainerSize }?.id
+                ?: 0,
+        )
+    }
+    var companionTypeId by remember(item.id) {
+        mutableIntStateOf(
+            item.backToBackCompanionContainerTypeId
+                ?: lookups.containerTypes.find {
+                    it.code == item.backToBackCompanionContainerType ||
+                        it.label == item.backToBackCompanionContainerType
+                }?.id
+                ?: 0,
+        )
+    }
     var duplicateWarning by remember(item.id) { mutableStateOf<String?>(null) }
+
+    val selectedSizeLabel = lookups.containerSizes.find { it.id == sizeId }?.label
+    val isTwentyFoot = isTwentyFootContainerSize(selectedSizeLabel)
+    val twentyFootSizes = lookups.containerSizes.filter { isTwentyFootContainerSize(it.label) }
+
+    LaunchedEffect(isTwentyFoot) {
+        if (!isTwentyFoot) {
+            isBackToBack = false
+            companionContainerNo = ""
+            companionSizeId = 0
+            companionTypeId = 0
+        }
+    }
 
     LaunchedEffect(containerNo, sizeId, typeId) {
         if (containerNo.isBlank() || sizeId <= 0 || typeId <= 0) {
@@ -609,6 +680,39 @@ internal fun PreForecastEditDialog(
                     label = { Text(stringResource(R.string.field_remarks)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (isTwentyFoot) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(R.string.back_to_back_toggle))
+                        Switch(
+                            checked = isBackToBack,
+                            onCheckedChange = { isBackToBack = it },
+                        )
+                    }
+                }
+                if (isTwentyFoot && isBackToBack) {
+                    OutlinedTextField(
+                        companionContainerNo,
+                        { companionContainerNo = it.uppercase() },
+                        label = { Text(stringResource(R.string.field_companion_container)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    PreForecastDialogDropdown(
+                        label = stringResource(R.string.field_size),
+                        options = twentyFootSizes.map { it.id to it.label },
+                        selected = companionSizeId,
+                        onSelect = { companionSizeId = it },
+                    )
+                    PreForecastDialogDropdown(
+                        label = stringResource(R.string.field_type),
+                        options = lookups.containerTypes.map { it.id to it.label },
+                        selected = companionTypeId,
+                        onSelect = { companionTypeId = it },
+                    )
+                }
                 duplicateWarning?.let { warning ->
                     Text(
                         warning,
@@ -619,10 +723,33 @@ internal fun PreForecastEditDialog(
             }
         },
         confirmButton = {
+            val companionValid = !isTwentyFoot || !isBackToBack ||
+                (
+                    companionContainerNo.isNotBlank() &&
+                        companionSizeId > 0 &&
+                        companionTypeId > 0 &&
+                        companionContainerNo.trim().uppercase() != containerNo.trim().uppercase()
+                )
             TextButton(
-                enabled = !saving && containerNo.isNotBlank() && shippingLineId > 0 && sizeId > 0 && typeId > 0,
+                enabled = !saving &&
+                    containerNo.isNotBlank() &&
+                    shippingLineId > 0 &&
+                    sizeId > 0 &&
+                    typeId > 0 &&
+                    companionValid,
                 onClick = {
-                    onSave(shippingLineId, containerNo.trim(), sizeId, typeId, remarks.ifBlank { null })
+                    val b2b = isTwentyFoot && isBackToBack
+                    onSave(
+                        shippingLineId,
+                        containerNo.trim(),
+                        sizeId,
+                        typeId,
+                        remarks.ifBlank { null },
+                        b2b,
+                        if (b2b) companionContainerNo.trim() else null,
+                        if (b2b) companionSizeId else null,
+                        if (b2b) companionTypeId else null,
+                    )
                 },
             ) { Text(if (saving) "..." else stringResource(R.string.action_save)) }
         },

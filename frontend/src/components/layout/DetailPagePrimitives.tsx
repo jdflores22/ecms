@@ -256,11 +256,19 @@ export function DetailTabPanel({
   value,
   activeTab,
   children,
+  keepMounted,
 }: {
   value: string
   activeTab: string
   children: ReactNode
+  /** Keep children mounted when inactive (needed for deferred photo upload refs). */
+  keepMounted?: boolean
 }) {
-  if (value !== activeTab) return null
-  return <Box role="tabpanel">{children}</Box>
+  const active = value === activeTab
+  if (!keepMounted && !active) return null
+  return (
+    <Box role="tabpanel" hidden={!active} sx={{ display: active ? undefined : 'none' }}>
+      {children}
+    </Box>
+  )
 }

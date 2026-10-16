@@ -15,7 +15,10 @@ public record QrPayloadDto(
     int? IcsTruckerId = null,
     string? IcsTruckerUsername = null,
     int? IcsPreAdviceId = null,
-    int? IcsScheduleId = null);
+    int? IcsScheduleId = null,
+    bool IsBackToBack = false,
+    string? PrimaryContainerNo = null,
+    string? CompanionContainerNo = null);
 
 public record QrBookingDto(
     int Id,
@@ -31,7 +34,7 @@ public record QrBookingDto(
     string? LogicteckUpdateMessage = null,
     DateTime? LogicteckUpdatedAt = null);
 
-public record ValidateQrRequest(string QrCode);
+public record ValidateQrRequest(string QrCode, string? ContainerNo = null);
 
 public record ValidateQrResponse(
     bool Valid,
@@ -43,7 +46,11 @@ public record ValidateQrResponse(
     string? PreAdviceReference,
     string? ScheduledDate,
     string? ScheduledTime,
-    string? Depot);
+    string? Depot,
+    bool IsBackToBack = false,
+    string? CompanionContainerNo = null,
+    string? ValidatedContainerNo = null,
+    bool FullyRetrieved = false);
 
 public record LogicteckBookingLookupResponse(
     bool Found,
@@ -73,9 +80,26 @@ public record LogicteckTransferLinkDto(
     string LookupUrl,
     string DossierUrl,
     string ValidateUrl,
+    string AckBookingUrl,
     string CallbackUrl);
 
+public record AckLogicteckBookingRequest(string QrCode, string Reference);
+
+public record AckLogicteckBookingResponse(
+    bool Accepted,
+    bool Duplicate,
+    string? Message,
+    string? BookingReference,
+    string? ExternalReference,
+    bool IsBooked);
+
+public record LogicteckHandoffUiDto(
+    string NewReturnBaseUrl,
+    string IcsRefQueryParam,
+    bool PushTransferAvailable);
+
 public record LogicteckDossierDocumentDto(
+    string? IdentityUnit,
     string? Category,
     string? CategoryLabel,
     string? Comment,
@@ -98,7 +122,11 @@ public record LogicteckDossierPreAdviceDto(
     string? Remarks,
     string? ComplianceRemarks,
     DateTime CreatedAt,
-    bool HasDamageReport);
+    bool HasDamageReport,
+    bool IsBackToBack,
+    string? BackToBackCompanionContainerNo,
+    string? BackToBackCompanionContainerSize,
+    string? BackToBackCompanionContainerType);
 
 public record LogicteckDossierScheduleDto(
     int Id,

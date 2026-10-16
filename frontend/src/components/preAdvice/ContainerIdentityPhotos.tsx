@@ -29,8 +29,8 @@ import { useToast } from '../feedback/ToastProvider'
 import { useAssetUrlsState } from '../../hooks/useAssetUrl'
 import { resolveAssetUrl } from '../../utils/assetUrl'
 import {
-  CONTAINER_PHOTO_CATEGORIES,
   CONTAINER_PHOTO_GRID_CATEGORIES,
+  REQUIRED_CONTAINER_PHOTO_CATEGORIES,
   DAMAGE_PHOTO_CATEGORY,
   formatDamageComment,
   isDamageForView,
@@ -41,6 +41,7 @@ import {
   type ContainerPhotoGridCategory,
 } from '../../config/containerPhotoCategories'
 import { preAdviceApi, type PreAdviceDocument } from '../../services/api'
+import type { PreAdviceIdentityUnit } from '../../utils/preAdviceIdentityUnit'
 
 const damageRed = '#C62828'
 
@@ -165,7 +166,13 @@ function mergeUploadedDocument(
     }
     return [...documents, uploaded]
   }
-  return [...documents.filter((d) => d.category !== category), uploaded]
+  const unit = uploaded.identityUnit ?? 'Primary'
+  return [
+    ...documents.filter(
+      (d) => d.category !== category || (d.identityUnit ?? 'Primary') !== unit,
+    ),
+    uploaded,
+  ]
 }
 
 function removeDocument(documents: PreAdviceDocument[], documentId: number) {
@@ -187,6 +194,10 @@ type Props = {
   onPendingCategoriesChange?: (categories: string[]) => void
   error?: string
   onError?: (message: string) => void
+  identityUnit?: PreAdviceIdentityUnit
+  sectionTitle?: string
+  /** e.g. `20 · GP` — shown under the section title for primary/companion parity */
+  sectionSizeTypeLine?: string
 }
 
 export type ContainerIdentityPhotosHandle = {
@@ -211,6 +222,9 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
     onPendingCategoriesChange,
     error,
     onError,
+    identityUnit = 'Primary',
+    sectionTitle,
+    sectionSizeTypeLine,
   },
   ref,
 ) {
@@ -236,33 +250,38 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
   const identityByCategory = useMemo(() => {
     const map = new Map<string, PreAdviceDocument>()
     for (const doc of documents) {
+      const docUnit = doc.identityUnit === 'Companion' ? 'Companion' : 'Primary'
+      if (docUnit !== identityUnit) continue
       if (doc.category && doc.category !== DAMAGE_PHOTO_CATEGORY.value && !map.has(doc.category)) {
         map.set(doc.category, doc)
       }
     }
     return map
-  }, [documents])
+  }, [documents, identityUnit])
 
   const damageByView = useMemo(() => {
     const map = new Map<string, PreAdviceDocument>()
     for (const doc of documents) {
       if (doc.category !== DAMAGE_PHOTO_CATEGORY.value) continue
+      const docUnit = doc.identityUnit === 'Companion' ? 'Companion' : 'Primary'
+      if (docUnit !== identityUnit) continue
       const view = doc.comment?.match(/^\[([A-Za-z]+)\]/)?.[1]
       if (view && !map.has(view)) {
         map.set(view, doc)
       }
     }
     return map
-  }, [documents])
+  }, [documents, identityUnit])
 
   const legacyDamagePhotos = useMemo(
     () =>
       documents.filter(
         (d) =>
           d.category === DAMAGE_PHOTO_CATEGORY.value &&
+          (d.identityUnit === 'Companion' ? 'Companion' : 'Primary') === identityUnit &&
           !d.comment?.match(/^\[([A-Za-z]+)\]/),
       ),
-    [documents],
+    [documents, identityUnit],
   )
 
   const damageCategories = useMemo(
@@ -289,14 +308,21 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
   const gridImageUrl = (doc: PreAdviceDocument) => assetUrl(doc.thumbPath ?? doc.filePath)
   const fullImageUrl = (doc: PreAdviceDocument) => assetUrl(doc.filePath)
 
-  const standardUploaded = CONTAINER_PHOTO_CATEGORIES.filter(
+  const standardUploaded = REQUIRED_CONTAINER_PHOTO_CATEGORIES.filter(
     (c) => identityByCategory.has(c.value) || pendingFiles[c.value],
   ).length
-  const progress = Math.round((standardUploaded / CONTAINER_PHOTO_CATEGORIES.length) * 100)
+  const progress = Math.round((standardUploaded / REQUIRED_CONTAINER_PHOTO_CATEGORIES.length) * 100)
+
+  const onPendingCategoriesChangeRef = useRef(onPendingCategoriesChange)
+  onPendingCategoriesChangeRef.current = onPendingCategoriesChange
+  const lastPendingKeysRef = useRef('')
 
   useEffect(() => {
-    onPendingCategoriesChange?.(Object.keys(pendingFiles))
-  }, [pendingFiles, onPendingCategoriesChange])
+    const keys = Object.keys(pendingFiles).sort().join('\0')
+    if (keys === lastPendingKeysRef.current) return
+    lastPendingKeysRef.current = keys
+    onPendingCategoriesChangeRef.current?.(Object.keys(pendingFiles))
+  }, [pendingFiles])
 
   useEffect(() => {
     return () => {
@@ -336,6 +362,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
           category,
           comment,
           onProgress,
+          identityUnit,
         )
         const next = mergeUploadedDocument(documents, uploaded, category)
         applyDocuments(next)
@@ -350,7 +377,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
         setUploading(null)
       }
     },
-    [preAdviceId, documents, applyDocuments, onError, showToast],
+    [preAdviceId, documents, applyDocuments, onError, showToast, identityUnit],
   )
 
   const queuePendingPhoto = useCallback(
@@ -387,6 +414,7 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
           category.value,
           undefined,
           (percent) => setUploadProgress((prev) => ({ ...prev, [category.value]: percent })),
+          identityUnit,
         )
         workingDocs = mergeUploadedDocument(workingDocs, uploaded, category.value)
         applyDocuments(workingDocs)
@@ -414,7 +442,16 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
       setBulkUploading(false)
       setUploadProgress({})
     }
-  }, [pendingFiles, identityByCategory, documents, applyDocuments, preAdviceId, onError, showToast])
+  }, [
+    pendingFiles,
+    identityByCategory,
+    documents,
+    applyDocuments,
+    preAdviceId,
+    onError,
+    showToast,
+    identityUnit,
+  ])
 
   useImperativeHandle(
     ref,
@@ -1008,15 +1045,20 @@ const ContainerIdentityPhotos = forwardRef<ContainerIdentityPhotosHandle, Props>
       >
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Container identity photos
+            {sectionTitle ?? 'Container identity photos'}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Upload each container view for evaluator review — Others is optional (JPG, PNG, WEBP — max 10 MB)
+          {sectionSizeTypeLine && (
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mt: 0.25 }}>
+              {sectionSizeTypeLine}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: sectionSizeTypeLine ? 0.75 : 0 }}>
+            Upload each container view and CSC plate for evaluator review — Others is optional (JPG, PNG, WEBP — max 10 MB)
             {!canManage && ' · read-only'}
           </Typography>
         </Box>
         <Chip
-          label={`${standardUploaded}/${CONTAINER_PHOTO_CATEGORIES.length} views`}
+          label={`${standardUploaded}/${REQUIRED_CONTAINER_PHOTO_CATEGORIES.length} required`}
           size="small"
           sx={{
             fontWeight: 700,

@@ -1,5 +1,7 @@
 using ECMS.Application;
 using ECMS.Application.DTOs.ContainerInventory;
+using ECMS.Application.DTOs.CyAllocation;
+using ECMS.Application.DTOs.PreAdvice;
 using ECMS.Application.Interfaces;
 using ECMS.Domain.Common;
 using ECMS.Domain.Entities;
@@ -15,11 +17,22 @@ public class ContainerInventoryService : IContainerInventoryService
 
     private readonly IEcmsDbContext _db;
     private readonly IAuditService _auditService;
+    private readonly LogicteckIcsFeedClient _logicteckFeeds;
+    private readonly LogicteckFeedResolver _logicteckFeedResolver;
+    private readonly IPreAdviceService _preAdviceService;
 
-    public ContainerInventoryService(IEcmsDbContext db, IAuditService auditService)
+    public ContainerInventoryService(
+        IEcmsDbContext db,
+        IAuditService auditService,
+        LogicteckIcsFeedClient logicteckFeeds,
+        LogicteckFeedResolver logicteckFeedResolver,
+        IPreAdviceService preAdviceService)
     {
         _db = db;
         _auditService = auditService;
+        _logicteckFeeds = logicteckFeeds;
+        _logicteckFeedResolver = logicteckFeedResolver;
+        _preAdviceService = preAdviceService;
     }
 
     public async Task<ContainerInventoryResponseDto> GetInventoryAsync(
@@ -73,8 +86,19 @@ public class ContainerInventoryService : IContainerInventoryService
         var shippingLine = await _db.ShippingLines
             .AsNoTracking()
             .Where(s => s.Id == lineId)
-            .Select(s => new { s.Id, s.Code, s.Name })
+            .Select(s => new { s.Id, s.Code, s.Name, s.LogicteckFeedCode })
             .FirstAsync(cancellationToken);
+
+        items = await MergeLogicteckInventoryForShippingLineAsync(
+            items,
+            lineId,
+            shippingLine.Code,
+            shippingLine.Name,
+            shippingLine.LogicteckFeedCode,
+            depotId,
+            complianceStatus,
+            yardStatus,
+            cancellationToken);
 
         var contractedDepots = await _db.ShippingLineDepotContracts
             .AsNoTracking()
@@ -109,7 +133,13 @@ public class ContainerInventoryService : IContainerInventoryService
         var contractedLines = await _db.ShippingLineDepotContracts
             .AsNoTracking()
             .Where(c => c.DepotId == resolvedDepotId && c.IsActive && c.Depot.IsActive)
-            .Select(c => new { c.ShippingLineId, c.ShippingLine.Code, c.ShippingLine.Name })
+            .Select(c => new
+            {
+                c.ShippingLineId,
+                c.ShippingLine.Code,
+                c.ShippingLine.Name,
+                c.ShippingLine.LogicteckFeedCode,
+            })
             .Distinct()
             .ToListAsync(cancellationToken);
 
@@ -169,18 +199,29 @@ public class ContainerInventoryService : IContainerInventoryService
             .ThenByDescending(i => i.YardInDate)
             .ToList();
 
-        var depot = await _db.Depots
+        var depotEntity = await _db.Depots
             .AsNoTracking()
-            .Where(d => d.Id == resolvedDepotId)
-            .Select(d => new { d.Id, d.Name })
-            .FirstAsync(cancellationToken);
+            .FirstAsync(d => d.Id == resolvedDepotId, cancellationToken);
+
+        if (depotEntity.IsLogicteck)
+        {
+            items = await MergeLogicteckInventoryForDepotAsync(
+                items,
+                depotEntity,
+                lineIds,
+                contractedLines.Select(c => (c.ShippingLineId, c.Code, c.Name, c.LogicteckFeedCode)).ToList(),
+                shippingLineId,
+                complianceStatus,
+                yardStatus,
+                cancellationToken);
+        }
 
         var contractTeu = await _db.ShippingLineDepotContracts
             .Where(c => c.DepotId == resolvedDepotId && c.IsActive && c.Depot.IsActive)
             .Where(c => !shippingLineId.HasValue || c.ShippingLineId == shippingLineId.Value)
             .SumAsync(c => c.ContractTeu, cancellationToken);
 
-        var summary = BuildDepotSummary(items, contractTeu, depot.Id, depot.Name);
+        var summary = BuildDepotSummary(items, contractTeu, depotEntity.Id, depotEntity.Name);
 
         return new DepotContainerInventoryResponseDto(summary, items);
     }
@@ -262,6 +303,109 @@ public class ContainerInventoryService : IContainerInventoryService
         await _db.SaveChangesAsync(cancellationToken);
         await _auditService.LogAsync(userId, "Delete", "ManualYardInventory", entry.ContainerNo, cancellationToken);
         return true;
+    }
+
+    public async Task<ContainerInventoryDetailDto?> GetInventoryDetailAsync(
+        string source,
+        int? scheduleId,
+        int? manualEntryId,
+        string? containerNo,
+        int? depotId,
+        int? shippingLineId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSource = source?.Trim() ?? string.Empty;
+        if (string.Equals(normalizedSource, "Workflow", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!scheduleId.HasValue)
+                throw new InvalidOperationException("Schedule is required.");
+
+            var schedule = await LoadScheduleForInventoryDetailAsync(scheduleId.Value, cancellationToken);
+            if (schedule is null)
+                return null;
+
+            await EnsureCanViewInventoryScheduleAsync(schedule, userId, role, cancellationToken);
+            var released = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(
+                _db,
+                schedule.PreAdvice.ShippingLineId,
+                cancellationToken);
+            var item = MapScheduleItem(schedule, released);
+            var photos = await _preAdviceService.GetDocumentsAsync(schedule.PreAdviceId, userId, role, cancellationToken);
+            return new ContainerInventoryDetailDto(
+                item,
+                "ICS",
+                "ICS",
+                photos,
+                Array.Empty<LogicteckContainerPhotoDto>(),
+                Array.Empty<ContainerInventoryDetailFieldDto>());
+        }
+
+        if (string.Equals(normalizedSource, "Manual", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!manualEntryId.HasValue)
+                throw new InvalidOperationException("Manual entry is required.");
+
+            var entry = await _db.ManualYardInventoryEntries
+                .Include(e => e.ContainerSize)
+                .Include(e => e.ContainerType)
+                .Include(e => e.Depot)
+                .Include(e => e.ShippingLine)
+                .FirstOrDefaultAsync(e => e.Id == manualEntryId.Value, cancellationToken);
+            if (entry is null)
+                return null;
+
+            await EnsureCanViewManualEntryAsync(entry, userId, role, cancellationToken);
+            var released = await YardInventoryReleaseHelper.GetReleasedDetailsAsync(
+                _db,
+                entry.ShippingLineId,
+                cancellationToken);
+            var item = MapManualItem(entry, released);
+            return new ContainerInventoryDetailDto(
+                item,
+                "ICS",
+                "ICS",
+                Array.Empty<PreAdviceDocumentDto>(),
+                Array.Empty<LogicteckContainerPhotoDto>(),
+                Array.Empty<ContainerInventoryDetailFieldDto>());
+        }
+
+        if (string.Equals(normalizedSource, "Logicteck", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(containerNo) || !depotId.HasValue)
+                throw new InvalidOperationException("Container number and depot are required.");
+
+            var lineId = await ResolveShippingLineIdAsync(shippingLineId, userId, role, cancellationToken);
+            if (role == RoleNames.DepotPersonnel)
+                await ResolveDepotIdAsync(depotId, userId, role, cancellationToken);
+
+            var row = await FindLogicteckInventoryRowAsync(lineId, depotId.Value, containerNo, cancellationToken);
+            if (row is null)
+                return null;
+
+            var depot = await _db.Depots.AsNoTracking().FirstAsync(d => d.Id == depotId.Value, cancellationToken);
+            var line = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == lineId, cancellationToken);
+            var item = MapLogicteckInventoryRow(
+                row,
+                lineId,
+                line.Code,
+                line.Name,
+                (depot.Id, depot.Name));
+            var fields = BuildLogicteckDetailFields(row);
+            var endpoints = _logicteckFeedResolver.ForDepot(depot);
+            var logicteckPhotos = await _logicteckFeeds.TryGetContainerPhotosAsync(endpoints, row.Id, cancellationToken);
+
+            return new ContainerInventoryDetailDto(
+                item,
+                "LOGICTECK",
+                "LOGICTECK",
+                Array.Empty<PreAdviceDocumentDto>(),
+                logicteckPhotos,
+                fields);
+        }
+
+        throw new InvalidOperationException("Invalid inventory source.");
     }
 
     public async Task ApplyYardReleaseAsync(
@@ -752,6 +896,142 @@ public class ContainerInventoryService : IContainerInventoryService
         throw new UnauthorizedAccessException("Not allowed.");
     }
 
+    private async Task<Schedule?> LoadScheduleForInventoryDetailAsync(int scheduleId, CancellationToken cancellationToken) =>
+        await _db.Schedules
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.Container)
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.ShippingLine)
+            .Include(s => s.PreAdvice)
+            .ThenInclude(p => p.Trucker)
+            .Include(s => s.Depot)
+            .Include(s => s.Payment)
+            .Include(s => s.QRBooking)
+            .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
+
+    private async Task EnsureCanViewInventoryScheduleAsync(
+        Schedule schedule,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        if (role == RoleNames.Administrator)
+            return;
+
+        if (role == RoleNames.ShippingLineEvaluator)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.ShippingLineId.HasValue || schedule.PreAdvice.ShippingLineId != user.ShippingLineId.Value)
+                throw new UnauthorizedAccessException();
+            return;
+        }
+
+        if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue || schedule.DepotId != user.DepotId.Value)
+                throw new UnauthorizedAccessException();
+
+            var hasContract = await _db.ShippingLineDepotContracts.AnyAsync(
+                c => c.ShippingLineId == schedule.PreAdvice.ShippingLineId
+                    && c.DepotId == schedule.DepotId
+                    && c.IsActive,
+                cancellationToken);
+            if (!hasContract)
+                throw new UnauthorizedAccessException();
+            return;
+        }
+
+        throw new UnauthorizedAccessException();
+    }
+
+    private async Task EnsureCanViewManualEntryAsync(
+        ManualYardInventoryEntry entry,
+        int userId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        if (role == RoleNames.Administrator)
+            return;
+
+        if (role == RoleNames.ShippingLineEvaluator)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.ShippingLineId.HasValue || entry.ShippingLineId != user.ShippingLineId.Value)
+                throw new UnauthorizedAccessException();
+            return;
+        }
+
+        if (role == RoleNames.DepotPersonnel)
+        {
+            var user = await _db.Users.FirstAsync(u => u.Id == userId, cancellationToken);
+            if (!user.DepotId.HasValue || entry.DepotId != user.DepotId.Value)
+                throw new UnauthorizedAccessException();
+            return;
+        }
+
+        throw new UnauthorizedAccessException();
+    }
+
+    private async Task<LogicteckInventoryRowDto?> FindLogicteckInventoryRowAsync(
+        int shippingLineId,
+        int depotId,
+        string containerNo,
+        CancellationToken cancellationToken)
+    {
+        var depot = await _db.Depots.AsNoTracking().FirstOrDefaultAsync(d => d.Id == depotId && d.IsLogicteck, cancellationToken);
+        if (depot is null)
+            return null;
+
+        var line = await _db.ShippingLines.AsNoTracking().FirstAsync(s => s.Id == shippingLineId, cancellationToken);
+        IReadOnlyList<LogicteckInventoryRowDto> feedRows;
+        try
+        {
+            var endpoints = _logicteckFeedResolver.ForDepot(depot);
+            feedRows = await _logicteckFeeds.GetAllInventoryAsync(endpoints, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+
+        var normalized = NormalizeContainerNo(containerNo);
+        return feedRows.FirstOrDefault(row =>
+            string.Equals(NormalizeContainerNo(row.ContainerNumber), normalized, StringComparison.OrdinalIgnoreCase)
+            && (LineMatchesFeed(row.ShippingLine.Code, row.ShippingLine.FullName, line.Code, line.Name, line.LogicteckFeedCode)));
+    }
+
+    private static IReadOnlyList<ContainerInventoryDetailFieldDto> BuildLogicteckDetailFields(LogicteckInventoryRowDto row)
+    {
+        var fields = new List<ContainerInventoryDetailFieldDto>
+        {
+            new("LOGICTECK ID", row.Id),
+            new("Feed status", row.Status),
+            new("In yard", row.InYard ? "Yes" : "No"),
+            new("TEU", row.Teu.ToString()),
+        };
+
+        AddField(fields, "Class", row.Class);
+        AddField(fields, "EIR number", row.EirNumber);
+        AddField(fields, "Condition", row.Condition);
+        AddField(fields, "Cleanliness", row.Cleanliness);
+        AddField(fields, "Trucking company", row.TruckingCompany);
+        AddField(fields, "Plate number", row.PlateNumber);
+        AddField(fields, "Booking ID", row.BookingId);
+        if (row.Repair is not null)
+            fields.Add(new ContainerInventoryDetailFieldDto("MNR complete", row.Repair.MnrComplete ? "Yes" : "No"));
+        if (row.GateInAt.HasValue)
+            fields.Add(new ContainerInventoryDetailFieldDto("Gate-in (LOGICTECK)", row.GateInAt.Value.ToString("O")));
+
+        return fields;
+    }
+
+    private static void AddField(List<ContainerInventoryDetailFieldDto> fields, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            fields.Add(new ContainerInventoryDetailFieldDto(label, value.Trim()));
+    }
+
     private async Task EnsureDepotPersonnelDepotAsync(
         int depotId,
         int userId,
@@ -765,4 +1045,221 @@ public class ContainerInventoryService : IContainerInventoryService
         if (!user.DepotId.HasValue || user.DepotId.Value != depotId)
             throw new InvalidOperationException("You can only register inventory at your assigned container yard.");
     }
+
+    private async Task<List<ContainerInventoryItemDto>> MergeLogicteckInventoryForShippingLineAsync(
+        List<ContainerInventoryItemDto> items,
+        int shippingLineId,
+        string shippingLineCode,
+        string shippingLineName,
+        string? logicteckFeedCode,
+        int? depotId,
+        string? complianceStatus,
+        string? yardStatus,
+        CancellationToken cancellationToken)
+    {
+        var logicteckDepotIds = await _db.ShippingLineDepotContracts
+            .AsNoTracking()
+            .Where(c => c.ShippingLineId == shippingLineId && c.IsActive && c.Depot.IsActive && c.Depot.IsLogicteck)
+            .Where(c => !depotId.HasValue || c.DepotId == depotId.Value)
+            .Select(c => c.DepotId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (logicteckDepotIds.Count == 0)
+            return items;
+
+        if (depotId.HasValue && !logicteckDepotIds.Contains(depotId.Value))
+            return items;
+
+        var logicteckDepots = await _db.Depots
+            .AsNoTracking()
+            .Where(d => logicteckDepotIds.Contains(d.Id))
+            .ToListAsync(cancellationToken);
+
+        var logicteckDepotIdSet = logicteckDepots.Select(d => d.Id).ToHashSet();
+        var withoutLogicteckYards = items.Where(i => !logicteckDepotIdSet.Contains(i.DepotId)).ToList();
+        var mapped = new List<ContainerInventoryItemDto>();
+
+        foreach (var ltDepot in logicteckDepots)
+        {
+            try
+            {
+                var endpoints = _logicteckFeedResolver.ForDepot(ltDepot);
+                var feedRows = await _logicteckFeeds.GetAllInventoryAsync(endpoints, cancellationToken);
+                mapped.AddRange(MapLogicteckInventoryRows(
+                    feedRows,
+                    shippingLineId,
+                    shippingLineCode,
+                    shippingLineName,
+                    logicteckFeedCode,
+                    new List<(int DepotId, string DepotName)> { (ltDepot.Id, ltDepot.Name) },
+                    depotId));
+            }
+            catch (InvalidOperationException)
+            {
+                // Skip yard when URLs or API key are not configured.
+            }
+        }
+
+        return withoutLogicteckYards
+            .Concat(mapped)
+            .Where(i => MatchesComplianceFilter(i.ComplianceStatus, complianceStatus))
+            .Where(i => MatchesYardStatusFilter(i.YardStatus, yardStatus))
+            .OrderByDescending(i => i.YardStatus == nameof(YardInventoryStatus.AtYard))
+            .ThenBy(i => i.DepotName)
+            .ThenByDescending(i => i.YardInDate)
+            .ToList();
+    }
+
+    private async Task<List<ContainerInventoryItemDto>> MergeLogicteckInventoryForDepotAsync(
+        List<ContainerInventoryItemDto> items,
+        Depot logicteckDepot,
+        IReadOnlyList<int> lineIds,
+        IReadOnlyList<(int ShippingLineId, string Code, string Name, string? LogicteckFeedCode)> contractedLines,
+        int? shippingLineId,
+        string? complianceStatus,
+        string? yardStatus,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<LogicteckInventoryRowDto> feedRows;
+        try
+        {
+            var endpoints = _logicteckFeedResolver.ForDepot(logicteckDepot);
+            feedRows = await _logicteckFeeds.GetAllInventoryAsync(endpoints, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return items;
+        }
+
+        var lines = contractedLines
+            .Where(l => lineIds.Contains(l.ShippingLineId))
+            .Where(l => !shippingLineId.HasValue || l.ShippingLineId == shippingLineId.Value)
+            .ToList();
+
+        var mapped = new List<ContainerInventoryItemDto>();
+        foreach (var line in lines)
+        {
+            mapped.AddRange(MapLogicteckInventoryRows(
+                feedRows,
+                line.ShippingLineId,
+                line.Code,
+                line.Name,
+                line.LogicteckFeedCode,
+                new List<(int DepotId, string DepotName)> { (logicteckDepot.Id, logicteckDepot.Name) },
+                logicteckDepot.Id));
+        }
+
+        return mapped
+            .Where(i => MatchesComplianceFilter(i.ComplianceStatus, complianceStatus))
+            .Where(i => MatchesYardStatusFilter(i.YardStatus, yardStatus))
+            .OrderByDescending(i => i.YardStatus == nameof(YardInventoryStatus.AtYard))
+            .ThenBy(i => i.ShippingLineName)
+            .ThenByDescending(i => i.YardInDate)
+            .ToList();
+    }
+
+    private static List<ContainerInventoryItemDto> MapLogicteckInventoryRows(
+        IReadOnlyList<LogicteckInventoryRowDto> rows,
+        int shippingLineId,
+        string shippingLineCode,
+        string shippingLineName,
+        string? logicteckFeedCode,
+        IReadOnlyList<(int DepotId, string DepotName)> depots,
+        int? depotIdFilter)
+    {
+        if (depots.Count == 0)
+            return new List<ContainerInventoryItemDto>();
+
+        var depot = depotIdFilter.HasValue
+            ? depots.FirstOrDefault(d => d.DepotId == depotIdFilter.Value)
+            : depots[0];
+        if (depot == default)
+            return new List<ContainerInventoryItemDto>();
+
+        return rows
+            .Where(row => LineMatchesFeed(row.ShippingLine.Code, row.ShippingLine.FullName, shippingLineCode, shippingLineName, logicteckFeedCode))
+            .Select(row => MapLogicteckInventoryRow(row, shippingLineId, shippingLineCode, shippingLineName, depot))
+            .ToList();
+    }
+
+    private static bool LineMatchesFeed(
+        string? logicteckCode,
+        string? logicteckFullName,
+        string shippingLineCode,
+        string shippingLineName,
+        string? logicteckFeedCode) =>
+        CodesMatch(logicteckCode, shippingLineCode)
+        || CodesMatch(logicteckCode, shippingLineName)
+        || CodesMatch(logicteckFullName, shippingLineName)
+        || CodesMatch(logicteckCode, logicteckFeedCode)
+        || CodesMatch(logicteckFullName, logicteckFeedCode);
+
+    private static ContainerInventoryItemDto MapLogicteckInventoryRow(
+        LogicteckInventoryRowDto row,
+        int shippingLineId,
+        string shippingLineCode,
+        string shippingLineName,
+        (int DepotId, string DepotName) depot)
+    {
+        var yardIn = row.GateInAt.HasValue
+            ? PhilippinesTime.ToDateOnly(row.GateInAt.Value.UtcDateTime)
+            : PhilippinesTime.Today;
+        var dwellDays = DwellDays(yardIn);
+        var atYard = row.InYard;
+        var compliance = atYard ? ResolveCompliance(dwellDays) : "Released";
+        var gateInTime = row.GateInAt.HasValue
+            ? TimeZoneInfo.ConvertTimeFromUtc(row.GateInAt.Value.UtcDateTime, PhilippinesTime.Zone).ToString("HH:mm")
+            : null;
+        var remarks = string.Join(
+            " · ",
+            new[] { row.Condition, row.Cleanliness, row.Status }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+        return new ContainerInventoryItemDto(
+            null,
+            null,
+            null,
+            $"LOGICTECK · {row.Status}",
+            "Logicteck",
+            row.ContainerNumber,
+            row.ContainerSize,
+            NormalizeLogicteckType(row.ContainerType),
+            shippingLineId,
+            shippingLineCode,
+            shippingLineName,
+            row.TruckingCompany,
+            depot.DepotId,
+            depot.DepotName,
+            yardIn,
+            gateInTime,
+            dwellDays,
+            atYard ? Math.Max(0, DwellLimitDays - dwellDays) : 0,
+            compliance,
+            atYard ? nameof(YardInventoryStatus.AtYard) : nameof(YardInventoryStatus.Released),
+            null,
+            null,
+            null,
+            null,
+            string.IsNullOrWhiteSpace(remarks) ? null : remarks);
+    }
+
+    private static string NormalizeLogicteckType(string containerType)
+    {
+        var upper = containerType.Trim().ToUpperInvariant();
+        if (upper.Contains("HIGH CUBE", StringComparison.Ordinal))
+            return "HC";
+        if (upper.Contains("REEFER", StringComparison.Ordinal) || upper.StartsWith("RF", StringComparison.Ordinal))
+            return "RF";
+        if (upper.Contains("OPEN", StringComparison.Ordinal))
+            return "OT";
+        if (upper.StartsWith("GP", StringComparison.Ordinal) || upper.Contains("STANDARD", StringComparison.Ordinal))
+            return "GP";
+        return containerType.Trim();
+    }
+
+    private static bool CodesMatch(string? logicteckCode, string? localValue) =>
+        !string.IsNullOrWhiteSpace(logicteckCode)
+        && !string.IsNullOrWhiteSpace(localValue)
+        && string.Equals(logicteckCode.Trim(), localValue.Trim(), StringComparison.OrdinalIgnoreCase);
 }

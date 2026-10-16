@@ -18,6 +18,7 @@ import AssetImage from '../layout/AssetImage'
 import { croEdoApi, type PreAdvice, type PreAdviceDocument } from '../../services/api'
 import { formatDate } from '../../utils/datetime'
 import { isCroFreeTimeExpired } from '../../utils/croFreeTime'
+import { croEdoLinkTypeChipLabel, formatCroEdoDocumentLabel } from '../../utils/croEdoDisplay'
 import { openSignedAsset } from '../../utils/openSignedAsset'
 
 const primaryDark = ICS_PRIMARY
@@ -30,10 +31,6 @@ type PreAdviceCroEdoContextPanelProps = {
   dialog?: boolean
   /** Embedded in evaluation tab — no card chrome, title, intro, or free-time tile (set separately). */
   referenceOnly?: boolean
-}
-
-function linkTypeLabel(linkType: string): string {
-  return linkType === 'IcsVerified' ? 'ICS CRO/eDO (QR verified)' : 'Legacy CRO/eDO upload'
 }
 
 function isPdfDocument(doc: PreAdviceDocument): boolean {
@@ -74,6 +71,8 @@ export default function PreAdviceCroEdoContextPanel({
     URL.revokeObjectURL(url)
   }
 
+  const linkChipLabel = croEdoLinkTypeChipLabel(ctx?.linkType)
+
   if (dialog) {
     const metaParts: string[] = []
     if (returnCy) metaParts.push(`Return CY: ${returnCy}`)
@@ -85,11 +84,12 @@ export default function PreAdviceCroEdoContextPanel({
 
     return (
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, rowGap: 0.5 }}>
-        {ctx?.linkType && (
+        {linkChipLabel && (
           <Chip
             size="small"
-            label={linkTypeLabel(ctx.linkType)}
-            color={ctx.linkType === 'IcsVerified' ? 'success' : 'default'}
+            label={linkChipLabel}
+            color="success"
+            variant="outlined"
             sx={{ fontWeight: 700, height: 22 }}
           />
         )}
@@ -123,7 +123,7 @@ export default function PreAdviceCroEdoContextPanel({
             }}
             sx={{ fontWeight: 600, borderRadius: 1.5, maxWidth: '100%' }}
           >
-            {doc.fileName ? (doc.fileName.length > 28 ? `${doc.fileName.slice(0, 25)}…` : doc.fileName) : 'CRO/eDO file'}
+            {formatCroEdoDocumentLabel(doc, { isBackToBack: item.isBackToBack, maxNameLength: 28 })}
           </Button>
         ))}
       </Box>
@@ -137,11 +137,12 @@ export default function PreAdviceCroEdoContextPanel({
             <Typography variant={compact ? 'subtitle2' : 'subtitle1'} sx={{ fontWeight: 800, color: primaryDark }}>
               CRO / eDO — return CY & free time
             </Typography>
-            {ctx?.linkType && (
+            {linkChipLabel && (
               <Chip
                 size="small"
-                label={linkTypeLabel(ctx.linkType)}
-                color={ctx.linkType === 'IcsVerified' ? 'success' : 'default'}
+                label={linkChipLabel}
+                color="success"
+                variant="outlined"
                 sx={{ fontWeight: 700 }}
               />
             )}
@@ -226,7 +227,7 @@ export default function PreAdviceCroEdoContextPanel({
                     sx={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 1 }}
                   />
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, px: 0.5 }}>
-                    {doc.fileName || 'CRO/eDO image'} — tap to open
+                    {formatCroEdoDocumentLabel(doc, { isBackToBack: item.isBackToBack })} — tap to open
                   </Typography>
                 </Paper>
               ))}
@@ -271,14 +272,14 @@ export default function PreAdviceCroEdoContextPanel({
             }}
               sx={{ fontWeight: 600, borderRadius: 2 }}
             >
-              {doc.fileName || 'View uploaded CRO/eDO'}
+              {formatCroEdoDocumentLabel(doc, { isBackToBack: item.isBackToBack })}
             </Button>
           ))}
         </Stack>
 
-        {ctx?.linkType === 'LegacyUpload' && !ctx.hasUploadedDocument && croDocuments.length === 0 && (
+        {croDocuments.length === 0 && !ctx?.containerReleaseOrderId && (
           <Typography variant="body2" color="text.secondary">
-            Legacy manual entry — no CRO/eDO file was uploaded with this pre-forecast.
+            No CRO/eDO file on this pre-forecast yet. The trucker can attach copies under Request details.
           </Typography>
         )}
 

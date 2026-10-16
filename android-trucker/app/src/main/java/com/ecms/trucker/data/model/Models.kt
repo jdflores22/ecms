@@ -115,6 +115,13 @@ data class PreAdviceDto(
     val containerType: String,
     val status: String,
     val demurrageValidUntil: String? = null,
+    val backToBackCompanionDemurrageValidUntil: String? = null,
+    val isBackToBack: Boolean = false,
+    val backToBackCompanionContainerNo: String? = null,
+    val backToBackCompanionContainerSizeId: Int? = null,
+    val backToBackCompanionContainerTypeId: Int? = null,
+    val backToBackCompanionContainerSize: String? = null,
+    val backToBackCompanionContainerType: String? = null,
     val croEdoReferenceNo: String? = null,
     val remarks: String? = null,
     val createdAt: String,
@@ -166,6 +173,10 @@ data class CreatePreAdviceRequest(
     val containerSizeId: Int,
     val containerTypeId: Int,
     val remarks: String? = null,
+    val isBackToBack: Boolean = false,
+    val backToBackCompanionContainerNo: String? = null,
+    val backToBackCompanionContainerSizeId: Int? = null,
+    val backToBackCompanionContainerTypeId: Int? = null,
     val croVerificationToken: String? = null,
     val croLineNo: Int? = null,
 )
@@ -215,6 +226,7 @@ data class DuplicateCheckResponse(
 data class PreAdviceDocumentDto(
     val id: Int,
     val preAdviceId: Int,
+    val identityUnit: String? = null,
     val category: String? = null,
     val categoryLabel: String? = null,
     val comment: String? = null,
@@ -262,7 +274,33 @@ data class PaymentDto(
 )
 
 @Serializable
-data class PaymentSettingsDto(val returnFeeAmount: Double, val updatedAt: String)
+data class PaymentSettingsDto(
+    val returnFeeAmount: Double,
+    val updatedAt: String,
+    val payMongoEnabled: Boolean = false,
+    val allowProofUpload: Boolean = true,
+    val payMongoConfigured: Boolean = false,
+    val pilotTestingActive: Boolean = false,
+    val effectiveReturnFeeAmount: Double? = null,
+    val pilotDaysRemaining: Int? = null,
+)
+
+data class ReturnPaymentOptionsDto(
+    val payMongoEnabled: Boolean = false,
+    val allowProofUpload: Boolean = true,
+    val payMongoConfigured: Boolean = false,
+    val pilotTestingActive: Boolean = false,
+    val effectiveReturnFeeAmount: Double = 0.0,
+    val pilotDaysRemaining: Int? = null,
+    val pilotTestingEndsAtUtc: String? = null,
+)
+
+data class PayMongoCheckoutDto(
+    val checkoutUrl: String,
+    val checkoutSessionId: String,
+)
+
+data class PayMongoSyncResponseDto(val synced: Boolean)
 
 @Serializable
 data class CountResponse(val count: Int)

@@ -1,4 +1,19 @@
-import { Alert, Box, Button, FormControl, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Collapse,
+  FormControl,
+  FormControlLabel,
+  FormHelperText,
+  InputLabel,
+  MenuItem,
+  Select,
+  TextField,
+  Typography,
+} from '@mui/material'
+import { preAdviceUnitRoleLabel, preAdviceUnitSectionSx } from './preAdviceUnitSectionSx'
 import { useEffect, useMemo, useState } from 'react'
 import type { PreAdviceLookups } from '../../services/api'
 import { preAdviceApi } from '../../services/api'
@@ -6,6 +21,7 @@ import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { croFreeTimeExpiredMessage } from '../../utils/croFreeTime'
 import { containerNumberError, formatContainerNumberInput, normalizeContainerNo } from '../../utils/containerNumber'
 import { formatPreAdviceDuplicateWarning } from '../../utils/preAdviceDuplicate'
+import { getCapacityGroupKey } from '../../utils/cyAllocation'
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': { borderRadius: 2 },
@@ -17,6 +33,10 @@ export interface PreAdviceFormValues {
   containerSizeId: number | ''
   containerTypeId: number | ''
   remarks: string
+  isBackToBack: boolean
+  backToBackCompanionContainerNo: string
+  backToBackCompanionContainerSizeId: number | ''
+  backToBackCompanionContainerTypeId: number | ''
 }
 
 export interface PreAdviceFormSubmitValues {
@@ -25,6 +45,10 @@ export interface PreAdviceFormSubmitValues {
   containerSizeId: number
   containerTypeId: number
   remarks?: string
+  isBackToBack?: boolean
+  backToBackCompanionContainerNo?: string
+  backToBackCompanionContainerSizeId?: number
+  backToBackCompanionContainerTypeId?: number
 }
 
 interface PreAdviceFormProps {
@@ -37,6 +61,10 @@ interface PreAdviceFormProps {
   /** When true, a legacy CRO/eDO file must be attached before submit. */
   requireLegacyDocument?: boolean
   legacyDocumentReady?: boolean
+  companionLegacyDocumentReady?: boolean
+  /** CRO/eDO upload blocks rendered inside each container section (creation / edit). */
+  primaryCroSlot?: React.ReactNode
+  companionCroSlot?: React.ReactNode
   /** When true, shipping line / container / size / type are read-only (CRO-linked). */
   lockCatalogFields?: boolean
   requireCroLink?: boolean
@@ -59,6 +87,9 @@ export default function PreAdviceForm({
   requireCroLink = false,
   requireLegacyDocument = false,
   legacyDocumentReady = false,
+  companionLegacyDocumentReady = true,
+  primaryCroSlot,
+  companionCroSlot,
   croLinked = false,
   freeTimeExpired = false,
   freeTimeUntil = null,
@@ -69,6 +100,16 @@ export default function PreAdviceForm({
   const [containerSizeId, setContainerSizeId] = useState<number | ''>(initial.containerSizeId)
   const [containerTypeId, setContainerTypeId] = useState<number | ''>(initial.containerTypeId)
   const [remarks, setRemarks] = useState(initial.remarks)
+  const [isBackToBack, setIsBackToBack] = useState(initial.isBackToBack)
+  const [backToBackCompanionContainerNo, setBackToBackCompanionContainerNo] = useState(
+    initial.backToBackCompanionContainerNo,
+  )
+  const [backToBackCompanionContainerSizeId, setBackToBackCompanionContainerSizeId] = useState<
+    number | ''
+  >(initial.backToBackCompanionContainerSizeId)
+  const [backToBackCompanionContainerTypeId, setBackToBackCompanionContainerTypeId] = useState<
+    number | ''
+  >(initial.backToBackCompanionContainerTypeId)
   const [demurrageBlock, setDemurrageBlock] = useState<string | null>(null)
   const [checkingValidation, setCheckingValidation] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
@@ -80,6 +121,10 @@ export default function PreAdviceForm({
     setContainerSizeId(initial.containerSizeId)
     setContainerTypeId(initial.containerTypeId)
     setRemarks(initial.remarks)
+    setIsBackToBack(initial.isBackToBack)
+    setBackToBackCompanionContainerNo(initial.backToBackCompanionContainerNo)
+    setBackToBackCompanionContainerSizeId(initial.backToBackCompanionContainerSizeId)
+    setBackToBackCompanionContainerTypeId(initial.backToBackCompanionContainerTypeId)
   }, [initial])
 
   useEffect(() => {
@@ -125,6 +170,57 @@ export default function PreAdviceForm({
     return () => window.clearTimeout(timer)
   }, [shippingLineId, containerNo, containerSizeId, containerTypeId, excludePreAdviceId, containerIsoError])
 
+  const selectedSizeLabel = useMemo(() => {
+    if (containerSizeId === '') return ''
+    const size = lookups.containerSizes.find((item) => item.id === containerSizeId)
+    return size ? formatContainerSizeLabel(size.label) : ''
+  }, [containerSizeId, lookups.containerSizes])
+
+  const isTwentyFoot = useMemo(() => {
+    if (containerSizeId === '') return false
+    const size = lookups.containerSizes.find((item) => item.id === containerSizeId)
+    return size ? getCapacityGroupKey(size.label) === '20' : false
+  }, [containerSizeId, lookups.containerSizes])
+
+  const twentyFootSizes = useMemo(
+    () => lookups.containerSizes.filter((s) => getCapacityGroupKey(s.label) === '20'),
+    [lookups.containerSizes],
+  )
+
+  const clearBackToBackFields = () => {
+    setIsBackToBack(false)
+    setBackToBackCompanionContainerNo('')
+    setBackToBackCompanionContainerSizeId('')
+    setBackToBackCompanionContainerTypeId('')
+  }
+
+  useEffect(() => {
+    if (!isTwentyFoot) clearBackToBackFields()
+  }, [isTwentyFoot])
+
+  const companionSizeLabel = useMemo(() => {
+    if (backToBackCompanionContainerSizeId === '') return ''
+    const size = lookups.containerSizes.find((s) => s.id === backToBackCompanionContainerSizeId)
+    return size ? formatContainerSizeLabel(size.label) : ''
+  }, [backToBackCompanionContainerSizeId, lookups.containerSizes])
+
+  const companionIsoError =
+    isBackToBack && isTwentyFoot ? containerNumberError(backToBackCompanionContainerNo) : null
+  const companionSameAsPrimary =
+    isBackToBack &&
+    isTwentyFoot &&
+    backToBackCompanionContainerNo.trim() &&
+    normalizeContainerNo(containerNo) === normalizeContainerNo(backToBackCompanionContainerNo)
+
+  const backToBackInvalid =
+    isBackToBack &&
+    isTwentyFoot &&
+    (!backToBackCompanionContainerNo.trim() ||
+      backToBackCompanionContainerSizeId === '' ||
+      backToBackCompanionContainerTypeId === '' ||
+      Boolean(companionIsoError) ||
+      companionSameAsPrimary)
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (
@@ -136,7 +232,9 @@ export default function PreAdviceForm({
       demurrageBlock ||
       duplicateWarning ||
       (requireCroLink && !croLinked) ||
-      (requireLegacyDocument && !legacyDocumentReady)
+      (requireLegacyDocument && !legacyDocumentReady) ||
+      (isTwentyFoot && isBackToBack && !companionLegacyDocumentReady) ||
+      backToBackInvalid
     ) {
       return
     }
@@ -146,6 +244,19 @@ export default function PreAdviceForm({
       containerSizeId,
       containerTypeId,
       remarks: remarks.trim() || undefined,
+      isBackToBack: isTwentyFoot && isBackToBack,
+      backToBackCompanionContainerNo:
+        isTwentyFoot && isBackToBack
+          ? normalizeContainerNo(backToBackCompanionContainerNo)
+          : undefined,
+      backToBackCompanionContainerSizeId:
+        isTwentyFoot && isBackToBack && backToBackCompanionContainerSizeId !== ''
+          ? backToBackCompanionContainerSizeId
+          : undefined,
+      backToBackCompanionContainerTypeId:
+        isTwentyFoot && isBackToBack && backToBackCompanionContainerTypeId !== ''
+          ? backToBackCompanionContainerTypeId
+          : undefined,
     })
   }
 
@@ -159,13 +270,9 @@ export default function PreAdviceForm({
     !duplicateWarning &&
     !checkingValidation &&
     (!requireCroLink || croLinked) &&
-    (!requireLegacyDocument || legacyDocumentReady)
-
-  const selectedSizeLabel = useMemo(() => {
-    if (containerSizeId === '') return ''
-    const size = lookups.containerSizes.find((item) => item.id === containerSizeId)
-    return size ? formatContainerSizeLabel(size.label) : ''
-  }, [containerSizeId, lookups.containerSizes])
+    (!requireLegacyDocument || legacyDocumentReady) &&
+    (!isTwentyFoot || !isBackToBack || companionLegacyDocumentReady) &&
+    !backToBackInvalid
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -200,6 +307,11 @@ export default function PreAdviceForm({
             </Select>
           </FormControl>
 
+          <Box sx={preAdviceUnitSectionSx('primary')}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 2 }}>
+              {preAdviceUnitRoleLabel('primary')}
+              {containerNo.trim() ? ` · ${containerNo.trim().toUpperCase()}` : ''}
+            </Typography>
           <Box
             sx={{
               display: 'grid',
@@ -269,6 +381,104 @@ export default function PreAdviceForm({
               </Select>
             </FormControl>
           </Box>
+            {primaryCroSlot}
+          </Box>
+
+          {isTwentyFoot && (
+            <Box sx={{ mt: 0.5 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isBackToBack}
+                    onChange={(e) => {
+                      if (e.target.checked) setIsBackToBack(true)
+                      else clearBackToBackFields()
+                    }}
+                  />
+                }
+                label="Back-to-Back"
+                sx={{ m: 0, '& .MuiFormControlLabel-label': { fontWeight: 700 } }}
+              />
+              <Collapse in={isBackToBack}>
+                <Box sx={{ ...preAdviceUnitSectionSx('companion'), mt: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 2 }}>
+                    {preAdviceUnitRoleLabel('companion')}
+                    {backToBackCompanionContainerNo.trim()
+                      ? ` · ${backToBackCompanionContainerNo.trim().toUpperCase()}`
+                      : ''}
+                  </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+                    gap: 2,
+                  }}
+                >
+                  <TextField
+                    fullWidth
+                    required
+                    label="Companion container number"
+                    value={backToBackCompanionContainerNo}
+                    onChange={(e) =>
+                      setBackToBackCompanionContainerNo(formatContainerNumberInput(e.target.value))
+                    }
+                    error={Boolean(companionIsoError) || Boolean(companionSameAsPrimary)}
+                    helperText={
+                      companionSameAsPrimary
+                        ? 'Must differ from the primary container above.'
+                        : companionIsoError ?? 'ISO 6346 (11 characters).'
+                    }
+                    slotProps={{
+                      htmlInput: { maxLength: 11, style: { fontFamily: 'monospace' } },
+                    }}
+                    sx={fieldSx}
+                  />
+                  <FormControl fullWidth required sx={fieldSx}>
+                    <InputLabel>Container size</InputLabel>
+                    <Select
+                      label="Container size"
+                      value={backToBackCompanionContainerSizeId}
+                      onChange={(e) =>
+                        setBackToBackCompanionContainerSizeId(e.target.value as number | '')
+                      }
+                      renderValue={() => companionSizeLabel || 'Select size'}
+                    >
+                      {twentyFootSizes.length === 0 ? (
+                        <MenuItem disabled value="">No 20ft sizes configured</MenuItem>
+                      ) : (
+                        twentyFootSizes.map((size) => (
+                          <MenuItem key={size.id} value={size.id}>
+                            {formatContainerSizeLabel(size.label)}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth required sx={fieldSx}>
+                    <InputLabel>Container type</InputLabel>
+                    <Select
+                      label="Container type"
+                      value={backToBackCompanionContainerTypeId}
+                      onChange={(e) =>
+                        setBackToBackCompanionContainerTypeId(e.target.value as number | '')
+                      }
+                    >
+                      {lookups.containerTypes.map((type) => (
+                        <MenuItem key={type.id} value={type.id}>
+                          {type.code} — {type.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+                  {companionCroSlot}
+                <FormHelperText sx={{ mt: 1 }}>
+                  Use when both 20ft units travel together to the same container yard (not port diversion).
+                </FormHelperText>
+                </Box>
+              </Collapse>
+            </Box>
+          )}
         </Box>
       </Box>
 
@@ -293,13 +503,19 @@ export default function PreAdviceForm({
 
       {requireCroLink && !croLinked && (
         <Alert severity="warning" sx={{ borderRadius: 2 }}>
-          Attach and verify a CRO/eDO above before creating this pre-forecast.
+          Attach and verify the primary container CRO/eDO in the primary section before creating this pre-forecast.
         </Alert>
       )}
 
       {requireLegacyDocument && !legacyDocumentReady && (
         <Alert severity="warning" sx={{ borderRadius: 2 }}>
-          Upload a photo or PDF of your CRO/eDO document above before creating the draft.
+          Upload CRO/eDO for the primary container before creating the draft.
+        </Alert>
+      )}
+
+      {isTwentyFoot && isBackToBack && !companionLegacyDocumentReady && (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          Upload CRO/eDO for the companion container in the second section before creating the draft.
         </Alert>
       )}
 

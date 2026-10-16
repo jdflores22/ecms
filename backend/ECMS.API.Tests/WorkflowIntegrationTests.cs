@@ -42,24 +42,10 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         var submitResponse = await _client.PostAsync($"/api/preforecast/{preAdvice.Id}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
 
-        // 2. Administrator — approve and assign CY
-        var adminToken = await ApiTestHelper.LoginAsync(_client, "admin", "Admin@123");
-        ApiTestHelper.UseBearer(_client, adminToken);
-
-        var depots = await _client.GetFromJsonAsync<List<ApiTestHelper.DepotResponse>>("/api/depots");
-        Assert.NotNull(depots);
-        Assert.NotEmpty(depots);
-        var depotId = depots[0].Id;
-
-        var demurrageValidUntil = PhilippinesTime.AddDays(PhilippinesTime.Today, 7).ToString("yyyy-MM-dd");
-        var approveResponse = await _client.PostAsJsonAsync("/api/evaluations/approve", new
-        {
-            preAdviceId = preAdvice.Id,
-            depotId,
-            demurrageValidUntil,
-            remarks = "Approved in integration test",
-        });
-        Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);
+        await ApiTestHelper.ApprovePreAdviceForTestAsync(
+            _client,
+            preAdvice.Id,
+            "Approved in integration test");
 
         // 3. Depot — assign schedule and trucker
         var depotToken = await ApiTestHelper.LoginAsync(_client, "depot1", "Depot@123");
@@ -69,46 +55,18 @@ public class WorkflowIntegrationTests : IClassFixture<EcmsWebApplicationFactory>
         Assert.NotNull(schedules);
         var schedule = schedules.First(s => s.ReferenceNo == preAdvice.ReferenceNo);
 
-        var truckers = await _client.GetFromJsonAsync<List<TruckerResponse>>("/api/users/truckers");
-        Assert.NotNull(truckers);
-        Assert.NotEmpty(truckers);
-
-        var tomorrow = PhilippinesTime.AddDays(PhilippinesTime.Today, 1);
-        var dateStr = tomorrow.ToString("yyyy-MM-dd");
-
-        var updateResponse = await _client.PutAsJsonAsync($"/api/schedules/{schedule.Id}", new
-        {
-            date = dateStr,
-            time = "08:00:00",
-            slotNo = 0,
-            status = "Scheduled",
-        });
-        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        await ApiTestHelper.AssignDepotScheduleForTestAsync(
+            _client,
+            schedule.Id,
+            schedule.DepotId,
+            depotToken);
 
         // 4. Trucker — upload payment proof
         var truckerToken = await ApiTestHelper.LoginAsync(_client, "trucker1", "Trucker@123");
-        ApiTestHelper.UseBearer(_client, truckerToken);
+        var paymentId = await ApiTestHelper.UploadPaymentProofForTestAsync(_client, truckerToken, schedule.Id);
 
-        using var form = new MultipartFormDataContent
-        {
-            { new StringContent(schedule.Id.ToString()), "scheduleId" },
-            { new StringContent("1500.00"), "amount" },
-        };
-        var pngBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
-        var fileContent = new ByteArrayContent(pngBytes);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
-        form.Add(fileContent, "proof", "proof.png");
-
-        var uploadResponse = await _client.PostAsync("/api/payments/upload", form);
-        Assert.Equal(HttpStatusCode.OK, uploadResponse.StatusCode);
-        var payment = await uploadResponse.Content.ReadFromJsonAsync<ApiTestHelper.PaymentResponse>();
-        Assert.NotNull(payment);
-
-        // 5. Depot — verify payment (issues QR)
-        ApiTestHelper.UseBearer(_client, depotToken);
-        var verifyResponse = await _client.PostAsync($"/api/payments/{payment.Id}/verify?approved=true", null);
-        Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
+        // 5. ICS admin — verify payment (issues QR)
+        await ApiTestHelper.VerifyPaymentForTestAsync(_client, paymentId);
 
         // 6. Trucker — QR available
         ApiTestHelper.UseBearer(_client, truckerToken);

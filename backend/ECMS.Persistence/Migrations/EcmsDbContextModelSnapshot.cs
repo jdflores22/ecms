@@ -695,6 +695,22 @@ namespace ECMS.Persistence.Migrations
                     b.Property<bool>("IsLogicteck")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("LogicteckAllocationsUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("LogicteckBookingsUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("LogicteckIcsBaseUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("LogicteckInventoryUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -1181,6 +1197,16 @@ namespace ECMS.Persistence.Migrations
                     b.Property<string>("ActiveRequestKey")
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("BackToBackCompanionContainerNo")
+                        .HasMaxLength(11)
+                        .HasColumnType("varchar(11)");
+
+                    b.Property<int?>("BackToBackCompanionContainerSizeId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BackToBackCompanionContainerTypeId")
+                        .HasColumnType("int");
+
                     b.Property<int>("ContainerId")
                         .HasColumnType("int");
 
@@ -1210,6 +1236,9 @@ namespace ECMS.Persistence.Migrations
 
                     b.Property<DateOnly?>("DemurrageValidUntil")
                         .HasColumnType("date");
+
+                    b.Property<bool>("IsBackToBack")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<string>("ReferenceNo")
                         .IsRequired()
@@ -1285,6 +1314,9 @@ namespace ECMS.Persistence.Migrations
 
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
+
+                    b.Property<int>("IdentityUnit")
+                        .HasColumnType("int");
 
                     b.Property<int>("PreAdviceId")
                         .HasColumnType("int");
@@ -1507,6 +1539,10 @@ namespace ECMS.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LogicteckFeedCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
 
                     b.Property<string>("Name")
                         .IsRequired()

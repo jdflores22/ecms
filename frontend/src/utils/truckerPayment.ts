@@ -1,4 +1,5 @@
-import type { Payment, Schedule } from '../services/api'
+import type { Payment, PreAdvice, Schedule } from '../services/api'
+import { getPreAdviceContainerUnit } from './preAdviceContainerUnit'
 
 export const paymentStatusLabel: Record<string, string> = {
   Pending: 'Payment due',
@@ -39,6 +40,16 @@ export function showPaymentStatus(schedule: Schedule, payment: Payment | null): 
 
 export function truckerPaymentPath(scheduleId: number) {
   return `/trucker/payments/${scheduleId}`
+}
+
+/** Compact hero line for payment pages — B2B tag is shown separately on the chip row. */
+export function paymentHeroSubtitle(item: PreAdvice): string {
+  const line = item.shippingLineName?.trim() || 'Shipping line'
+  if (item.isBackToBack && item.backToBackCompanionContainerNo?.trim()) {
+    const companion = getPreAdviceContainerUnit(item, 'Companion')
+    return `${line} · ${item.containerNo} + ${companion.containerNo}`
+  }
+  return `${line} · ${item.containerNo}`
 }
 
 /** Amount shown to truckers (₱0 while pilot testing is active and payment is still due). */

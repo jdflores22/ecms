@@ -76,7 +76,7 @@ fun buildReturnJourneySteps(
             label = "LOGICTECK integration",
             detail = when {
                 integrationDone -> "Return completed"
-                integrationCurrent -> "Send booking to LOGICTECK from QR tab"
+                integrationCurrent -> "Book with LOGICTECK from the QR tab"
                 else -> "After booking QR is published"
             },
             state = when {

@@ -11,11 +11,20 @@ export const CONTAINER_PHOTO_CATEGORIES = [
 
 export const DAMAGE_PHOTO_CATEGORY = { value: 'Damage', label: 'Damage (other)' } as const
 
+export const CSC_PLATE_PHOTO_CATEGORY = { value: 'CscPlate', label: 'CSC plate' } as const
+
 export const OTHERS_PHOTO_CATEGORY = { value: 'Others', label: 'Others (optional)' } as const
 
-/** All identity slots shown in the upload grid (required views + optional Others). */
+/** Required views plus CSC plate (Others remains optional). */
+export const REQUIRED_CONTAINER_PHOTO_CATEGORIES = [
+  ...CONTAINER_PHOTO_CATEGORIES,
+  CSC_PLATE_PHOTO_CATEGORY,
+] as const
+
+/** All identity slots shown in the upload grid (required views + CSC plate + optional Others). */
 export const CONTAINER_PHOTO_GRID_CATEGORIES = [
   ...CONTAINER_PHOTO_CATEGORIES,
+  CSC_PLATE_PHOTO_CATEGORY,
   OTHERS_PHOTO_CATEGORY,
 ] as const
 
@@ -23,6 +32,7 @@ export type ContainerPhotoGridCategory = (typeof CONTAINER_PHOTO_GRID_CATEGORIES
 
 export type ContainerPhotoCategoryValue =
   | (typeof CONTAINER_PHOTO_CATEGORIES)[number]['value']
+  | typeof CSC_PLATE_PHOTO_CATEGORY.value
   | typeof DAMAGE_PHOTO_CATEGORY.value
   | typeof OTHERS_PHOTO_CATEGORY.value
 
@@ -37,7 +47,7 @@ export function isStandardPhotoCategory(category?: string | null) {
 }
 
 export function isRequiredContainerPhotoCategory(category?: string | null) {
-  return isStandardPhotoCategory(category)
+  return REQUIRED_CONTAINER_PHOTO_CATEGORIES.some((c) => c.value === category)
 }
 
 const DAMAGE_VIEW_PREFIX = /^\[([A-Za-z]+)\]\s*/

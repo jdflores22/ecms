@@ -149,7 +149,7 @@ internal fun ReturnPhotosTabContent(
     val context = LocalContext.current
     val identityDocs = documents.filter { doc ->
         val cat = doc.category.orEmpty()
-        cat.isNotBlank() && !cat.equals("Damage", true) && !cat.equals("Others", true) && !cat.equals("CroEdo", true)
+        cat.isNotBlank() && !cat.equals("Damage", true) && !cat.equals("Others", true)
     }
     Column(
         Modifier

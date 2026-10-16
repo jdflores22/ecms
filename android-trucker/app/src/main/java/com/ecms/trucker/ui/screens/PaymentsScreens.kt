@@ -2,6 +2,7 @@ package com.ecms.trucker.ui.screens
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +27,7 @@ import com.ecms.trucker.EcmsTruckerApp
 import com.ecms.trucker.R
 import com.ecms.trucker.data.local.AuthState
 import com.ecms.trucker.data.model.PaymentDto
+import com.ecms.trucker.data.model.ReturnPaymentOptionsDto
 import com.ecms.trucker.data.model.ScheduleDto
 import com.ecms.trucker.data.repository.TruckerRepository
 import com.ecms.trucker.ui.components.*
@@ -32,10 +35,16 @@ import com.ecms.trucker.ui.theme.IcsColors
 import com.ecms.trucker.ui.util.rememberScreenLoadState
 import com.ecms.trucker.util.containerHeadline
 import com.ecms.trucker.util.containerListSubtitle
-import com.ecms.trucker.util.preAdviceContainerById
+import com.ecms.trucker.util.companionContainerNoOrNull
+import com.ecms.trucker.util.isBackToBackActive
+import com.ecms.trucker.util.preAdviceById
 import com.ecms.trucker.util.formatTruckerScheduleSlot
 import com.ecms.trucker.util.isScheduleDetailsVisible
 import com.ecms.trucker.util.buildPaymentProgressSteps
+import com.ecms.trucker.util.truckerPaymentDisplayAmount
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.ecms.trucker.util.isActiveReturnSchedule
 import com.ecms.trucker.util.needsPaymentUpload
 import com.ecms.trucker.util.TextRecognitionOcr
@@ -47,7 +56,7 @@ import kotlinx.coroutines.launch
 private data class PaymentsCacheEntry(
     val payments: List<PaymentDto>,
     val schedules: List<ScheduleDto>,
-    val containerByPreAdviceId: Map<Int, String>,
+    val preAdviceById: Map<Int, com.ecms.trucker.data.model.PreAdviceDto>,
     val fee: Double,
     val updatedAtMs: Long,
 )
@@ -83,7 +92,7 @@ fun PaymentsListScreen(
     val loadState = rememberScreenLoadState(initiallyLoading = cached == null)
     var payments by remember { mutableStateOf(cached?.payments ?: emptyList()) }
     var schedules by remember { mutableStateOf(cached?.schedules ?: emptyList()) }
-    var containerByPreAdviceId by remember { mutableStateOf(cached?.containerByPreAdviceId ?: emptyMap()) }
+    var preAdviceById by remember { mutableStateOf(cached?.preAdviceById ?: emptyMap()) }
     var fee by remember { mutableStateOf(cached?.fee ?: 0.0) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -98,7 +107,7 @@ fun PaymentsListScreen(
                     ?.let { entry ->
                         payments = entry.payments
                         schedules = entry.schedules
-                        containerByPreAdviceId = entry.containerByPreAdviceId
+                        preAdviceById = entry.preAdviceById
                         fee = entry.fee
                         loadState.end()
                         return@launch
@@ -108,17 +117,17 @@ fun PaymentsListScreen(
                 coroutineScope {
                     val paymentsDeferred = async { repository.getMyPayments() }
                     val schedulesDeferred = async { repository.listSchedules() }
-                    val containersDeferred = async { repository.preAdviceContainerById() }
+                    val preAdviceDeferred = async { repository.preAdviceById() }
                     val settingsDeferred = async { repository.getPaymentSettings() }
                     payments = paymentsDeferred.await()
                     schedules = schedulesDeferred.await()
-                    containerByPreAdviceId = containersDeferred.await()
+                    preAdviceById = preAdviceDeferred.await()
                     fee = settingsDeferred.await().returnFeeAmount
                 }
                 PaymentsCache = PaymentsCacheEntry(
                     payments = payments,
                     schedules = schedules,
-                    containerByPreAdviceId = containerByPreAdviceId,
+                    preAdviceById = preAdviceById,
                     fee = fee,
                     updatedAtMs = System.currentTimeMillis(),
                 )
@@ -234,8 +243,11 @@ fun PaymentsListScreen(
                                 val isRejected = payment?.status.equals("Rejected", true)
                                 val meta = formatTruckerScheduleSlot(schedule)
                                 IcsPaymentListRow(
-                                    title = schedule.containerHeadline(containerByPreAdviceId),
-                                    subtitle = schedule.containerListSubtitle(containerByPreAdviceId, meta),
+                                    title = schedule.containerHeadline(preAdviceById[schedule.preAdviceId]),
+                                    subtitle = schedule.containerListSubtitle(
+                                        preAdviceById.mapValues { it.value.containerNo },
+                                        meta,
+                                    ),
                                     amount = stringResource(
                                         R.string.payments_return_fee,
                                         "$currencySymbol${payment?.amount ?: fee}",
@@ -262,8 +274,11 @@ fun PaymentsListScreen(
                                 val payment = paymentFor(payments, schedule.id)!!
                                 val meta = formatTruckerScheduleSlot(schedule)
                                 IcsPaymentListRow(
-                                    title = schedule.containerHeadline(containerByPreAdviceId),
-                                    subtitle = schedule.containerListSubtitle(containerByPreAdviceId, meta),
+                                    title = schedule.containerHeadline(preAdviceById[schedule.preAdviceId]),
+                                    subtitle = schedule.containerListSubtitle(
+                                        preAdviceById.mapValues { it.value.containerNo },
+                                        meta,
+                                    ),
                                     amount = stringResource(R.string.payments_return_fee, "$currencySymbol${payment.amount}"),
                                     status = payment.status,
                                     actionLabel = stringResource(R.string.payments_view_details),
@@ -282,9 +297,12 @@ fun PaymentsListScreen(
                                 val schedule = scheduleFor(schedules, payment.scheduleId)
                                 val meta = schedule?.let { "${it.depotName} · ${it.date}" } ?: payment.truckerName
                                 IcsPaymentListRow(
-                                    title = schedule?.containerHeadline(containerByPreAdviceId)
+                                    title = schedule?.containerHeadline(preAdviceById[schedule.preAdviceId])
                                         ?: stringResource(R.string.payments_schedule_number, payment.scheduleId),
-                                    subtitle = schedule?.containerListSubtitle(containerByPreAdviceId, meta) ?: meta,
+                                    subtitle = schedule?.containerListSubtitle(
+                                        preAdviceById.mapValues { it.value.containerNo },
+                                        meta,
+                                    ) ?: meta,
                                     amount = stringResource(R.string.payments_return_fee, "$currencySymbol${payment.amount}"),
                                     status = payment.status,
                                     actionLabel = stringResource(R.string.payments_view_details),
@@ -317,7 +335,12 @@ fun PaymentUploadScreen(
     var preAdvice by remember { mutableStateOf<com.ecms.trucker.data.model.PreAdviceDto?>(null) }
     var payment by remember { mutableStateOf<PaymentDto?>(null) }
     var fee by remember { mutableStateOf(0.0) }
+    var paymentOptions by remember { mutableStateOf<ReturnPaymentOptionsDto?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var payMongoLoading by remember { mutableStateOf(false) }
+    var pilotLoading by remember { mutableStateOf(false) }
+    var awaitingPayMongoReturn by rememberSaveable { mutableStateOf(false) }
+    var syncMessage by remember { mutableStateOf<String?>(null) }
 
     var referenceNo by remember { mutableStateOf("") }
     var transactionAt by remember { mutableStateOf("") }
@@ -366,9 +389,12 @@ fun PaymentUploadScreen(
                     val scheduleDeferred = async { repository.getSchedule(scheduleId) }
                     val paymentDeferred = async { repository.getPaymentBySchedule(scheduleId) }
                     val settingsDeferred = async { repository.getPaymentSettings() }
+                    val optionsDeferred = async { repository.getPaymentOptions() }
                     schedule = scheduleDeferred.await()
                     payment = paymentDeferred.await()
-                    fee = settingsDeferred.await().returnFeeAmount
+                    val settings = settingsDeferred.await()
+                    fee = settings.returnFeeAmount
+                    paymentOptions = optionsDeferred.await()
                     schedule?.let { loaded ->
                         preAdvice = repository.getPreAdviceOrNull(loaded.preAdviceId)
                     }
@@ -381,10 +407,36 @@ fun PaymentUploadScreen(
 
     LaunchedEffect(scheduleId) { load() }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, scheduleId, awaitingPayMongoReturn) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && awaitingPayMongoReturn) {
+                scope.launch {
+                    runCatching { repository.syncPayMongoReturn(scheduleId) }
+                        .onSuccess { if (it.synced) syncMessage = context.getString(R.string.payment_paymongo_sync_success) }
+                    awaitingPayMongoReturn = false
+                    load()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val currentSchedule = schedule
     val currentPayment = payment
     val uploadNeeded = currentSchedule != null && needsPaymentUpload(currentSchedule, currentPayment)
-    val displayAmount = currentPayment?.amount ?: fee
+    val pilotActive = paymentOptions?.pilotTestingActive == true
+    val payOnlineAvailable = !pilotActive &&
+        paymentOptions?.payMongoEnabled == true &&
+        paymentOptions?.payMongoConfigured == true
+    val manualUploadAvailable = !pilotActive && paymentOptions?.allowProofUpload != false
+    val displayAmount = truckerPaymentDisplayAmount(
+        currentPayment,
+        paymentOptions,
+        uploadNeeded,
+        fee,
+    )
     val screenTitle = if (uploadNeeded) {
         stringResource(R.string.payment_upload_title)
     } else {
@@ -429,6 +481,8 @@ fun PaymentUploadScreen(
                     else -> null
                 }
 
+                val b2bPayment = preAdvice?.isBackToBackActive() == true
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -437,12 +491,20 @@ fun PaymentUploadScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(vertical = 16.dp),
                 ) {
+                    if (b2bPayment) {
+                        item {
+                            IcsGuidanceBanner(
+                                message = stringResource(R.string.payment_back_to_back_message),
+                                kind = IcsGuidanceKind.Info,
+                            )
+                        }
+                    }
                     item {
                         IcsSectionCard(title = stringResource(R.string.payment_schedule_context)) {
                             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                                 IcsDetailHeader(
                                     referenceNo = s.referenceNo,
-                                    containerNo = preAdvice?.containerNo,
+                                    containerNo = preAdvice?.containerHeadline() ?: preAdvice?.containerNo,
                                     status = status,
                                 )
                                 Spacer(Modifier.height(12.dp))
@@ -522,6 +584,17 @@ fun PaymentUploadScreen(
                             IcsInfoTileGrid(
                                 tiles = buildList {
                                     add(stringResource(R.string.field_amount) to "$currencySymbol$displayAmount")
+                                    if (b2bPayment && preAdvice != null) {
+                                        add(stringResource(R.string.field_container_a) to preAdvice.containerNo)
+                                        preAdvice.companionContainerNoOrNull()?.let { companion ->
+                                            add(stringResource(R.string.field_container_b) to companion)
+                                        }
+                                        add(stringResource(R.string.back_to_back_type_label) to stringResource(R.string.back_to_back_chip))
+                                    } else {
+                                        preAdvice?.containerNo?.let {
+                                            add(stringResource(R.string.field_container) to it)
+                                        }
+                                    }
                                     add(stringResource(R.string.field_status) to status)
                                     currentPayment?.proofPaymentId?.takeIf { it.isNotBlank() }?.let {
                                         add(stringResource(R.string.payment_proof_payment_id) to it)
@@ -587,7 +660,142 @@ fun PaymentUploadScreen(
                         }
                     }
 
-                    if (uploadNeeded) {
+                    syncMessage?.let { message ->
+                        item {
+                            IcsGuidanceBanner(message = message, kind = IcsGuidanceKind.Success)
+                        }
+                    }
+
+                    if (uploadNeeded && pilotActive) {
+                        item {
+                            IcsSectionCard(title = stringResource(R.string.payment_pilot_title)) {
+                                Column(
+                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            R.string.payment_pilot_body,
+                                            paymentOptions?.pilotDaysRemaining ?: 0,
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = IcsColors.TextSecondary,
+                                    )
+                                    IcsPrimaryButton(
+                                        text = stringResource(R.string.payment_pilot_confirm),
+                                        onClick = {
+                                            pilotLoading = true
+                                            scope.launch {
+                                                runCatching { repository.completePilotReturn(scheduleId) }
+                                                    .onSuccess {
+                                                        PaymentsCache = null
+                                                        onUploaded()
+                                                    }
+                                                    .onFailure { uploadError = it.message }
+                                                pilotLoading = false
+                                            }
+                                        },
+                                        loading = pilotLoading,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (uploadNeeded && payOnlineAvailable) {
+                        item {
+                            IcsSectionCard(title = stringResource(R.string.payment_paymongo_title)) {
+                                Column(
+                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.payment_paymongo_body),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = IcsColors.TextSecondary,
+                                    )
+                                    IcsPrimaryButton(
+                                        text = if (payMongoLoading) {
+                                            stringResource(R.string.payment_paymongo_redirecting)
+                                        } else {
+                                            stringResource(
+                                                R.string.payment_paymongo_button,
+                                                "$currencySymbol$displayAmount",
+                                            )
+                                        },
+                                        onClick = {
+                                            payMongoLoading = true
+                                            scope.launch {
+                                                runCatching { repository.createPayMongoCheckout(scheduleId) }
+                                                    .onSuccess { checkout ->
+                                                        awaitingPayMongoReturn = true
+                                                        CustomTabsIntent.Builder().build()
+                                                            .launchUrl(context, Uri.parse(checkout.checkoutUrl))
+                                                    }
+                                                    .onFailure { uploadError = it.message }
+                                                payMongoLoading = false
+                                            }
+                                        },
+                                        loading = payMongoLoading,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    if (awaitingPayMongoReturn) {
+                                        Text(
+                                            stringResource(R.string.payment_paymongo_return_hint),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = IcsColors.TextSecondary,
+                                        )
+                                        IcsSecondaryButton(
+                                            text = stringResource(R.string.payment_paymongo_sync),
+                                            onClick = {
+                                                scope.launch {
+                                                    runCatching { repository.syncPayMongoReturn(scheduleId) }
+                                                        .onSuccess {
+                                                            if (it.synced) {
+                                                                syncMessage = context.getString(R.string.payment_paymongo_sync_success)
+                                                                PaymentsCache = null
+                                                                load()
+                                                            }
+                                                        }
+                                                        .onFailure { uploadError = it.message }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (uploadNeeded && !manualUploadAvailable && !payOnlineAvailable && !pilotActive) {
+                        item {
+                            IcsGuidanceBanner(
+                                message = stringResource(R.string.payment_online_only),
+                                kind = IcsGuidanceKind.Warning,
+                            )
+                        }
+                    }
+
+                    if (uploadNeeded && manualUploadAvailable) {
+                        if (payOnlineAvailable) {
+                            item {
+                                Text(
+                                    stringResource(R.string.payment_method_or_upload),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = IcsColors.TextSecondary,
+                                )
+                            }
+                        } else if (!payOnlineAvailable && !pilotActive) {
+                            item {
+                                Text(
+                                    stringResource(R.string.payment_upload_only),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = IcsColors.TextSecondary,
+                                )
+                            }
+                        }
                         item {
                             IcsSectionCard(
                                 title = if (hasProof) {

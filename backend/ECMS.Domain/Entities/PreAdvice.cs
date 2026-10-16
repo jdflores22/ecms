@@ -18,9 +18,28 @@ public class PreAdvice : BaseEntity
     /// </summary>
     public string? ActiveRequestKey { get; set; }
     public PreAdviceStatus Status { get; set; } = PreAdviceStatus.Draft;
-    /// <summary>Last day the empty may be returned without demurrage/detention charges.</summary>
+    /// <summary>Last day the empty may be returned without demurrage/detention charges (primary unit).</summary>
     public DateOnly? DemurrageValidUntil { get; set; }
+
+    /// <summary>Companion unit free time when <see cref="IsBackToBack"/> is true.</summary>
+    public DateOnly? BackToBackCompanionDemurrageValidUntil { get; set; }
     public string? Remarks { get; set; }
+
+    /// <summary>
+    /// Two 20ft units on one 40ft chassis, both destined for the same container yard (not port diversion).
+    /// </summary>
+    public bool IsBackToBack { get; set; }
+
+    /// <summary>Normalized ISO 6346 number of the paired unit when <see cref="IsBackToBack"/> is true.</summary>
+    public string? BackToBackCompanionContainerNo { get; set; }
+
+    public int? BackToBackCompanionContainerSizeId { get; set; }
+
+    public int? BackToBackCompanionContainerTypeId { get; set; }
+
+    public ContainerSize? BackToBackCompanionContainerSize { get; set; }
+
+    public ContainerType? BackToBackCompanionContainerType { get; set; }
 
     /// <summary>CRO/eDO reference captured when the trucker linked a verified document on create.</summary>
     public string? CroEdoReferenceNo { get; set; }

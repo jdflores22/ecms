@@ -1,6 +1,7 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { Box, Paper, Typography } from '@mui/material'
+import { confirmedPreForecastCopy } from '../../config/confirmedPreForecast'
 import { ICS_PRIMARY, hexToRgba } from '../layout/DetailPagePrimitives'
 
 type StepState = 'complete' | 'current' | 'upcoming'
@@ -15,12 +16,19 @@ export function buildPaymentProgressSteps(
   paymentStatus: string,
   hasProof: boolean,
   uploadNeeded: boolean,
+  options?: { isBackToBack?: boolean },
 ): PaymentProgressStep[] {
   if (paymentStatus === 'Paid') {
     return [
       { label: 'Upload proof', detail: 'Submitted', state: 'complete' },
       { label: 'Depot review', detail: 'Verified', state: 'complete' },
-      { label: 'Confirmed', detail: 'Payment accepted', state: 'complete' },
+      {
+        label: confirmedPreForecastCopy.progressStepLabel,
+        detail: options?.isBackToBack
+          ? confirmedPreForecastCopy.progressStepDetailBackToBack
+          : confirmedPreForecastCopy.progressStepDetailSingle,
+        state: 'complete',
+      },
     ]
   }
 
@@ -28,7 +36,7 @@ export function buildPaymentProgressSteps(
     return [
       { label: 'Upload proof', detail: 'Submitted', state: 'complete' },
       { label: 'Depot review', detail: 'Awaiting verification', state: 'current' },
-      { label: 'Confirmed', detail: 'After depot approval', state: 'upcoming' },
+      { label: confirmedPreForecastCopy.progressStepLabel, detail: 'After depot approval', state: 'upcoming' },
     ]
   }
 
@@ -36,7 +44,7 @@ export function buildPaymentProgressSteps(
     return [
       { label: 'Upload proof', detail: 'Re-upload required', state: 'current' },
       { label: 'Depot review', detail: 'Pending new proof', state: 'upcoming' },
-      { label: 'Confirmed', detail: 'After depot approval', state: 'upcoming' },
+      { label: confirmedPreForecastCopy.progressStepLabel, detail: 'After depot approval', state: 'upcoming' },
     ]
   }
 
@@ -48,14 +56,14 @@ export function buildPaymentProgressSteps(
         state: 'current',
       },
       { label: 'Depot review', detail: 'After you submit', state: 'upcoming' },
-      { label: 'Confirmed', detail: 'After depot approval', state: 'upcoming' },
+      { label: confirmedPreForecastCopy.progressStepLabel, detail: 'After depot approval', state: 'upcoming' },
     ]
   }
 
   return [
     { label: 'Upload proof', detail: 'Not yet required', state: 'upcoming' },
     { label: 'Depot review', detail: '—', state: 'upcoming' },
-    { label: 'Confirmed', detail: '—', state: 'upcoming' },
+    { label: confirmedPreForecastCopy.progressStepLabel, detail: '—', state: 'upcoming' },
   ]
 }
 

@@ -65,6 +65,8 @@ public class PreAdviceService : IPreAdviceService
                 .Include(p => p.Trucker)
                 .Include(p => p.ShippingLine)
                 .Include(p => p.Container)
+                .Include(p => p.BackToBackCompanionContainerSize)
+                .Include(p => p.BackToBackCompanionContainerType)
                 .Include(p => p.Evaluation)
                 .Include(p => p.Schedule),
             userId,
@@ -256,10 +258,23 @@ public class PreAdviceService : IPreAdviceService
             CroEdoVerificationTokenHash = croLink.TokenHash,
             ContainerReleaseOrderId = croLink.Id,
         };
+        await ApplyBackToBackFieldsAsync(
+            preAdvice,
+            catalog.SizeLabel,
+            catalog.NormalizedNo,
+            request.IsBackToBack,
+            request.BackToBackCompanionContainerNo,
+            request.BackToBackCompanionContainerSizeId,
+            request.BackToBackCompanionContainerTypeId,
+            cancellationToken);
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Add(preAdvice);
-        _auditService.QueueLog(truckerId, "Create", "PreForecast", $"{referenceNo} · CRO {croLink.ReferenceNo}");
+        _auditService.QueueLog(
+            truckerId,
+            "Create",
+            "PreForecast",
+            $"{referenceNo} · CRO {croLink.ReferenceNo}{BackToBackAuditSuffix(preAdvice)}");
         await _db.SaveChangesAsync(cancellationToken);
 
         if (demurrageUntil is DateOnly freeUntil && freeUntil < PhilippinesTime.Today)
@@ -323,10 +338,23 @@ public class PreAdviceService : IPreAdviceService
             Remarks = request.Remarks,
             Status = PreAdviceStatus.Draft,
         };
+        await ApplyBackToBackFieldsAsync(
+            preAdvice,
+            catalog.SizeLabel,
+            catalog.NormalizedNo,
+            request.IsBackToBack,
+            request.BackToBackCompanionContainerNo,
+            request.BackToBackCompanionContainerSizeId,
+            request.BackToBackCompanionContainerTypeId,
+            cancellationToken);
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Add(preAdvice);
-        _auditService.QueueLog(truckerId, "Create", "PreForecast", $"{referenceNo} · legacy manual CRO/eDO");
+        _auditService.QueueLog(
+            truckerId,
+            "Create",
+            "PreForecast",
+            $"{referenceNo} · legacy manual CRO/eDO{BackToBackAuditSuffix(preAdvice)}");
         await _db.SaveChangesAsync(cancellationToken);
 
         var trucker = await _db.Users.AsNoTracking().FirstAsync(u => u.Id == truckerId, cancellationToken);
@@ -433,10 +461,19 @@ public class PreAdviceService : IPreAdviceService
         preAdvice.ContainerSizeId = request.ContainerSizeId;
         preAdvice.ContainerTypeId = request.ContainerTypeId;
         preAdvice.Remarks = request.Remarks;
+        await ApplyBackToBackFieldsAsync(
+            preAdvice,
+            catalog.SizeLabel,
+            catalog.NormalizedNo,
+            request.IsBackToBack,
+            request.BackToBackCompanionContainerNo,
+            request.BackToBackCompanionContainerSizeId,
+            request.BackToBackCompanionContainerTypeId,
+            cancellationToken);
         PreAdviceDuplicateGuard.RefreshActiveKey(preAdvice);
 
         _db.Update(preAdvice);
-        _auditService.QueueLog(userId, "Update", "PreForecast", preAdvice.ReferenceNo);
+        _auditService.QueueLog(userId, "Update", "PreForecast", $"{preAdvice.ReferenceNo}{BackToBackAuditSuffix(preAdvice)}");
         await _db.SaveChangesAsync(cancellationToken);
 
         return await MapToDtoAsync(preAdvice, cancellationToken);
@@ -468,20 +505,9 @@ public class PreAdviceService : IPreAdviceService
 
         var wasCompliance = preAdvice.Status == PreAdviceStatus.ForCompliance;
 
-        var uploadedStandard = await _db.PreAdviceDocuments
-            .Where(d => d.PreAdviceId == id && d.Category != null)
-            .Select(d => d.Category!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        var missing = ContainerPhotoCatalog.StandardViews
-            .Where(c => !uploadedStandard.Contains(c))
-            .Select(ContainerPhotoCatalog.GetLabel)
-            .ToList();
-
-        if (missing.Count > 0)
-            throw new InvalidOperationException(
-                $"All container identity photos are required before submit. Missing: {string.Join(", ", missing)}.");
+        var documentErrors = await ValidateIdentityDocumentsForSubmitAsync(preAdvice, id, cancellationToken);
+        if (documentErrors.Count > 0)
+            throw new InvalidOperationException(string.Join(' ', documentErrors));
 
         if (preAdvice.DemurrageValidUntil is DateOnly freeUntil
             && freeUntil < PhilippinesTime.Today)
@@ -520,7 +546,7 @@ public class PreAdviceService : IPreAdviceService
             userId,
             wasCompliance ? "Resubmit" : "Submit",
             "PreForecast",
-            preAdvice.ReferenceNo);
+            $"{preAdvice.ReferenceNo}{BackToBackAuditSuffix(preAdvice)}");
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -698,6 +724,7 @@ public class PreAdviceService : IPreAdviceService
         string filePath,
         string contentType,
         long fileSize,
+        PreAdviceIdentityUnit identityUnit = PreAdviceIdentityUnit.Primary,
         CancellationToken cancellationToken = default)
     {
         if (!RoleNames.IsPreAdviceManager(role))
@@ -711,6 +738,9 @@ public class PreAdviceService : IPreAdviceService
         if (preAdvice.Status is not (PreAdviceStatus.Draft or PreAdviceStatus.ForCompliance))
             throw new InvalidOperationException("Photos can only be added to draft or for-compliance requests.");
 
+        if (identityUnit == PreAdviceIdentityUnit.Companion && !preAdvice.IsBackToBack)
+            throw new InvalidOperationException("Companion documents require a back-to-back pre-forecast.");
+
         if (category == ContainerPhotoCategory.Damage)
         {
             if (string.IsNullOrWhiteSpace(comment))
@@ -720,7 +750,7 @@ public class PreAdviceService : IPreAdviceService
         {
             comment = null;
             var existing = await _db.PreAdviceDocuments
-                .Where(d => d.PreAdviceId == preAdviceId && d.Category == category)
+                .Where(d => d.PreAdviceId == preAdviceId && d.Category == category && d.IdentityUnit == identityUnit)
                 .ToListAsync(cancellationToken);
 
             foreach (var doc in existing)
@@ -734,7 +764,7 @@ public class PreAdviceService : IPreAdviceService
         {
             comment = null;
             var existing = await _db.PreAdviceDocuments
-                .Where(d => d.PreAdviceId == preAdviceId && d.Category == category)
+                .Where(d => d.PreAdviceId == preAdviceId && d.Category == category && d.IdentityUnit == identityUnit)
                 .ToListAsync(cancellationToken);
 
             foreach (var doc in existing)
@@ -744,6 +774,7 @@ public class PreAdviceService : IPreAdviceService
         var document = new PreAdviceDocument
         {
             PreAdviceId = preAdviceId,
+            IdentityUnit = identityUnit,
             Category = category,
             Comment = comment?.Trim(),
             FileName = fileName,
@@ -755,7 +786,10 @@ public class PreAdviceService : IPreAdviceService
 
         _db.Add(document);
         await _db.SaveChangesAsync(cancellationToken);
-        await _auditService.LogAsync(userId, "UploadContainerPhoto", "PreForecast", $"{preAdvice.ReferenceNo}:{category}", cancellationToken);
+        var unitLabel = PreAdviceIdentityUnits.GetLabel(identityUnit);
+        var auditAction = category == ContainerPhotoCategory.CroEdo ? "UploadCroEdo" : "UploadContainerPhoto";
+        var auditDetail = $"{preAdvice.ReferenceNo}:{unitLabel}:{category}{BackToBackAuditSuffix(preAdvice)}";
+        await _auditService.LogAsync(userId, auditAction, "PreForecast", auditDetail, cancellationToken);
 
         var saved = await _db.PreAdviceDocuments
             .Include(d => d.UploadedBy)
@@ -883,6 +917,8 @@ public class PreAdviceService : IPreAdviceService
             .Include(p => p.Trucker)
             .Include(p => p.ShippingLine)
             .Include(p => p.Container)
+            .Include(p => p.BackToBackCompanionContainerSize)
+            .Include(p => p.BackToBackCompanionContainerType)
             .Include(p => p.Evaluation)
             .Include(p => p.Schedule)
             .Where(p => p.Id == id);
@@ -960,6 +996,56 @@ public class PreAdviceService : IPreAdviceService
     }
 
     private sealed record CatalogSelection(string NormalizedNo, string SizeLabel, string TypeCode);
+
+    private async Task ApplyBackToBackFieldsAsync(
+        PreAdvice preAdvice,
+        string sizeLabel,
+        string primaryContainerNoNormalized,
+        bool isBackToBack,
+        string? companionContainerNo,
+        int? companionSizeId,
+        int? companionTypeId,
+        CancellationToken cancellationToken)
+    {
+        var isTwentyFoot = CyCapacityGroups.GetGroupKey(sizeLabel) == "20";
+        if (!isTwentyFoot || !isBackToBack)
+        {
+            preAdvice.IsBackToBack = false;
+            preAdvice.BackToBackCompanionContainerNo = null;
+            preAdvice.BackToBackCompanionContainerSizeId = null;
+            preAdvice.BackToBackCompanionContainerTypeId = null;
+            return;
+        }
+
+        var companion = Iso6346ContainerNumber.Normalize(companionContainerNo ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(companion))
+            throw new InvalidOperationException("Enter the back-to-back container number.");
+
+        var companionError = Iso6346ContainerNumber.GetValidationError(companion);
+        if (companionError is not null)
+            throw new InvalidOperationException(companionError);
+
+        if (string.Equals(companion, primaryContainerNoNormalized, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Back-to-back container must be different from the primary container number.");
+
+        if (companionSizeId is not int sizeId || companionTypeId is not int typeId)
+            throw new InvalidOperationException("Back-to-back container size and type are required.");
+
+        var companionSize = await _db.ContainerSizes
+            .FirstOrDefaultAsync(s => s.Id == sizeId && s.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("Invalid back-to-back container size.");
+
+        if (CyCapacityGroups.GetGroupKey(companionSize.Label) != "20")
+            throw new InvalidOperationException("Back-to-back container size must be 20ft.");
+
+        if (!await _db.ContainerTypes.AnyAsync(t => t.Id == typeId && t.IsActive, cancellationToken))
+            throw new InvalidOperationException("Invalid back-to-back container type.");
+
+        preAdvice.IsBackToBack = true;
+        preAdvice.BackToBackCompanionContainerNo = companion;
+        preAdvice.BackToBackCompanionContainerSizeId = sizeId;
+        preAdvice.BackToBackCompanionContainerTypeId = typeId;
+    }
 
     private async Task<CatalogSelection> ValidateCatalogAsync(
         int shippingLineId,
@@ -1147,7 +1233,14 @@ public class PreAdviceService : IPreAdviceService
         p.ShippingLineId, p.ShippingLine.Name, p.ContainerId, p.Container.ContainerNo,
         p.Container.Size, p.Container.Type, p.Status,
         p.DemurrageValidUntil?.ToString("yyyy-MM-dd"),
+        p.BackToBackCompanionDemurrageValidUntil?.ToString("yyyy-MM-dd"),
         p.Remarks,
+        p.IsBackToBack,
+        p.BackToBackCompanionContainerNo,
+        p.BackToBackCompanionContainerSizeId,
+        p.BackToBackCompanionContainerTypeId,
+        p.BackToBackCompanionContainerSize?.Label,
+        p.BackToBackCompanionContainerType?.Code,
         p.CroEdoReferenceNo,
         p.CreatedAt,
         p.Status == PreAdviceStatus.ForCompliance ? p.Evaluation?.Remarks : null,
@@ -1166,11 +1259,69 @@ public class PreAdviceService : IPreAdviceService
 
     private string SignAssetPath(string path) => _uploadUrlSigner.SignRelativePath(path, SignedAssetTtl);
 
+    private static string BackToBackAuditSuffix(PreAdvice preAdvice) =>
+        preAdvice.IsBackToBack && !string.IsNullOrWhiteSpace(preAdvice.BackToBackCompanionContainerNo)
+            ? $" · Back-to-back with {preAdvice.BackToBackCompanionContainerNo}"
+            : string.Empty;
+
+    private async Task<List<string>> ValidateIdentityDocumentsForSubmitAsync(
+        PreAdvice preAdvice,
+        int preAdviceId,
+        CancellationToken cancellationToken)
+    {
+        var docs = await _db.PreAdviceDocuments
+            .AsNoTracking()
+            .Where(d => d.PreAdviceId == preAdviceId)
+            .ToListAsync(cancellationToken);
+
+        var errors = new List<string>();
+        var units = preAdvice.IsBackToBack
+            ? new[] { PreAdviceIdentityUnit.Primary, PreAdviceIdentityUnit.Companion }
+            : new[] { PreAdviceIdentityUnit.Primary };
+
+        foreach (var unit in units)
+        {
+            var unitLabel = PreAdviceIdentityUnits.GetLabel(unit);
+            var unitDocs = docs.Where(d => d.IdentityUnit == unit).ToList();
+            var uploaded = unitDocs
+                .Where(d => d.Category != null && ContainerPhotoCatalog.IsIdentityGridSlot(d.Category.Value))
+                .Select(d => d.Category!.Value)
+                .Distinct()
+                .ToList();
+
+            var missingPhotos = ContainerPhotoCatalog.RequiredIdentityPhotos
+                .Where(c => !uploaded.Contains(c))
+                .Select(ContainerPhotoCatalog.GetLabel)
+                .ToList();
+
+            if (missingPhotos.Count > 0)
+                errors.Add(
+                    $"{unitLabel} container photos incomplete. Missing: {string.Join(", ", missingPhotos)}.");
+
+            if (!HasCroForUnit(preAdvice, docs, unit))
+                errors.Add($"{unitLabel} container requires a CRO/eDO upload.");
+        }
+
+        return errors;
+    }
+
+    private static bool HasCroForUnit(
+        PreAdvice preAdvice,
+        IReadOnlyList<PreAdviceDocument> docs,
+        PreAdviceIdentityUnit unit)
+    {
+        if (unit == PreAdviceIdentityUnit.Primary && !string.IsNullOrWhiteSpace(preAdvice.CroEdoReferenceNo))
+            return true;
+
+        return docs.Any(d => d.Category == ContainerPhotoCategory.CroEdo && d.IdentityUnit == unit);
+    }
+
     private PreAdviceDocumentDto MapDocumentToDto(
         PreAdviceDocument d,
         Func<string, string> signPath) => new(
         d.Id,
         d.PreAdviceId,
+        PreAdviceIdentityUnits.GetLabel(d.IdentityUnit),
         d.Category?.ToString(),
         d.Category.HasValue ? ContainerPhotoCatalog.GetLabel(d.Category.Value) : null,
         d.Comment,

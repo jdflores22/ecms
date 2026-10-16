@@ -60,6 +60,20 @@ import com.ecms.trucker.util.listTitle
 import com.ecms.trucker.util.QrCodeGenerator
 import com.ecms.trucker.util.mapCroLineToForm
 import com.ecms.trucker.util.croFreeTimeExpiredMessage
+import com.ecms.trucker.util.PreAdviceIdentityUnit
+import com.ecms.trucker.util.companionContainerNoOrNull
+import com.ecms.trucker.util.containerHeadline
+import com.ecms.trucker.util.containerUnitRoleLabel
+import com.ecms.trucker.util.countAllUploadedRequiredPhotos
+import com.ecms.trucker.util.countUploadedRequiredPhotos
+import com.ecms.trucker.util.docsByCategoryForUnit
+import com.ecms.trucker.util.identityUnitOrPrimary
+import com.ecms.trucker.util.isBackToBackActive
+import com.ecms.trucker.util.isTwentyFootContainerSize
+import com.ecms.trucker.util.missingRequiredPhotoLabels
+import com.ecms.trucker.util.photoMapKey
+import com.ecms.trucker.util.requiredPhotoCountPerUnit
+import com.ecms.trucker.util.requiredPhotoTotal
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -142,9 +156,7 @@ fun PreForecastListScreen(
                     launch {
                         runCatching { repository.getPreAdviceDocuments(preAdvice.id) }
                             .onSuccess { docs ->
-                                val uploadedRequired = REQUIRED_PHOTO_CATEGORY_VALUES.count { key ->
-                                    docs.any { it.category == key }
-                                }
+                                val uploadedRequired = countAllUploadedRequiredPhotos(preAdvice, docs, emptyMap())
                                 PreForecastPhotoProgressCache[preAdvice.id] = PhotoProgressCacheEntry(
                                     uploadedRequired = uploadedRequired,
                                     updatedAtMs = System.currentTimeMillis(),
@@ -251,7 +263,7 @@ fun PreForecastListScreen(
                             qrCode = if (item.hasQrBooking) item.qrCode else null,
                             logicteckLabel = logicteck?.label,
                             uploaded = uploaded,
-                            total = REQUIRED_PHOTO_CATEGORY_VALUES.size,
+                            total = requiredPhotoTotal(item),
                             onClick = { onItemClick(item.id) },
                             onViewQr = if (item.hasQrBooking && onViewQr != null) {
                                 { onViewQr(item.id) }
@@ -424,6 +436,7 @@ fun PreForecastDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var actionLoading by remember { mutableStateOf(false) }
     var uploadCategory by remember { mutableStateOf<ContainerPhotoCategory?>(null) }
+    var uploadIdentityUnit by remember { mutableStateOf(PreAdviceIdentityUnit.Primary) }
     var damageTarget by remember { mutableStateOf<ContainerPhotoCategory?>(null) }
     var damageDescription by remember { mutableStateOf("") }
     var damageImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -497,7 +510,7 @@ fun PreForecastDetailScreen(
             current.status.equals("Draft", true) || current.status.equals("ForCompliance", true)
         )
         if (deferUpload) {
-            pendingPhotos = pendingPhotos + (category.value to uri)
+            pendingPhotos = pendingPhotos + (photoMapKey(uploadIdentityUnit, category.value) to uri)
             uploadCategory = null
             Toast.makeText(context, "Photo attached — will upload when you submit", Toast.LENGTH_SHORT).show()
             return@rememberLauncherForActivityResult
@@ -505,7 +518,15 @@ fun PreForecastDetailScreen(
         Toast.makeText(context, "Uploading photo...", Toast.LENGTH_SHORT).show()
         scope.launch {
             actionLoading = true
-            runCatching { repository.uploadPreAdviceDocument(id, uri, category.value, null) }
+            runCatching {
+                repository.uploadPreAdviceDocument(
+                    id,
+                    uri,
+                    category.value,
+                    null,
+                    uploadIdentityUnit.name,
+                )
+            }
                 .onSuccess {
                     docs = repository.getPreAdviceDocuments(id)
                     snackbarHostState.showSnackbar("Photo uploaded")
@@ -611,24 +632,31 @@ fun PreForecastDetailScreen(
                 val isSubmitted = p.status.equals("Submitted", true)
                 val canManagePhotos = (isDraft || isForCompliance) && !submitInProgress
                 val canSubmit = (isDraft || isForCompliance) && (!freeTimeExpired || demurrageSettled)
-                val docsByCategory = docs.associateBy { it.category.orEmpty() }
-                val damageByView = docs
-                    .filter { it.category == DAMAGE_PHOTO_CATEGORY }
-                    .mapNotNull { doc -> parseDamageView(doc.comment)?.let { it to doc } }
-                    .toMap()
-                val requiredCategories = CONTAINER_PHOTO_GRID_CATEGORIES.filter { it.required }
-                val uploadedRequired = requiredCategories.count {
-                    docsByCategory[it.value] != null || pendingPhotos.containsKey(it.value)
+                val b2b = p.isBackToBackActive()
+                val primaryPhotoUploaded = countUploadedRequiredPhotos(p, docs, pendingPhotos, PreAdviceIdentityUnit.Primary)
+                val companionPhotoUploaded = if (b2b) {
+                    countUploadedRequiredPhotos(p, docs, pendingPhotos, PreAdviceIdentityUnit.Companion)
+                } else {
+                    0
                 }
-                val photosTotal = requiredCategories.size
+                val uploadedRequired = countAllUploadedRequiredPhotos(p, docs, pendingPhotos)
+                val photosTotal = requiredPhotoTotal(p)
+                val perUnitPhotoTotal = requiredPhotoCountPerUnit(p, PreAdviceIdentityUnit.Primary)
                 val photosComplete = uploadedRequired == photosTotal
-                val missing = requiredCategories.filter {
-                    docsByCategory[it.value] == null && !pendingPhotos.containsKey(it.value)
+                val missing = buildList {
+                    addAll(
+                        missingRequiredPhotoLabels(p, docs, pendingPhotos, PreAdviceIdentityUnit.Primary),
+                    )
+                    if (b2b) {
+                        addAll(
+                            missingRequiredPhotoLabels(p, docs, pendingPhotos, PreAdviceIdentityUnit.Companion),
+                        )
+                    }
                 }
                 var missingPhotoLabels = ""
                 for (i in missing.indices) {
                     if (i > 0) missingPhotoLabels += ", "
-                    missingPhotoLabels += containerPhotoLabel(missing[i].value)
+                    missingPhotoLabels += containerPhotoLabel(missing[i])
                 }
                 val isApproved = p.status.equals("Approved", true)
                 val isUnderEvaluation = p.status.equals("UnderEvaluation", true)
@@ -645,7 +673,12 @@ fun PreForecastDetailScreen(
                 val tabs = buildList {
                     add(PreForecastDetailTab.Overview)
                     add(PreForecastDetailTab.Details)
-                    add(PreForecastDetailTab.Photos)
+                    if (b2b) {
+                        add(PreForecastDetailTab.PhotosPrimary)
+                        add(PreForecastDetailTab.PhotosCompanion)
+                    } else {
+                        add(PreForecastDetailTab.Photos)
+                    }
                     if (isApproved) {
                         add(PreForecastDetailTab.Schedule)
                         add(PreForecastDetailTab.Qr)
@@ -681,7 +714,11 @@ fun PreForecastDetailScreen(
                     if (tabInitialized) return@LaunchedEffect
                     selectedTab = when {
                         initialTab != null && initialTab in tabs -> initialTab
-                        isDraft || isForCompliance -> PreForecastDetailTab.Photos
+                        isDraft || isForCompliance -> if (p.isBackToBackActive()) {
+                            PreForecastDetailTab.PhotosPrimary
+                        } else {
+                            PreForecastDetailTab.Photos
+                        }
                         else -> PreForecastDetailTab.Overview
                     }
                     tabInitialized = true
@@ -717,7 +754,7 @@ fun PreForecastDetailScreen(
                     item(key = "header") {
                         IcsDetailHeader(
                             referenceNo = p.referenceNo,
-                            containerNo = p.containerNo,
+                            containerNo = p.containerHeadline(),
                             status = p.status,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             belowStatus = {
@@ -781,11 +818,26 @@ fun PreForecastDetailScreen(
                                         selected = activeTab == tab,
                                         onClick = { if (!submitInProgress) selectedTab = tab },
                                         text = {
+                                            val tabPhotoProgress = when (tab) {
+                                                PreForecastDetailTab.Photos -> Triple(uploadedRequired, photosTotal, null)
+                                                PreForecastDetailTab.PhotosPrimary -> Triple(
+                                                    primaryPhotoUploaded,
+                                                    perUnitPhotoTotal,
+                                                    containerUnitRoleLabel(PreAdviceIdentityUnit.Primary, true),
+                                                )
+                                                PreForecastDetailTab.PhotosCompanion -> Triple(
+                                                    companionPhotoUploaded,
+                                                    perUnitPhotoTotal,
+                                                    containerUnitRoleLabel(PreAdviceIdentityUnit.Companion, true),
+                                                )
+                                                else -> Triple(null, null, null)
+                                            }
                                             Text(
                                                 preForecastDetailTabLabel(
                                                     tab,
-                                                    if (tab == PreForecastDetailTab.Photos) uploadedRequired else null,
-                                                    if (tab == PreForecastDetailTab.Photos) photosTotal else null,
+                                                    tabPhotoProgress.first,
+                                                    tabPhotoProgress.second,
+                                                    tabPhotoProgress.third,
                                                 ),
                                             )
                                         },
@@ -804,37 +856,60 @@ fun PreForecastDetailScreen(
                                 onOpenQr = { selectedTab = PreForecastDetailTab.Qr },
                             )
                             PreForecastDetailTab.Details -> PreForecastDetailsTab(item = p)
-                            PreForecastDetailTab.Photos -> PreForecastPhotosTabContent(
-                                canManagePhotos = canManagePhotos,
-                                docsByCategory = docsByCategory,
-                                pendingPhotos = pendingPhotos,
-                                uploadProgress = uploadProgress,
-                                damageByView = damageByView,
-                                damageDocs = CONTAINER_PHOTO_GRID_CATEGORIES.mapNotNull { c ->
-                                    damageByView[c.value]?.let { c to it }
-                                },
-                                actionLoading = actionLoading,
-                                accessToken = accessToken,
-                                onUpload = { category ->
-                                    uploadCategory = category
-                                    photoPicker.launch("image/*")
-                                },
-                                onDamage = { category ->
-                                    damageTarget = category
-                                    damageDescription = parseDamageDescription(damageByView[category.value]?.comment)
-                                    damageImageUri = null
-                                },
-                                onView = { preview = it },
-                                onDelete = { deleteConfirm = it },
-                                onRemovePending = { category ->
-                                    pendingPhotos = pendingPhotos - category.value
-                                },
-                                onDamageUpdate = { category, doc ->
-                                    damageTarget = category
-                                    damageDescription = parseDamageDescription(doc.comment)
-                                    damageImageUri = null
-                                },
-                            )
+                            PreForecastDetailTab.Photos,
+                            PreForecastDetailTab.PhotosPrimary,
+                            PreForecastDetailTab.PhotosCompanion,
+                            -> {
+                                val photoUnit = when (activeTab) {
+                                    PreForecastDetailTab.PhotosCompanion -> PreAdviceIdentityUnit.Companion
+                                    else -> PreAdviceIdentityUnit.Primary
+                                }
+                                val unitContainerNo = when (photoUnit) {
+                                    PreAdviceIdentityUnit.Companion -> p.companionContainerNoOrNull() ?: "—"
+                                    else -> p.containerNo
+                                }
+                                val unitDocsByCategory = docsByCategoryForUnit(docs, photoUnit)
+                                val unitDamageByView = docs
+                                    .filter { it.category == DAMAGE_PHOTO_CATEGORY && it.identityUnitOrPrimary() == photoUnit }
+                                    .mapNotNull { doc -> parseDamageView(doc.comment)?.let { it to doc } }
+                                    .toMap()
+                                PreForecastPhotosTabContent(
+                                    identityUnit = photoUnit,
+                                    unitContainerNo = unitContainerNo,
+                                    canManagePhotos = canManagePhotos,
+                                    docsByCategory = unitDocsByCategory,
+                                    pendingPhotos = pendingPhotos,
+                                    uploadProgress = uploadProgress,
+                                    damageByView = unitDamageByView,
+                                    damageDocs = CONTAINER_PHOTO_GRID_CATEGORIES.mapNotNull { c ->
+                                        unitDamageByView[c.value]?.let { c to it }
+                                    },
+                                    actionLoading = actionLoading,
+                                    accessToken = accessToken,
+                                    onUpload = { category ->
+                                        uploadIdentityUnit = photoUnit
+                                        uploadCategory = category
+                                        photoPicker.launch("image/*")
+                                    },
+                                    onDamage = { category ->
+                                        uploadIdentityUnit = photoUnit
+                                        damageTarget = category
+                                        damageDescription = parseDamageDescription(unitDamageByView[category.value]?.comment)
+                                        damageImageUri = null
+                                    },
+                                    onView = { preview = it },
+                                    onDelete = { deleteConfirm = it },
+                                    onRemovePending = { category ->
+                                        pendingPhotos = pendingPhotos - photoMapKey(photoUnit, category.value)
+                                    },
+                                    onDamageUpdate = { category, doc ->
+                                        uploadIdentityUnit = photoUnit
+                                        damageTarget = category
+                                        damageDescription = parseDamageDescription(doc.comment)
+                                        damageImageUri = null
+                                    },
+                                )
+                            }
                             PreForecastDetailTab.Schedule -> PreForecastScheduleTab(
                                 schedule = schedule,
                                 loading = scheduleLoading,
@@ -931,7 +1006,7 @@ fun PreForecastDetailScreen(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${p.referenceNo}\n${p.containerNo} · ${p.shippingLineName}")
+                    Text("${p.referenceNo}\n${p.containerHeadline()} · ${p.shippingLineName}")
                     if (isForComplianceSubmit && !p.complianceRemarks.isNullOrBlank()) {
                         Text(
                             stringResource(R.string.field_compliance_remarks) + ": " + p.complianceRemarks,
@@ -995,25 +1070,48 @@ fun PreForecastDetailScreen(
                         scope.launch {
                             submitInProgress = true
                             actionLoading = true
-                            val categoriesToUpload = CONTAINER_PHOTO_GRID_CATEGORIES.filter { category ->
-                                pendingPhotos.containsKey(category.value) &&
-                                    docs.none { it.category == category.value }
+                            val uploadUnits = if (p.isBackToBackActive()) {
+                                listOf(PreAdviceIdentityUnit.Primary, PreAdviceIdentityUnit.Companion)
+                            } else {
+                                listOf(PreAdviceIdentityUnit.Primary)
                             }
-                            submitStatusMessage = if (categoriesToUpload.isEmpty()) {
+                            val photosToUpload = buildList {
+                                for (unit in uploadUnits) {
+                                    for (category in CONTAINER_PHOTO_GRID_CATEGORIES) {
+                                        val key = photoMapKey(unit, category.value)
+                                        if (
+                                            pendingPhotos.containsKey(key) &&
+                                            docs.none {
+                                                it.category == category.value &&
+                                                    it.identityUnitOrPrimary() == unit
+                                            }
+                                        ) {
+                                            add(Triple(unit, category, key))
+                                        }
+                                    }
+                                }
+                            }
+                            submitStatusMessage = if (photosToUpload.isEmpty()) {
                                 context.getString(R.string.preforecast_submit_submitting)
                             } else {
                                 context.getString(R.string.preforecast_submit_uploading)
                             }
                             var uploadFailed = false
-                            for (category in categoriesToUpload) {
-                                val uri = pendingPhotos[category.value] ?: continue
-                                uploadProgress = uploadProgress + (category.value to 0)
+                            for ((unit, category, key) in photosToUpload) {
+                                val uri = pendingPhotos[key] ?: continue
+                                uploadProgress = uploadProgress + (key to 0)
                                 val result = runCatching {
-                                    repository.uploadPreAdviceDocument(id, uri, category.value, null)
+                                    repository.uploadPreAdviceDocument(
+                                        id,
+                                        uri,
+                                        category.value,
+                                        null,
+                                        unit.name,
+                                    )
                                 }
                                 if (result.isSuccess) {
-                                    uploadProgress = uploadProgress + (category.value to 100)
-                                    pendingPhotos = pendingPhotos - category.value
+                                    uploadProgress = uploadProgress + (key to 100)
+                                    pendingPhotos = pendingPhotos - key
                                 } else {
                                     uploadFailed = true
                                     error = result.exceptionOrNull()?.message
@@ -1134,7 +1232,7 @@ fun PreForecastDetailScreen(
             item = item!!,
             saving = actionLoading,
             onDismiss = { editing = false },
-            onSave = { shippingLineId, containerNo, sizeId, typeId, remarks ->
+            onSave = { shippingLineId, containerNo, sizeId, typeId, remarks, b2b, companionNo, companionSizeId, companionTypeId ->
                 scope.launch {
                     actionLoading = true
                     runCatching {
@@ -1146,6 +1244,10 @@ fun PreForecastDetailScreen(
                                 containerSizeId = sizeId,
                                 containerTypeId = typeId,
                                 remarks = remarks,
+                                isBackToBack = b2b,
+                                backToBackCompanionContainerNo = companionNo,
+                                backToBackCompanionContainerSizeId = companionSizeId,
+                                backToBackCompanionContainerTypeId = companionTypeId,
                             ),
                         )
                     }.onSuccess {
@@ -1259,6 +1361,7 @@ fun PreForecastDetailScreen(
                                     uri,
                                     DAMAGE_PHOTO_CATEGORY,
                                     formatDamageComment(target.value, damageDescription.trim()),
+                                    uploadIdentityUnit.name,
                                 )
                             }
                                 .onSuccess {
@@ -1367,6 +1470,12 @@ fun PreForecastNewScreen(
     var croLink by remember { mutableStateOf<CroEdoAttachSuccess?>(null) }
     var legacyCroUri by remember { mutableStateOf<Uri?>(null) }
     var legacyCroFileName by remember { mutableStateOf("") }
+    var legacyCompanionCroUri by remember { mutableStateOf<Uri?>(null) }
+    var legacyCompanionCroFileName by remember { mutableStateOf("") }
+    var isBackToBack by remember { mutableStateOf(false) }
+    var companionContainerNo by remember { mutableStateOf("") }
+    var companionSizeId by remember { mutableIntStateOf(0) }
+    var companionTypeId by remember { mutableIntStateOf(0) }
     var demurrageBlock by remember { mutableStateOf<String?>(null) }
     var duplicateWarning by remember { mutableStateOf<String?>(null) }
     var checkingBlock by remember { mutableStateOf(false) }
@@ -1376,11 +1485,27 @@ fun PreForecastNewScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val refreshMessage = stringResource(R.string.refresh_feedback_preforecast_form)
 
+    val primarySizeLabel = lookups?.containerSizes?.find { it.id == sizeId }?.label
+    val isTwentyFoot = isTwentyFootContainerSize(primarySizeLabel)
+    val twentyFootSizeOptions = lookups?.containerSizes
+        ?.filter { isTwentyFootContainerSize(it.label) }
+        ?.map { it.id to it.label }
+        ?: emptyList()
+    val b2bFormValid = !isTwentyFoot || !isBackToBack ||
+        (
+            companionContainerNo.isNotBlank() &&
+                companionSizeId > 0 &&
+                companionTypeId > 0 &&
+                companionContainerNo.trim().uppercase() != containerNo.trim().uppercase()
+        )
+    val companionCroReady = !isTwentyFoot || !isBackToBack || legacyCompanionCroUri != null
     val formComplete =
         shippingLineId > 0 &&
             sizeId > 0 &&
             typeId > 0 &&
-            containerNo.isNotBlank()
+            containerNo.isNotBlank() &&
+            b2bFormValid &&
+            companionCroReady
     val croLinked = entryMode == PreForecastEntryMode.IcsCro &&
         croLink != null &&
         formComplete
@@ -1395,6 +1520,12 @@ fun PreForecastNewScreen(
         sizeId = 0
         typeId = 0
         remarks = ""
+        isBackToBack = false
+        companionContainerNo = ""
+        companionSizeId = 0
+        companionTypeId = 0
+        legacyCompanionCroUri = null
+        legacyCompanionCroFileName = ""
     }
 
     fun onCroLinked(payload: CroEdoAttachSuccess) {
@@ -1425,6 +1556,11 @@ fun PreForecastNewScreen(
         legacyCroFileName = ""
     }
 
+    fun clearLegacyCompanionUpload() {
+        legacyCompanionCroUri = null
+        legacyCompanionCroFileName = ""
+    }
+
     fun switchEntryMode(mode: PreForecastEntryMode) {
         if (entryMode == mode) return
         entryMode = mode
@@ -1448,6 +1584,16 @@ fun PreForecastNewScreen(
     }
 
     LaunchedEffect(Unit) { loadLookups() }
+
+    LaunchedEffect(isTwentyFoot) {
+        if (!isTwentyFoot) {
+            isBackToBack = false
+            companionContainerNo = ""
+            companionSizeId = 0
+            companionTypeId = 0
+            clearLegacyCompanionUpload()
+        }
+    }
 
     LaunchedEffect(shippingLineId, containerNo, sizeId, typeId) {
         if (shippingLineId <= 0 || sizeId <= 0 || typeId <= 0 || containerNo.isBlank()) {
@@ -1622,6 +1768,19 @@ fun PreForecastNewScreen(
                                             stringResource(R.string.field_size_type) to "$sizeLabel / $typeLabel",
                                         ),
                                     )
+                                    PreForecastBackToBackFields(
+                                        lookups = l,
+                                        isTwentyFoot = isTwentyFoot,
+                                        isBackToBack = isBackToBack,
+                                        onBackToBackChange = { isBackToBack = it },
+                                        companionContainerNo = companionContainerNo,
+                                        onCompanionContainerNoChange = { companionContainerNo = it },
+                                        companionSizeId = companionSizeId,
+                                        onCompanionSizeIdChange = { companionSizeId = it },
+                                        companionTypeId = companionTypeId,
+                                        onCompanionTypeIdChange = { companionTypeId = it },
+                                        twentyFootSizeOptions = twentyFootSizeOptions,
+                                    )
                                 } else {
                                     PreForecastCatalogFields(
                                         lookups = l,
@@ -1633,7 +1792,43 @@ fun PreForecastNewScreen(
                                         onSizeIdChange = { sizeId = it },
                                         typeId = typeId,
                                         onTypeIdChange = { typeId = it },
+                                        isTwentyFoot = isTwentyFoot,
+                                        isBackToBack = isBackToBack,
+                                        onBackToBackChange = { isBackToBack = it },
+                                        companionContainerNo = companionContainerNo,
+                                        onCompanionContainerNoChange = { companionContainerNo = it },
+                                        companionSizeId = companionSizeId,
+                                        onCompanionSizeIdChange = { companionSizeId = it },
+                                        companionTypeId = companionTypeId,
+                                        onCompanionTypeIdChange = { companionTypeId = it },
+                                        twentyFootSizeOptions = twentyFootSizeOptions,
                                     )
+                                }
+                            }
+                        }
+
+                        if (isTwentyFoot && isBackToBack && showCatalogFields) {
+                            IcsSectionCard(title = stringResource(R.string.field_container_b)) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    CroEdoLegacyUploadSection(
+                                        fileName = legacyCompanionCroFileName,
+                                        disabled = saving,
+                                        onFileSelected = { uri, name ->
+                                            legacyCompanionCroUri = uri
+                                            legacyCompanionCroFileName = name
+                                            error = null
+                                        },
+                                        onCleared = ::clearLegacyCompanionUpload,
+                                    )
+                                    if (legacyCompanionCroUri == null) {
+                                        IcsGuidanceBanner(
+                                            message = stringResource(R.string.preforecast_legacy_companion_doc_required),
+                                            kind = IcsGuidanceKind.Warning,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1701,6 +1896,7 @@ fun PreForecastNewScreen(
                         scope.launch {
                             runCatching {
                                 val currentLink = croLink
+                                val b2bActive = isTwentyFoot && isBackToBack
                                 val created = repository.createPreAdvice(
                                     CreatePreAdviceRequest(
                                         shippingLineId = shippingLineId,
@@ -1708,21 +1904,55 @@ fun PreForecastNewScreen(
                                         containerSizeId = sizeId,
                                         containerTypeId = typeId,
                                         remarks = remarks.ifBlank { null },
+                                        isBackToBack = b2bActive,
+                                        backToBackCompanionContainerNo = if (b2bActive) {
+                                            companionContainerNo.trim()
+                                        } else {
+                                            null
+                                        },
+                                        backToBackCompanionContainerSizeId = if (b2bActive) companionSizeId else null,
+                                        backToBackCompanionContainerTypeId = if (b2bActive) companionTypeId else null,
                                         croVerificationToken = currentLink?.token,
                                         croLineNo = currentLink?.line?.lineNo,
                                     ),
                                 )
+                                val primaryUnit = if (b2bActive) PreAdviceIdentityUnit.Primary.name else null
                                 when (entryMode) {
                                     PreForecastEntryMode.IcsCro -> {
                                         currentLink?.fileUri?.let { uri ->
                                             runCatching {
-                                                repository.uploadPreAdviceDocument(created.id, uri, "CroEdo", null)
+                                                repository.uploadPreAdviceDocument(
+                                                    created.id,
+                                                    uri,
+                                                    "CroEdo",
+                                                    null,
+                                                    primaryUnit,
+                                                )
                                             }
                                         }
                                     }
                                     PreForecastEntryMode.LegacyManual -> {
                                         legacyCroUri?.let { uri ->
-                                            repository.uploadPreAdviceDocument(created.id, uri, "CroEdo", null)
+                                            repository.uploadPreAdviceDocument(
+                                                created.id,
+                                                uri,
+                                                "CroEdo",
+                                                null,
+                                                primaryUnit,
+                                            )
+                                        }
+                                    }
+                                }
+                                if (b2bActive) {
+                                    legacyCompanionCroUri?.let { uri ->
+                                        runCatching {
+                                            repository.uploadPreAdviceDocument(
+                                                created.id,
+                                                uri,
+                                                "CroEdo",
+                                                null,
+                                                PreAdviceIdentityUnit.Companion.name,
+                                            )
                                         }
                                     }
                                 }
@@ -1788,12 +2018,11 @@ private val CONTAINER_PHOTO_GRID_CATEGORIES = listOf(
     ContainerPhotoCategory("Front", true),
     ContainerPhotoCategory("LeftSideOut", true),
     ContainerPhotoCategory("RightSideOut", true),
+    ContainerPhotoCategory("CscPlate", true),
+    ContainerPhotoCategory("CroEdo", true),
     ContainerPhotoCategory("Others", false),
 )
 private const val DAMAGE_PHOTO_CATEGORY = "Damage"
-private val REQUIRED_PHOTO_CATEGORY_VALUES = CONTAINER_PHOTO_GRID_CATEGORIES
-    .filter { it.required }
-    .map { it.value }
 private data class PhotoProgressCacheEntry(
     val uploadedRequired: Int,
     val updatedAtMs: Long,
@@ -1816,6 +2045,8 @@ internal fun clearPreForecastScreenCache() {
 
 @Composable
 private fun PreForecastPhotosTabContent(
+    identityUnit: PreAdviceIdentityUnit,
+    unitContainerNo: String,
     canManagePhotos: Boolean,
     docsByCategory: Map<String, PreAdviceDocumentDto>,
     pendingPhotos: Map<String, Uri>,
@@ -1837,7 +2068,14 @@ private fun PreForecastPhotosTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(R.string.preforecast_container_photos_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(
+                R.string.preforecast_photos_unit_title,
+                containerUnitRoleLabel(identityUnit, true),
+                unitContainerNo,
+            ),
+            style = MaterialTheme.typography.titleMedium,
+        )
         if (canManagePhotos) {
             Text(
                 stringResource(R.string.preforecast_container_photos_manage_hint),
@@ -1849,11 +2087,12 @@ private fun PreForecastPhotosTabContent(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { category ->
                     val doc = docsByCategory[category.value]
+                    val photoKey = photoMapKey(identityUnit, category.value)
                     ContainerPhotoCard(
                         category = category,
                         document = doc,
-                        pendingUri = pendingPhotos[category.value],
-                        uploadPercent = uploadProgress[category.value],
+                        pendingUri = pendingPhotos[photoKey],
+                        uploadPercent = uploadProgress[photoKey],
                         damageDocument = damageByView[category.value],
                         canManage = canManagePhotos,
                         loading = actionLoading,
@@ -2204,6 +2443,8 @@ private fun containerPhotoLabel(category: String?): String = when (category) {
     "Front" -> stringResource(R.string.container_photo_front)
     "LeftSideOut" -> stringResource(R.string.container_photo_left_side_out)
     "RightSideOut" -> stringResource(R.string.container_photo_right_side_out)
+    "CscPlate" -> stringResource(R.string.container_photo_csc_plate)
+    "CroEdo" -> stringResource(R.string.container_photo_cro_edo)
     "Others" -> stringResource(R.string.container_photo_others)
     else -> category ?: stringResource(R.string.container_photo_generic)
 }

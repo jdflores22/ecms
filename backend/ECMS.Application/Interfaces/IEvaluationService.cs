@@ -24,6 +24,7 @@ public interface IEvaluationService
     Task SetCroFreeTimeAsync(
         int preAdviceId,
         DateOnly freeTimeDate,
+        string? identityUnit,
         int adminId,
         string role,
         CancellationToken cancellationToken = default);

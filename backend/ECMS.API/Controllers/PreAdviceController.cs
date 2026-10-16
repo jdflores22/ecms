@@ -386,6 +386,8 @@ public class PreAdviceController : ControllerBase
 
         [FromForm] string? comment,
 
+        [FromForm] string? identityUnit,
+
         CancellationToken cancellationToken)
 
     {
@@ -399,6 +401,10 @@ public class PreAdviceController : ControllerBase
         if (!ContainerPhotoCatalog.TryParse(category, out var photoCategory))
 
             return BadRequest(new { message = "Photo category is required." });
+
+        if (!PreAdviceIdentityUnits.TryParse(identityUnit, out var documentUnit))
+
+            return BadRequest(new { message = "Invalid identity unit." });
 
 
 
@@ -469,6 +475,8 @@ public class PreAdviceController : ControllerBase
                 file.ContentType,
 
                 file.Length,
+
+                documentUnit,
 
                 cancellationToken);
 

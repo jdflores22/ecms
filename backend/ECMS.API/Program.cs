@@ -86,10 +86,25 @@ builder.Services.PostConfigure<ECMS.Application.Configuration.LogicteckOptions>(
     if (!string.IsNullOrWhiteSpace(envKey))
         options.ApiKey = envKey;
 
+    var icsBase = Environment.GetEnvironmentVariable("LOGICTECK_ICS_BASE_URL")
+        ?? Environment.GetEnvironmentVariable("Logicteck__IcsApiBaseUrl");
+    if (!string.IsNullOrWhiteSpace(icsBase))
+        options.IcsApiBaseUrl = icsBase;
+
     var allocationsUrl = Environment.GetEnvironmentVariable("LOGICTECK_ALLOCATIONS_URL")
         ?? Environment.GetEnvironmentVariable("Logicteck__AllocationsUrl");
     if (!string.IsNullOrWhiteSpace(allocationsUrl))
         options.AllocationsUrl = allocationsUrl;
+
+    var bookingsUrl = Environment.GetEnvironmentVariable("LOGICTECK_BOOKINGS_URL")
+        ?? Environment.GetEnvironmentVariable("Logicteck__BookingsUrl");
+    if (!string.IsNullOrWhiteSpace(bookingsUrl))
+        options.BookingsUrl = bookingsUrl;
+
+    var inventoryUrl = Environment.GetEnvironmentVariable("LOGICTECK_INVENTORY_URL")
+        ?? Environment.GetEnvironmentVariable("Logicteck__InventoryUrl");
+    if (!string.IsNullOrWhiteSpace(inventoryUrl))
+        options.InventoryUrl = inventoryUrl;
 
     var inboundKey = Environment.GetEnvironmentVariable("ICS_INBOUND_API_KEY")
         ?? Environment.GetEnvironmentVariable("Logicteck__IcsInboundApiKey");
@@ -237,6 +252,7 @@ startupLogger.LogInformation(
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
 }
@@ -317,6 +333,7 @@ app.MapGet("/health", (
             publicApiBaseUrl = logicteck.PublicApiBaseUrl,
             bookUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.BookUrl),
             portalUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.PortalUrl),
+            newReturnUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.ResolveNewReturnUrl()),
             emptyReturnUrlConfigured = !string.IsNullOrWhiteSpace(logicteck.EmptyReturnUrl),
         },
         redis = new { configured = !string.IsNullOrWhiteSpace(redis) },

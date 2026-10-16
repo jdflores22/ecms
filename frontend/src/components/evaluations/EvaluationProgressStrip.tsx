@@ -6,6 +6,7 @@ import { Box, Button, Paper, Typography } from '@mui/material'
 import { LOGICTECK_QR } from '../../config/logicteckQr'
 import type { Evaluation, PreAdvice, QrBooking, Schedule } from '../../services/api'
 import { formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { scheduleStatusLabel } from '../../utils/scheduleStatus'
 import {
   formatTruckerScheduleSlot,
   isScheduleDetailsVisible,
@@ -23,6 +24,25 @@ export type EvaluationProgressStep = {
 }
 
 const PENDING_STATUSES = ['Submitted', 'UnderEvaluation']
+
+function scheduleProgressSummary(schedule: Schedule): { detail: string; state: StepState } {
+  const slotDetail = formatTruckerScheduleSlot(schedule, formatScheduleSlot)
+  if (schedule.status === 'NoShow') {
+    return {
+      detail: `No show · ${slotDetail} — contact the depot if you need a new return slot`,
+      state: 'error',
+    }
+  }
+  const statusLabel =
+    schedule.status === 'Confirmed' || schedule.status === 'Completed'
+      ? schedule.status === 'Completed'
+        ? 'Completed'
+        : 'Confirmed'
+      : schedule.status === 'Scheduled'
+        ? 'For Payment'
+        : scheduleStatusLabel(schedule.status)
+  return { detail: `${statusLabel} · ${slotDetail}`, state: 'complete' }
+}
 
 export function buildEvaluationProgressSteps(
   item: PreAdvice,
@@ -115,11 +135,11 @@ export function buildEvaluationProgressSteps(
           : undefined,
       }
     }
-    const slotDetail = formatTruckerScheduleSlot(schedule, formatScheduleSlot)
+    const summary = scheduleProgressSummary(schedule)
     return {
       label: 'Return scheduling',
-      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : schedule.status === 'Scheduled' ? 'For Payment' : 'Scheduled'} · ${slotDetail}`,
-      state: 'complete',
+      detail: summary.detail,
+      state: summary.state,
       action: onOpenSchedule
         ? { label: 'View return schedule', onClick: onOpenSchedule }
         : undefined,
@@ -293,11 +313,11 @@ export function buildPreAdviceProgressSteps(
           : undefined,
       }
     }
-    const slotDetail = formatTruckerScheduleSlot(schedule, formatScheduleSlot)
+    const summary = scheduleProgressSummary(schedule)
     return {
       label: 'Return scheduling',
-      detail: `${schedule.status === 'Confirmed' || schedule.status === 'Completed' ? 'Confirmed' : schedule.status === 'Scheduled' ? 'For Payment' : 'Scheduled'} · ${slotDetail}`,
-      state: 'complete',
+      detail: summary.detail,
+      state: summary.state,
       action: onOpenSchedule
         ? { label: 'View return schedule', onClick: onOpenSchedule }
         : undefined,

@@ -324,6 +324,10 @@ export const preAdviceApi = {
     containerSizeId: number
     containerTypeId: number
     remarks?: string
+    isBackToBack?: boolean
+    backToBackCompanionContainerNo?: string
+    backToBackCompanionContainerSizeId?: number
+    backToBackCompanionContainerTypeId?: number
     croVerificationToken?: string
     croLineNo?: number
   }) => api.post<PreAdvice>('/preforecast', data),
@@ -335,6 +339,10 @@ export const preAdviceApi = {
       containerSizeId: number
       containerTypeId: number
       remarks?: string
+      isBackToBack?: boolean
+      backToBackCompanionContainerNo?: string
+      backToBackCompanionContainerSizeId?: number
+      backToBackCompanionContainerTypeId?: number
     },
   ) => api.put<PreAdvice>(`/preforecast/${id}`, data),
   delete: (id: number) => api.delete(`/preforecast/${id}`),
@@ -348,11 +356,13 @@ export const preAdviceApi = {
     category: string,
     comment?: string,
     onProgress?: (percent: number) => void,
+    identityUnit?: 'Primary' | 'Companion',
   ) => {
     const form = new FormData()
     form.append('file', file)
     form.append('category', category)
     if (comment) form.append('comment', comment)
+    if (identityUnit) form.append('identityUnit', identityUnit)
     return api.post<PreAdviceDocument>(`/preforecast/${id}/documents`, form, {
       onUploadProgress: onProgress
         ? (event) => {
@@ -682,6 +692,7 @@ export const withdrawalApi = {
 export interface PreAdviceDocument {
   id: number
   preAdviceId: number
+  identityUnit?: string | null
   category?: string | null
   categoryLabel?: string | null
   comment?: string | null
@@ -726,8 +737,15 @@ export interface PreAdvice {
   containerType: string
   status: string
   demurrageValidUntil?: string | null
+  backToBackCompanionDemurrageValidUntil?: string | null
   evaluatedAt?: string | null
   remarks?: string | null
+  isBackToBack?: boolean
+  backToBackCompanionContainerNo?: string | null
+  backToBackCompanionContainerSizeId?: number | null
+  backToBackCompanionContainerTypeId?: number | null
+  backToBackCompanionContainerSize?: string | null
+  backToBackCompanionContainerType?: string | null
   croEdoReferenceNo?: string | null
   croEdoContext?: PreAdviceCroEdoContext | null
   createdAt: string
@@ -752,6 +770,8 @@ export interface Evaluation {
   evaluatorName: string
   depotId?: number | null
   depotName?: string | null
+  companionDepotId?: number | null
+  companionDepotName?: string | null
   remarks?: string | null
   status: string
   evaluatedAt: string
@@ -767,6 +787,10 @@ export interface Depot {
   operatingHourEnd: number
   isActive: boolean
   isLogicteck: boolean
+  logicteckIcsBaseUrl?: string | null
+  logicteckAllocationsUrl?: string | null
+  logicteckBookingsUrl?: string | null
+  logicteckInventoryUrl?: string | null
 }
 
 export const evaluationApi = {
@@ -774,23 +798,31 @@ export const evaluationApi = {
   pendingCount: () => api.get<{ count: number }>('/evaluations/pending/count'),
   getByPreAdvice: async (preAdviceId: number): Promise<{ data: Evaluation | null }> => {
     const { data, status } = await api.get<Evaluation>(`/evaluations/by-preforecast/${preAdviceId}`, {
-      validateStatus: (s) => s === 200 || s === 204 || s === 404,
+      validateStatus: (s) => s === 200 || s === 204 || s === 404 || s === 403,
     })
-    if (status === 204 || status === 404) return { data: null }
+    if (status === 204 || status === 404 || status === 403) return { data: null }
     return { data: data ?? null }
   },
   approve: (data: {
     preAdviceId: number
     depotId: number
     demurrageValidUntil: string
+    companionDepotId?: number
     remarks?: string
   }) => api.post<Evaluation>('/evaluations/approve', data),
   reject: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/reject', data),
   returnForCompliance: (data: { preAdviceId: number; remarks: string }) =>
     api.post<Evaluation>('/evaluations/return-for-compliance', data),
-  setCroFreeTime: (preAdviceId: number, freeTimeDate: string) =>
-    api.put(`/evaluations/preforecast/${preAdviceId}/cro-free-time`, { freeTimeDate }),
+  setCroFreeTime: (
+    preAdviceId: number,
+    freeTimeDate: string,
+    identityUnit?: 'Primary' | 'Companion',
+  ) =>
+    api.put(`/evaluations/preforecast/${preAdviceId}/cro-free-time`, {
+      freeTimeDate,
+      identityUnit,
+    }),
 }
 
 export interface CyAllocationBreakdownCell {
@@ -855,6 +887,9 @@ export interface CyAllocationForApproval {
   containerNo: string
   containerSize: string
   allocations: CyAllocation[]
+  isBackToBack?: boolean
+  companionContainerNo?: string | null
+  companionContainerSize?: string | null
 }
 
 export interface LogicteckSizeSnapshot {
@@ -891,6 +926,46 @@ export interface LogicteckCyAllocationFeed {
   lines: LogicteckCyLine[]
 }
 
+export interface LogicteckPagedFeed<T> {
+  yard: string
+  generatedAt: string
+  total: number
+  offset: number
+  limit: number
+  nextOffset: number | null
+  items: T[]
+}
+
+export interface LogicteckBookingRow {
+  id: string
+  reference: string
+  type: string
+  status: string
+  shippingLine: { code: string; fullName: string }
+  blNumber?: string | null
+  containerSize: string
+  containerType: string
+  quantity: number
+  containers: { number: string; status: string }[]
+  date?: string | null
+  timeSlot?: string | null
+  truckingCompany?: string | null
+  plateNumber?: string | null
+  isVerified: boolean
+}
+
+export interface LogicteckInventoryRow {
+  id: string
+  containerNumber: string
+  shippingLine: { code: string; fullName: string }
+  containerSize: string
+  containerType: string
+  teu: number
+  inYard: boolean
+  status: string
+  gateInAt?: string | null
+}
+
 export const cyAllocationApi = {
   list: (shippingLineId?: number) =>
     api.get<CyAllocation[]>('/cy-allocations', {
@@ -909,6 +984,22 @@ export const cyAllocationApi = {
   logicteck: (shippingLineId?: number) =>
     api.get<LogicteckCyAllocationFeed>('/cy-allocations/logicteck', {
       params: shippingLineId ? { shippingLineId } : undefined,
+    }),
+  logicteckBookings: (shippingLineId?: number, offset = 0, limit = 100) =>
+    api.get<LogicteckPagedFeed<LogicteckBookingRow>>('/cy-allocations/logicteck/bookings', {
+      params: { ...(shippingLineId ? { shippingLineId } : {}), offset, limit },
+    }),
+  logicteckInventory: (shippingLineId?: number, offset = 0, limit = 100) =>
+    api.get<LogicteckPagedFeed<LogicteckInventoryRow>>('/cy-allocations/logicteck/inventory', {
+      params: { ...(shippingLineId ? { shippingLineId } : {}), offset, limit },
+    }),
+  logicteckBookingsByDepot: (depotId?: number, offset = 0, limit = 100) =>
+    api.get<LogicteckPagedFeed<LogicteckBookingRow>>('/cy-allocations/by-depot/logicteck/bookings', {
+      params: { ...(depotId ? { depotId } : {}), offset, limit },
+    }),
+  logicteckInventoryByDepot: (depotId?: number, offset = 0, limit = 100) =>
+    api.get<LogicteckPagedFeed<LogicteckInventoryRow>>('/cy-allocations/by-depot/logicteck/inventory', {
+      params: { ...(depotId ? { depotId } : {}), offset, limit },
     }),
   updateContract: (
     contractId: number,
@@ -966,7 +1057,27 @@ export type ContainerDwellCompliance = 'WithinLimit' | 'ApproachingLimit' | 'Ove
 
 export type ContainerYardStatus = 'AtYard' | 'Released'
 
-export type ContainerInventorySource = 'Workflow' | 'Manual'
+export type ContainerInventorySource = 'Workflow' | 'Manual' | 'Logicteck'
+
+export interface ContainerInventoryDetailField {
+  label: string
+  value: string
+}
+
+export interface LogicteckContainerPhoto {
+  url: string
+  label?: string | null
+  category?: string | null
+}
+
+export interface ContainerInventoryDetail {
+  item: ContainerInventoryItem
+  footprintSource: 'ICS' | 'LOGICTECK'
+  photoFootprintSource: 'ICS' | 'LOGICTECK'
+  icsPhotos: PreAdviceDocument[]
+  logicteckPhotos: LogicteckContainerPhoto[]
+  extraFields: ContainerInventoryDetailField[]
+}
 
 export interface ContainerInventoryItem {
   scheduleId: number | null
@@ -1097,6 +1208,14 @@ export const containerInventoryApi = {
     { entries },
   ),
   deleteManual: (id: number) => api.delete(`/container-inventory/manual/${id}`),
+  detail: (params: {
+    source: string
+    scheduleId?: number
+    manualEntryId?: number
+    containerNo?: string
+    depotId?: number
+    shippingLineId?: number
+  }) => api.get<ContainerInventoryDetail>('/container-inventory/detail', { params }),
 }
 
 export interface ShippingLineDepotContractSize {
@@ -1144,6 +1263,10 @@ export const depotApi = {
     operatingHourStart: number
     operatingHourEnd: number
     isLogicteck: boolean
+    logicteckIcsBaseUrl?: string | null
+    logicteckAllocationsUrl?: string | null
+    logicteckBookingsUrl?: string | null
+    logicteckInventoryUrl?: string | null
   }) => api.post<Depot>('/depots', data),
   update: (
     id: number,
@@ -1156,6 +1279,10 @@ export const depotApi = {
       operatingHourEnd: number
       isActive: boolean
       isLogicteck: boolean
+      logicteckIcsBaseUrl?: string | null
+      logicteckAllocationsUrl?: string | null
+      logicteckBookingsUrl?: string | null
+      logicteckInventoryUrl?: string | null
     },
   ) => api.put<Depot>(`/depots/${id}`, data),
   deactivate: (id: number) => api.delete(`/depots/${id}`),
@@ -1171,12 +1298,14 @@ export interface ShippingLine {
   name: string
   code: string
   isActive: boolean
+  logicteckFeedCode?: string | null
 }
 
 export const shippingLineApi = {
   list: () => api.get<ShippingLine[]>('/shipping-lines'),
-  create: (data: { name: string; code: string }) => api.post<ShippingLine>('/shipping-lines', data),
-  update: (id: number, data: { name: string; code: string; isActive: boolean }) =>
+  create: (data: { name: string; code: string; logicteckFeedCode?: string | null }) =>
+    api.post<ShippingLine>('/shipping-lines', data),
+  update: (id: number, data: { name: string; code: string; isActive: boolean; logicteckFeedCode?: string | null }) =>
     api.put<ShippingLine>(`/shipping-lines/${id}`, data),
   deactivate: (id: number) => api.delete(`/shipping-lines/${id}`),
 }
@@ -1368,6 +1497,10 @@ export interface QrBooking {
     scheduleTime: string
     trucker: string
     validateUrl?: string | null
+    preAdviceReference?: string | null
+    isBackToBack?: boolean
+    primaryContainerNo?: string | null
+    companionContainerNo?: string | null
   }
   generatedAt: string
   isUsed: boolean
@@ -1915,6 +2048,12 @@ export const qrApi = {
   confirmationPdfUrl: (bookingId: number) =>
     resolveAssetUrl(`/api/qr/confirmation-pdf/${bookingId}`),
   bookLogicteck: (bookingId: number) => api.post<BookLogicteckResponse>(`/qr/${bookingId}/book-logicteck`),
+  logicteckHandoff: () =>
+    api.get<{
+      newReturnBaseUrl: string
+      icsRefQueryParam: string
+      pushTransferAvailable: boolean
+    }>('/qr/logicteck-handoff'),
 }
 
 export const logicteckApi = {

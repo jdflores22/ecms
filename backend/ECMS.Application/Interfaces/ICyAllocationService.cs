@@ -27,6 +27,7 @@ public interface ICyAllocationService
         int depotId,
         int userId,
         string role,
+        string? containerSizeForUnit = null,
         CancellationToken cancellationToken = default);
 
     Task<CyAllocationDto> UpdateContractAsync(
@@ -44,6 +45,38 @@ public interface ICyAllocationService
 
     Task<LogicteckCyAllocationFeedDto> GetLogicteckFeedForDepotAsync(
         int? depotId,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<LogicteckPagedFeedDto<LogicteckBookingRowDto>> GetLogicteckBookingsFeedAsync(
+        int? shippingLineId,
+        int offset,
+        int limit,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<LogicteckPagedFeedDto<LogicteckInventoryRowDto>> GetLogicteckInventoryFeedAsync(
+        int? shippingLineId,
+        int offset,
+        int limit,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<LogicteckPagedFeedDto<LogicteckBookingRowDto>> GetLogicteckBookingsFeedForDepotAsync(
+        int? depotId,
+        int offset,
+        int limit,
+        int userId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<LogicteckPagedFeedDto<LogicteckInventoryRowDto>> GetLogicteckInventoryFeedForDepotAsync(
+        int? depotId,
+        int offset,
+        int limit,
         int userId,
         string role,
         CancellationToken cancellationToken = default);

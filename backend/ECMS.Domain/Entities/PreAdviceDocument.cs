@@ -6,6 +6,7 @@ namespace ECMS.Domain.Entities;
 public class PreAdviceDocument : BaseEntity
 {
     public int PreAdviceId { get; set; }
+    public PreAdviceIdentityUnit IdentityUnit { get; set; } = PreAdviceIdentityUnit.Primary;
     public ContainerPhotoCategory? Category { get; set; }
     public string? Comment { get; set; }
     public string FileName { get; set; } = string.Empty;

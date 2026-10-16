@@ -35,6 +35,7 @@ public interface IPreAdviceService
         string filePath,
         string contentType,
         long fileSize,
+        PreAdviceIdentityUnit identityUnit = PreAdviceIdentityUnit.Primary,
         CancellationToken cancellationToken = default);
     Task<bool> DeleteDocumentAsync(int preAdviceId, int documentId, int userId, string role, CancellationToken cancellationToken = default);
 }

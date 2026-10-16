@@ -43,9 +43,16 @@ fun getPreAdviceListStatus(item: PreAdviceDto): StatusBadgeStyle {
 }
 
 enum class LogicteckQrStatus(val label: String) {
-    ReadyToSend("Ready to send"),
+    ReadyToBook("Book with LOGICTECK"),
     Booked("Booked on LOGICTECK"),
     Retrieved("Retrieved"),
+}
+
+private fun isLogicteckActiveRaw(raw: String?): Boolean {
+    val value = raw?.trim() ?: return true
+    return value.equals("Available", true) ||
+        value.equals("Ready to send", true) ||
+        value.equals(LogicteckQrStatus.ReadyToBook.label, true)
 }
 
 fun qrLogicteckStatusFromPreAdvice(item: PreAdviceDto): LogicteckQrStatus? {
@@ -60,7 +67,8 @@ fun logicteckStatusFromRaw(raw: String?): LogicteckQrStatus {
     return when {
         raw.equals("Retrieved", true) || raw.equals("Used", true) -> LogicteckQrStatus.Retrieved
         raw.equals("Booked", true) || raw.equals("Booked on LOGICTECK", true) -> LogicteckQrStatus.Booked
-        else -> LogicteckQrStatus.ReadyToSend
+        isLogicteckActiveRaw(raw) -> LogicteckQrStatus.ReadyToBook
+        else -> LogicteckQrStatus.ReadyToBook
     }
 }
 
@@ -71,7 +79,7 @@ fun logicteckStatusFromBooking(booking: QrBookingDto): LogicteckQrStatus {
     if (!booking.logicteckBookedAt.isNullOrBlank() || booking.logicteckStatus.equals("Booked", true)) {
         return LogicteckQrStatus.Booked
     }
-    return LogicteckQrStatus.ReadyToSend
+    return LogicteckQrStatus.ReadyToBook
 }
 
 fun canBookLogicteck(booking: QrBookingDto?): Boolean =

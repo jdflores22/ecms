@@ -1,3 +1,5 @@
+using ECMS.Application.DTOs.PreAdvice;
+
 namespace ECMS.Application.DTOs.ContainerInventory;
 
 public record ContainerInventoryResponseDto(
@@ -103,6 +105,23 @@ public record ManualYardInventoryBulkError(
 public record BulkCreateManualYardInventoryResponse(
     int SuccessCount,
     IReadOnlyList<ManualYardInventoryBulkError> Errors);
+
+/// <summary>ICS = ICS workflow/manual footprint; LOGICTECK = yard feed identity.</summary>
+public record LogicteckContainerPhotoDto(
+    string Url,
+    string? Label,
+    string? Category);
+
+public record ContainerInventoryDetailDto(
+    ContainerInventoryItemDto Item,
+    string FootprintSource,
+    /// <summary>ICS = pre-forecast uploads; LOGICTECK = yard feed photo API.</summary>
+    string PhotoFootprintSource,
+    IReadOnlyList<PreAdviceDocumentDto> IcsPhotos,
+    IReadOnlyList<LogicteckContainerPhotoDto> LogicteckPhotos,
+    IReadOnlyList<ContainerInventoryDetailFieldDto> ExtraFields);
+
+public record ContainerInventoryDetailFieldDto(string Label, string Value);
 
 public record ManualYardInventoryEntryDto(
     int Id,

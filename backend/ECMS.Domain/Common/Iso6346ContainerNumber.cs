@@ -56,4 +56,24 @@ public static class Iso6346ContainerNumber
             return "Invalid container number (ISO 6346 check digit or format).";
         return null;
     }
+
+    /// <summary>Builds a valid 11-character number from a 10-character prefix (4 letters + 6 digits).</summary>
+    public static string WithCheckDigit(string ownerCodeAndSerial)
+    {
+        var normalized = Normalize(ownerCodeAndSerial);
+        if (normalized.Length != 10 || !System.Text.RegularExpressions.Regex.IsMatch(normalized, "^[A-Z]{4}\\d{6}$"))
+            throw new ArgumentException("Prefix must be 4 letters followed by 6 digits.", nameof(ownerCodeAndSerial));
+
+        var sum = 0;
+        for (var i = 0; i < 10; i++)
+        {
+            var ch = normalized[i];
+            var n = ch is >= 'A' and <= 'Z' ? LetterValues[ch - 'A'] : ch - '0';
+            sum += n * (1 << i);
+        }
+
+        var check = sum % 11;
+        var expected = check == 10 ? 0 : check;
+        return normalized + expected;
+    }
 }

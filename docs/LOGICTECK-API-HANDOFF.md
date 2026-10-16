@@ -69,11 +69,11 @@ X-Logicteck-Api-Key: {your-key}
 **Success (200)** includes:
 
 - All lookup fields (`isBooked`, `isRetrieved`, container, depot, schedule, …)
-- `preAdvice` — reference, status, trucker, line, container size/type, remarks
+- `preAdvice` — reference, status, trucker, line, container size/type, remarks, **`isBackToBack`** with companion **`backToBackCompanionContainerNo`**, **`backToBackCompanionContainerSize`**, **`backToBackCompanionContainerType`** (second 20ft to the same yard)
 - `schedule` — depot, slot, status
 - `qrBooking` — ICS reference, status, `qrImageBase64` (PNG data URL)
 - `documents[]` — each photo with `categoryLabel`, `url` (full URL on ICS API), `comment` for damage
-- **8 required views** (Flooring, sides, front/back, back door) plus **optional `Others`** when the trucker uploads extra photos — `Others` is never required for submit
+- **8 required views** (Flooring, sides, front/back, back door), **required `CscPlate`** (CSC plate photo), plus **optional `Others`** when the trucker uploads extra photos
 
 **Example document entry:**
 
@@ -115,7 +115,9 @@ X-Logicteck-Api-Key: {your-key}
     "icsQrBookingId": 7,
     "lookupUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018",
     "dossierUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/booking/ICS-202600018/dossier",
-    "validateUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/validate-qr"
+    "validateUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/validate-qr",
+    "ackBookingUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/ack-booking",
+    "callbackUrl": "https://ecms-production-42be.up.railway.app/api/logicteck/callback"
   }
 }
 ```
@@ -125,7 +127,7 @@ X-Logicteck-Api-Key: {your-key}
 | `transferLink` | **Permanent connection** — save on your booking; reuse URLs every time |
 | `transferLink.transferReference` | Same as `bookingReference` — your external ICS key |
 | `transferLink.icsTruckerName` | Trucker name from ICS (text only — not a LOGICTECK user ID) |
-| `transferLink.lookupUrl` / `dossierUrl` / `validateUrl` | Ready-made endpoints — no URL construction needed |
+| `transferLink.lookupUrl` / `dossierUrl` / `validateUrl` / `ackBookingUrl` | Ready-made endpoints — no URL construction needed |
 
 **Dossier responses include the same `transferLink` block.**
 
@@ -133,14 +135,54 @@ X-Logicteck-Api-Key: {your-key}
 |-------|------------------------|
 | `bookingReference` | ICS transfer ID — store as external link |
 | `preAdviceReference` | ICS pre-forecast number |
-| `isBooked` | Trucker sent data to LOGICTECK from ICS (`true` after ICS transfer) |
+| `isBooked` | LOGICTECK confirmed the empty return on your side (`true` after **ack-booking**, or legacy ICS push to `BookUrl`) |
 | `isRetrieved` | Gate validated in ICS (`true` after validate call) |
 
 **Not found (404):** invalid or unpublished reference.
 
 **Unauthorized (401):** missing or wrong API key.
 
-### 3. Validate at gate (one-time)
+### 3. Acknowledge booking (after trucker confirms on LOGICTECK)
+
+ICS does **not** create the empty-return booking. The trucker opens LOGICTECK (e.g. **new return**), ICS data is loaded via **dossier**, and the user clicks **Confirm** on LOGICTECK. Then your backend calls:
+
+```http
+POST https://ecms-production-42be.up.railway.app/api/logicteck/ack-booking
+Content-Type: application/json
+X-Logicteck-Api-Key: {your-key}
+
+{
+  "qrCode": "ICS-202600018",
+  "reference": "YOUR-LOGICTECK-BOOKING-ID"
+}
+```
+
+**Success (200):**
+
+```json
+{
+  "accepted": true,
+  "duplicate": false,
+  "message": "Booking acknowledged on ICS.",
+  "bookingReference": "ICS-202600018",
+  "externalReference": "YOUR-LOGICTECK-BOOKING-ID",
+  "isBooked": true
+}
+```
+
+After this, lookup/dossier return `isBooked: true`. Gate flow is unchanged (**validate-qr**).
+
+### 4. Trucker deep link (ICS UI)
+
+ICS opens LOGICTECK with the transfer reference in the query string (config: `Logicteck:NewReturnUrl`, `Logicteck:IcsRefQueryParam`, default `icsRef`):
+
+```text
+https://logicteck-cy--logicteck-cy-playground.asia-southeast1.hosted.app/dashboard/bookings/new-return?icsRef=ICS-202600018
+```
+
+On page load, read `icsRef`, call **dossier** server-side, pre-fill the form, and let the user confirm. No ICS login on LOGICTECK is required for Phase 1.
+
+### 5. Validate at gate (one-time)
 
 Marks QR as **Retrieved** in ICS. Call only when container passes gate.
 
@@ -150,9 +192,12 @@ Content-Type: application/json
 X-Logicteck-Api-Key: {your-key}
 
 {
-  "qrCode": "ICS-202600018"
+  "qrCode": "ICS-202600018",
+  "containerNo": "ABCD1234567"
 }
 ```
+
+For **back-to-back** pre-forecasts (two 20 ft containers, **one** ICS transfer reference / QR image), send the **same** `qrCode` on each gate scan and set `containerNo` to the unit being checked. ICS marks the QR **retrieved** only after **both** containers validate. Use `GET .../dossier` for `isBackToBack`, companion container, and photos — not a second QR reference.
 
 **First successful scan (200):**
 
@@ -184,9 +229,9 @@ X-Logicteck-Api-Key: {your-key}
 
 ## Optional: ICS pushes data to LOGICTECK (outbound)
 
-When the transfer QR is **published** (payment verified), ICS can **automatically POST** transfer data to your URL (`Logicteck:BookUrl`). Trucker **Send to LOGICTECK** in ICS does the same if not already sent.
+**Recommended:** pull-only — trucker opens LOGICTECK **new-return** with `?icsRef=…`, you load **dossier**, user confirms, then **ack-booking**. Keep `Logicteck:AutoTransferOnQrPublish` **`false`**.
 
-Set `Logicteck:AutoTransferOnQrPublish` to `false` on ICS if you prefer pull-only (lookup/dossier).
+**Optional legacy push:** when the transfer QR is published, ICS can POST to `Logicteck:BookUrl` if `AutoTransferOnQrPublish` is `true`. The old trucker **book-logicteck** API still pushes to `BookUrl` when configured.
 
 ```json
 {
@@ -234,20 +279,21 @@ Respond with:
 
 ### Standalone test page (outside ICS app)
 
-No ICS account needed. Open in any browser:
+No ICS account needed. Full walkthrough (dossier → **ack-booking** → validate): **[LOGICTECK-INTEGRATION.md](./LOGICTECK-INTEGRATION.md#logicteck-api-test-harness-logicteck-testhtml)**.
 
 | Environment | URL |
 |-------------|-----|
+| **Local** | [http://localhost:5173/logicteck-test.html](http://localhost:5173/logicteck-test.html) |
+| **Local with ref** | `http://localhost:5173/logicteck-test.html?icsRef=ICS-202600018` |
 | **Production** | https://deepskyblue-marten-415020.hostingersite.com/logicteck-test.html |
-| **Local** | http://localhost:5173/logicteck-test.html |
 
 Enter:
 
-1. ICS API base URL → `https://ecms-production-42be.up.railway.app`
-2. API key → (from ICS admin)
+1. ICS API base URL → `http://localhost:5275` (local) or production API URL
+2. API key → (from ICS admin / `Logicteck:ApiKey`)
 3. ICS reference → e.g. `ICS-202600018`
 
-Click **Lookup** or **Validate gate**.
+Use **Load transfer dossier**, **POST ack-booking**, then **Simulate depot gate QR check**.
 
 ### curl (Postman)
 
@@ -295,16 +341,19 @@ Trucker identity is **text from ICS** (`icsTruckerName`, `icsTruckerUsername`) �
 ## Flow summary
 
 ```
-ICS (approved pre-forecast) → transfer QR / reference ICS-202600018
+ICS (payment verified) → transfer QR / reference ICS-202600018
          │
          ▼
-LOGICTECK operator enters reference OR scans QR
+Trucker: Open LOGICTECK (new-return?icsRef=ICS-…) from ICS QR tab
          │
          ▼
-GET /api/logicteck/booking/{reference}  →  pre-fill empty return form
+LOGICTECK server: GET /api/logicteck/booking/{ref}/dossier  →  pre-fill form
          │
          ▼
-LOGICTECK creates booking on YOUR system
+Trucker confirms booking on LOGICTECK UI
+         │
+         ▼
+LOGICTECK server: POST /api/logicteck/ack-booking  →  ICS isBooked = true
          │
          ▼
 Gate: POST /api/logicteck/validate-qr  →  ICS marks Retrieved

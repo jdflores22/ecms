@@ -58,7 +58,10 @@ public record CyAllocationForApprovalDto(
     string ReferenceNo,
     string ContainerNo,
     string ContainerSize,
-    IReadOnlyList<CyAllocationDto> Allocations);
+    IReadOnlyList<CyAllocationDto> Allocations,
+    bool IsBackToBack = false,
+    string? CompanionContainerNo = null,
+    string? CompanionContainerSize = null);
 
 public record ShippingLineDepotContractSizeDto(
     int ContainerSizeId,
