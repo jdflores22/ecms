@@ -6,6 +6,7 @@
 **/publish/
 frontend/ecms-dist.tgz
 scripts/.hostinger-deploy-manifest.json
+scripts/tools/plink.exe
 android-trucker/app/build/
 
 # IDE

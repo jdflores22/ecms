@@ -136,9 +136,18 @@ function Invoke-DeployRemote {
         }
 
         if ($script:DeployAuthMode -eq 'password') {
-            $plink = Get-Command plink.exe -ErrorAction Stop
+            $plinkExe = $null
+            if (Get-Command plink.exe -ErrorAction SilentlyContinue) {
+                $plinkExe = (Get-Command plink.exe).Source
+            } else {
+                $bundled = Join-Path (Split-Path $PSScriptRoot -Parent) 'scripts\tools\plink.exe'
+                if (Test-Path -LiteralPath $bundled) { $plinkExe = $bundled }
+            }
+            if (-not $plinkExe) {
+                throw 'plink.exe not found. Install PuTTY or run scripts/tools fetch (see deploy docs).'
+            }
             $args = @('-batch', '-P', $Config.SshPort, '-pw', $script:DeploySshPassword) + (Get-DeployHostKeyArg -Config $Config) + @($target, $Command)
-            & $plink.Source @args
+            & $plinkExe @args
         } elseif (Get-Command ssh.exe -ErrorAction SilentlyContinue) {
             $sshArgs = @(
                 '-p', $Config.SshPort,
