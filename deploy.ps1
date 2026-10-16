@@ -123,16 +123,17 @@ if ($UseScp) {
 Write-Host ''
 
 if (-not $SkipGitPush) {
-    $dirty = git status --porcelain
+    $repoSafe = $PSScriptRoot.Replace('\', '/')
+    $dirty = git -c "safe.directory=$repoSafe" -C $PSScriptRoot status --porcelain
     if ($dirty) {
         Write-Host 'Warning: uncommitted local changes will NOT reach the remote API until you commit and push.' -ForegroundColor Yellow
         $dirty | ForEach-Object { Write-Host ("  {0}" -f $_) -ForegroundColor DarkYellow }
         Write-Host ''
     }
 
-    $branch = if ($config.GitBranch) { $config.GitBranch } else { git rev-parse --abbrev-ref HEAD }
+    $branch = if ($config.GitBranch) { $config.GitBranch } else { git -c "safe.directory=$repoSafe" -C $PSScriptRoot rev-parse --abbrev-ref HEAD }
     Write-Host ("Pushing {0} to origin..." -f $branch) -ForegroundColor Cyan
-    git push origin $branch
+    git -c "safe.directory=$repoSafe" -C $PSScriptRoot push origin $branch
     if ($LASTEXITCODE -ne 0) {
         throw 'git push failed'
     }

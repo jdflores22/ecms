@@ -394,7 +394,8 @@ function Publish-HostingerGitBranch {
     $staging = Join-Path $env:TEMP ("ecms-hostinger-git-" + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $staging -Force | Out-Null
 
-    $originUrl = (& git -C $RepoRoot remote get-url origin).Trim()
+    $repoSafe = (Resolve-Path -LiteralPath $RepoRoot).Path.Replace('\', '/')
+    $originUrl = (& git -c "safe.directory=$repoSafe" -C $RepoRoot remote get-url origin).Trim()
     if ([string]::IsNullOrWhiteSpace($originUrl)) {
         throw 'git remote origin is not set'
     }
