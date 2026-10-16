@@ -22,11 +22,7 @@ import {
 
   Tabs,
 
-  Typography,
-
 } from '@mui/material'
-
-import DownloadIcon from '@mui/icons-material/Download'
 
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined'
 
@@ -35,8 +31,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined'
-
-import PrintIcon from '@mui/icons-material/Print'
 
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined'
 
@@ -47,7 +41,6 @@ import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-rout
 import BookingQrPreviewDialog from '../../components/qr/BookingQrPreviewDialog'
 import ReturnDetailTabPanels, { type ReturnDetailTab } from '../../components/trucker/ReturnDetailTabPanels'
 import AssetImage from '../../components/layout/AssetImage'
-import { QrImageSkeleton } from '../../components/layout/SkeletonPrimitives'
 
 import ReturnJourneyStrip, { buildReturnJourneySteps } from '../../components/trucker/ReturnJourneyStrip'
 
@@ -65,17 +58,11 @@ import {
 
   ICS_PRIMARY,
 
-  InfoTile,
-
   PhotoProgressChip,
 
   TimezoneChip,
 
   detailTabsSx,
-
-  hexToRgba,
-
-  infoGridSx,
 
   sectionPaperSx,
 
@@ -83,7 +70,7 @@ import {
 
 import { REQUIRED_CONTAINER_PHOTO_CATEGORIES } from '../../config/containerPhotoCategories'
 
-import { LOGICTECK_QR, qrLookupStatusColor, qrLookupStatusLabel } from '../../config/logicteckQr'
+import { LOGICTECK_QR } from '../../config/logicteckQr'
 
 import {
 
@@ -113,7 +100,7 @@ import { isTruckerOrBroker } from '../../config/roleConfig'
 import { useAppSelector } from '../../store/hooks'
 
 import { useAssetUrl } from '../../hooks/useAssetUrl'
-import { formatArrivalWindow, formatDateTime, formatScheduleSlot } from '../../utils/datetime'
+import { formatArrivalWindow, formatScheduleSlot } from '../../utils/datetime'
 import {
   isScheduleDetailsVisible,
   truckerScheduleStatusHint,

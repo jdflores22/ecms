@@ -95,7 +95,6 @@ import {
 import { store } from '../../store'
 import { useAppSelector } from '../../store/hooks'
 import { formatDate, formatScheduleSlot } from '../../utils/datetime'
-import { formatContainerSizeLabel } from '../../utils/containerSize'
 import { formatCySizeOptionLabel, getSizeMetrics } from '../../utils/cyAllocation'
 import PreAdviceCroEdoContextPanel from '../../components/preAdvice/PreAdviceCroEdoContextPanel'
 import {
