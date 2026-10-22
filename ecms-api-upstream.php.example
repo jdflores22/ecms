@@ -1,0 +1,4 @@
+<?php
+// Copy to ecms-api-upstream.php on Hostinger (gitignored in deploy). No trailing slash.
+// Olive VPS (HTTP — PHP on Hostinger calls the VPS server-side):
+return 'http://201.18.216.37';

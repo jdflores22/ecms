@@ -1,0 +1,1 @@
+function o(e,i=50){const n=[];for(const t of e)if(t.hasQrBooking&&(n.push(t.id),n.length>=i))break;return n}function c(e,i){if(i.length===0)return e;const n=new Map(i.map(t=>[t.preAdviceId,t.logicteckStatus]));return e.map(t=>{const r=n.get(t.id);return r===void 0?t:{...t,logicteckStatus:r}})}export{c as a,o as p};
