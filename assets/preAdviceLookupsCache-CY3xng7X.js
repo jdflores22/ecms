@@ -1,0 +1,1 @@
+import{B as o}from"./index-Bf89POoQ.js";const i=600*1e3;let n=null,e=null;function s(l=!1){const r=Date.now();return!l&&n&&r<n.expiresAt?Promise.resolve(n.data):(!l&&e||(e=o.lookups().then(({data:t})=>(n={data:t,expiresAt:Date.now()+i},t)).finally(()=>{e=null})),e)}function c(){n=null,e=null}export{c,s as f};
