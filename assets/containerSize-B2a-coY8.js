@@ -1,0 +1,1 @@
+function a(t){return t.trim().replace(/'+$/u,"")}function o(t,r){const n=a(r),e=/ft$/i.test(n)?n:`${n}ft`;return`${t} (${e})`}function i(t,r,n){const e=a(r);return`${t} (${e} ${n})`}export{a,i as b,o as f};

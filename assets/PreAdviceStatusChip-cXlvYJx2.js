@@ -1,0 +1,1 @@
+import{c as a}from"./vendor-DgJxFEWT.js";import{g as e,l as r}from"./scheduleStatus-SS7txlfe.js";import{C as o}from"./mui-BfJPjY2a.js";function n({status:s,scheduleStatus:i}){const t=e({status:s,scheduleStatus:i});return a.jsx(o,{label:t.label,size:"small",variant:"outlined",sx:r(t)})}export{n as P};
